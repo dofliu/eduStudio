@@ -21,24 +21,29 @@ PIPELINE = Path(__file__).parent / "pipeline.py"
 
 def problem_to_v0_json(exam_title: str, prob: dict) -> dict:
     """把 v1 的 problem 轉成 v0 pipeline 吃的格式"""
-    return {
+    v0_dict = {
         "title": f"{exam_title} — {prob['number']}",
         "subtitle": prob["problem"][:30] + ("..." if len(prob["problem"]) > 30 else ""),
         "problem": prob["problem"],
         "steps": prob["steps"],
     }
+    if "image" in prob:
+        v0_dict["image"] = prob["image"]
+    return v0_dict
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("exam_json", help="v1 exam.json 路徑")
     ap.add_argument("output_dir", nargs="?", default="./videos",
-                    help="輸出目錄 (預設 ./videos)")
+                    help="輸出根目錄 (預設 ./videos),實際寫到 <output_dir>/<exam_stem>/")
     ap.add_argument("--only", nargs="+", help="只跑特定題目 id,例如 --only q1 q3")
+    ap.add_argument("--step", type=int, help="從第幾個步驟(0-indexed)開始重新渲染(僅用於 --only 單題時)")
     args = ap.parse_args()
 
     exam_path = Path(args.exam_json)
-    out_dir = Path(args.output_dir)
+    # 各考卷獨立 subfolder,避免多份 exam 都有 q1.mp4 會互相覆蓋
+    out_dir = Path(args.output_dir) / exam_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data = json.loads(exam_path.read_text(encoding="utf-8"))
@@ -53,6 +58,7 @@ def main():
         sys.exit(f"❌ 找不到 v0 pipeline: {PIPELINE}")
 
     results = []
+    exam_stem = exam_path.stem  # 用考卷檔名當 work/output 的命名空間, 避免跨考卷串檔
     for i, prob in enumerate(problems):
         pid = prob["id"]
         v0_json_path = out_dir / f"{pid}.json"
@@ -61,17 +67,20 @@ def main():
             json.dumps(v0_data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-        out_name = str(out_dir / pid)
-        print(f"\n[{i+1}/{len(problems)}] 處理 {pid}: {prob['number']}")
+        # pipeline 的 out_name 用「考卷__題號」避免不同考卷的 q1 撞檔
+        unique_name = f"{exam_stem}__{pid}"
+        print(f"\n[{i+1}/{len(problems)}] 處理 {pid}: {prob['number']}  (work: {unique_name})")
         try:
-            subprocess.run(
-                [sys.executable, str(PIPELINE), str(v0_json_path.resolve()), pid],
-                check=True,
-            )
-            # pipeline.py 輸出到 output/ 目錄，搬到 out_dir
+            cmd = [sys.executable, str(PIPELINE), str(v0_json_path.resolve()), unique_name]
+            if args.step is not None and len(problems) == 1:
+                # pipeline.py 內部的 --step 是 1-indexed (第 1 步開始)
+                cmd += ["--step", str(args.step + 1)]
+
+            subprocess.run(cmd, check=True)
+            # pipeline.py 輸出到 output/<unique_name>.mp4, 搬到 videos/<exam_stem>/<pid>.mp4
             pipeline_out = Path(__file__).parent / "output"
-            src_mp4 = pipeline_out / f"{pid}.mp4"
-            src_srt = pipeline_out / f"{pid}.srt"
+            src_mp4 = pipeline_out / f"{unique_name}.mp4"
+            src_srt = pipeline_out / f"{unique_name}.srt"
             dst_mp4 = out_dir / f"{pid}.mp4"
             dst_srt = out_dir / f"{pid}.srt"
             if src_mp4.exists():

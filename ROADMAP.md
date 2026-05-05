@@ -66,6 +66,18 @@
 
 ---
 
+## v1.7 — 簡報講解影片擴充(規劃中)
+
+把同一條 pipeline 擴展到吃簡報 PDF,輸出投影片講解影片。共用 TTS / SRT / Web UI / 批次合成。
+
+- 抽象 `Renderer` 基類,黑板模式變其中一種實作
+- 新增 `SlideRenderer`(A1 純講解 / A2 半疊加兩種 layout)
+- 新增 `slide_ingest.py`:PDF → PyMuPDF 出圖 → Gemini Vision 產 narration
+- Schema 由 `steps` 升級為 `scenes`(向後相容舊 exam.json)
+- 五階段實作,詳見 [plan_slidevideo.md](plan_slidevideo.md)
+
+---
+
 ## v1.5 候選(短期,優先序待決定)
 
 **接下來三個月內有機會做完的事。**

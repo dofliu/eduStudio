@@ -12,69 +12,58 @@
 
 ## 🔴 高優先
 
-### 影片時長與內容深度 (2026-05-06)
-- [ ] **簡報講解影片時長提升到 ~15 分鐘**
-  - 現況: 8 章 × 5 頁 × ~45s = 3:44, 太短
-  - 方向 1: narration 從 50~120 字 → 200~300 字, 多舉例 / 解釋原理
-  - 方向 2: chapter 從 3~15 頁 → 8~15 頁, 章節數縮小 (37 頁原本切 8 章, 改切 4~5 章)
-  - 同步要看:過長的 narration 會不會品質下降 (Gemini 提早 stop 或胡謅)
-  - 加 `--brief` flag 保留原本短版選項
-
 ### 實戰驗證
 - [ ] **跑一份真正剛考完的期中考 PDF 完整流程**
   - 上傳 → 解析 → 逐題 review → 渲染 → 聽 3 支輸出
   - 紀錄:哪些 step Gemini 寫錯、哪些發音不準、哪些版面卡到
-  - 這份「真實錯誤清單」是後續優化依據
+- [ ] **完整跑一支 13~19 分鐘簡報影片驗證**
+  - exams/第8章_教學簡報_火影風_擴充版.json 已 ingest 好,挑 ch1 渲染聽
+  - 觀察:長影片有沒有累積誤差(SRT 偏移、TTS 變調)、F5 還是 edge 比較適合長片
 
-### Bug / 小修
-- [x] **確認 CLI `python app.py <不存在的檔案>` 有友善錯誤**
-  - 目前 `argparse` + 手動 `sys.exit`,但剛做完 exam_json 改 optional,要確認 error path
-- [x] **`/upload` 上傳超大 PDF(> 20 MB)會不會卡 Flask?**
-  - Flask 預設沒檔案大小限制,加了 `MAX_CONTENT_LENGTH`
+### Phase 4 split-left layout (2026-05-07)
+- [ ] **`SlideRenderer` 加 layout="split-left"**
+  - 投影片縮到左半,右半當黑板區疊累積式 step
+  - 用途:解題型投影片,讓 step-by-step 解答跟原投影片並陳
+  - 詳見 plan_slidevideo.md Phase 4
 
-### 效率
-- [x] **單步驟重生成按鈕**(ROADMAP v1.5)
-  - 影響最大的效率提升,列為下一個 milestone 首選
-  - 需要:pipeline 支援只做 TTS + concat 某一個 clip,不要整題重跑
+### F5 品質
+- [ ] **F5 mid-word 切點問題**(2026-05-06)
+  - 「處理與應用」被切成「處」+「理與應用」, F5 內部 batch 不顧中文詞邊界
+  - 治本: 預切句邏輯 — 在 F5TTS class 裡用標點先切短段, 逐段 infer 後 concat
+  - 預期能根除大部分中-中切錯;不解中文-英文切換的口音漂移
+- [ ] **F5 中國腔仍明顯**(F5 base model 訓練資料偏向)
+  - 短期可調 cfg_strength 拉更高試, 過高會 over-fit
+  - 中期: 試 GPT-SoVITS 等其他台灣腔友善的 model
+  - 長期: 自己 fine-tune 一份台灣腔 checkpoint
 
 ---
 
 ## 🟡 中優先
 
-### 聲音品質
-- [ ] **F5-TTS 穩定化實驗**
-  - 準備 3 支不同品質的 ref 音檔(自錄 / YouTube / 播客)
-  - 各跑同一段 gen_text,比較幻覺程度
-  - 找出 ref 品質 → 輸出穩定度的關係,寫進 README
-- [ ] **錄音腳本工具**:`tools/record_ref_script.py`
-  - 產生一份適合當 F5 ref 的朗讀腳本(10~12 秒、抑揚頓挫)
-  - 你錄完直接放 voices/
-
-### 內容深度
-- [ ] **觀察 Gemini 輸出的 step 數實際分布**
-  - 現在 prompt 要 20~30 步但看到 22~24
-  - 要不要調 prompt 說「至少 25 步」?或是別管,這樣就夠了?
+### Gemini / narration
+- [ ] **截斷率仍 22%**(2026-05-07)
+  - 三段式 retry + truncate 之後仍然有 22% 頁面 narration 不完整
+  - 候選: 換 Gemini 2.5 Pro (更穩但慢且貴) 跑詳盡模式;或加第 4 次 retry
 - [ ] **Pronunciation map 缺漏收集**
   - 跑幾份考卷後列出 F5 / Edge 念錯的字,補進 `pronunciation.json`
   - 候選未加但可能需要:`-` → `減`(注意 `-1` 是負一不是減一)、`×10⁶` 念法
 
+### 聲音品質
+- [ ] **錄音腳本工具**:`tools/record_ref_script.py`
+  - 產生一份適合當 F5 ref 的朗讀腳本(10~12 秒、抑揚頓挫)
+  - 你錄完直接放 voices/
+
 ### UI / UX
-- [x] **Library 頁加刪除按鈕**
-  - 現在只能看、不能管理,刪舊影片要去檔案總管
-  - 加個「🗑 刪除這份考卷的全部影片」,含確認對話框
-- [x] **Exam 列表加刪除**
-  - 對 exam JSON 本身操作 (重新命名暫緩, 刪除已實做)
 - [ ] **考卷列表上傳 PDF 後的預覽**
   - Gemini 解完直接進編輯頁有點突兀
   - 或許中間插一個「這是辨識結果,check 一下」的概覽頁?
+- [ ] **上傳審查頁的描述自動帶時間軸**(plan_youtube_agent.md 提到)
+  - 依 step durations 算累積時間, 自動產 YouTube 時間軸 chapter
+- [ ] **上傳審查頁加 SRT 重新生成預覽**(若用戶手動編了 narration 後)
 
 ### 渲染細節
 - [ ] **`display` 超長會 overflow?**
   - 步驟文字現在有換行但字型大, 2 行還 OK, 3 行以上可能溢出
-  - 需要: 動態縮字或警告
-- [x] **Subtitle 段落底色**
-  - 目前底部留白給字幕但黑色背景沒對比
-  - 在 `render_frame` 加了半透明黑底條
 
 ---
 
@@ -82,13 +71,13 @@
 
 ### 新功能
 - [ ] **字幕燒進影片選項**(ROADMAP v1.5)
-- [x] **Publish 工作流**:自動上傳 YouTube(2026-05-06, publish.py + UI 整合完成)
 - [ ] **Email 通知**:批次渲染完成寄信給自己
-- [ ] **包成 Claude Code skill**(2026-05-06)
+- [ ] **包成 Claude Code skill**(2026-05-06,留 v2.2)
   - `pdf-to-video` skill: PDF → JSON → 暫停 review → render
   - `video-to-youtube` skill: 已 review JSON → publish.py
   - 設計考量:強制 review 點(配合硬規則「AI 數值要人工 review」)
-  - 全自動模式靠 `--auto` flag 啟動,給 mock 測試/快速 demo 用
+- [ ] **v2.1 ideate.py**(plan_youtube_agent.md)
+  - 掃 watched_folders → Gemini 分析 → proposals.json → app.py 列企劃
 
 ### 技術債
 - [ ] **`pipeline.py` 拆檔**(800+ 行)
@@ -121,6 +110,12 @@
 
 搬到 ROADMAP 的 v1.x 去。這裡只保留最近 1~2 週的。
 
+- [x] 2026-05-07 narration 長度收斂(prompt 三輪迭代 + 3 段式 retry + truncate 兜底)
+- [x] 2026-05-07 F5 暴露 cfg_strength / cross_fade_duration / nfe_step
+- [x] 2026-05-07 ζ / ω_n 改念概念名(避中-英切換 + 中國腔)
+- [x] 2026-05-07 pronunciation map 套用層下移到 tts_backend(原本只在 pipeline 套, tts_compare 跳過)
+- [x] 2026-05-06 v2.0 publish.py CLI + UI 整合(YouTube 上傳通道)
+- [x] 2026-05-06 v1.7 Phase 1+2+3+5(簡報講解影片擴充)
 - [x] 2026-04-22 批次 / 網頁管理介面(`/exams` / `/upload` / `/switch` / `/library`)
 - [x] 2026-04-22 影片 per-exam subfolder
 - [x] 2026-04-22 Web UI 聲音選單 + 試聽

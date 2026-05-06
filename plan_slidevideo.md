@@ -1,5 +1,8 @@
 # 任務:擴充為「簡報講解影片」生成器(slide-video 模式)
 
+> **狀態 (2026-05-07)**:Phase 1, 2, 3, 5 已完成並驗證,Phase 4 (split-left) 待做。
+> 詳見 ROADMAP.md v1.7 段落。
+
 ## 背景
 
 現行系統只吃考卷 PDF → 黑板風格解題影片。要擴充成同一條 pipeline 也能吃簡報 PDF,輸出投影片講解影片。
@@ -59,7 +62,7 @@
 
 每階段都能獨立驗證,不會「全做完才能測」。
 
-### Phase 1 — Renderer 抽象 + scenes schema(純重構)
+### Phase 1 — Renderer 抽象 + scenes schema(純重構)✅ done (commit 82c1649)
 
 - `pipeline.py` 抽出 `Renderer` 基類(介面:`render(scene, ctx) -> PIL.Image`)
 - 現行 `render_frame` 包成 `BlackboardRenderer`
@@ -68,7 +71,7 @@
 - **回歸測試關卡**:跑一份既有 `exam.json`,輸出 MP4 與 refactor 前比對
 - 不動 Web UI、不動 TTS 層
 
-### Phase 2 — PDF 簡報 ingestion
+### Phase 2 — PDF 簡報 ingestion ✅ done (commit 8fb665d, 745ba46 改進長度控制)
 
 - 新增 `slide_ingest.py`
 - PDF → PNG(PyMuPDF,渲染到 1920px 寬,約 150~200 DPI)→ 存 `slides/<stem>/p01.png` ...
@@ -76,7 +79,7 @@
 - 輸出 `exams/<stem>.json`(扁平 `scenes`,`bg_type:"slide"`,`layout:"full"`)
 - CLI:`python slide_ingest.py <pdf>`,加 `--mock` 模式產佔位 narration
 
-### Phase 3 — SlideRenderer A1(純講解)
+### Phase 3 — SlideRenderer A1(純講解)✅ done (commit 8fb665d)
 
 - 新增 `SlideRenderer`,`layout:"full"` 路徑
 - 讀 `bg_image` → 置中 letterbox 1920×1080(補黑邊)
@@ -84,14 +87,14 @@
 - 不疊 `display`
 - 驗證:跑一份簡單簡報 PDF end-to-end
 
-### Phase 4 — SlideRenderer A2(半疊加)
+### Phase 4 — SlideRenderer A2(半疊加)⏳ 待做
 
 - `layout:"split-left"`:投影片縮到左半,右半當黑板區
 - 右半渲染累積式 step,沿用 BlackboardRenderer 的累積邏輯
 - 同一 scene 的 `overlay[]` 顯示在右側
 - 驗證:混合「概念頁 + 解題頁」的 PDF
 
-### Phase 5 — Web UI
+### Phase 5 — Web UI ✅ done (commit 796955b)
 
 - `app.py` scene-level 編輯
 - 背景類型 radio:`blackboard / slide-full / slide-split`

@@ -66,15 +66,78 @@
 
 ---
 
-## v1.7 — 簡報講解影片擴充(規劃中)
+## v1.7 — 簡報講解影片擴充(2026-05 完成 Phase 1, 2, 3, 5)
 
-把同一條 pipeline 擴展到吃簡報 PDF,輸出投影片講解影片。共用 TTS / SRT / Web UI / 批次合成。
+把同一條 pipeline 擴展到吃簡報 PDF,輸出投影片講解影片。共用 TTS / SRT / Web UI / 批次合成。詳細階段規劃見 [plan_slidevideo.md](plan_slidevideo.md)。
 
-- 抽象 `Renderer` 基類,黑板模式變其中一種實作
-- 新增 `SlideRenderer`(A1 純講解 / A2 半疊加兩種 layout)
-- 新增 `slide_ingest.py`:PDF → PyMuPDF 出圖 → Gemini Vision 產 narration
-- Schema 由 `steps` 升級為 `scenes`(向後相容舊 exam.json)
-- 五階段實作,詳見 [plan_slidevideo.md](plan_slidevideo.md)
+### 1.7.0 — Phase 1 Renderer 抽象(commit 82c1649)
+- [x] `pipeline.py` 抽 `Renderer` 基類,`BlackboardRenderer` 包現有邏輯
+- [x] `_RENDERERS` registry + dispatcher,依 `step.bg_type` 派發
+- [x] 既有 exam.json 完全相容(無 `bg_type` → 預設 blackboard)
+- [x] 回歸測試:跑 q3 (22 步) 輸出格式跟 v1.6 一致
+
+### 1.7.1 — Phase 2 PDF 簡報 ingestion(commit 8fb665d)
+- [x] `slide_ingest.py`:PDF → 1920px 寬 PNG (PyMuPDF, DPI=200) → `slides/<stem>/`
+- [x] Gemini 章節切分:全頁縮圖 (640px) Pass 1 切章
+- [x] 逐頁 narration 生成 (Pass 2),帶章節 context + 前頁銜接
+- [x] CLI:`--mock` / `--single` / `--force` (預設不覆蓋既有 JSON)
+
+### 1.7.2 — Phase 3 SlideRenderer A1 純講解(commit 8fb665d)
+- [x] 投影片 letterbox-fit 到 1920×1080
+- [x] 底部 180px 黑帶與 BlackboardRenderer 對齊
+- [x] `_resolve_asset` 處理相對 / 絕對路徑
+- [x] bg_image 不存在時純黑底 fallback
+
+### 1.7.3 — Phase 5 Web UI 整合(commit 796955b)
+- [x] `/upload` 加類型 radio (考卷 / 簡報) → 派發 solve.py / slide_ingest.py
+- [x] 編輯頁顯示投影片縮圖 + layout 標示
+- [x] `/slide_image/<stem>/<filename>` 縮圖路由 (path traversal 防護)
+- [x] Library YouTube 欄位 + 上傳審查頁
+
+### 1.7.4 — narration 長度收斂(commit 745ba46)
+- [x] 詳盡 prompt 寫 200~250 字,目標每章 ~15 分鐘
+- [x] 3 段式 retry:純 prompt → 強調完整 → 餵 partial 要 Gemini 續寫
+- [x] `_truncate_at_sentence` post-process 兜底,超 320 字找最近句點切
+- [x] 實測 37 頁簡報 → 4 章 13~19 分鐘均勻分布
+
+### 1.7.5 — Phase 4 split-left layout(待做)
+- [ ] `SlideRenderer` 加 `layout:"split-left"`(投影片左半 + 右半累積式 step)
+- [ ] 同一 scene 的 `overlay[]` 顯示在右側
+- 用途:解題型投影片,讓 step-by-step 解答跟原投影片並陳
+
+---
+
+## v2.0 — YouTube 上傳通道(2026-05 完成)
+
+詳見 [plan_youtube_agent.md](plan_youtube_agent.md) v2.0 段落。
+
+### publish.py CLI(commit a6aa08f)
+- [x] OAuth 2.0 flow:首次跳瀏覽器,token 存 `youtube_token.json`
+- [x] `client_secret*.json` 自動 glob,不必改名
+- [x] Resumable upload (4 MB chunk) + 進度顯示
+- [x] SRT 同檔名自動偵測,`captions.insert` 走 zh-TW
+- [x] `--out-json` 輸出結果給 app.py / 自動化使用
+
+### Web UI 整合(commit 796955b)
+- [x] Library 影片旁 📺 按鈕 → 上傳審查頁 (`/upload_review/<stem>/<pid>`)
+- [x] 嵌入 video player + 預填標題說明 + 隱私 radio
+- [x] 上傳結果寫回 `exam.json` 的 `youtube` 欄位
+- [x] Library 顯示 YouTube badge(unlisted / public / 連結)
+- [x] `/youtube_status` 輪詢端點供進度頁
+
+---
+
+## v2.x — 待續
+
+### v2.1 — 自動內容企劃(`ideate.py`)
+- 掃 watched_folders → Gemini 分析 PDF → 產 `proposals.json`
+- app.py 加 `/proposals` 列企劃並核准
+- 詳見 [plan_youtube_agent.md](plan_youtube_agent.md) v2.1
+
+### v2.2 — Claude Code skill 包裝
+- `pdf-to-video` skill:PDF → JSON → 暫停 review → render
+- `video-to-youtube` skill:已 review 的 JSON → publish.py
+- 強制 review 點(配合「AI 數值要人工 review」硬規則)
 
 ---
 
@@ -105,11 +168,10 @@
 - 每題的 steps 可帶 `image` 欄位動態切圖(v1.6 已支援 schema)
 - **優先度:中**(風能 / 材料力學類課程需要)
 
-### 發布工作流
-- `publish.py`:批次上傳 YouTube(yt-dlp 反向、或 YouTube Data API)
-- 自動標題、描述、標籤、縮圖
-- 可能 Moodle 上傳也整合
-- **優先度:低**(手動上傳還 OK)
+### 發布工作流(已實作為 v2.0,見上方段落)
+- ~~`publish.py`:批次上傳 YouTube~~ ✓ 2026-05
+- ~~自動標題、描述、標籤~~ ✓ Web UI 上傳審查頁
+- 縮圖、Moodle 整合、頻道描述自動帶時間軸 → 待續
 
 ---
 

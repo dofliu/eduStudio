@@ -41,30 +41,11 @@ PAUSE_AFTER_EACH = 0.6
 BASE_DIR = Path(__file__).parent
 WORK_DIR = BASE_DIR / "work"
 OUTPUT_DIR = BASE_DIR / "output"
-PRONUNCIATION_MAP_PATH = BASE_DIR / "pronunciation.json"
 PIPELINE_CONFIG_PATH = BASE_DIR / "pipeline_config.json"
 
-# ---------- 前處理 ----------
-_PRONUNCIATION_MAP = None
-
-def _load_pronunciation_map():
-    global _PRONUNCIATION_MAP
-    if _PRONUNCIATION_MAP is None:
-        if PRONUNCIATION_MAP_PATH.exists():
-            raw = json.loads(PRONUNCIATION_MAP_PATH.read_text(encoding="utf-8"))
-            _PRONUNCIATION_MAP = sorted([(k, v) for k, v in raw.items() if not k.startswith("_")], key=lambda x: -len(x[0]))
-        else: _PRONUNCIATION_MAP = []
-    return _PRONUNCIATION_MAP
-
-def normalize_for_tts(text):
-    text = re.sub(r"([\w\d]+|\([^()]+\))\s*/\s*\(([^()]+)\)", lambda m: f"{m.group(2)} 分之 {m.group(1).strip('()')}", text)
-    text = re.sub(r"\(([^()]+)\)\s*/\s*([A-Za-z_]\w*|\d+)", lambda m: f"{m.group(2)} 分之 {m.group(1)}", text)
-    mapping = {"0":"零","1":"一","2":"二","3":"三","4":"四","5":"五","6":"六","7":"七","8":"八","9":"九"}
-    text = re.sub(r"([FPxyzuvQT])(\d+)", lambda m: f"{m.group(1)} {''.join(mapping.get(c,c) for c in m.group(2))}", text)
-    for src, dst in _load_pronunciation_map(): text = text.replace(src, f" {dst} ")
-    return re.sub(r"\s+", " ", text).strip()
-
 # ---------- TTS ----------
+# pronunciation.json 套用、分數展開、變數下標等前處理已下移到 tts_backend.py 的
+# normalize_text(), 由 backend.synthesize() 自動套用。pipeline.py 只管編排。
 _TTS_BACKEND = None
 def _get_tts_backend():
     global _TTS_BACKEND
@@ -72,7 +53,6 @@ def _get_tts_backend():
     return _TTS_BACKEND
 
 async def gen_tts(text, out_path):
-    text = normalize_for_tts(text)
     if not await _get_tts_backend().synthesize(text, out_path):
         raise RuntimeError(f"TTS Failed: {text[:50]}")
 

@@ -16,12 +16,68 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 
 
 CONFIG_PATH = Path(__file__).parent / "tts_config.json"
+PRONUNCIATION_MAP_PATH = Path(__file__).parent / "pronunciation.json"
+
+
+# ---------- 文字正規化 (套 pronunciation.json + 分數/下標展開) ----------
+# 為什麼放在 backend 層: 任何 backend 都該套發音對照, 不是只有走 pipeline.py 的路徑。
+# tts_compare、未來其他 caller 都自動受惠, 不會像舊版只有 pipeline 套到。
+_PRONUNCIATION_MAP_CACHE: list[tuple[str, str]] | None = None
+
+
+def _load_pronunciation_map() -> list[tuple[str, str]]:
+    global _PRONUNCIATION_MAP_CACHE
+    if _PRONUNCIATION_MAP_CACHE is None:
+        if PRONUNCIATION_MAP_PATH.exists():
+            raw = json.loads(PRONUNCIATION_MAP_PATH.read_text(encoding="utf-8"))
+            # longest-first 比對, 避免 ω_n 被 ω 提前吃掉
+            _PRONUNCIATION_MAP_CACHE = sorted(
+                [(k, v) for k, v in raw.items() if not k.startswith("_")],
+                key=lambda x: -len(x[0]),
+            )
+        else:
+            _PRONUNCIATION_MAP_CACHE = []
+    return _PRONUNCIATION_MAP_CACHE
+
+
+def normalize_text(text: str) -> str:
+    """進 TTS 前的標準前處理: 分數展開、變數下標、發音對照、空白清理。
+
+    所有 backend 的 synthesize 都會自動先過這個函式, 確保 pronunciation.json
+    在每個入口都生效。
+    """
+    if not text:
+        return ""
+    # 分數: (a)/(b) → b 分之 a
+    text = re.sub(
+        r"([\w\d]+|\([^()]+\))\s*/\s*\(([^()]+)\)",
+        lambda m: f"{m.group(2)} 分之 {m.group(1).strip('()')}",
+        text,
+    )
+    text = re.sub(
+        r"\(([^()]+)\)\s*/\s*([A-Za-z_]\w*|\d+)",
+        lambda m: f"{m.group(2)} 分之 {m.group(1)}",
+        text,
+    )
+    # 變數下標: F1, P12 → F 一, P 一二 (避免 TTS 念錯)
+    digit_map = {"0": "零", "1": "一", "2": "二", "3": "三", "4": "四",
+                 "5": "五", "6": "六", "7": "七", "8": "八", "9": "九"}
+    text = re.sub(
+        r"([FPxyzuvQT])(\d+)",
+        lambda m: f"{m.group(1)} {''.join(digit_map.get(c, c) for c in m.group(2))}",
+        text,
+    )
+    # 發音對照: longest-match 替換, 前後補空白避免黏字
+    for src, dst in _load_pronunciation_map():
+        text = text.replace(src, f" {dst} ")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 # ---------- 抽象介面 ----------
@@ -30,7 +86,8 @@ class TTSBackend(ABC):
 
     @abstractmethod
     async def synthesize(self, text: str, out_path: Path) -> bool:
-        """產生 mp3 到 out_path,成功回 True,失敗回 False(不 raise)"""
+        """產生 mp3 到 out_path,成功回 True,失敗回 False(不 raise)。
+        實作層應在最開頭呼叫 `text = normalize_text(text)` 套發音對照。"""
 
 
 # ---------- Edge TTS (雲端) ----------
@@ -42,6 +99,7 @@ class EdgeTTS(TTSBackend):
         self.rate = rate
 
     async def synthesize(self, text: str, out_path: Path) -> bool:
+        text = normalize_text(text)
         try:
             import edge_tts  # lazy import
             await edge_tts.Communicate(text, self.voice, rate=self.rate).save(str(out_path))
@@ -88,6 +146,7 @@ class F5TTS(TTSBackend):
         self._api = F5API(model=self.model)
 
     async def synthesize(self, text: str, out_path: Path) -> bool:
+        text = normalize_text(text)
         try:
             self._lazy_init()
             # F5 是同步 API,丟到 thread pool 不阻塞 asyncio

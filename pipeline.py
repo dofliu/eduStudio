@@ -274,7 +274,38 @@ class BlackboardRenderer(Renderer):
         _overlay_teacher_photo(img); img.save(out_p, "PNG")
 
 
-_RENDERERS = {"blackboard": BlackboardRenderer()}
+def _resolve_asset(rel_or_abs: str) -> Path:
+    p = Path(rel_or_abs)
+    return p if p.is_absolute() else BASE_DIR / p
+
+
+class SlideRenderer(Renderer):
+    # layout="full": 投影片 letterbox-fit 到 1920×1080,
+    # 底部保留 180px 黑帶讓 SRT 字幕區與黑板模式視覺一致。
+    def render(self, data, step_idx, out_p, q_work):
+        step = data["steps"][step_idx - 1]
+        canvas = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
+
+        bg_rel = step.get("bg_image", "")
+        bg_path = _resolve_asset(bg_rel) if bg_rel else None
+        if bg_path and bg_path.exists():
+            slide = Image.open(bg_path).convert("RGB")
+            ratio = min(WIDTH / slide.width, HEIGHT / slide.height)
+            sw, sh = max(1, int(slide.width * ratio)), max(1, int(slide.height * ratio))
+            slide = slide.resize((sw, sh), Image.LANCZOS)
+            canvas.paste(slide, ((WIDTH - sw) // 2, (HEIGHT - sh) // 2))
+            print(f"[frame {step_idx:03d}] 🖼 slide: {bg_path.name} ({sw}x{sh})")
+        else:
+            print(f"[frame {step_idx:03d}] ⚠ slide 找不到: {bg_rel!r} (純黑底 fallback)")
+
+        # 字幕區黑帶, 與 BlackboardRenderer 對齊
+        draw = ImageDraw.Draw(canvas)
+        draw.rectangle([0, HEIGHT - 180, WIDTH, HEIGHT], fill=(0, 0, 0))
+        _overlay_teacher_photo(canvas)
+        canvas.save(out_p, "PNG")
+
+
+_RENDERERS = {"blackboard": BlackboardRenderer(), "slide": SlideRenderer()}
 
 
 def render_frame(data, step_idx, out_p, q_work):

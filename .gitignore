@@ -13,6 +13,16 @@ photos/*.jpeg
 # 上傳的 PDF 可能含版權考題,不追蹤
 pdfs
 
+# slide_ingest.py 渲染出來的 PNG 可重生成,不追蹤(避免 repo 膨脹)
+slides
+
+# Gemini 錯誤調試輸出
+gemini_error_*.txt
+
+# OAuth 憑證 (publish.py 會用到)
+client_secret*.json
+youtube_token.json
+
 # Python / Claude 快取
 __pycache__/
 *.pyc

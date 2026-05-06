@@ -193,77 +193,97 @@ def _overlay_teacher_photo(img):
     except: pass
 
 # ---------- 渲染與合成 ----------
-def render_frame(data, step_idx, out_p, q_work):
-    img = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR); draw = ImageDraw.Draw(img)
-    for i in range(8): draw.rectangle([i, i, WIDTH-1-i, HEIGHT-1-i], outline=BORDER_COLOR)
-    # 字體大小:縮小 30~35% 騰出空間給更多步驟與更大的 SVG
-    title_f, prob_f, step_f = _get_font(FONT_PATH, 22), _get_font(FONT_PATH, 40), _get_font(FONT_PATH, 46)
-    PROB_LH, STEP_LH = 52, 56  # 行高配合字體縮小
-    STEP_Y_MAX = HEIGHT - 180
-    draw.rectangle([0, STEP_Y_MAX, WIDTH, HEIGHT], fill=(0, 0, 0, 180))
-    y = draw_text_wrapped(draw, (60, 20), data.get("title", ""), title_f, CHALK_TITLE, WIDTH-160, 28)
-    y = draw_text_wrapped(draw, (60, y), data.get("subtitle", ""), title_f, CHALK_TITLE, WIDTH-160, 28)
-    sep_y = draw_text_wrapped(draw, (100, y+15), data["problem"], prob_f, CHALK_PROBLEM, WIDTH-200, PROB_LH) + 15
-    draw.line([(80, sep_y), (WIDTH-80, sep_y)], fill=CHALK_TITLE, width=2)
-    steps = data["steps"][:step_idx]
+# Renderer 基類:Phase 1 引入,為了 v1.7 簡報講解模式鋪路。
+# 每個 step 由 step.get("bg_type") 決定走哪個 Renderer,預設 "blackboard"。
+class Renderer:
+    def render(self, data, step_idx, out_p, q_work):
+        raise NotImplementedError
 
-    # 先找出最新的視覺元素 (svg / image), 兩個 pass 分開避免 break 吃掉前面的 svg
-    svg_code, svg_from_step, img_show = None, -1, None
-    for idx in range(len(steps)-1, -1, -1):
-        if steps[idx].get("diagram_svg"):
-            svg_code = steps[idx]["diagram_svg"]; svg_from_step = idx; break
-    if not svg_code:
+
+class BlackboardRenderer(Renderer):
+    def render(self, data, step_idx, out_p, q_work):
+        img = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR); draw = ImageDraw.Draw(img)
+        for i in range(8): draw.rectangle([i, i, WIDTH-1-i, HEIGHT-1-i], outline=BORDER_COLOR)
+        # 字體大小:縮小 30~35% 騰出空間給更多步驟與更大的 SVG
+        title_f, prob_f, step_f = _get_font(FONT_PATH, 22), _get_font(FONT_PATH, 40), _get_font(FONT_PATH, 46)
+        PROB_LH, STEP_LH = 52, 56  # 行高配合字體縮小
+        STEP_Y_MAX = HEIGHT - 180
+        draw.rectangle([0, STEP_Y_MAX, WIDTH, HEIGHT], fill=(0, 0, 0, 180))
+        y = draw_text_wrapped(draw, (60, 20), data.get("title", ""), title_f, CHALK_TITLE, WIDTH-160, 28)
+        y = draw_text_wrapped(draw, (60, y), data.get("subtitle", ""), title_f, CHALK_TITLE, WIDTH-160, 28)
+        sep_y = draw_text_wrapped(draw, (100, y+15), data["problem"], prob_f, CHALK_PROBLEM, WIDTH-200, PROB_LH) + 15
+        draw.line([(80, sep_y), (WIDTH-80, sep_y)], fill=CHALK_TITLE, width=2)
+        steps = data["steps"][:step_idx]
+
+        # 先找出最新的視覺元素 (svg / image), 兩個 pass 分開避免 break 吃掉前面的 svg
+        svg_code, svg_from_step, img_show = None, -1, None
         for idx in range(len(steps)-1, -1, -1):
-            if steps[idx].get("image"):
-                img_show = steps[idx]["image"]; break
-    if not svg_code and not img_show:
-        img_show = data.get("image")
-
-    # SVG 觸發狀態日誌 (協助你看 pipeline 到底有沒有抓到)
-    total_svg = sum(1 for s in data["steps"] if s.get("diagram_svg"))
-    if svg_code:
-        print(f"[frame {step_idx:03d}] ✅ SVG from step {svg_from_step+1} (整題 {total_svg} 個 SVG)")
-    elif img_show:
-        print(f"[frame {step_idx:03d}] 🖼  image: {img_show}")
-    else:
-        print(f"[frame {step_idx:03d}] ⚪ no visual (整題 {total_svg} 個 SVG, 本步之前無)")
-
-    # 若有視覺元素, 步驟文字限縮在左 55%, 讓右側 45% 給圖形獨用
-    has_visual = bool(svg_code or img_show)
-    step_max_w = int(WIDTH * 0.55) - 100 if has_visual else WIDTH - 300
-
-    h_list = [max(1, len(wrap_text(s.get("display", ""), step_f, step_max_w)))*STEP_LH+24 for s in steps]
-    vis, used, cur_y = [], 0, sep_y+30
-    for i in range(len(steps)-1, -1, -1):
-        if used + h_list[i] > (STEP_Y_MAX - cur_y) and vis: break
-        vis.insert(0, i); used += h_list[i]
-    for i in vis:
-        c = CHALK_HIGHLIGHT if i==len(steps)-1 else CHALK_WHITE
-        draw_text_mixed(draw, (80, cur_y), f"{i+1}.", step_f, c)
-        cur_y = draw_text_wrapped(draw, (140, cur_y), steps[i].get("display", ""), step_f, c, step_max_w, STEP_LH) + 24
-
-    if svg_code:
-        try:
-            import cairosvg
-            tmp = q_work / f"svg_{step_idx:03d}.png"
-            cairosvg.svg2png(bytestring=svg_code.encode("utf-8"), write_to=str(tmp), scale=3.0)
-            img_show = str(tmp)
-            print(f"[frame {step_idx:03d}] 🎨 cairosvg -> {tmp.name}")
-        except Exception as e:
-            import traceback
-            print(f"SVG Error: {e}"); traceback.print_exc()
-    if img_show and Path(img_show).exists():
-        # 右側獨立區塊: 佔 WIDTH 的 40%, 垂直居中於題目線下方到字幕區之間
-        col_x0 = int(WIDTH * 0.58)
-        col_w = WIDTH - col_x0 - 60
-        col_h = STEP_Y_MAX - (sep_y + 40)
-        p_img = Image.open(img_show); p_img.thumbnail((col_w, col_h))
-        px = col_x0 + (col_w - p_img.width) // 2
-        py = sep_y + 40 + (col_h - p_img.height) // 2
+            if steps[idx].get("diagram_svg"):
+                svg_code = steps[idx]["diagram_svg"]; svg_from_step = idx; break
         if not svg_code:
-            draw.rectangle([px-10, py-10, px+p_img.width+10, py+p_img.height+10], fill="white", outline=CHALK_WHITE, width=4)
-        img.paste(p_img, (px, py), mask=p_img.convert("RGBA").split()[-1] if p_img.mode in ("RGBA","LA") else None)
-    _overlay_teacher_photo(img); img.save(out_p, "PNG")
+            for idx in range(len(steps)-1, -1, -1):
+                if steps[idx].get("image"):
+                    img_show = steps[idx]["image"]; break
+        if not svg_code and not img_show:
+            img_show = data.get("image")
+
+        # SVG 觸發狀態日誌 (協助你看 pipeline 到底有沒有抓到)
+        total_svg = sum(1 for s in data["steps"] if s.get("diagram_svg"))
+        if svg_code:
+            print(f"[frame {step_idx:03d}] ✅ SVG from step {svg_from_step+1} (整題 {total_svg} 個 SVG)")
+        elif img_show:
+            print(f"[frame {step_idx:03d}] 🖼  image: {img_show}")
+        else:
+            print(f"[frame {step_idx:03d}] ⚪ no visual (整題 {total_svg} 個 SVG, 本步之前無)")
+
+        # 若有視覺元素, 步驟文字限縮在左 55%, 讓右側 45% 給圖形獨用
+        has_visual = bool(svg_code or img_show)
+        step_max_w = int(WIDTH * 0.55) - 100 if has_visual else WIDTH - 300
+
+        h_list = [max(1, len(wrap_text(s.get("display", ""), step_f, step_max_w)))*STEP_LH+24 for s in steps]
+        vis, used, cur_y = [], 0, sep_y+30
+        for i in range(len(steps)-1, -1, -1):
+            if used + h_list[i] > (STEP_Y_MAX - cur_y) and vis: break
+            vis.insert(0, i); used += h_list[i]
+        for i in vis:
+            c = CHALK_HIGHLIGHT if i==len(steps)-1 else CHALK_WHITE
+            draw_text_mixed(draw, (80, cur_y), f"{i+1}.", step_f, c)
+            cur_y = draw_text_wrapped(draw, (140, cur_y), steps[i].get("display", ""), step_f, c, step_max_w, STEP_LH) + 24
+
+        if svg_code:
+            try:
+                import cairosvg
+                tmp = q_work / f"svg_{step_idx:03d}.png"
+                cairosvg.svg2png(bytestring=svg_code.encode("utf-8"), write_to=str(tmp), scale=3.0)
+                img_show = str(tmp)
+                print(f"[frame {step_idx:03d}] 🎨 cairosvg -> {tmp.name}")
+            except Exception as e:
+                import traceback
+                print(f"SVG Error: {e}"); traceback.print_exc()
+        if img_show and Path(img_show).exists():
+            # 右側獨立區塊: 佔 WIDTH 的 40%, 垂直居中於題目線下方到字幕區之間
+            col_x0 = int(WIDTH * 0.58)
+            col_w = WIDTH - col_x0 - 60
+            col_h = STEP_Y_MAX - (sep_y + 40)
+            p_img = Image.open(img_show); p_img.thumbnail((col_w, col_h))
+            px = col_x0 + (col_w - p_img.width) // 2
+            py = sep_y + 40 + (col_h - p_img.height) // 2
+            if not svg_code:
+                draw.rectangle([px-10, py-10, px+p_img.width+10, py+p_img.height+10], fill="white", outline=CHALK_WHITE, width=4)
+            img.paste(p_img, (px, py), mask=p_img.convert("RGBA").split()[-1] if p_img.mode in ("RGBA","LA") else None)
+        _overlay_teacher_photo(img); img.save(out_p, "PNG")
+
+
+_RENDERERS = {"blackboard": BlackboardRenderer()}
+
+
+def render_frame(data, step_idx, out_p, q_work):
+    step = data["steps"][step_idx - 1]
+    bg_type = step.get("bg_type", "blackboard")
+    renderer = _RENDERERS.get(bg_type)
+    if renderer is None:
+        raise ValueError(f"未知的 bg_type: {bg_type!r} (step {step_idx})")
+    renderer.render(data, step_idx, out_p, q_work)
 
 def build_clip(f_p, a_p, dur, out_p, q_work):
     cfg = _get_pipeline_config(); dyn, sfx = cfg.get("dynamic_avatar",{}), cfg.get("chalk_sfx",{})

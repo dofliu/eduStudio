@@ -121,15 +121,28 @@ class F5TTS(TTSBackend):
         remove_silence: bool = True,
         speed: float = 1.0,
         lead_trim_sec: float = 0.3,
+        cfg_strength: float = 2.0,
+        cross_fade_duration: float = 0.15,
+        nfe_step: int = 32,
     ):
-        """speed = 1.0 原速,<1 變慢,>1 變快
-        lead_trim_sec = 每段輸出最前面砍掉的秒數 (F5 偶爾會洩漏 ref audio 前緣)"""
+        """F5 hyper-params 對應的可調效應:
+        - speed:        1.0 原速 (<1 慢, >1 快)
+        - lead_trim_sec: 每段輸出最前面砍掉的秒數 (F5 偶爾洩漏 ref 前緣)
+        - cfg_strength:  Classifier-free guidance 強度 (預設 2)。提高可拉近 ref 口音,
+                         過高會出現 over-fit artifact
+        - cross_fade_duration: 內部 batch 邊界 cross-fade 秒數 (預設 0.15)。
+                         提高可平滑斷句, 但 batch 切點本身的位置不變
+        - nfe_step:      Number of function evaluations (預設 32, 越高品質越好但更慢)
+        """
         self.ref_audio = ref_audio
         self.ref_text = ref_text
         self.model = model
         self.remove_silence = remove_silence
         self.speed = speed
         self.lead_trim_sec = lead_trim_sec
+        self.cfg_strength = cfg_strength
+        self.cross_fade_duration = cross_fade_duration
+        self.nfe_step = nfe_step
         self._api = None
 
     def _lazy_init(self):
@@ -159,6 +172,9 @@ class F5TTS(TTSBackend):
                 file_wave=str(wav_path),
                 remove_silence=self.remove_silence,
                 speed=self.speed,
+                cfg_strength=self.cfg_strength,
+                cross_fade_duration=self.cross_fade_duration,
+                nfe_step=self.nfe_step,
             )
             # 下游 pipeline 吃 mp3;順便砍掉前 lead_trim_sec 秒的 ref 洩漏
             ff = ["ffmpeg", "-y", "-loglevel", "error"]
@@ -220,6 +236,9 @@ def load_tts_backend(config_path: Path | None = None) -> TTSBackend:
             remove_silence=f5cfg.get("remove_silence", True),
             speed=float(f5cfg.get("speed", 1.0)),
             lead_trim_sec=float(f5cfg.get("lead_trim_sec", 0.3)),
+            cfg_strength=float(f5cfg.get("cfg_strength", 2.0)),
+            cross_fade_duration=float(f5cfg.get("cross_fade_duration", 0.15)),
+            nfe_step=int(f5cfg.get("nfe_step", 32)),
         )
         return FallbackTTS(primary, edge)
     return edge

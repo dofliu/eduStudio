@@ -13,7 +13,9 @@ publish.py — 上傳 MP4 (含 SRT 字幕) 到 YouTube (CLI 版, v2.0)
 YouTube quota: 一次 upload 約 1,600 units, 每日上限 10,000 (約 6 支/天)。
 """
 import argparse
+import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Windows 終端強制 UTF-8 (沿用 solve.py / pipeline.py 慣例)
@@ -146,6 +148,8 @@ def main():
     ap.add_argument("--no-srt", action="store_true", help="強制不上傳字幕")
     ap.add_argument("--category", default="27",
                     help="YouTube 類別 ID (預設 27=Education, 其他常見: 28=Science & Tech)")
+    ap.add_argument("--out-json",
+                    help="完成後把結果寫入這個 JSON (給 app.py / 自動化使用)")
     args = ap.parse_args()
 
     video_p = Path(args.video).resolve()
@@ -165,6 +169,10 @@ def main():
     youtube = build("youtube", "v3", credentials=creds)
 
     tags = [t.strip() for t in args.tags.split(",") if t.strip()]
+    result: dict = {
+        "title": args.title,
+        "privacy": args.privacy,
+    }
     try:
         video_id = upload_video(
             youtube, video_p,
@@ -175,9 +183,19 @@ def main():
             category=args.category,
         )
     except HttpError as e:
+        result["error"] = str(e)
+        if args.out_json:
+            Path(args.out_json).write_text(
+                json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         sys.exit(f"❌ 影片上傳失敗: {e}")
 
     url = f"https://youtu.be/{video_id}"
+    result.update({
+        "video_id": video_id,
+        "url": url,
+        "uploaded_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+    })
     print(f"\n✅ 影片上傳完成")
     print(f"   ID:      {video_id}")
     print(f"   隱私:    {args.privacy}")
@@ -187,10 +205,17 @@ def main():
         try:
             print(f"\n⬆ 上傳字幕 ({srt_p.name})...")
             cap_id = upload_caption(youtube, video_id, srt_p)
+            result["caption_id"] = cap_id
             print(f"✅ 字幕完成 (caption ID: {cap_id})")
         except HttpError as e:
             # 字幕失敗不致命, 影片本身已上傳, 學生看影片無字幕只是可惜
+            result["caption_error"] = str(e)
             print(f"⚠ 字幕上傳失敗 (影片仍可使用): {e}")
+
+    if args.out_json:
+        Path(args.out_json).write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     print(f"\n🎬 {url}")
 

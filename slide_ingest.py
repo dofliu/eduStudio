@@ -43,33 +43,71 @@ EXAMS_ROOT = BASE_DIR / "exams"
 MODEL = "gemini-2.5-flash"
 SLIDE_DPI = 200          # 1920px 寬左右 (16:9 投影片)
 THUMB_WIDTH = 640        # 章節切分用縮圖, 省 token
-NARRATION_MAX_TOKENS = 2048
+NARRATION_MAX_TOKENS = 4096  # 詳盡模式 narration 可達 300 字, 給足夠 buffer
 
 
 # 章節切分 prompt
+# 設計目標: 一章 ≈ 12~15 分鐘影片 → 大約 10~12 頁 × 每頁 75s narration
 CHAPTER_PROMPT = """你看到的是一份簡報的全部投影片縮圖, 順序由 page 1 開始。
-請分析整體結構, 把投影片切成「邏輯章節」, 用於後續錄製講解影片時的分段。
+請分析整體結構, 把投影片切成「邏輯章節」, 用於後續錄製 12~15 分鐘的講解影片。
 
 切分原則:
 1. **以章節標題頁為界線** — 通常有大字標題、留白多、不含密集內文
-2. **議題轉換點也算章節邊界** — 即使沒有標題頁, 主題明顯切換就切
-3. **每章 3~15 頁** — 太短就合併, 太長就再切
-4. **總頁數 ≤ 8 頁時不要切**, 直接回單一章節
+2. **議題轉換點才切** — 主題明顯切換才切, 同主題不要硬切
+3. **每章 8~15 頁為佳** — 目標每章對應一支 12~15 分鐘影片
+   - 不要切太碎 (< 8 頁), 學生看一堆短片很煩
+   - 超過 15 頁才再切
+4. **總頁數 ≤ 12 頁時不要切**, 直接回單一章節
 5. **章節標題用簡報中的實際標題**, 找不到就用該章主題的 4~12 字摘要
 
 ==== 輸出格式 (嚴格) ====
 直接輸出 JSON array, 不要 Markdown 標記, 不要說明文字:
 
 [
-  {"title": "章節標題", "start_page": 1, "end_page": 5},
-  {"title": "...", "start_page": 6, "end_page": 14}
+  {"title": "章節標題", "start_page": 1, "end_page": 10},
+  {"title": "...", "start_page": 11, "end_page": 22}
 ]
 
 start_page / end_page 為 1-indexed inclusive。第一章 start_page 必為 1, 最後一章 end_page 必為總頁數, 章節間頁碼連續不重疊。
 """
 
-# 單頁 narration prompt
-NARRATION_PROMPT_TEMPLATE = """你正在替一份簡報的單張投影片撰寫教師講解旁白, 用於黑板風格的解說影片。
+# 單頁 narration prompt — 詳盡模式 (預設)
+# 200~300 字 ≈ 60~90 秒語音, 配合 12 頁/章 → 每支影片 ~15 分鐘
+NARRATION_PROMPT_DETAILED = """你正在替一份簡報的單張投影片撰寫教師講解旁白, 用於講解影片。
+這是一場約 15 分鐘的章節影片, 你寫的旁白要有充足深度, 不能流於朗讀。
+
+==== 章節背景 ====
+本投影片屬於「{chapter_title}」章節 (本章共 {chapter_pages} 頁, 此為第 {page_in_chapter} 頁)。
+
+==== 上一張投影片的旁白 (僅供銜接參考, 不要重複也不要直接複述) ====
+{prev_narration}
+
+==== 本張投影片內容 ====
+請看圖。
+
+==== 撰寫要求 ====
+1. **長度 200~300 字** (中文字數), 講得夠深、夠詳細
+2. 以「劉老師」第一人稱口吻, 自然口語, 像在課堂上面對學生
+3. 內容要包含 (依投影片性質取 2~4 項):
+   - 概念說明: 這是什麼、為什麼重要
+   - 舉例: 至少給一個具體的、貼近學生生活/工程應用的例子
+   - 原理: 解釋背後為什麼這樣做, 不是只說「就是這樣」
+   - 關聯: 跟前面學過的、或後面要學的概念怎麼接
+   - 易錯點 / 常見誤解 (如果該頁主題有典型錯誤)
+4. 開頭用銜接語多樣化: 「接下來」「我們先來看」「這張很重要的點是」「換個角度想」⋯⋯, 不要每張都「好, 我們來看…」
+5. 末尾用句點「。」結束, 句子完整
+6. **不要使用 LaTeX 標記** (例如 $x^2$ 一律寫成 x 的平方; 不要寫 \\frac, \\sqrt 等)
+7. **不要 Markdown 標記** (** _ # 等)
+8. 純中文 + 必要的英文術語 / 數值, 沒有任何符號標記
+9. 程式碼可以唸出來但用「等於」「冒號」描述, 不要直接念符號
+
+==== 輸出格式 ====
+直接輸出旁白內容, 不要前言「以下是旁白:」、不要引號、不要分段, 一段純文字。
+"""
+
+# 單頁 narration prompt — 簡短模式 (--brief 啟用)
+# 50~120 字 ≈ 15~35 秒, 適合純概念過水或快速複習用
+NARRATION_PROMPT_BRIEF = """你正在替一份簡報的單張投影片撰寫教師講解旁白, 用於快速複習風格的影片。
 
 ==== 章節背景 ====
 本投影片屬於「{chapter_title}」章節 (本章共 {chapter_pages} 頁, 此為第 {page_in_chapter} 頁)。
@@ -81,17 +119,15 @@ NARRATION_PROMPT_TEMPLATE = """你正在替一份簡報的單張投影片撰寫�
 請看圖。
 
 ==== 撰寫要求 ====
-1. 以「劉老師」第一人稱口吻, 自然口語, 像在課堂上對學生說話
-2. 50~120 字之間 (中文字數)
-3. 開頭可用「接下來我們看…」「這張投影片要說明…」等銜接語, 但不要每張都用同一句
-4. 解釋圖中的重點概念、公式、流程圖, 不要只朗讀標題
-5. 末尾用句點「。」結束
-6. **不要使用 LaTeX 標記** (例如 $x^2$ 一律寫成 x 的平方; 不要寫 \\frac, \\sqrt 等)
-7. **不要 Markdown 標記** (** _ # 等)
-8. 純中文 + 必要的英文術語/數值, 沒有任何符號標記
+1. 50~120 字之間 (中文字數)
+2. 以「劉老師」第一人稱口吻, 自然口語
+3. 解釋圖中的重點概念、公式、流程圖, 不要只朗讀標題
+4. 末尾用句點「。」結束
+5. **不要使用 LaTeX / Markdown 標記**
+6. 純中文 + 必要的英文術語 / 數值
 
 ==== 輸出格式 ====
-直接輸出旁白內容, 不要前言「以下是旁白:」、不要引號、不要分段, 一段純文字。
+直接輸出旁白內容, 不要前言、不要引號、不要分段, 一段純文字。
 """
 
 
@@ -201,12 +237,13 @@ def _clean_narration(raw: str) -> str:
 
 def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                               chapter_pages: int, page_in_chapter: int,
-                              prev_narration: str) -> str:
+                              prev_narration: str, *, brief: bool = False) -> str:
     """單頁 → narration 草稿。Gemini 偶爾會在中文句中提早 STOP 導致句子腰斬,
     結尾若不是句號類符號就 retry 一次, temperature 提高 + prompt 加強完整性要求。"""
     from google.genai import types
 
-    base_prompt = NARRATION_PROMPT_TEMPLATE.format(
+    template = NARRATION_PROMPT_BRIEF if brief else NARRATION_PROMPT_DETAILED
+    base_prompt = template.format(
         chapter_title=chapter_title,
         chapter_pages=chapter_pages,
         page_in_chapter=page_in_chapter,
@@ -271,7 +308,7 @@ def build_problems(stem: str, chapters: list[dict], page_paths: list[Path],
     return problems
 
 
-def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool):
+def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool, brief: bool):
     _ensure_dirs()
     stem = pdf_path.stem
     slide_dir = SLIDES_ROOT / stem
@@ -281,10 +318,10 @@ def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool):
     total = len(page_paths)
     print(f"[ingest] {total} 頁已存到 {slide_dir.relative_to(BASE_DIR)}")
 
-    # 章節切分
-    if mock or single or total <= 8:
-        if total <= 8 and not single:
-            print(f"[ingest] 頁數 ≤ 8, 跳過章節切分 (單章模式)")
+    # 章節切分: ≤ 12 頁直接單章 (對應一支 12~15 分鐘影片), 因為再切就太碎
+    if mock or single or total <= 12:
+        if total <= 12 and not single:
+            print(f"[ingest] 頁數 ≤ 12, 跳過章節切分 (單章模式)")
         chapters = [{"title": "全部內容", "start_page": 1, "end_page": total}]
     else:
         print(f"[ingest] Pass 1: 章節切分 ...")
@@ -294,8 +331,8 @@ def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool):
         for c in chapters:
             print(f"   ch: p.{c['start_page']:>3}~{c['end_page']:>3}  {c['title']}")
 
-    # narration 生成
-    print(f"\n[ingest] Pass 2: 逐頁產 narration (mock={mock}) ...")
+    style_label = "簡短" if brief else "詳盡"
+    print(f"\n[ingest] Pass 2: 逐頁產 narration (mock={mock}, 風格={style_label}) ...")
     narrations: list[str] = [""] * total
 
     if mock:
@@ -316,7 +353,8 @@ def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool):
                 print(f"   -> p{p:03d}/{total} ({ch['title']}, 章內 {offset}/{chapter_pages})")
                 png_bytes = page_paths[p - 1].read_bytes()
                 text = narrate_page_with_gemini(
-                    client, png_bytes, ch["title"], chapter_pages, offset, prev
+                    client, png_bytes, ch["title"], chapter_pages, offset, prev,
+                    brief=brief,
                 )
                 narrations[p - 1] = text
                 prev = text
@@ -342,6 +380,8 @@ def main():
     ap.add_argument("output", nargs="?", help="輸出 JSON 路徑 (預設 exams/<stem>.json)")
     ap.add_argument("--mock", action="store_true", help="不呼叫 Gemini, 用佔位 narration")
     ap.add_argument("--single", action="store_true", help="強制單一章節, 跳過切分階段")
+    ap.add_argument("--brief", action="store_true",
+                    help="簡短風格 (50~120 字/頁), 預設是詳盡風格 (200~300 字/頁, 適合 ~15 分鐘影片)")
     ap.add_argument("--force", action="store_true", help="覆蓋既有 JSON (預設不覆蓋, 防呆)")
     args = ap.parse_args()
 
@@ -356,7 +396,7 @@ def main():
             f"   為避免覆蓋(可能是 solve.py 產的考卷 JSON), 預設不覆蓋。\n"
             f"   要覆蓋請加 --force, 或用第二參數指定其他輸出路徑。"
         )
-    ingest(pdf_path, out_json, mock=args.mock, single=args.single)
+    ingest(pdf_path, out_json, mock=args.mock, single=args.single, brief=args.brief)
 
 
 if __name__ == "__main__":

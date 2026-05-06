@@ -12,6 +12,14 @@
 
 ## 🔴 高優先
 
+### 影片時長與內容深度 (2026-05-06)
+- [ ] **簡報講解影片時長提升到 ~15 分鐘**
+  - 現況: 8 章 × 5 頁 × ~45s = 3:44, 太短
+  - 方向 1: narration 從 50~120 字 → 200~300 字, 多舉例 / 解釋原理
+  - 方向 2: chapter 從 3~15 頁 → 8~15 頁, 章節數縮小 (37 頁原本切 8 章, 改切 4~5 章)
+  - 同步要看:過長的 narration 會不會品質下降 (Gemini 提早 stop 或胡謅)
+  - 加 `--brief` flag 保留原本短版選項
+
 ### 實戰驗證
 - [ ] **跑一份真正剛考完的期中考 PDF 完整流程**
   - 上傳 → 解析 → 逐題 review → 渲染 → 聽 3 支輸出
@@ -74,8 +82,13 @@
 
 ### 新功能
 - [ ] **字幕燒進影片選項**(ROADMAP v1.5)
-- [ ] **Publish 工作流**:自動上傳 YouTube / Moodle
+- [x] **Publish 工作流**:自動上傳 YouTube(2026-05-06, publish.py + UI 整合完成)
 - [ ] **Email 通知**:批次渲染完成寄信給自己
+- [ ] **包成 Claude Code skill**(2026-05-06)
+  - `pdf-to-video` skill: PDF → JSON → 暫停 review → render
+  - `video-to-youtube` skill: 已 review JSON → publish.py
+  - 設計考量:強制 review 點(配合硬規則「AI 數值要人工 review」)
+  - 全自動模式靠 `--auto` flag 啟動,給 mock 測試/快速 demo 用
 
 ### 技術債
 - [ ] **`pipeline.py` 拆檔**(800+ 行)

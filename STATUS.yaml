@@ -1,0 +1,26 @@
+name: autoSolverVideo
+name_zh: 考卷檢討影片自動生成系統
+category: edtech
+progress: 80
+status: active
+last_updated: "2026-05-07"
+next_milestone: "Phase 4 split-left layout (解題型投影片) + 跑一份真實期中考完整流程驗證"
+technologies:
+  - Python
+  - Flask
+  - Gemini Vision (2.5 Flash)
+  - PyMuPDF
+  - Edge TTS
+  - F5-TTS (本機聲音複製)
+  - Pillow
+  - cairosvg
+  - FFmpeg
+  - Google YouTube Data API v3
+  - OAuth 2.0
+outputs:
+  - tool
+  - course
+  - presentation
+description: "PDF (考卷 / 簡報) → Gemini 解析 → 人工 review → MP4 + SRT → YouTube 自動上傳"
+description_zh: "從一份 PDF 自動產出講解影片並上傳 YouTube,讓學生考完當週就能複習"
+key_metrics: "v1.7 簡報講解影片 + v2.0 YouTube 上傳通道完成;單頁 narration 200~250 字 / 每章 13~19 分鐘"

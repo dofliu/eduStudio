@@ -34,14 +34,18 @@ app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32 MB
 BASE_DIR = Path(__file__).parent
 EXAMS_DIR = BASE_DIR / "exams"
 PDFS_DIR = BASE_DIR / "pdfs"
+SLIDES_DIR = BASE_DIR / "slides"
 SOLVE_SCRIPT = BASE_DIR / "solve.py"
+SLIDE_INGEST_SCRIPT = BASE_DIR / "slide_ingest.py"
+PUBLISH_SCRIPT = BASE_DIR / "publish.py"
 
 # 全域狀態 (啟動時設定)
 EXAM_PATH: Path | None = None     # 目前編輯中的 exam.json;None 代表未選
 VIDEO_ROOT: Path | None = None    # 所有考卷影片的根目錄,例如 ./videos
 RENDER_LOCK = threading.Lock()
 RENDER_STATUS: dict = {}   # {pid: "idle" | "rendering" | "done" | "error"}
-SOLVE_STATUS: dict = {}    # {stem: {"state": "solving"|"done"|"error", "msg": str}}
+SOLVE_STATUS: dict = {}    # {stem: {"state": "solving"|"done"|"error", "msg": str, "source_type": "exam"|"slide"}}
+PUBLISH_STATUS: dict = {}  # {f"{stem}/{pid}": {"state": "uploading"|"done"|"error", "msg": str, "result": {...}?}}
 
 
 def current_exam_dir() -> Path:
@@ -104,33 +108,49 @@ TTS_CONFIG_PATH = Path(__file__).parent / "tts_config.json"
 VOICE_SAMPLE_DIR = Path(__file__).parent / "voices" / "samples"
 
 # (voice id, 顯示名稱, 試聽檔名)
+# 'f5:*' 開頭代表 F5-TTS 聲音複製 (本機推論, 用 voices/teacher_ref.wav)。
+# 切換時 backend 會自動寫進 tts_config.json:
+#   edge 系: backend=edge, edge.voice=<voice_id>
+#   F5  系: backend=f5 (使用 tts_config.json 既有的 f5 區塊)
 VOICES = [
-    ("zh-TW-HsiaoChenNeural", "小陳 (台女,新聞風)",   "voice_tw_hsiaochen_F.mp3"),
-    ("zh-TW-HsiaoYuNeural",   "小雨 (台女,較甜)",     "voice_tw_hsiaoyu_F.mp3"),
-    ("zh-CN-YunxiNeural",     "雲希 (陸男,年輕)",     "voice_cn_yunxi_M.mp3"),
-    ("zh-CN-YunyangNeural",   "雲揚 (陸男,主播穩)",   "voice_cn_yunyang_M.mp3"),
-    ("zh-CN-XiaoxiaoNeural",  "曉曉 (陸女,大陸通用)", "voice_cn_xiaoxiao_F.mp3"),
+    ("zh-TW-HsiaoChenNeural", "小陳 (台女,新聞風)",     "voice_tw_hsiaochen_F.mp3"),
+    ("zh-TW-HsiaoYuNeural",   "小雨 (台女,較甜)",       "voice_tw_hsiaoyu_F.mp3"),
+    ("zh-CN-YunxiNeural",     "雲希 (陸男,年輕)",       "voice_cn_yunxi_M.mp3"),
+    ("zh-CN-YunyangNeural",   "雲揚 (陸男,主播穩)",     "voice_cn_yunyang_M.mp3"),
+    ("zh-CN-XiaoxiaoNeural",  "曉曉 (陸女,大陸通用)",   "voice_cn_xiaoxiao_F.mp3"),
+    ("f5:teacher",            "劉老師 (F5 聲音複製)",   "voice_f5_teacher_M.mp3"),
 ]
 VOICE_IDS = {v[0] for v in VOICES}
 
 
 def read_current_voice() -> str:
+    """回傳目前 tts_config 對應的 voice id。"""
     if not TTS_CONFIG_PATH.exists():
         return VOICES[0][0]
     try:
         cfg = json.loads(TTS_CONFIG_PATH.read_text(encoding="utf-8"))
+        if cfg.get("backend") == "f5":
+            return "f5:teacher"
         return cfg.get("edge", {}).get("voice") or VOICES[0][0]
     except Exception:
         return VOICES[0][0]
 
 
 def write_current_voice(voice_id: str):
+    """切聲音 = 同時切 backend 跟對應的設定。"""
     if voice_id not in VOICE_IDS:
         return False
     cfg = {}
     if TTS_CONFIG_PATH.exists():
         cfg = json.loads(TTS_CONFIG_PATH.read_text(encoding="utf-8"))
-    cfg.setdefault("edge", {})["voice"] = voice_id
+
+    if voice_id.startswith("f5:"):
+        cfg["backend"] = "f5"
+        # f5 區塊 (ref_audio, ref_text, speed...) 維持不動, 由 tts_config.json 直接編
+    else:
+        cfg["backend"] = "edge"
+        cfg.setdefault("edge", {})["voice"] = voice_id
+
     TTS_CONFIG_PATH.write_text(
         json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -143,6 +163,55 @@ def load_exam() -> dict:
 
 def save_exam(data: dict):
     EXAM_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _safe_stem(stem: str) -> bool:
+    return "/" not in stem and "\\" not in stem and ".." not in stem
+
+
+def find_exam_path(stem: str) -> Path | None:
+    if not _safe_stem(stem):
+        return None
+    p = EXAMS_DIR / f"{stem}.json"
+    return p if p.exists() else None
+
+
+def load_exam_by_stem(stem: str) -> dict | None:
+    p = find_exam_path(stem)
+    if not p:
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def save_exam_by_stem(stem: str, data: dict) -> bool:
+    p = find_exam_path(stem)
+    if not p:
+        return False
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True
+
+
+def get_problem_youtube(exam_data: dict, pid: str) -> dict | None:
+    for prob in exam_data.get("problems", []):
+        if prob.get("id") == pid:
+            return prob.get("youtube")
+    return None
+
+
+def set_problem_youtube(stem: str, pid: str, youtube: dict) -> bool:
+    """寫回 exam JSON 的 problem[i].youtube 欄位 (publish.py 上傳完成後 app.py 呼叫)。"""
+    data = load_exam_by_stem(stem)
+    if data is None:
+        return False
+    for prob in data.get("problems", []):
+        if prob.get("id") == pid:
+            prob["youtube"] = youtube
+            save_exam_by_stem(stem, data)
+            return True
+    return False
 
 
 def problem_status(pid: str) -> dict:
@@ -347,6 +416,18 @@ EDIT_HTML = BASE_CSS + """
         #{{ loop.index }}
         <button type="submit" name="action" value="render_from_{{ loop.index0 }}" class="tiny-btn" title="從此步驟開始重新渲染">🎬</button>
       </div>
+      {% if step.bg_type == "slide" and step.bg_image %}
+      {# 簡報模式: 投影片縮圖, 點擊開大圖 #}
+      <div style="flex:0 0 160px">
+        <a href="/slide_image/{{ slide_stem }}/{{ step.bg_image.split('/')[-1] }}" target="_blank" title="點擊看大圖">
+          <img src="/slide_image/{{ slide_stem }}/{{ step.bg_image.split('/')[-1] }}"
+               style="width:160px;border:1px solid #d3d1c7;border-radius:4px;display:block">
+        </a>
+        <div class="tiny" style="margin-top:4px;text-align:center">
+          {{ step.layout or "full" }}
+        </div>
+      </div>
+      {% endif %}
       <div class="step-col">
         <textarea name="display_{{ loop.index0 }}" rows="2" class="mono">{{ step.display }}</textarea>
       </div>
@@ -390,6 +471,7 @@ def edit(pid):
     return render_template_string(
         EDIT_HTML, prob=prob, status=problem_status(pid),
         voices=VOICES, current_voice=read_current_voice(),
+        slide_stem=EXAM_PATH.stem,
     )
 
 
@@ -508,6 +590,20 @@ def voice_sample(voice_id):
     return send_from_directory(VOICE_SAMPLE_DIR, fname)
 
 
+@app.route("/slide_image/<stem>/<filename>")
+def slide_image(stem, filename):
+    """供編輯頁顯示 slide 縮圖。嚴格檢查路徑避免目錄穿越。"""
+    if not _safe_stem(stem) or "/" in filename or "\\" in filename or ".." in filename:
+        abort(400)
+    folder = SLIDES_DIR / stem
+    if not folder.is_dir():
+        abort(404)
+    target = folder / filename
+    if not target.exists() or target.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+        abort(404)
+    return send_from_directory(folder, filename)
+
+
 # ------------------ Exams 管理 ------------------
 
 def _scan_exams() -> list[dict]:
@@ -577,8 +673,8 @@ UPLOAD_HTML = BASE_CSS + """
   <div class="header-row">
     <div>
       <a href="/exams" class="btn-link">← 回考卷列表</a>
-      <h1 style="margin-top:6px">⬆ 上傳考卷 PDF</h1>
-      <div class="muted" style="margin-top:4px">PDF 上傳後會丟給 Gemini Vision 解析,產出 exam.json</div>
+      <h1 style="margin-top:6px">⬆ 上傳 PDF</h1>
+      <div class="muted" style="margin-top:4px">考卷會逐題解;簡報會逐張產旁白並切章節。</div>
     </div>
   </div>
 
@@ -589,19 +685,30 @@ UPLOAD_HTML = BASE_CSS + """
   <div class="card">
     <form method="POST" action="/upload" enctype="multipart/form-data">
       <div style="margin-bottom:14px">
+        <label class="muted" style="display:block;margin-bottom:6px">PDF 類型</label>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer">
+          <input type="radio" name="source_type" value="exam" checked style="margin-top:3px">
+          <span><strong>考卷 / 試題</strong> — 走 solve.py,Gemini 逐題產解題步驟</span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer">
+          <input type="radio" name="source_type" value="slide" style="margin-top:3px">
+          <span><strong>簡報 / 講義</strong> — 走 slide_ingest.py,逐張投影片產旁白並自動切章節</span>
+        </label>
+      </div>
+      <div style="margin-bottom:14px">
         <label class="muted" style="display:block;margin-bottom:4px">PDF 檔</label>
         <input type="file" name="pdf" accept="application/pdf" required
                style="padding:6px;border:1px solid #d3d1c7;border-radius:4px;width:100%">
       </div>
       <div style="margin-bottom:14px">
-        <label class="muted" style="display:block;margin-bottom:4px">考卷名稱 (存檔名,支援中文;空白=用 PDF 檔名)</label>
-        <input type="text" name="exam_name" maxlength="80" placeholder="例:114-02 靜力學期中"
+        <label class="muted" style="display:block;margin-bottom:4px">名稱 (存檔名,支援中文;空白=用 PDF 檔名)</label>
+        <input type="text" name="exam_name" maxlength="80" placeholder="例:114-02 靜力學期中 / 第8章 字串處理"
                style="padding:6px 8px;border:1px solid #d3d1c7;border-radius:4px;width:100%;font-family:inherit">
       </div>
       <div style="margin-bottom:14px">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#555">
           <input type="checkbox" name="mock" value="1">
-          Mock 模式 — 不呼叫 Gemini,只產範例 JSON(測試用,省 API 費用)
+          Mock 模式 — 不呼叫 Gemini,只產佔位 JSON(測試用,省 API 費用)
         </label>
       </div>
       <button type="submit" class="btn btn-success">上傳並解析</button>
@@ -609,7 +716,7 @@ UPLOAD_HTML = BASE_CSS + """
   </div>
 
   <div class="footer">
-    提示:正式解析約 30~60 秒(Gemini Vision 處理);Mock 模式幾秒就好。
+    提示:考卷 30~60 秒(視題目數);簡報每頁 ~3 秒(30 頁約 1.5~2 分鐘)。Mock 模式幾秒就好。
   </div>
 </div>
 """
@@ -617,13 +724,13 @@ UPLOAD_HTML = BASE_CSS + """
 
 SOLVE_PROGRESS_HTML = BASE_CSS + """
 <div class="container-wide">
-  <h1>🧠 Gemini 解析中…</h1>
+  <h1>🧠 {{ source_label }} 解析中…</h1>
   <div class="card">
-    <div style="font-size:14px">考卷:<strong>{{ stem }}</strong></div>
+    <div style="font-size:14px">名稱:<strong>{{ stem }}</strong></div>
     <div id="state" class="muted" style="margin-top:6px">狀態:<span id="s">solving</span></div>
     <div id="msg" class="tiny" style="margin-top:4px;color:#633806"></div>
   </div>
-  <div class="muted" style="margin-top:8px">約 30~60 秒(Mock 模式快很多),完成會自動跳轉。</div>
+  <div class="muted" style="margin-top:8px">{{ hint }}</div>
   <script>
     const stem = {{ stem|tojson }};
     async function poll() {
@@ -707,24 +814,45 @@ def upload():
 
     f.save(str(pdf_path))
     use_mock = request.form.get("mock") == "1"
-    SOLVE_STATUS[stem] = {"state": "solving", "msg": "啟動 solve.py…"}
+    source_type = request.form.get("source_type", "exam")
+    if source_type not in {"exam", "slide"}:
+        source_type = "exam"
+
+    is_slide = source_type == "slide"
+    script = SLIDE_INGEST_SCRIPT if is_slide else SOLVE_SCRIPT
+    label = "簡報 ingest" if is_slide else "考卷解析"
+    SOLVE_STATUS[stem] = {"state": "solving", "msg": f"啟動 {script.name}…",
+                           "source_type": source_type}
 
     def worker():
-        cmd = [sys.executable, str(SOLVE_SCRIPT), str(pdf_path), str(json_path)]
+        # solve.py 和 slide_ingest.py 都吃 (pdf, json) 的 positional 參數
+        cmd = [sys.executable, str(script), str(pdf_path), str(json_path)]
         if use_mock:
             cmd.append("--mock")
         try:
-            r = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=900)
+            r = subprocess.run(cmd, capture_output=True, encoding="utf-8",
+                               errors="replace", timeout=1800)
             if r.returncode == 0 and json_path.exists():
-                SOLVE_STATUS[stem] = {"state": "done", "msg": "完成"}
+                SOLVE_STATUS[stem] = {"state": "done", "msg": "完成",
+                                       "source_type": source_type}
             else:
                 tail = (r.stderr or r.stdout or "")[-300:]
-                SOLVE_STATUS[stem] = {"state": "error", "msg": tail.strip() or "solve.py 失敗"}
+                SOLVE_STATUS[stem] = {"state": "error",
+                                       "msg": tail.strip() or f"{script.name} 失敗",
+                                       "source_type": source_type}
         except Exception as e:
-            SOLVE_STATUS[stem] = {"state": "error", "msg": str(e)}
+            SOLVE_STATUS[stem] = {"state": "error", "msg": str(e),
+                                   "source_type": source_type}
 
     threading.Thread(target=worker, daemon=True).start()
-    return render_template_string(SOLVE_PROGRESS_HTML, stem=stem)
+    hint = (
+        "投影片每頁 ~3 秒, 30 頁約 1.5~2 分鐘, 完成會自動跳轉。"
+        if is_slide
+        else "約 30~60 秒(Mock 模式快很多), 完成會自動跳轉。"
+    )
+    return render_template_string(
+        SOLVE_PROGRESS_HTML, stem=stem, source_label=label, hint=hint,
+    )
 
 
 @app.route("/solve_status/<stem>")
@@ -735,7 +863,7 @@ def solve_status(stem):
 # ------------------ Library (跨考卷影片瀏覽) ------------------
 
 def _scan_library() -> list[dict]:
-    """掃 VIDEO_ROOT 底下所有子資料夾,回傳每個考卷的影片清單"""
+    """掃 VIDEO_ROOT 底下所有子資料夾,回傳每個考卷的影片清單(附帶 youtube 上傳狀態)。"""
     exams = []
     if not VIDEO_ROOT.exists():
         return exams
@@ -745,23 +873,30 @@ def _scan_library() -> list[dict]:
         mp4s = sorted(sub.glob("*.mp4"))
         if not mp4s:
             continue
+        # 讀對應的 exam JSON 取 youtube 狀態 (可能不存在; 例如手動丟進 videos/ 的影片)
+        exam_data = load_exam_by_stem(sub.name)
         items = []
         total = 0
         for m in mp4s:
             size = m.stat().st_size
             total += size
+            yt = get_problem_youtube(exam_data, m.stem) if exam_data else None
+            publish_state = PUBLISH_STATUS.get(f"{sub.name}/{m.stem}")
             items.append({
                 "name": m.name,
                 "stem": m.stem,
                 "size_mb": round(size / 1024 / 1024, 1),
                 "mtime": datetime.fromtimestamp(m.stat().st_mtime).strftime("%Y-%m-%d %H:%M"),
                 "has_srt": (sub / f"{m.stem}.srt").exists(),
+                "youtube": yt,
+                "publish_state": (publish_state or {}).get("state"),
             })
         exams.append({
             "exam_stem": sub.name,
             "video_count": len(items),
             "total_mb": round(total / 1024 / 1024, 1),
             "is_current": EXAM_PATH is not None and sub.name == EXAM_PATH.stem,
+            "has_exam_json": exam_data is not None,
             "items": items,
         })
     return exams
@@ -800,7 +935,8 @@ LIBRARY_HTML = BASE_CSS + """
           <th style="padding:6px 8px;width:90px">大小</th>
           <th style="padding:6px 8px;width:140px">修改時間</th>
           <th style="padding:6px 8px;width:60px">SRT</th>
-          <th style="padding:6px 8px;width:160px">動作</th>
+          <th style="padding:6px 8px;width:120px">YouTube</th>
+          <th style="padding:6px 8px;width:200px">動作</th>
         </tr>
       </thead>
       <tbody>
@@ -811,13 +947,29 @@ LIBRARY_HTML = BASE_CSS + """
           <td style="padding:6px 8px">{{ it.mtime }}</td>
           <td style="padding:6px 8px">{% if it.has_srt %}✓{% else %}—{% endif %}</td>
           <td style="padding:6px 8px">
-            <a class="btn btn-gray" href="/library/file/{{ e.exam_stem }}/{{ it.name }}" target="_blank">▶ 觀看</a>
+            {% if it.youtube and it.youtube.video_id %}
+              <a href="{{ it.youtube.url }}" target="_blank" class="badge badge-done"
+                 title="已上傳 ({{ it.youtube.privacy }})">📺 {{ it.youtube.privacy }}</a>
+            {% elif it.publish_state == 'uploading' %}
+              <span class="badge badge-rendering">⬆ 上傳中…</span>
+            {% else %}
+              <span class="tiny" style="color:#aaa">—</span>
+            {% endif %}
+          </td>
+          <td style="padding:6px 8px">
+            <a class="btn btn-gray" href="/library/file/{{ e.exam_stem }}/{{ it.name }}" target="_blank">▶</a>
             <a class="btn btn-link" href="/library/file/{{ e.exam_stem }}/{{ it.name }}" download title="下載">⬇</a>
+            {% if e.has_exam_json %}
+              {% if it.youtube and it.youtube.video_id %}
+                <a class="btn btn-link" href="/upload_review/{{ e.exam_stem }}/{{ it.stem }}" title="重新上傳 / 改設定">↻</a>
+              {% else %}
+                <a class="btn btn-success" href="/upload_review/{{ e.exam_stem }}/{{ it.stem }}" title="上傳到 YouTube">📺</a>
+              {% endif %}
+            {% endif %}
             <form method="POST" action="/library/delete_file/{{ e.exam_stem }}/{{ it.name }}" style="display:inline" onsubmit="return confirm('刪除 {{ it.name }}?')">
               <button type="submit" class="tiny-btn" style="color:#a52a2a;border:none;background:none;padding:0;margin:0;margin-left:8px" title="刪除">🗑</button>
             </form>
           </td>
-
         </tr>
         {% endfor %}
       </tbody>
@@ -878,6 +1030,248 @@ def library_delete_file(exam_stem, filename):
         if srt.exists():
             srt.unlink()
     return redirect(url_for("library"))
+
+
+# ------------------ YouTube 上傳 ------------------
+
+UPLOAD_REVIEW_HTML = BASE_CSS + """
+<div class="container-wide">
+  <div class="header-row">
+    <div>
+      <a href="/library" class="btn-link">← 回 Library</a>
+      <h1 style="margin-top:6px">📺 上傳審查 — {{ exam_stem }} / {{ pid }}</h1>
+      <div class="muted" style="margin-top:4px">
+        確認標題說明後送出, 上傳完成會自動回寫到 exam.json
+      </div>
+    </div>
+  </div>
+
+  {% if existing %}
+  <div class="banner banner-warning">
+    ⚠ 此影片已上傳過 (<a href="{{ existing.url }}" target="_blank">{{ existing.url }}</a>,
+    {{ existing.privacy }})。再次送出會建立新的 YouTube 影片(舊的不會自動刪)。
+  </div>
+  {% endif %}
+
+  <div style="display:flex;gap:20px;align-items:flex-start">
+    <div style="flex:1;min-width:0">
+      <video controls preload="metadata" style="width:100%;border-radius:6px;background:#000"
+             src="/library/file/{{ exam_stem }}/{{ pid }}.mp4"></video>
+      <div class="tiny" style="margin-top:6px;color:#888">
+        檔案: {{ pid }}.mp4 · {{ size_mb }} MB · 字幕: {% if has_srt %}✓ 會一併上傳{% else %}—{% endif %}
+      </div>
+    </div>
+
+    <div style="flex:1.2;min-width:0">
+      <form method="POST" action="/upload_to_youtube/{{ exam_stem }}/{{ pid }}">
+        <div style="margin-bottom:12px">
+          <label class="muted" style="display:block;margin-bottom:4px">標題</label>
+          <input type="text" name="title" required value="{{ default_title }}"
+                 maxlength="100"
+                 style="padding:6px 8px;border:1px solid #d3d1c7;border-radius:4px;width:100%;font-family:inherit">
+        </div>
+        <div style="margin-bottom:12px">
+          <label class="muted" style="display:block;margin-bottom:4px">說明</label>
+          <textarea name="description" rows="6"
+                    style="padding:8px;border:1px solid #d3d1c7;border-radius:4px;width:100%;font-family:inherit;font-size:13px;resize:vertical">{{ default_description }}</textarea>
+        </div>
+        <div style="margin-bottom:12px">
+          <label class="muted" style="display:block;margin-bottom:4px">標籤(逗號分隔)</label>
+          <input type="text" name="tags" value="{{ default_tags }}"
+                 style="padding:6px 8px;border:1px solid #d3d1c7;border-radius:4px;width:100%;font-family:inherit">
+        </div>
+        <div style="margin-bottom:14px">
+          <label class="muted" style="display:block;margin-bottom:4px">隱私</label>
+          <label style="display:inline-flex;align-items:center;gap:4px;margin-right:14px;font-size:13px">
+            <input type="radio" name="privacy" value="unlisted" checked> 不公開
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:4px;margin-right:14px;font-size:13px">
+            <input type="radio" name="privacy" value="public"> 公開
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px">
+            <input type="radio" name="privacy" value="private"> 私人
+          </label>
+        </div>
+        <button type="submit" class="btn btn-success">📺 上傳到 YouTube</button>
+        <a href="/library" class="btn btn-gray" style="margin-left:8px">取消</a>
+      </form>
+    </div>
+  </div>
+
+  <div class="footer">
+    YouTube quota: 一次上傳 ~1,600 units, 每日上限 10,000(約 6 支)。
+    若是首次跳出 OAuth 同意頁, 請在伺服器端的瀏覽器完成授權。
+  </div>
+</div>
+"""
+
+UPLOAD_PROGRESS_HTML = BASE_CSS + """
+<div class="container-wide">
+  <h1>📺 上傳中…</h1>
+  <div class="card">
+    <div style="font-size:14px">{{ exam_stem }} / {{ pid }}</div>
+    <div class="muted" style="margin-top:6px">
+      狀態:<span id="s">uploading</span>
+    </div>
+    <div id="msg" class="tiny" style="margin-top:6px;color:#444"></div>
+    <div id="result" style="margin-top:10px"></div>
+  </div>
+  <div class="muted" style="margin-top:10px">
+    上傳大小視 MP4 而定, 一般 10 MB 約幾秒~10 秒。完成會自動跳轉。
+  </div>
+  <script>
+    const stem = {{ exam_stem|tojson }};
+    const pid = {{ pid|tojson }};
+    async function poll() {
+      try {
+        const r = await fetch('/youtube_status/' + encodeURIComponent(stem) + '/' + encodeURIComponent(pid));
+        const j = await r.json();
+        document.getElementById('s').textContent = j.state || '?';
+        if (j.msg) document.getElementById('msg').textContent = j.msg;
+        if (j.state === 'done' && j.result && j.result.url) {
+          document.getElementById('result').innerHTML =
+            '<a class="btn btn-success" href="' + j.result.url + '" target="_blank">✓ 觀看 YouTube 影片 ↗</a>' +
+            ' <a class="btn btn-gray" href="/library">回 Library</a>';
+          return;
+        }
+        if (j.state === 'error') {
+          document.getElementById('result').innerHTML =
+            '<a class="btn btn-gray" href="/library">回 Library</a>';
+          return;
+        }
+      } catch (e) {}
+      setTimeout(poll, 2000);
+    }
+    poll();
+  </script>
+</div>
+"""
+
+
+def _build_default_review(exam_data: dict, pid: str) -> dict:
+    """準備上傳審查頁的預設值。"""
+    exam_title = exam_data.get("exam_title", "")
+    prob = next((p for p in exam_data.get("problems", []) if p.get("id") == pid), None)
+    if not prob:
+        return {
+            "default_title": pid,
+            "default_description": "",
+            "default_tags": "",
+            "existing": None,
+        }
+    number = prob.get("number", "")
+    problem_text = prob.get("problem", "")
+    title = f"{exam_title} {number} 解析" if exam_title and number else (
+        exam_title or number or pid
+    )
+    desc_lines = []
+    if problem_text:
+        desc_lines.append(problem_text)
+    desc_lines.append("\n— DOF Lab · 自動生成解說影片")
+    return {
+        "default_title": title[:100],
+        "default_description": "\n".join(desc_lines),
+        "default_tags": "",
+        "existing": prob.get("youtube"),
+    }
+
+
+@app.route("/upload_review/<exam_stem>/<pid>")
+def upload_review(exam_stem, pid):
+    if not _safe_stem(exam_stem) or not _safe_stem(pid):
+        abort(400)
+    folder = VIDEO_ROOT / exam_stem
+    mp4 = folder / f"{pid}.mp4"
+    if not mp4.exists():
+        abort(404)
+    exam_data = load_exam_by_stem(exam_stem)
+    if exam_data is None:
+        abort(404)
+    defaults = _build_default_review(exam_data, pid)
+    return render_template_string(
+        UPLOAD_REVIEW_HTML,
+        exam_stem=exam_stem, pid=pid,
+        size_mb=round(mp4.stat().st_size / 1024 / 1024, 1),
+        has_srt=(folder / f"{pid}.srt").exists(),
+        **defaults,
+    )
+
+
+@app.route("/upload_to_youtube/<exam_stem>/<pid>", methods=["POST"])
+def upload_to_youtube(exam_stem, pid):
+    if not _safe_stem(exam_stem) or not _safe_stem(pid):
+        abort(400)
+    folder = VIDEO_ROOT / exam_stem
+    mp4 = folder / f"{pid}.mp4"
+    if not mp4.exists():
+        abort(404)
+
+    title = request.form.get("title", "").strip() or pid
+    description = request.form.get("description", "").strip()
+    tags = request.form.get("tags", "").strip()
+    privacy = request.form.get("privacy", "unlisted")
+    if privacy not in {"unlisted", "public", "private"}:
+        privacy = "unlisted"
+
+    key = f"{exam_stem}/{pid}"
+    if PUBLISH_STATUS.get(key, {}).get("state") == "uploading":
+        # 同一支正在上傳中, 直接導去進度頁不重啟
+        return redirect(url_for("upload_review", exam_stem=exam_stem, pid=pid))
+
+    out_json = folder / f"{pid}.youtube.json"
+    if out_json.exists():
+        out_json.unlink()  # 清舊結果
+    PUBLISH_STATUS[key] = {"state": "uploading", "msg": "啟動 publish.py…", "result": None}
+
+    def worker():
+        cmd = [
+            sys.executable, str(PUBLISH_SCRIPT),
+            "--video", str(mp4),
+            "--title", title,
+            "--description", description,
+            "--tags", tags,
+            "--privacy", privacy,
+            "--out-json", str(out_json),
+        ]
+        try:
+            r = subprocess.run(cmd, capture_output=True, encoding="utf-8",
+                               errors="replace", timeout=1800)
+            if out_json.exists():
+                try:
+                    result = json.loads(out_json.read_text(encoding="utf-8"))
+                except Exception:
+                    result = None
+            else:
+                result = None
+
+            if r.returncode == 0 and result and result.get("video_id"):
+                PUBLISH_STATUS[key] = {
+                    "state": "done", "msg": "完成", "result": result,
+                }
+                # 寫回 exam.json
+                set_problem_youtube(exam_stem, pid, result)
+            else:
+                tail = (r.stderr or r.stdout or "")[-400:]
+                PUBLISH_STATUS[key] = {
+                    "state": "error",
+                    "msg": tail.strip() or "publish.py 失敗",
+                    "result": result,
+                }
+        except Exception as e:
+            PUBLISH_STATUS[key] = {"state": "error", "msg": str(e), "result": None}
+
+    threading.Thread(target=worker, daemon=True).start()
+    return render_template_string(
+        UPLOAD_PROGRESS_HTML, exam_stem=exam_stem, pid=pid,
+    )
+
+
+@app.route("/youtube_status/<exam_stem>/<pid>")
+def youtube_status(exam_stem, pid):
+    if not _safe_stem(exam_stem) or not _safe_stem(pid):
+        abort(400)
+    return jsonify(PUBLISH_STATUS.get(f"{exam_stem}/{pid}",
+                                       {"state": "unknown", "msg": ""}))
 
 
 @app.route("/api/status")

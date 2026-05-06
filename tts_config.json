@@ -11,7 +11,7 @@
     "ref_text": "同學們大家好，今天我們要上自動控制第五章的穩定性分析，透過羅斯穩定準則來判斷系統是否穩定。",
     "model": "F5TTS_v1_Base",
     "remove_silence": true,
-    "speed": 0.7,
+    "speed": 0.85,
     "lead_trim_sec": 0.6
   }
 }

@@ -26,4 +26,6 @@ youtube_token.json
 # Python / Claude 快取
 __pycache__/
 *.pyc
-.claude/
+*.pyo
+work/
+output/

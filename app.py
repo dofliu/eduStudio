@@ -108,33 +108,49 @@ TTS_CONFIG_PATH = Path(__file__).parent / "tts_config.json"
 VOICE_SAMPLE_DIR = Path(__file__).parent / "voices" / "samples"
 
 # (voice id, 顯示名稱, 試聽檔名)
+# 'f5:*' 開頭代表 F5-TTS 聲音複製 (本機推論, 用 voices/teacher_ref.wav)。
+# 切換時 backend 會自動寫進 tts_config.json:
+#   edge 系: backend=edge, edge.voice=<voice_id>
+#   F5  系: backend=f5 (使用 tts_config.json 既有的 f5 區塊)
 VOICES = [
-    ("zh-TW-HsiaoChenNeural", "小陳 (台女,新聞風)",   "voice_tw_hsiaochen_F.mp3"),
-    ("zh-TW-HsiaoYuNeural",   "小雨 (台女,較甜)",     "voice_tw_hsiaoyu_F.mp3"),
-    ("zh-CN-YunxiNeural",     "雲希 (陸男,年輕)",     "voice_cn_yunxi_M.mp3"),
-    ("zh-CN-YunyangNeural",   "雲揚 (陸男,主播穩)",   "voice_cn_yunyang_M.mp3"),
-    ("zh-CN-XiaoxiaoNeural",  "曉曉 (陸女,大陸通用)", "voice_cn_xiaoxiao_F.mp3"),
+    ("zh-TW-HsiaoChenNeural", "小陳 (台女,新聞風)",     "voice_tw_hsiaochen_F.mp3"),
+    ("zh-TW-HsiaoYuNeural",   "小雨 (台女,較甜)",       "voice_tw_hsiaoyu_F.mp3"),
+    ("zh-CN-YunxiNeural",     "雲希 (陸男,年輕)",       "voice_cn_yunxi_M.mp3"),
+    ("zh-CN-YunyangNeural",   "雲揚 (陸男,主播穩)",     "voice_cn_yunyang_M.mp3"),
+    ("zh-CN-XiaoxiaoNeural",  "曉曉 (陸女,大陸通用)",   "voice_cn_xiaoxiao_F.mp3"),
+    ("f5:teacher",            "劉老師 (F5 聲音複製)",   "voice_f5_teacher_M.mp3"),
 ]
 VOICE_IDS = {v[0] for v in VOICES}
 
 
 def read_current_voice() -> str:
+    """回傳目前 tts_config 對應的 voice id。"""
     if not TTS_CONFIG_PATH.exists():
         return VOICES[0][0]
     try:
         cfg = json.loads(TTS_CONFIG_PATH.read_text(encoding="utf-8"))
+        if cfg.get("backend") == "f5":
+            return "f5:teacher"
         return cfg.get("edge", {}).get("voice") or VOICES[0][0]
     except Exception:
         return VOICES[0][0]
 
 
 def write_current_voice(voice_id: str):
+    """切聲音 = 同時切 backend 跟對應的設定。"""
     if voice_id not in VOICE_IDS:
         return False
     cfg = {}
     if TTS_CONFIG_PATH.exists():
         cfg = json.loads(TTS_CONFIG_PATH.read_text(encoding="utf-8"))
-    cfg.setdefault("edge", {})["voice"] = voice_id
+
+    if voice_id.startswith("f5:"):
+        cfg["backend"] = "f5"
+        # f5 區塊 (ref_audio, ref_text, speed...) 維持不動, 由 tts_config.json 直接編
+    else:
+        cfg["backend"] = "edge"
+        cfg.setdefault("edge", {})["voice"] = voice_id
+
     TTS_CONFIG_PATH.write_text(
         json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
     )

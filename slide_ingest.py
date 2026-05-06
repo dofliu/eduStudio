@@ -43,7 +43,7 @@ EXAMS_ROOT = BASE_DIR / "exams"
 MODEL = "gemini-2.5-flash"
 SLIDE_DPI = 200          # 1920px 寬左右 (16:9 投影片)
 THUMB_WIDTH = 640        # 章節切分用縮圖, 省 token
-NARRATION_MAX_TOKENS = 4096  # 詳盡模式 narration 可達 300 字, 給足夠 buffer
+NARRATION_MAX_TOKENS = 4096  # 詳盡模式上限 240 字 ≈ 700 tokens, 留 retry 餘裕
 
 
 # 章節切分 prompt
@@ -72,37 +72,35 @@ start_page / end_page 為 1-indexed inclusive。第一章 start_page 必為 1, �
 """
 
 # 單頁 narration prompt — 詳盡模式 (預設)
-# 200~300 字 ≈ 60~90 秒語音, 配合 12 頁/章 → 每支影片 ~15 分鐘
+# 目標 200~250 字 ≈ 60~80 秒語音, 配合 12 頁/章 → 每支影片約 12~15 分鐘
 NARRATION_PROMPT_DETAILED = """你正在替一份簡報的單張投影片撰寫教師講解旁白, 用於講解影片。
-這是一場約 15 分鐘的章節影片, 你寫的旁白要有充足深度, 不能流於朗讀。
 
 ==== 章節背景 ====
 本投影片屬於「{chapter_title}」章節 (本章共 {chapter_pages} 頁, 此為第 {page_in_chapter} 頁)。
 
-==== 上一張投影片的旁白 (僅供銜接參考, 不要重複也不要直接複述) ====
+==== 上一張投影片的旁白 (供銜接, 不要重複) ====
 {prev_narration}
 
 ==== 本張投影片內容 ====
 請看圖。
 
 ==== 撰寫要求 ====
-1. **長度 200~300 字** (中文字數), 講得夠深、夠詳細
-2. 以「劉老師」第一人稱口吻, 自然口語, 像在課堂上面對學生
-3. 內容要包含 (依投影片性質取 2~4 項):
-   - 概念說明: 這是什麼、為什麼重要
-   - 舉例: 至少給一個具體的、貼近學生生活/工程應用的例子
-   - 原理: 解釋背後為什麼這樣做, 不是只說「就是這樣」
-   - 關聯: 跟前面學過的、或後面要學的概念怎麼接
-   - 易錯點 / 常見誤解 (如果該頁主題有典型錯誤)
-4. 開頭用銜接語多樣化: 「接下來」「我們先來看」「這張很重要的點是」「換個角度想」⋯⋯, 不要每張都「好, 我們來看…」
-5. 末尾用句點「。」結束, 句子完整
-6. **不要使用 LaTeX 標記** (例如 $x^2$ 一律寫成 x 的平方; 不要寫 \\frac, \\sqrt 等)
-7. **不要 Markdown 標記** (** _ # 等)
-8. 純中文 + 必要的英文術語 / 數值, 沒有任何符號標記
-9. 程式碼可以唸出來但用「等於」「冒號」描述, 不要直接念符號
+**首要規則: 句子必須完整, 結尾使用句點「。」, 絕對不要在半句話停下。**
+
+1. 目標長度 200~250 字 (對應 60~80 秒語音), 比目標多 30 字或少 30 字皆可,
+   寧可寫到 280 字並完整收尾, 也不要 200 字卻句子半截
+2. 「劉老師」第一人稱口吻, 自然口語, 像在課堂面對學生
+3. 內容深度: 不只朗讀投影片, 加入下列任一兩項:
+   - 概念是什麼 + 為什麼重要
+   - 一個具體例子 (生活場景或工程應用)
+   - 原理或前後概念的關聯
+   - 典型易錯點
+4. 開頭銜接多樣化, 不要每張都「好, 我們來看」
+5. 不要 LaTeX、不要 Markdown、不要符號標記; 程式碼用「等於」「冒號」念
+6. 純中文 + 必要英文術語 / 數值
 
 ==== 輸出格式 ====
-直接輸出旁白內容, 不要前言「以下是旁白:」、不要引號、不要分段, 一段純文字。
+直接輸出純文字, 不要前言、引號、分段。
 """
 
 # 單頁 narration prompt — 簡短模式 (--brief 啟用)
@@ -226,6 +224,8 @@ def _normalize_chapters(chapters: list[dict], total_pages: int) -> list[dict]:
 
 
 _SENTENCE_END = ("。", "！", "？", ".", "!", "?")
+NARRATION_TARGET_CHARS = 250
+NARRATION_HARD_MAX = 320  # 超過就 post-process truncate (Gemini 偶爾寫超長)
 
 
 def _clean_narration(raw: str) -> str:
@@ -233,6 +233,27 @@ def _clean_narration(raw: str) -> str:
     text = re.sub(r"^[「『\"']", "", text)
     text = re.sub(r"[」』\"']$", "", text)
     return strip_latex(text)
+
+
+def _truncate_at_sentence(text: str, target: int = NARRATION_TARGET_CHARS,
+                          hard_max: int = NARRATION_HARD_MAX) -> str:
+    """超過 hard_max 就在 target 附近找最近的句尾標點切, 確保收尾完整。
+    Gemini 對中文字數不易精準控制, 這裡兜底防止單頁 narration 拖長整支影片。"""
+    if len(text) <= hard_max:
+        return text
+    window = text[:hard_max]
+    last_end = max(
+        window.rfind("。"), window.rfind("！"), window.rfind("？"),
+        window.rfind("."), window.rfind("!"), window.rfind("?"),
+    )
+    if last_end >= target - 50:
+        return text[: last_end + 1]
+    # 沒找到合理句點: 用逗號退而求其次, 補上句點
+    cut = text[:target]
+    last_comma = max(cut.rfind("，"), cut.rfind(","))
+    if last_comma > target - 80:
+        return cut[: last_comma] + "。"
+    return cut + "。"
 
 
 def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
@@ -251,13 +272,29 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
     )
     parts = [types.Part.from_bytes(data=page_png, mime_type="image/png")]
 
+    # 三段式 retry:
+    #   1. 純 prompt (temp=0.4)
+    #   2. 強調必須完整 (temp=0.7)
+    #   3. 把 partial 當 context, 要 Gemini「續寫」剩下的句子 (temp=0.5)
     last_text = ""
-    for attempt, temp in enumerate([0.4, 0.7], start=1):
-        prompt = base_prompt if attempt == 1 else (
-            base_prompt
-            + "\n\n⚠ 上次輸出結尾沒有句點, 看起來被截斷。請務必輸出**完整**句子, "
-              "並以「。」「！」或「？」結尾, 不要中途停。"
-        )
+    for attempt in range(1, 4):
+        if attempt == 1:
+            prompt = base_prompt
+            temp = 0.4
+        elif attempt == 2:
+            prompt = base_prompt + (
+                "\n\n⚠ 請務必輸出**完整**句子, 並以「。」「！」或「？」結尾, "
+                "句子不能中途停。寧可再多寫幾個字到完整收尾, 也不要半句話結束。"
+            )
+            temp = 0.7
+        else:
+            # 第 3 次: 給 Gemini 上次的 partial, 直接要求補完
+            prompt = base_prompt + (
+                f"\n\n⚠ 上次你寫到「{last_text}」就斷了, "
+                f"請從這裡接續寫完, 直接給完整版的旁白(不是只給後半段, 是整段重寫並以句點結尾)。"
+            )
+            temp = 0.5
+
         try:
             resp = client.models.generate_content(
                 model=MODEL,
@@ -270,30 +307,33 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
             text = _clean_narration(resp.text)
             if text and text.endswith(_SENTENCE_END):
                 if attempt > 1:
-                    print(f"   ↺ retry 成功 (temp={temp})")
+                    print(f"   ↺ retry 成功 (attempt={attempt}, temp={temp})")
                 return text
-            last_text = text or last_text
+            if text and len(text) > len(last_text):  # 用較長的當 partial
+                last_text = text
             if attempt == 1 and text:
                 print(f"   ⚠ narration 結尾未完整(「{text[-8:]}」), 進入 retry")
         except Exception as e:
             print(f"   ⚠ 第 {attempt} 次 narration 生成失敗: {e}")
 
-    # 兩次都不完整: 回傳最後一次內容(總比沒有好), 在後面標個記號
+    # 三次都不完整: 回傳最長的一版, 標記人工補完
     return (last_text + " [需人工補完整句]") if last_text else "(此頁旁白生成失敗)"
 
 
 def build_problems(stem: str, chapters: list[dict], page_paths: list[Path],
                    narrations: list[str]) -> list[dict]:
-    """章節 + 每頁 narration → exam.json 的 problems 結構。"""
+    """章節 + 每頁 narration → exam.json 的 problems 結構。
+    每段 narration 進來前先 _truncate_at_sentence 兜底,避免單頁拖長影片。"""
     problems = []
     for ci, ch in enumerate(chapters):
         s, e = ch["start_page"], ch["end_page"]
         steps = []
         for p in range(s, e + 1):
             png_rel = page_paths[p - 1].relative_to(BASE_DIR).as_posix()
+            narration = _truncate_at_sentence(narrations[p - 1])
             steps.append({
                 "display": f"投影片 {p}",
-                "narration": narrations[p - 1],
+                "narration": narration,
                 "bg_type": "slide",
                 "bg_image": png_rel,
                 "layout": "full",

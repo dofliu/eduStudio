@@ -18,11 +18,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Windows 終端強制 UTF-8 (沿用 solve.py / pipeline.py 慣例)
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -136,6 +131,8 @@ def upload_caption(youtube, video_id: str, srt_path: Path,
 
 
 def main():
+    from core.runtime import setup_utf8_stdout
+    setup_utf8_stdout()
     ap = argparse.ArgumentParser(description="上傳 MP4 + SRT 到 YouTube")
     ap.add_argument("--video", required=True, help="MP4 檔案路徑")
     ap.add_argument("--title", required=True, help="影片標題")

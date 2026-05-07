@@ -21,74 +21,9 @@ import sys
 from pathlib import Path
 
 
-# LaTeX → plain text 映射 (Gemini 2.5 愛用 LaTeX, 但黑板顯示+TTS 都要純文字)
-_GREEK_MAP = {
-    "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε",
-    "zeta": "ζ", "eta": "η", "theta": "θ", "iota": "ι", "kappa": "κ",
-    "lambda": "λ", "mu": "μ", "nu": "ν", "xi": "ξ", "pi": "π",
-    "rho": "ρ", "sigma": "σ", "tau": "τ", "phi": "φ", "chi": "χ",
-    "psi": "ψ", "omega": "ω",
-}
-_SYMBOL_MAP = {
-    "times": "×", "div": "÷", "pm": "±", "mp": "∓", "cdot": "·",
-    "circ": "°", "degree": "°", "deg": "°", "approx": "≈", "neq": "≠",
-    "leq": "≤", "geq": "≥", "infty": "∞", "partial": "∂", "nabla": "∇",
-    "rightarrow": "→", "leftarrow": "←", "Rightarrow": "⇒",
-}
-
-def strip_latex(text: str) -> str:
-    """把 LLM 夾帶的 LaTeX 標記還原成黑板/TTS 可讀的純文字。"""
-    if not text: return text
-    # \frac{a}{b} → (a)/(b)
-    text = re.sub(r'\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}', r'(\1)/(\2)', text)
-    # \sqrt{a} → 根號(a)
-    text = re.sub(r'\\sqrt\s*\{([^{}]*)\}', r'根號(\1)', text)
-    # \text{xxx} → xxx
-    text = re.sub(r'\\text\s*\{([^{}]*)\}', r'\1', text)
-    # \vec{a} / \hat{a} / \bar{a} → a
-    text = re.sub(r'\\(?:vec|hat|bar|tilde|dot|ddot)\s*\{([^{}]*)\}', r'\1', text)
-    # 希臘字母 (大寫用首字母大寫判斷)
-    def greek_sub(m):
-        name = m.group(1)
-        if name.lower() in _GREEK_MAP:
-            ch = _GREEK_MAP[name.lower()]
-            return ch.upper() if name[0].isupper() else ch
-        return m.group(0)
-    text = re.sub(r'\\([A-Za-z]+)', lambda m: _SYMBOL_MAP.get(m.group(1), m.group(0)), text)
-    text = re.sub(r'\\([A-Za-z]+)', greek_sub, text)
-    # 數學函數 \sin \cos \tan \log \ln 等 → 拿掉反斜線
-    text = re.sub(r'\\(sin|cos|tan|cot|sec|csc|log|ln|exp|lim|sum|int|sinh|cosh|tanh|arcsin|arccos|arctan|min|max)\b', r'\1', text)
-    # 上下標 _{xxx} → _xxx, ^{xxx} → ^xxx (保留一層括號的情況)
-    text = re.sub(r'_\{([^{}]*)\}', r'_\1', text)
-    text = re.sub(r'\^\{([^{}]*)\}', r'^\1', text)
-    # 變數下標 F_A → FA, F_R_x → FRx, ΣF_y → ΣFy (用 lookahead 一次處理鏈式底線)
-    text = re.sub(r'([A-Za-zα-ωΑ-Ω])_(?=[A-Za-z0-9])', r'\1', text)
-    # $...$ / $$...$$ / \(...\) / \[...\] 外殼去掉
-    text = re.sub(r'\$\$([^$]*)\$\$', r'\1', text)
-    text = re.sub(r'\$([^$\n]*)\$', r'\1', text)
-    text = re.sub(r'\\\((.*?)\\\)', r'\1', text)
-    text = re.sub(r'\\\[(.*?)\\\]', r'\1', text)
-    # 剩餘散落的 \xxx (未知命令) — 保留字母去掉反斜線
-    text = re.sub(r'\\([a-zA-Z]+)', r'\1', text)
-    # 殘留的 { } 若內容單純就去掉
-    text = re.sub(r'\{([^{}]*)\}', r'\1', text)
-    return text
-
-
-def clean_json_escapes(text: str) -> str:
-    """修正 LLM 產生的非法 JSON 轉義 (如 \\alpha, \\frac, \\(, \\theta 等 LaTeX)。
-    JSON 合法反斜線轉義僅: \\" \\\\ \\/ \\b \\f \\n \\r \\t \\uXXXX
-    規則: 只把「非已配對」的單一反斜線加倍 (用 negative lookbehind 避開 \\\\ 後接字元的情況),
-    且 \\u 後需 4 位 hex 才算合法, 否則也加倍。"""
-    # 第一步: \u 後若不是 4 位 hex, 把 \ 加倍
-    text = re.sub(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', text)
-    # 第二步: \ 後若不是合法轉義字元, 加倍 (排除前面已是 \ 的情況)
-    return re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r'\\\\', text)
-
-# Windows 終端 cp950 不支援 emoji，強制 UTF-8
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+# strip_latex / clean_json_escapes 已搬到 core.text_utils 統一管理 (PR-1 重構)
+# 這裡 re-export 維持向後相容: 既有 `from solve import strip_latex` 仍能用。
+from core.text_utils import strip_latex, clean_json_escapes
 
 import fitz  # pymupdf
 
@@ -443,6 +378,8 @@ def mock_output() -> dict:
     }
 
 def main():
+    from core.runtime import setup_utf8_stdout
+    setup_utf8_stdout()
     ap = argparse.ArgumentParser()
     ap.add_argument("pdf", help="輸入考卷 PDF 路徑")
     ap.add_argument("output", nargs="?", default=None, help="輸出 JSON 路徑")

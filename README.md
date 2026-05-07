@@ -122,9 +122,17 @@ autoSolverVideo/
 ├── app.py              # Web UI (Flask)
 ├── pipeline.py         # v0 核心渲染:JSON → MP4 + SRT
 ├── solve.py            # PDF → exam.json (Gemini Vision)
+├── slide_ingest.py     # 簡報 PDF → exam.json (slide 模式)
 ├── batch.py            # 呼叫 pipeline 跑整份考卷
+├── publish.py          # 上傳 MP4 + SRT 到 YouTube
 ├── tts_backend.py      # TTS 抽象層 (edge / f5 / fallback)
 ├── make_sample_pdf.py  # 測試用考卷產生器
+│
+├── core/               # 公開 Python API (PR-1 引入,for 未來 FastAPI 包裝)
+│   ├── __init__.py     #   re-export render_video / solve_pdf / ingest_slides 等
+│   ├── config.py       #   集中 paths / env vars / 模型名 / 字型路徑常數
+│   ├── runtime.py      #   setup_utf8_stdout() (Windows cp950 修正)
+│   └── text_utils.py   #   strip_latex / clean_json_escapes
 │
 ├── tts_config.json     # TTS 設定(backend、voice、速度…)
 ├── pipeline_config.json  # 渲染設定(老師頭像 overlay …)
@@ -273,6 +281,48 @@ videos/<exam_stem>/
     ├── q2.mp4 + q2.srt
     └── ...
 ```
+
+---
+
+## 公開 Python API (`core/`)
+
+PR-1 引入的薄再匯出層,提供穩定的 import 介面給未來 FastAPI / scheduled job 使用。
+原 CLI 入口(`python pipeline.py`、`python solve.py` 等)行為**完全沒變**。
+
+```python
+import core
+
+# 呼叫主功能
+exam_data = core.solve_pdf(Path("exam.pdf"))               # PDF → dict (Gemini)
+core.ingest_slides(Path("slides.pdf"), Path("out.json"),    # 簡報 PDF → dict
+                   mock=False, single=False, brief=False)
+await core.render_video("q1.json", "q1_out")                # JSON → MP4 + SRT
+v0_dict = core.problem_to_v0_json(exam_title, prob)         # v1 → v0 schema
+
+# TTS
+backend = core.load_tts_backend()
+await backend.synthesize("文字內容", Path("out.mp3"))
+
+# YouTube
+creds = core.get_youtube_credentials()
+video_id = core.upload_video(youtube, video_path, title=..., description=..., ...)
+
+# 文字工具
+clean = core.strip_latex(r"$\theta = \frac{a}{b}$")
+fixed = core.clean_json_escapes(raw_llm_output)
+
+# 設定常數 (paths / env vars / model name / 字型路徑)
+core.config.PROJECT_ROOT
+core.config.GEMINI_MODEL
+core.config.get_font_path()
+```
+
+設計重點:
+- **Lazy import** — `core/__init__.py` 用 `__getattr__` 第一次存取才載入對應模組,
+  避免 import core 就把 PIL / pymupdf / google-genai 一次拉進來
+- **無 import 副作用** — `setup_utf8_stdout()` 只在 CLI / Web 啟動時才呼叫,
+  FastAPI process 不會被改 stdout
+- **向後相容** — `from solve import strip_latex` 仍然能用 (solve.py 從 core re-export)
 
 ---
 

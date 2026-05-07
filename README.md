@@ -122,9 +122,39 @@ autoSolverVideo/
 ├── app.py              # Web UI (Flask)
 ├── pipeline.py         # v0 核心渲染:JSON → MP4 + SRT
 ├── solve.py            # PDF → exam.json (Gemini Vision)
+├── slide_ingest.py     # 簡報 PDF → exam.json (slide 模式)
 ├── batch.py            # 呼叫 pipeline 跑整份考卷
+├── publish.py          # 上傳 MP4 + SRT 到 YouTube
 ├── tts_backend.py      # TTS 抽象層 (edge / f5 / fallback)
 ├── make_sample_pdf.py  # 測試用考卷產生器
+│
+├── core/               # 公開 Python API
+│   ├── __init__.py     #   re-export render_video / solve_pdf / ingest_slides 等
+│   ├── config.py       #   集中 paths / env vars / 模型名 / 字型路徑常數
+│   ├── runtime.py      #   setup_utf8_stdout() (Windows cp950 修正)
+│   ├── text_utils.py   #   strip_latex / clean_json_escapes
+│   ├── deck.py         #   新 deck schema + deck_to_exam_schema(_pptx)
+│   ├── outliner.py     #   raw_content -> outline.json (Gemini, repo 用)
+│   ├── scriptor.py     #   outline -> deck.json (Gemini, 逐 section)
+│   ├── adapters/
+│   │   └── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
+│   └── render/
+│       └── pptx_style.py  # Forest 主題 Pillow renderer (PR-2b-ii)
+│
+├── server/             # FastAPI server (PR-2a)
+│   ├── main.py         #   app factory + uvicorn CLI
+│   ├── schemas.py      #   Pydantic request / response / state models
+│   ├── jobs.py         #   JobStore (in-memory + JSON 檔案持久化)
+│   ├── runner.py       #   背景任務 dispatch (source_type → core fn)
+│   └── routes/jobs.py  #   /jobs CRUD + /draft + /approve + /artifacts
+│
+├── jobs/               # Server runtime (gitignored)
+│   └── <job_id>/
+│       ├── state.json
+│       ├── raw_content.json   # repo 路徑才有 (PR-2b-i)
+│       ├── outline.json       # repo 路徑才有
+│       ├── deck.json
+│       └── artifacts/
 │
 ├── tts_config.json     # TTS 設定(backend、voice、速度…)
 ├── pipeline_config.json  # 渲染設定(老師頭像 overlay …)
@@ -273,6 +303,184 @@ videos/<exam_stem>/
     ├── q2.mp4 + q2.srt
     └── ...
 ```
+
+---
+
+## REST API (`server/`)
+
+PR-2a 引入的 FastAPI server,把 `core/` 包成 HTTP 端點供排程器 / 前端 / Webhook 使用。
+Job 採非同步背景執行 + JSON 檔案持久化 (重啟保留)。
+
+### 啟動
+
+```bash
+# 開發模式 (auto-reload)
+python -m server.main --reload
+
+# 預設 host=127.0.0.1 port=8000
+python -m server.main --port 8000
+
+# 也可以用 uvicorn (CI / docker compose)
+uvicorn server.main:app --host 127.0.0.1 --port 8000
+```
+
+開瀏覽器到 `http://localhost:8000/docs` 看互動式 OpenAPI 文件。
+
+### 端點
+
+| Method | Path | 用途 |
+|---|---|---|
+| `GET`    | `/health`                              | 健康檢查 |
+| `POST`   | `/jobs`                                | 建立 job 並背景排程 |
+| `GET`    | `/jobs`                                | 列出全部 (created_at desc) |
+| `GET`    | `/jobs/{id}`                           | 拿單一 job 完整 state |
+| `DELETE` | `/jobs/{id}`                           | 刪除 (含磁碟資料) |
+| `GET`    | `/jobs/{id}/draft`                     | 拿 deck.json |
+| `PUT`    | `/jobs/{id}/draft`                     | 改 deck.json (僅 awaiting_review) |
+| `POST`   | `/jobs/{id}/approve`                   | review 通過,觸發渲染 |
+| `GET`    | `/jobs/{id}/artifacts/{filename}`      | 下載 MP4 / SRT |
+
+### Source types
+
+| `source_type` | `source.path` 指向 | ingest pipeline | 預設 require_review |
+|---|---|---|---|
+| `exam_pdf`   | 考卷 PDF 檔 | `solve.py` 三段 Gemini   | True (硬規則 #1) |
+| `slides_pdf` | 簡報 PDF 檔 | `slide_ingest.py` 章節+逐頁 narration | False |
+| `repo`       | 資料夾路徑 | `core/adapters/repo` → `core/outliner` → `core/scriptor` | False |
+
+`repo` 路徑 (PR-2b-i) 限 ≤50 檔, 用 `options.max_files` 可調整。其他類型 (document /
+url) 留給後續 PR。
+
+### 渲染風格
+
+| Source | Renderer | 視覺 |
+|---|---|---|
+| `exam_pdf` / `slides_pdf` | `pipeline.BlackboardRenderer` (黑板模式) | 深綠黑板 + 粉筆色階 |
+| `slides_pdf` (slide-bg-image step) | `pipeline.SlideRenderer` | 原投影片 PNG 當底圖 |
+| `repo` (PR-2b-ii) | `core.render.pptx_style.PptxStyleRenderer` | Forest 主題簡報 (banner + 標題 + bullets + code block) |
+
+Repo 路徑採 Pillow 純 Python 渲染, **不**走 LibreOffice / Node 鏈路 — 沒有 .pptx
+檔案產出, 只有最終 mp4 (deck.json 是 source of truth, 編輯走 Web UI 改 deck)。
+未來若要產 .pptx 給人下載編輯, 再加一個轉換端點即可。
+
+### Job 狀態機
+
+```
+pending ── ingest ──► ingesting ──┬──► awaiting_review ──approve──┐
+                                  │                                ▼
+                                  └────────(require_review=False)──► rendering ──► done
+                                                                                     │
+                                                            (任何階段失敗) ─► failed
+```
+
+`require_review` 預設值依 `source_type`:
+- `exam_pdf` → `True` (CLAUDE.md 硬規則 #1: AI 答案必須人工 review)
+- `slides_pdf` → `False` (簡報講解風險低,可一路跑完)
+
+### 範例 1:建立一個 mock exam job
+
+```bash
+curl -X POST http://localhost:8000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_type": "exam_pdf",
+    "source": {"path": "D:/path/to/exam.pdf"},
+    "options": {"mock": true, "require_review": true}
+  }'
+# {"job_id":"abc123def456","state":"pending","status_url":"/jobs/abc123def456"}
+
+# Poll
+curl http://localhost:8000/jobs/abc123def456
+
+# 看 deck
+curl http://localhost:8000/jobs/abc123def456/draft
+
+# 通過 review,進渲染
+curl -X POST http://localhost:8000/jobs/abc123def456/approve
+
+# 下載成果
+curl http://localhost:8000/jobs/abc123def456/artifacts/q1.mp4 -o q1.mp4
+```
+
+### 範例 2:把一個 repo 資料夾講成影片 (PR-2b-i)
+
+```bash
+curl -X POST http://localhost:8000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_type": "repo",
+    "source": {"path": "D:/path/to/your/repo"},
+    "options": {"max_files": 50}
+  }'
+```
+
+預設 `require_review=false` 一路跑完, 中間產物會寫到 `jobs/<id>/`:
+- `raw_content.json` — adapter 掃出來的檔案樹 + 關鍵檔內容
+- `outline.json` — Gemini 切的章節大綱
+- `deck.json` — 完整 slides + narration (新 schema)
+- `artifacts/<section_id>.mp4 / .srt / .json` — 每章一支影片
+
+PR-2b-i 暫時用既有黑板渲染, PR-2b-ii 會切到 pptx 風格 (LibreOffice + pptxgenjs)。
+
+### 檔案佈局
+
+```
+jobs/                          # gitignored
+└── <job_id>/
+    ├── state.json             # JobRecord (狀態 / stages / artifacts)
+    ├── deck.json              # ingest 產物 (exam.json schema)
+    └── artifacts/
+        ├── q1.mp4 / q1.srt / q1.json
+        └── ...
+```
+
+### 排程使用
+
+未來搭配 cron / Windows Task Scheduler / scheduled-tasks MCP, 直接 `curl` 即可
+觸發定期 ingest + render, 不必 Web UI。`require_review=False` + `mock=False` 可以
+在後台跑完整 pipeline。
+
+---
+
+## 公開 Python API (`core/`)
+
+PR-1 引入的薄再匯出層,提供穩定的 import 介面給未來 FastAPI / scheduled job 使用。
+原 CLI 入口(`python pipeline.py`、`python solve.py` 等)行為**完全沒變**。
+
+```python
+import core
+
+# 呼叫主功能
+exam_data = core.solve_pdf(Path("exam.pdf"))               # PDF → dict (Gemini)
+core.ingest_slides(Path("slides.pdf"), Path("out.json"),    # 簡報 PDF → dict
+                   mock=False, single=False, brief=False)
+await core.render_video("q1.json", "q1_out")                # JSON → MP4 + SRT
+v0_dict = core.problem_to_v0_json(exam_title, prob)         # v1 → v0 schema
+
+# TTS
+backend = core.load_tts_backend()
+await backend.synthesize("文字內容", Path("out.mp3"))
+
+# YouTube
+creds = core.get_youtube_credentials()
+video_id = core.upload_video(youtube, video_path, title=..., description=..., ...)
+
+# 文字工具
+clean = core.strip_latex(r"$\theta = \frac{a}{b}$")
+fixed = core.clean_json_escapes(raw_llm_output)
+
+# 設定常數 (paths / env vars / model name / 字型路徑)
+core.config.PROJECT_ROOT
+core.config.GEMINI_MODEL
+core.config.get_font_path()
+```
+
+設計重點:
+- **Lazy import** — `core/__init__.py` 用 `__getattr__` 第一次存取才載入對應模組,
+  避免 import core 就把 PIL / pymupdf / google-genai 一次拉進來
+- **無 import 副作用** — `setup_utf8_stdout()` 只在 CLI / Web 啟動時才呼叫,
+  FastAPI process 不會被改 stdout
+- **向後相容** — `from solve import strip_latex` 仍然能用 (solve.py 從 core re-export)
 
 ---
 

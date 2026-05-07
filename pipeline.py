@@ -16,11 +16,6 @@ import shutil
 from pathlib import Path
 from functools import lru_cache
 
-# Windows 終端 cp950 不支援 emoji，強制 UTF-8
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
 from PIL import Image, ImageDraw, ImageFont
 from mutagen.mp3 import MP3
 from tts_backend import TTSBackend, load_tts_backend
@@ -285,7 +280,20 @@ class SlideRenderer(Renderer):
         canvas.save(out_p, "PNG")
 
 
-_RENDERERS = {"blackboard": BlackboardRenderer(), "slide": SlideRenderer()}
+# 動態註冊 PptxStyleRenderer (PR-2b-ii):
+# 為什麼用 lazy import: core.render.pptx_style 內部 try/except 會 import 回 pipeline
+# 抓 _overlay_teacher_photo, 直接 module-level import 會 circular。延後到 module 完全
+# load 後才註冊就沒事。
+def _load_pptx_renderer():
+    from core.render.pptx_style import PptxStyleRenderer
+    return PptxStyleRenderer()
+
+
+_RENDERERS = {
+    "blackboard": BlackboardRenderer(),
+    "slide": SlideRenderer(),
+    "pptx_slide": _load_pptx_renderer(),
+}
 
 
 def render_frame(data, step_idx, out_p, q_work):
@@ -368,6 +376,8 @@ async def main(json_path, out_name, start_step=None):
     print(f"✅ 完成: {out_name}.mp4")
 
 if __name__ == "__main__":
+    from core.runtime import setup_utf8_stdout
+    setup_utf8_stdout()
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("json_path"); ap.add_argument("out_name", nargs="?", default="review"); ap.add_argument("--step", type=int); ap.add_argument("--tts")

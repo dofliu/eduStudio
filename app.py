@@ -21,11 +21,6 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# Windows 終端 cp950 不支援 emoji，強制 UTF-8
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
 from flask import Flask, request, jsonify, render_template_string, redirect, url_for, send_from_directory, abort
 
 app = Flask(__name__)
@@ -1285,6 +1280,8 @@ def api_status():
 # ------------------ Main ------------------
 
 def main():
+    from core.runtime import setup_utf8_stdout
+    setup_utf8_stdout()
     global EXAM_PATH, VIDEO_ROOT
     ap = argparse.ArgumentParser()
     ap.add_argument("exam_json", nargs="?", default=None,

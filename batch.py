@@ -10,11 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Windows 終端 cp950 不支援 emoji，強制 UTF-8
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
 # v0 pipeline 的位置（同目錄）
 PIPELINE = Path(__file__).parent / "pipeline.py"
 
@@ -33,6 +28,8 @@ def problem_to_v0_json(exam_title: str, prob: dict) -> dict:
 
 
 def main():
+    from core.runtime import setup_utf8_stdout
+    setup_utf8_stdout()
     ap = argparse.ArgumentParser()
     ap.add_argument("exam_json", help="v1 exam.json 路徑")
     ap.add_argument("output_dir", nargs="?", default="./videos",

@@ -1,0 +1,155 @@
+"""Pydantic schemas — request / response models 與 job 內部 state schema。
+
+設計原則:
+- request / response 採開放欄位 (Extra.allow) 給未來 PR 加欄位不破壞 API
+- JobState 是內部寫到 state.json 的格式, 也直接當 GET /jobs/{id} 的 response
+"""
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+# ---------- Enums ----------
+
+class SourceType(str, Enum):
+    """支援的內容來源類型。
+
+    PR-2a 支援 exam_pdf / slides_pdf (包現有 pipeline)。
+    PR-2b-i 加 repo (folder walker -> outliner -> scriptor -> deck.json)。
+    PR-2b-ii 之後會再加 document / url。
+    """
+    EXAM_PDF = "exam_pdf"        # 考卷 PDF -> solve.py 三段 Gemini
+    SLIDES_PDF = "slides_pdf"    # 簡報 PDF -> slide_ingest.py 章節+逐頁 narration
+    REPO = "repo"                # 資料夾 / repo -> repo adapter + outliner + scriptor
+
+
+class JobState(str, Enum):
+    """Job 的生命週期狀態。狀態機:
+
+        pending ──ingest──► ingesting ──┬─── awaiting_review ──approve──┐
+                                        │                                ▼
+                                        └────────────────────────► rendering ──► done
+                                                                                   │
+                                                            (任何階段失敗) ─► failed
+    """
+    PENDING = "pending"
+    INGESTING = "ingesting"           # 跑 solve.py / slide_ingest.py
+    AWAITING_REVIEW = "awaiting_review"  # require_review=True 時停在這
+    RENDERING = "rendering"           # 跑 batch + pipeline
+    DONE = "done"
+    FAILED = "failed"
+
+
+# ---------- Request schemas ----------
+
+class JobOptions(BaseModel):
+    """建立 job 時的選項。所有欄位皆 optional, 採類型預設值。"""
+    require_review: bool | None = Field(
+        default=None,
+        description="是否要在 ingest 完成後停下等人工 review。"
+                    "exam_pdf 預設 True (硬規則 #1);slides_pdf 與後續 repo 預設 False。",
+    )
+    tts_provider: str | None = Field(
+        default=None,
+        description="TTS 後端 (edge | f5)。覆寫 tts_config.json 的設定,等同設 TTS_PROVIDER 環境變數。",
+    )
+    output_name: str | None = Field(
+        default=None,
+        description="輸出檔名前綴 (預設用 source 檔案 stem)。",
+    )
+    mock: bool = Field(
+        default=False,
+        description="ingest 走離線 mock 路徑 (不打 Gemini),供 smoke test / 開發用。"
+                    "exam_pdf 用 solve.mock_output();slides_pdf 用 ingest_slides(mock=True);"
+                    "repo 用 outliner.mock_outline + scriptor.mock_deck。",
+    )
+    max_files: int | None = Field(
+        default=None,
+        description="repo source 限制掃幾個檔 (預設 50)。其他 source_type 忽略此欄位。",
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+
+class JobSource(BaseModel):
+    """來源描述。PR-2a 用 path 指本機檔案;後續會擴成支援 url / inline content。"""
+    path: str = Field(
+        description="server 本機可讀的絕對路徑 (PR-2a 限制)。"
+                    "未來會新增 url / upload_id 等欄位。",
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+
+class CreateJobRequest(BaseModel):
+    source_type: SourceType
+    source: JobSource
+    options: JobOptions = Field(default_factory=JobOptions)
+
+    model_config = ConfigDict(extra="allow")
+
+
+class UpdateDeckRequest(BaseModel):
+    """PUT /jobs/{id}/draft 的 body — 整個 deck.json 內容。
+    刻意不在這裡硬寫 schema,因為 v1 (考卷) / slides / 未來 repo 的 deck schema 不同。
+    """
+    deck: dict[str, Any]
+
+
+# ---------- Response / state schemas ----------
+
+class StageInfo(BaseModel):
+    """單一階段的執行紀錄,寫進 state.json 給 caller 與 debug 用。"""
+    name: str
+    state: str  # pending | running | done | failed
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    error: str | None = None
+
+
+class Artifact(BaseModel):
+    """產出的檔案 metadata。path 是相對於 jobs/<id>/ 的路徑。"""
+    name: str
+    path: str
+    size_bytes: int
+    kind: str  # mp4 | srt | json | png | other
+
+
+class JobRecord(BaseModel):
+    """寫到 jobs/<id>/state.json 的完整內容,也直接當 GET /jobs/{id} 的 response。"""
+    id: str
+    source_type: SourceType
+    source: JobSource
+    options: JobOptions
+    state: JobState
+    created_at: datetime
+    updated_at: datetime
+    stages: list[StageInfo] = Field(default_factory=list)
+    artifacts: list[Artifact] = Field(default_factory=list)
+    error: str | None = None
+    # 內部欄位: ingest 後的 deck path, render 後的 output dir
+    deck_path: str | None = None
+    output_dir: str | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class CreateJobResponse(BaseModel):
+    job_id: str
+    state: JobState
+    status_url: str
+
+
+class JobListResponse(BaseModel):
+    jobs: list[JobRecord]
+
+
+# ---------- Utility ----------
+
+def utc_now() -> datetime:
+    """統一 timestamp 來源,方便未來換 timezone-aware 處理。"""
+    return datetime.utcnow()

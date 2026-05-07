@@ -26,15 +26,10 @@ import re
 import sys
 from pathlib import Path
 
-# Windows 終端強制 UTF-8 (沿用 solve.py 慣例)
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
 import fitz  # pymupdf
 
-# 共用 solve.py 的 LaTeX 後處理 (簡報旁白若混入 LaTeX 也要清掉)
-from solve import strip_latex, clean_json_escapes
+# LaTeX 後處理改從 core 拿 (PR-1 重構): 之前 from solve import 會連帶觸發 solve.py 副作用
+from core.text_utils import strip_latex, clean_json_escapes
 
 BASE_DIR = Path(__file__).parent
 SLIDES_ROOT = BASE_DIR / "slides"
@@ -415,6 +410,8 @@ def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool, brief: b
 
 
 def main():
+    from core.runtime import setup_utf8_stdout
+    setup_utf8_stdout()
     ap = argparse.ArgumentParser()
     ap.add_argument("pdf", help="簡報 PDF 路徑")
     ap.add_argument("output", nargs="?", help="輸出 JSON 路徑 (預設 exams/<stem>.json)")

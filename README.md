@@ -460,9 +460,46 @@ jobs/                          # gitignored
 
 ### 排程使用
 
-未來搭配 cron / Windows Task Scheduler / scheduled-tasks MCP, 直接 `curl` 即可
-觸發定期 ingest + render, 不必 Web UI。`require_review=False` + `mock=False` 可以
-在後台跑完整 pipeline。
+`scripts/submit_job.py` 是排程端的 CLI wrapper, 用一行命令觸發 `POST /jobs`,
+不必每次手寫 JSON payload + curl。回傳結構化 JSON 給排程 log 抓 job_id。
+
+```bash
+# repo 講解 (預設 require_review=false, 一路跑完)
+python scripts/submit_job.py repo D:/path/to/your/repo
+
+# 講義 PDF / Markdown / TXT
+python scripts/submit_job.py document D:/lecture.pdf
+
+# 部落格文章 / 網頁
+python scripts/submit_job.py url https://example.com/blog/some-article
+
+# 考卷 (預設 require_review=true, 加 --no-review 跳過 review 一路跑)
+python scripts/submit_job.py exam D:/exam.pdf --no-review
+
+# 跨機器: 指 server 位址
+python scripts/submit_job.py repo D:/repo --server http://192.168.1.5:8000
+```
+
+#### 在 Claude Cowork 設排程
+
+打開 Claude 桌面 / Cowork session, 用 `schedule` 技能設定 cron, 觸發指令格式
+為「每天/每週執行 `python scripts/submit_job.py <type> <source>`」。Job 跑完
+後到 `jobs/<id>/state.json` 看狀態, mp4 在 `jobs/<id>/artifacts/`。
+
+要 review 通過才渲染的 (例: 考卷), 排程只跑到 `awaiting_review`, 然後人去
+編輯介面 (PR-3d, 預定) approve。
+
+#### 在 Windows 工作排程器設排程
+
+無需 Claude Cowork, 直接用 OS 內建排程器:
+
+1. 開啟「工作排程器」→ 建立基本工作
+2. 觸發程序: 每日 / 每週
+3. 動作: 啟動程式
+   - 程式: `python`
+   - 引數: `D:\Project_CodingSimulation\...\scripts\submit_job.py repo D:\path`
+   - 開始位置: 專案根目錄
+4. 條件 / 設定: 視需求
 
 ---
 

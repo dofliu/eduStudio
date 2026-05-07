@@ -155,6 +155,20 @@ autoSolverVideo/
 ├── scripts/
 │   └── submit_job.py   # 排程端 CLI wrapper (PR-3c)
 │
+├── web/                # React UI (PR-3e, gitignored: web/node_modules, web/dist)
+│   ├── package.json    #   React 18 + TS + Vite + Tailwind
+│   ├── vite.config.ts  #   base=/ui/, dev proxy /jobs -> :8000
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx + App.tsx + index.css
+│       ├── api.ts + types.ts
+│       ├── pages/
+│       │   ├── JobsIndex.tsx      # 列表 + 5s auto-poll + filter + create form
+│       │   └── JobEditor.tsx      # deck 逐 section/slide 編輯
+│       └── components/
+│           ├── JobCard.tsx, StatusBadge.tsx, Toast.tsx,
+│           ├── CreateJobForm.tsx, SlideEditor.tsx
+│
 ├── jobs/               # Server runtime (gitignored)
 │   └── <job_id>/
 │       ├── state.json
@@ -453,19 +467,39 @@ curl -X POST http://localhost:8000/jobs -H 'Content-Type: application/json' -d '
 兩條路都共用 `outline_long_form` + `script_long_form` prompt, 走 Forest pptx 渲染。
 單檔最大讀取 80,000 字, 超過會 truncate 並標記 `stats.truncated=true`。
 
-### Web UI (PR-3d)
+### Web UI
 
-Server 內建輕量 deck editor, 開瀏覽器到 `http://localhost:8000/editor` 即可:
+兩套 UI 並存:
 
-- **Index 頁** (`/editor`): 全部 job 列出, 狀態 badge + 來源描述 + 統計
-  - `awaiting_review` 狀態: 顯示「✏ Edit」與「✓ Approve」按鈕
-  - `done` 狀態: 顯示第一個 mp4 連結
-- **Edit 頁** (`/editor/{id}`): 逐 section / slide 編輯 title / bullets /
-  code_snippet / file_path / narration, 加 / 刪 bullet, 一鍵 save 與 approve
+**React UI** (PR-3e, 預設) — `http://localhost:8000/ui/` (或直接 `/`)
 
-UI 走 server-side HTML + vanilla JS (無 build, 無 CDN), Forest 配色呼應渲染主題。
-僅支援新 deck schema (repo / document / url); 考卷檢討的 v1 exam schema 仍由
-既有 Flask `app.py` 服務 (port 5000)。
+- React 18 + TypeScript + Vite + Tailwind CSS, build 在 `web/dist`
+- **Index 頁**: job 列表, 狀態 badge, **新增 Job 表單** (5 種 source + mock 開關),
+  filter by state, 5 秒 auto-poll
+- **Editor 頁**: 逐 section / slide 編輯 (title / bullets / code_snippet / file_path
+  / narration), narration 字數即時提示 (目標 100-200), dirty state 警告
+
+**Vanilla 編輯器** (PR-3d, fallback) — `http://localhost:8000/editor/`
+
+- Server-side HTML + vanilla JS (無 build, 無 CDN)
+- 同樣的編輯功能, Web UI build 不存在時自動 fallback
+
+**開發模式** — Vite dev server:
+```bash
+cd web && npm install
+cd web && npm run dev          # http://localhost:5173 (proxy /jobs 到 8000)
+# 另一個 terminal
+python -m server.main          # http://localhost:8000
+```
+
+**生產模式** — build 然後讓 FastAPI 服務:
+```bash
+cd web && npm run build        # 寫到 web/dist/
+python -m server.main          # 自動把 /ui/ 掛到 web/dist
+```
+
+兩者都僅支援新 deck schema (repo / document / url); 考卷檢討的 v1 exam schema
+仍由既有 Flask `app.py` 服務 (port 5000)。
 
 ### 檔案佈局
 

@@ -1,26 +1,34 @@
 name: autoSolverVideo
 name_zh: 考卷檢討影片自動生成系統
 category: edtech
-progress: 80
+progress: 92
 status: active
 last_updated: "2026-05-07"
-next_milestone: "Phase 4 split-left layout (解題型投影片) + 跑一份真實期中考完整流程驗證"
+next_milestone: "ElevenLabs voice cloning 整合 + 真實期中考端對端驗證 (Phase 5)"
 technologies:
-  - Python
-  - Flask
-  - Gemini Vision (2.5 Flash)
+  - Python 3.10+
+  - FastAPI / uvicorn
+  - Pydantic v2
+  - React 18 + TypeScript + Vite + Tailwind CSS
+  - Flask (legacy v1 review UI)
+  - Gemini 2.5 Flash (Vision + Text)
   - PyMuPDF
-  - Edge TTS
-  - F5-TTS (本機聲音複製)
-  - Pillow
-  - cairosvg
-  - FFmpeg
-  - Google YouTube Data API v3
-  - OAuth 2.0
+  - BeautifulSoup4 (URL adapter)
+  - Edge TTS / F5-TTS (聲音複製)
+  - Pillow / FFmpeg / cairosvg
+  - Google YouTube Data API v3 + OAuth 2.0
 outputs:
   - tool
   - course
   - presentation
-description: "PDF (考卷 / 簡報) → Gemini 解析 → 人工 review → MP4 + SRT → YouTube 自動上傳"
-description_zh: "從一份 PDF 自動產出講解影片並上傳 YouTube,讓學生考完當週就能複習"
-key_metrics: "v1.7 簡報講解影片 + v2.0 YouTube 上傳通道完成;單頁 narration 200~250 字 / 每章 13~19 分鐘"
+  - api
+description: "Multi-source content -> Gemini 解析 -> human review -> MP4 + SRT (Forest pptx 主題), 含 REST API + React UI + 排程整合"
+description_zh: "從考卷 / 簡報 / repo / 講義 / 部落格五種來源自動產出講解影片;有 REST API、React UI、CLI 排程入口"
+key_metrics: |
+  v3.0 平台化完成:
+  - 5 種 source: exam_pdf / slides_pdf / repo / document / url
+  - 3 種 renderer: 黑板 / 簡報原圖 / Forest pptx (Pillow, 0 LibreOffice 依賴)
+  - REST API + React UI (port 8000) + 既有 Flask review UI (port 5000)
+  - CLI: scripts/submit_job.py 給排程端用
+  - real Gemini 驗證: repo 5 章 33 slides / document 5 章 37 slides /
+    url 5 章 36 slides, 平均 narration 186~191 字

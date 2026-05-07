@@ -13,15 +13,23 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
+from core.config import PROJECT_ROOT
 from core.runtime import setup_utf8_stdout
 
 from .jobs import get_default_store
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
+
+
+# 對齊 vite.config.ts 的 build outDir
+WEB_DIST = PROJECT_ROOT / "web" / "dist"
 
 
 def create_app() -> FastAPI:
@@ -48,9 +56,44 @@ def create_app() -> FastAPI:
     app.include_router(jobs_routes.router)
     app.include_router(editor_routes.router)
 
+    # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor
+    # 用 StaticFiles mount /ui/assets 處理已知 asset 檔, 其餘 /ui/* 走 SPA fallback
+    # (deep link 例如 /ui/jobs/abc 直接刷新時 fallback 到 index.html, 由 React Router 處理)
+    if WEB_DIST.exists():
+        assets_dir = WEB_DIST / "assets"
+        if assets_dir.exists():
+            app.mount(
+                "/ui/assets",
+                StaticFiles(directory=str(assets_dir)),
+                name="ui-assets",
+            )
+
+        @app.get("/ui/{full_path:path}", include_in_schema=False)
+        async def spa_fallback(full_path: str) -> FileResponse:
+            # 防 path traversal
+            target = (WEB_DIST / full_path).resolve()
+            try:
+                target.relative_to(WEB_DIST.resolve())
+            except ValueError:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
+            # 找得到實檔 (例如 /ui/vite.svg) 就回那個檔, 找不到就 fallback index.html
+            if target.is_file():
+                return FileResponse(target)
+            return FileResponse(WEB_DIST / "index.html")
+
     @app.get("/health", tags=["meta"])
     async def health() -> dict:
-        return {"status": "ok", "service": "autoSolverVideo"}
+        return {
+            "status": "ok",
+            "service": "autoSolverVideo",
+            "ui_built": WEB_DIST.exists(),
+        }
+
+    # 根路徑優先導 React UI, 沒 build 就退到 vanilla editor
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        target = "/ui/" if WEB_DIST.exists() else "/editor"
+        return RedirectResponse(url=target, status_code=307)
 
     @app.on_event("startup")
     async def _startup() -> None:

@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
 from ..jobs import JobStore, get_default_store
 from ..schemas import JobRecord, JobState
@@ -461,9 +461,7 @@ def _html_escape(s: str | None) -> str:
 
 # ---------- Routes ----------
 
-@router.get("/", response_class=RedirectResponse, include_in_schema=False)
-async def root() -> RedirectResponse:
-    return RedirectResponse(url="/editor", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+# GET / 由 main.py 處理 (依 React UI 是否 build 過決定導 /ui/ 或 /editor)
 
 
 @router.get("/editor", response_class=HTMLResponse)

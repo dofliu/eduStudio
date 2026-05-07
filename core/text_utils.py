@@ -31,8 +31,18 @@ _SYMBOL_MAP = {
 }
 
 
-def strip_latex(text: str) -> str:
-    """把 LLM 夾帶的 LaTeX 標記還原成黑板/TTS 可讀的純文字。"""
+def strip_latex(text: str, *, preserve_identifiers: bool = False) -> str:
+    """把 LLM 夾帶的 LaTeX 標記還原成黑板/TTS 可讀的純文字。
+
+    preserve_identifiers=False (預設,給考卷 / 物理數學內容):
+        套用「變數下標」規則 F_A → FA, ω_n → ωn, F_R_x → FRx
+        因為材料力學 / 動力學的變數寫法 F_A 在黑板要顯示 FA, TTS 也要唸成「F A」。
+
+    preserve_identifiers=True (給 repo / 文件 / 程式碼上下文):
+        跳過「變數下標」規則, 保留 text_utils / solve_pdf / cfg_strength 等 Python
+        識別字的底線, 否則 narration 會把 core/text_utils.py 念成 textutils.py。
+        其他 LaTeX 殼 (\\frac, \\sqrt, $...$ 等) 仍會清掉。
+    """
     if not text:
         return text
     # \frac{a}{b} → (a)/(b)
@@ -57,8 +67,9 @@ def strip_latex(text: str) -> str:
     # 上下標 _{xxx} → _xxx, ^{xxx} → ^xxx (保留一層括號的情況)
     text = re.sub(r'_\{([^{}]*)\}', r'_\1', text)
     text = re.sub(r'\^\{([^{}]*)\}', r'^\1', text)
-    # 變數下標 F_A → FA, F_R_x → FRx, ΣF_y → ΣFy (用 lookahead 一次處理鏈式底線)
-    text = re.sub(r'([A-Za-zα-ωΑ-Ω])_(?=[A-Za-z0-9])', r'\1', text)
+    # 變數下標 F_A → FA — 對程式碼識別字 (text_utils, solve_pdf) 是錯的, 故 opt-out
+    if not preserve_identifiers:
+        text = re.sub(r'([A-Za-zα-ωΑ-Ω])_(?=[A-Za-z0-9])', r'\1', text)
     # $...$ / $$...$$ / \(...\) / \[...\] 外殼去掉
     text = re.sub(r'\$\$([^$]*)\$\$', r'\1', text)
     text = re.sub(r'\$([^$\n]*)\$', r'\1', text)

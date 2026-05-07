@@ -122,25 +122,41 @@ def outline_repo(raw_content: dict, *, max_files_in_prompt: int = 25) -> dict:
 
     raw_text = ""
     last_err = None
-    for attempt, temp in enumerate([0.3, 0.6], start=1):
+    # 三段 retry 策略 (跟 solve.py 對齊): 第二次關 thinking 把 token 全給 output,
+    # 避免模型內部思考把 budget 吃光導致 JSON 中途斷掉。
+    attempts = [
+        {"temp": 0.3, "no_thinking": False, "max_tokens": 16384},
+        {"temp": 0.5, "no_thinking": True,  "max_tokens": 16384},
+    ]
+    for attempt_i, params in enumerate(attempts, start=1):
         try:
+            cfg_kwargs = {
+                "temperature": params["temp"],
+                "max_output_tokens": params["max_tokens"],
+            }
+            if params["no_thinking"]:
+                try:
+                    cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                except Exception:
+                    pass  # SDK 不支援就 fallback 到一般 retry
             resp = client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=[prompt],
-                config=types.GenerateContentConfig(
-                    temperature=temp,
-                    max_output_tokens=8192,
-                ),
+                config=types.GenerateContentConfig(**cfg_kwargs),
             )
             raw_text = (resp.text or "").strip()
             cleaned = _strip_fence(raw_text)
             cleaned = clean_json_escapes(cleaned)
             outline = json.loads(cleaned)
             _normalize_outline(outline)
+            if attempt_i > 1:
+                print(f"   ↺ outline retry 成功 (temp={params['temp']}, "
+                      f"thinking={'off' if params['no_thinking'] else 'on'})")
             return outline
         except Exception as e:
             last_err = e
-            print(f"   ⚠ outline attempt {attempt} 失敗 (temp={temp}): {e}")
+            print(f"   ⚠ outline attempt {attempt_i} 失敗 "
+                  f"(temp={params['temp']}, thinking={'off' if params['no_thinking'] else 'on'}): {e}")
 
     # 兩次都失敗: 把 raw 存下來方便 debug
     err_dir = Path("./_outline_errors")
@@ -171,26 +187,39 @@ def _format_key_files(key_files: list[dict], max_files: int) -> str:
 
 
 def _strip_fence(text: str) -> str:
-    """LLM 偶爾還是會包 ```json ... ``` fence, 拆掉。"""
+    """從 Gemini response 抓出 JSON 主體。
+
+    Gemini 常見三種包裝, 都要能拆:
+    1. 純 JSON: `{...}`
+    2. fence 包: ` ```json\n{...}\n``` `
+    3. preamble + fence: `這是大綱:\n```json\n{...}\n``` `
+
+    策略: 先找最外層 ``` 配對, 抓出內容; 找不到再退到 first `{` ~ last `}`。
+    """
     text = text.strip()
-    if text.startswith("```"):
-        # 抓第一個 fence 內容
-        m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
-        else:
-            text = text.lstrip("`").strip()
-            if text.startswith("json"):
-                text = text[4:].lstrip()
+    # 1. 試 fence (優先, 因為 Gemini 加 preamble 時都會用 fence)
+    m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    # 2. fallback: 找第一個 `{` 到最後一個 `}` (對純 JSON / preamble 都有效)
+    first = text.find("{")
+    last = text.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        return text[first:last + 1].strip()
+    # 3. 真的什麼都沒有就回原文, 讓上層 json.loads 自己 raise
     return text
 
 
 def _normalize_outline(outline: dict) -> None:
-    """補預設值 + 清掉 LaTeX 殘渣 (Gemini 偶爾會混進 \\theta 之類)。"""
+    """補預設值 + 清掉 LaTeX 殘渣 (Gemini 偶爾會混進 \\theta 之類)。
+
+    repo 內容會出現 text_utils / solve_pdf 等 Python identifier, 所以走
+    preserve_identifiers=True 不要把底線吃掉。
+    """
     outline.setdefault("deck_title", "未命名")
     outline.setdefault("summary", "")
-    outline["deck_title"] = strip_latex(outline["deck_title"])
-    outline["summary"] = strip_latex(outline.get("summary", ""))
+    outline["deck_title"] = strip_latex(outline["deck_title"], preserve_identifiers=True)
+    outline["summary"] = strip_latex(outline.get("summary", ""), preserve_identifiers=True)
 
     sections = outline.setdefault("sections", [])
     for i, sec in enumerate(sections):
@@ -199,9 +228,9 @@ def _normalize_outline(outline: dict) -> None:
         sec.setdefault("intent", "")
         sec.setdefault("topics", [])
         sec.setdefault("key_files", [])
-        sec["title"] = strip_latex(sec["title"])
-        sec["intent"] = strip_latex(sec.get("intent", ""))
-        sec["topics"] = [strip_latex(t) for t in sec["topics"] if t]
+        sec["title"] = strip_latex(sec["title"], preserve_identifiers=True)
+        sec["intent"] = strip_latex(sec.get("intent", ""), preserve_identifiers=True)
+        sec["topics"] = [strip_latex(t, preserve_identifiers=True) for t in sec["topics"] if t]
 
 
 # ---------- Mock ----------

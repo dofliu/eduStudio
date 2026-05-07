@@ -143,28 +143,45 @@ def script_repo(outline: dict, raw_content: dict) -> dict:
 # ---------- Internals ----------
 
 def _call_with_retry(client, types, prompt: str, section_id: str, sec_outline: dict) -> dict:
-    """單一 section 的 Gemini call, 兩次 retry, 失敗回佔位 slide。"""
+    """單一 section 的 Gemini call, 兩次 retry, 失敗回佔位 slide。
+
+    第二次 retry 關 thinking_budget=0 把 token 全給 output, 與 outliner 一致。
+    """
     raw_text = ""
     last_err = None
-    for attempt, temp in enumerate([0.4, 0.7], start=1):
+    attempts = [
+        {"temp": 0.4, "no_thinking": False, "max_tokens": 16384},
+        {"temp": 0.6, "no_thinking": True,  "max_tokens": 16384},
+    ]
+    for attempt_i, params in enumerate(attempts, start=1):
         try:
+            cfg_kwargs = {
+                "temperature": params["temp"],
+                "max_output_tokens": params["max_tokens"],
+            }
+            if params["no_thinking"]:
+                try:
+                    cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                except Exception:
+                    pass
             resp = client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=[prompt],
-                config=types.GenerateContentConfig(
-                    temperature=temp,
-                    max_output_tokens=8192,
-                ),
+                config=types.GenerateContentConfig(**cfg_kwargs),
             )
             raw_text = (resp.text or "").strip()
             cleaned = _strip_fence(raw_text)
             cleaned = clean_json_escapes(cleaned)
             section = json.loads(cleaned)
             _normalize_section(section, section_id, sec_outline)
+            if attempt_i > 1:
+                print(f"      ↺ section {section_id} retry 成功 "
+                      f"(temp={params['temp']}, thinking={'off' if params['no_thinking'] else 'on'})")
             return section
         except Exception as e:
             last_err = e
-            print(f"      ⚠ section {section_id} attempt {attempt} 失敗 (temp={temp}): {e}")
+            print(f"      ⚠ section {section_id} attempt {attempt_i} 失敗 "
+                  f"(temp={params['temp']}, thinking={'off' if params['no_thinking'] else 'on'}): {e}")
 
     # 兩次都失敗: raw 存檔 + 回退佔位
     err_dir = Path("./_scriptor_errors")
@@ -195,35 +212,51 @@ def _format_section_files(file_paths: list[str], file_index: dict[str, dict]) ->
 
 
 def _strip_fence(text: str) -> str:
+    """從 Gemini response 抓 JSON 主體。
+
+    與 outliner._strip_fence 同邏輯 — preamble + fence + 純 JSON 三種型態都 robust。
+    放在 scriptor 自己 module 裡 (不從 outliner import) 避免相依方向擾亂。
+    """
     text = text.strip()
-    if text.startswith("```"):
-        m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
-        else:
-            text = text.lstrip("`").strip()
-            if text.startswith("json"):
-                text = text[4:].lstrip()
+    m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    first = text.find("{")
+    last = text.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        return text[first:last + 1].strip()
     return text
 
 
 def _normalize_section(section: dict, section_id: str, sec_outline: dict) -> None:
-    """補預設值 + 清掉 LaTeX 殘渣 + 強制 id 對齊 outline。"""
+    """補預設值 + 清掉 LaTeX 殘渣 + 強制 id 對齊 outline。
+
+    slide.id 採 force assign 而非 setdefault, 因為 Gemini 常編自己的 ID
+    (例如把 data_schema 章內的 slide 命名 deck_structure_conversion_1),
+    讓 ID 跟 outline section_id 失去聯繫。
+
+    所有 strip_latex call 都走 preserve_identifiers=True, 因為 repo 講解
+    內容會出現 text_utils / solve_pdf / cfg_strength 等 Python 識別字,
+    底線不能被當變數下標吃掉。
+    """
     section["id"] = section_id
     section.setdefault("title", sec_outline.get("title", ""))
-    section["title"] = strip_latex(section["title"])
+    section["title"] = strip_latex(section["title"], preserve_identifiers=True)
 
     slides = section.setdefault("slides", [])
     for j, sl in enumerate(slides):
-        sl.setdefault("id", f"{section_id}_{j+1}")
-        sl["title"] = strip_latex(sl.get("title", "") or "")
+        # force assign — 不留 LLM 自編 ID 的機會
+        sl["id"] = f"{section_id}_{j+1}"
+        sl["title"] = strip_latex(sl.get("title", "") or "", preserve_identifiers=True)
         bullets = sl.get("bullets") or []
-        sl["bullets"] = [strip_latex(b) for b in bullets if b]
+        sl["bullets"] = [strip_latex(b, preserve_identifiers=True) for b in bullets if b]
         # code_snippet / code_lang / file_path 直接保留, narration 走 strip_latex
         sl.setdefault("code_snippet", None)
         sl.setdefault("code_lang", None)
         sl.setdefault("file_path", None)
-        sl["narration"] = strip_latex(sl.get("narration", "") or "").strip()
+        sl["narration"] = strip_latex(
+            sl.get("narration", "") or "", preserve_identifiers=True,
+        ).strip()
         sl.setdefault("notes", None)
 
 

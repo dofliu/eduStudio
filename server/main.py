@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.runtime import setup_utf8_stdout
 
 from .jobs import get_default_store
+from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
 
 
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(jobs_routes.router)
+    app.include_router(editor_routes.router)
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

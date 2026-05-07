@@ -148,7 +148,12 @@ autoSolverVideo/
 │   ├── schemas.py      #   Pydantic request / response / state models
 │   ├── jobs.py         #   JobStore (in-memory + JSON 檔案持久化)
 │   ├── runner.py       #   背景任務 dispatch (source_type → core fn)
-│   └── routes/jobs.py  #   /jobs CRUD + /draft + /approve + /artifacts
+│   └── routes/
+│       ├── jobs.py     #   /jobs CRUD + /draft + /approve + /artifacts
+│       └── editor.py   #   /editor Web UI (PR-3d, 新 deck schema)
+│
+├── scripts/
+│   └── submit_job.py   # 排程端 CLI wrapper (PR-3c)
 │
 ├── jobs/               # Server runtime (gitignored)
 │   └── <job_id>/
@@ -333,6 +338,8 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 | Method | Path | 用途 |
 |---|---|---|
 | `GET`    | `/health`                              | 健康檢查 |
+| `GET`    | `/editor`                              | Web UI (job 列表) (PR-3d) |
+| `GET`    | `/editor/{id}`                         | Web UI (deck 編輯頁) (PR-3d) |
 | `POST`   | `/jobs`                                | 建立 job 並背景排程 |
 | `GET`    | `/jobs`                                | 列出全部 (created_at desc) |
 | `GET`    | `/jobs/{id}`                           | 拿單一 job 完整 state |
@@ -445,6 +452,20 @@ curl -X POST http://localhost:8000/jobs -H 'Content-Type: application/json' -d '
 
 兩條路都共用 `outline_long_form` + `script_long_form` prompt, 走 Forest pptx 渲染。
 單檔最大讀取 80,000 字, 超過會 truncate 並標記 `stats.truncated=true`。
+
+### Web UI (PR-3d)
+
+Server 內建輕量 deck editor, 開瀏覽器到 `http://localhost:8000/editor` 即可:
+
+- **Index 頁** (`/editor`): 全部 job 列出, 狀態 badge + 來源描述 + 統計
+  - `awaiting_review` 狀態: 顯示「✏ Edit」與「✓ Approve」按鈕
+  - `done` 狀態: 顯示第一個 mp4 連結
+- **Edit 頁** (`/editor/{id}`): 逐 section / slide 編輯 title / bullets /
+  code_snippet / file_path / narration, 加 / 刪 bullet, 一鍵 save 與 approve
+
+UI 走 server-side HTML + vanilla JS (無 build, 無 CDN), Forest 配色呼應渲染主題。
+僅支援新 deck schema (repo / document / url); 考卷檢討的 v1 exam schema 仍由
+既有 Flask `app.py` 服務 (port 5000)。
 
 ### 檔案佈局
 

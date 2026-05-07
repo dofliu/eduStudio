@@ -131,12 +131,14 @@ async def _run_ingest_repo(rec: JobRecord, deck_path: Path, mock: bool) -> dict:
 async def _run_render(store: JobStore, rec: JobRecord) -> None:
     """跑 render 階段: deck.json → MP4 + SRT 進 jobs/<id>/artifacts/。
 
-    repo / 新 deck schema 先壓平成 v1 exam schema 再餵 pipeline.py 黑板渲染。
-    PR-2b-ii 之後會分支到 pipeline_pptx.py 走 pptx 路線。
+    schema 分流:
+    - sections 為頂層 (新 deck schema) + source_type=repo: 走 pptx_slide 渲染 (Forest)
+    - sections 為頂層 + 其他 source_type: 走黑板渲染 (deck_to_exam_schema)
+    - problems 為頂層 (v1 exam schema): 直接餵 pipeline (考卷 / 簡報走這條)
     """
     from core import problem_to_v0_json, render_video
     from core.config import OUTPUT_DIR
-    from core.deck import deck_to_exam_schema
+    from core.deck import deck_to_exam_schema, deck_to_exam_schema_pptx
 
     deck_path = JobStore.deck_path(rec.id)
     if not deck_path.exists():
@@ -146,7 +148,12 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
 
     # 判斷 schema: 新 deck schema 有 sections, v1 exam schema 有 problems
     if "sections" in deck and "problems" not in deck:
-        deck = deck_to_exam_schema(deck)
+        # repo source 走 pptx Forest 主題, 其他新 schema (slides 沒走這條, 但保留擴展)
+        # 走黑板. 未來其他 source_type (document / url) 自己決定哪條。
+        if rec.source_type == SourceType.REPO:
+            deck = deck_to_exam_schema_pptx(deck)
+        else:
+            deck = deck_to_exam_schema(deck)
 
     artifacts_dir = JobStore.artifacts_dir(rec.id)
     artifacts_dir.mkdir(parents=True, exist_ok=True)

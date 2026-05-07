@@ -280,7 +280,20 @@ class SlideRenderer(Renderer):
         canvas.save(out_p, "PNG")
 
 
-_RENDERERS = {"blackboard": BlackboardRenderer(), "slide": SlideRenderer()}
+# 動態註冊 PptxStyleRenderer (PR-2b-ii):
+# 為什麼用 lazy import: core.render.pptx_style 內部 try/except 會 import 回 pipeline
+# 抓 _overlay_teacher_photo, 直接 module-level import 會 circular。延後到 module 完全
+# load 後才註冊就沒事。
+def _load_pptx_renderer():
+    from core.render.pptx_style import PptxStyleRenderer
+    return PptxStyleRenderer()
+
+
+_RENDERERS = {
+    "blackboard": BlackboardRenderer(),
+    "slide": SlideRenderer(),
+    "pptx_slide": _load_pptx_renderer(),
+}
 
 
 def render_frame(data, step_idx, out_p, q_work):

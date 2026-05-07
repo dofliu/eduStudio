@@ -39,6 +39,8 @@ PRONUNCIATION_PATH = PROJECT_ROOT / "pronunciation.json"
 # 環境變數 CLAUDE_FONT_PATH / CLAUDE_FALLBACK_FONT_PATH 可覆寫
 DEFAULT_FONT_PATH = "C:/Windows/Fonts/msjh.ttc"
 DEFAULT_FALLBACK_FONT_PATH = "C:/Windows/Fonts/seguisym.ttf"
+# 等寬字型 — pptx Forest 風格的程式碼區塊用 (PR-2b-ii 引入)
+DEFAULT_MONO_FONT_PATH = "C:/Windows/Fonts/consola.ttf"
 
 
 def get_font_path() -> str:
@@ -49,6 +51,11 @@ def get_font_path() -> str:
 def get_fallback_font_path() -> str:
     """fallback 字型路徑(渲染主字型缺字時用,通常是 Segoe UI Symbol)"""
     return os.environ.get("CLAUDE_FALLBACK_FONT_PATH", DEFAULT_FALLBACK_FONT_PATH)
+
+
+def get_mono_font_path() -> str:
+    """等寬字型路徑(程式碼區塊用)。"""
+    return os.environ.get("CLAUDE_MONO_FONT_PATH", DEFAULT_MONO_FONT_PATH)
 
 
 # ---------- 環境變數 ----------

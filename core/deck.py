@@ -37,7 +37,7 @@ from typing import Any
 
 
 def deck_to_exam_schema(deck: dict) -> dict:
-    """把 deck.json 壓成 v1 exam.json schema 給 pipeline.py 吃。
+    """把 deck.json 壓成 v1 exam.json schema 給 pipeline.py 吃 (黑板模式)。
 
     對應規則:
     - deck.deck_title       -> exam.exam_title
@@ -68,6 +68,52 @@ def deck_to_exam_schema(deck: dict) -> dict:
     return {
         "exam_title": deck.get("deck_title", "未命名"),
         "source_type": "deck",   # 跟 slides_pdf 的 "slides" 區分
+        "source_meta": deck.get("source_meta", {}),
+        "problems": problems,
+    }
+
+
+def deck_to_exam_schema_pptx(deck: dict) -> dict:
+    """把 deck.json 壓成 v1 exam schema, 但 step 帶 pptx_slide 渲染所需欄位。
+
+    跟 deck_to_exam_schema 的差別:
+    - step.bg_type = "pptx_slide" (讓 pipeline 走 PptxStyleRenderer)
+    - step 額外保留 title / bullets / code_snippet / code_lang / file_path
+      / section_title 給 renderer 直接讀
+    - display 仍然有 (legacy fallback), 但 PptxStyleRenderer 不用
+
+    PR-2b-ii: source_type=repo 走這條轉換, 其他類型仍走 deck_to_exam_schema 黑板版。
+    """
+    problems = []
+    for i, section in enumerate(deck.get("sections", [])):
+        section_title = section.get("title", "").strip()
+        steps = []
+        for slide in section.get("slides", []):
+            steps.append({
+                "_section": _shorten_section_label(section_title),
+                "section_title": section_title,
+                "title": (slide.get("title") or "").strip(),
+                "bullets": [b for b in (slide.get("bullets") or []) if b],
+                "code_snippet": slide.get("code_snippet"),
+                "code_lang": slide.get("code_lang"),
+                "file_path": slide.get("file_path"),
+                "display": _slide_to_display(slide),  # legacy
+                "narration": (slide.get("narration") or "").strip(),
+                "bg_type": "pptx_slide",
+            })
+        if not steps:
+            continue
+        problems.append({
+            "id": section.get("id", f"sec{i+1}"),
+            "number": f"第 {i+1} 章 {section_title}",
+            "score": 0,
+            "problem": section_title,
+            "steps": steps,
+        })
+
+    return {
+        "exam_title": deck.get("deck_title", "未命名"),
+        "source_type": "deck_pptx",
         "source_meta": deck.get("source_meta", {}),
         "problems": problems,
     }

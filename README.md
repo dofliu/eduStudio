@@ -133,11 +133,13 @@ autoSolverVideo/
 │   ├── config.py       #   集中 paths / env vars / 模型名 / 字型路徑常數
 │   ├── runtime.py      #   setup_utf8_stdout() (Windows cp950 修正)
 │   ├── text_utils.py   #   strip_latex / clean_json_escapes
-│   ├── deck.py         #   新 deck schema 定義 + 壓平成 v1 exam schema (PR-2b-i)
+│   ├── deck.py         #   新 deck schema + deck_to_exam_schema(_pptx)
 │   ├── outliner.py     #   raw_content -> outline.json (Gemini, repo 用)
 │   ├── scriptor.py     #   outline -> deck.json (Gemini, 逐 section)
-│   └── adapters/
-│       └── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
+│   ├── adapters/
+│   │   └── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
+│   └── render/
+│       └── pptx_style.py  # Forest 主題 Pillow renderer (PR-2b-ii)
 │
 ├── server/             # FastAPI server (PR-2a)
 │   ├── main.py         #   app factory + uvicorn CLI
@@ -348,6 +350,18 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 
 `repo` 路徑 (PR-2b-i) 限 ≤50 檔, 用 `options.max_files` 可調整。其他類型 (document /
 url) 留給後續 PR。
+
+### 渲染風格
+
+| Source | Renderer | 視覺 |
+|---|---|---|
+| `exam_pdf` / `slides_pdf` | `pipeline.BlackboardRenderer` (黑板模式) | 深綠黑板 + 粉筆色階 |
+| `slides_pdf` (slide-bg-image step) | `pipeline.SlideRenderer` | 原投影片 PNG 當底圖 |
+| `repo` (PR-2b-ii) | `core.render.pptx_style.PptxStyleRenderer` | Forest 主題簡報 (banner + 標題 + bullets + code block) |
+
+Repo 路徑採 Pillow 純 Python 渲染, **不**走 LibreOffice / Node 鏈路 — 沒有 .pptx
+檔案產出, 只有最終 mp4 (deck.json 是 source of truth, 編輯走 Web UI 改 deck)。
+未來若要產 .pptx 給人下載編輯, 再加一個轉換端點即可。
 
 ### Job 狀態機
 

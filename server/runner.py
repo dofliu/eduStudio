@@ -47,18 +47,22 @@ def _end_stage_fail(store: JobStore, job_id: str, err: str) -> None:
 # ---------- Source-type dispatch ----------
 
 async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
-    """跑 ingest 階段 (PDF / repo → deck.json),回傳 deck dict 並寫 deck.json。
+    """跑 ingest 階段 (PDF / repo / document / url → deck.json), 回傳 deck dict 並寫盤。
 
     各 source_type 寫到 deck.json 的格式不同:
     - exam_pdf / slides_pdf: v1 exam schema (problems / steps), 直接給 pipeline.py 吃
-    - repo: 新 deck schema (sections / slides), 渲染前透過 deck_to_exam_schema 壓平
+    - repo / document / url: 新 deck schema (sections / slides), 渲染前壓平
     """
-    src_path = Path(rec.source.path)
-    if not src_path.exists():
-        raise FileNotFoundError(f"source 不存在: {src_path}")
-
     mock = bool(rec.options.mock)
     deck_path = JobStore.deck_path(rec.id)
+
+    # url 走網路, 其他都先 check path 存在
+    if rec.source_type != SourceType.URL:
+        src_path = Path(rec.source.path) if rec.source.path else None
+        if src_path is None or not src_path.exists():
+            raise FileNotFoundError(f"source.path 不存在: {rec.source.path}")
+    else:
+        src_path = None
 
     if rec.source_type == SourceType.EXAM_PDF:
         if mock:
@@ -75,7 +79,6 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
 
     if rec.source_type == SourceType.SLIDES_PDF:
         from core import ingest_slides
-        # ingest_slides 直接寫到 out_json, 我們導向 deck.json
         await asyncio.to_thread(
             ingest_slides, src_path, deck_path,
             mock=mock, single=False, brief=False,
@@ -84,6 +87,9 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
 
     if rec.source_type == SourceType.REPO:
         return await _run_ingest_repo(rec, deck_path, mock)
+
+    if rec.source_type in (SourceType.DOCUMENT, SourceType.URL):
+        return await _run_ingest_long_form(rec, deck_path, mock)
 
     raise ValueError(f"未支援的 source_type: {rec.source_type}")
 
@@ -128,6 +134,48 @@ async def _run_ingest_repo(rec: JobRecord, deck_path: Path, mock: bool) -> dict:
     return deck
 
 
+async def _run_ingest_long_form(rec: JobRecord, deck_path: Path, mock: bool) -> dict:
+    """document / url 路徑: adapter → outline_long_form → script_long_form → deck.json。
+
+    跟 _run_ingest_repo 結構一致, 差別在 adapter 不同 + outliner / scriptor 走
+    long-form prompt template。
+    """
+    from core.adapters.document import scan_document
+    from core.adapters.url import scan_url
+    from core.outliner import mock_outline, outline_long_form
+    from core.scriptor import mock_deck_from_outline, script_long_form
+
+    if rec.source_type == SourceType.DOCUMENT:
+        raw = await asyncio.to_thread(scan_document, Path(rec.source.path))
+    else:  # URL
+        if not rec.source.url:
+            raise ValueError("source_type=url 時必須提供 source.url")
+        raw = await asyncio.to_thread(scan_url, rec.source.url)
+
+    job_dir = deck_path.parent
+    (job_dir / "raw_content.json").write_text(
+        json.dumps(raw, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    if mock:
+        outline = mock_outline(raw)
+        deck = mock_deck_from_outline(outline, raw)
+    else:
+        outline = await asyncio.to_thread(outline_long_form, raw)
+        deck = await asyncio.to_thread(script_long_form, outline, raw)
+
+    (job_dir / "outline.json").write_text(
+        json.dumps(outline, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    deck_path.write_text(
+        json.dumps(deck, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return deck
+
+
 async def _run_render(store: JobStore, rec: JobRecord) -> None:
     """跑 render 階段: deck.json → MP4 + SRT 進 jobs/<id>/artifacts/。
 
@@ -148,9 +196,9 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
 
     # 判斷 schema: 新 deck schema 有 sections, v1 exam schema 有 problems
     if "sections" in deck and "problems" not in deck:
-        # repo source 走 pptx Forest 主題, 其他新 schema (slides 沒走這條, 但保留擴展)
-        # 走黑板. 未來其他 source_type (document / url) 自己決定哪條。
-        if rec.source_type == SourceType.REPO:
+        # 走 pptx Forest 主題的 source: repo / document / url
+        # (這些都是長篇內容講解, pptx 排版比黑板適合)
+        if rec.source_type in (SourceType.REPO, SourceType.DOCUMENT, SourceType.URL):
             deck = deck_to_exam_schema_pptx(deck)
         else:
             deck = deck_to_exam_schema(deck)

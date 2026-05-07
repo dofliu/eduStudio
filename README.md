@@ -137,7 +137,9 @@ autoSolverVideo/
 │   ├── outliner.py     #   raw_content -> outline.json (Gemini, repo 用)
 │   ├── scriptor.py     #   outline -> deck.json (Gemini, 逐 section)
 │   ├── adapters/
-│   │   └── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
+│   │   ├── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
+│   │   ├── document.py #   PDF / MD / TXT 單檔 long-form (PR-3b)
+│   │   └── url.py      #   靜態 HTML 文章抽取 (BS4 啟發式) (PR-3b)
 │   └── render/
 │       └── pptx_style.py  # Forest 主題 Pillow renderer (PR-2b-ii)
 │
@@ -346,10 +348,13 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 |---|---|---|---|
 | `exam_pdf`   | 考卷 PDF 檔 | `solve.py` 三段 Gemini   | True (硬規則 #1) |
 | `slides_pdf` | 簡報 PDF 檔 | `slide_ingest.py` 章節+逐頁 narration | False |
-| `repo`       | 資料夾路徑 | `core/adapters/repo` → `core/outliner` → `core/scriptor` | False |
+| `repo`       | 資料夾路徑 | `core/adapters/repo` → `outliner_repo` → `script_repo` | False |
+| `document`   | PDF / MD / TXT 檔 | `core/adapters/document` → `outliner_long_form` → `script_long_form` | False |
+| `url`        | HTTP(S) URL | `core/adapters/url` → `outliner_long_form` → `script_long_form` | False |
 
-`repo` 路徑 (PR-2b-i) 限 ≤50 檔, 用 `options.max_files` 可調整。其他類型 (document /
-url) 留給後續 PR。
+- `repo` 限 ≤50 檔, 用 `options.max_files` 可調整
+- `document` / `url` 走 long-form 文件講解 prompt, 不放 code_snippet
+- `url` 限靜態 HTML, 不跑 JS, 不繞付費牆 (用 BS4 簡單啟發式抽 `<article>` / `<main>`)
 
 ### 渲染風格
 
@@ -357,7 +362,7 @@ url) 留給後續 PR。
 |---|---|---|
 | `exam_pdf` / `slides_pdf` | `pipeline.BlackboardRenderer` (黑板模式) | 深綠黑板 + 粉筆色階 |
 | `slides_pdf` (slide-bg-image step) | `pipeline.SlideRenderer` | 原投影片 PNG 當底圖 |
-| `repo` (PR-2b-ii) | `core.render.pptx_style.PptxStyleRenderer` | Forest 主題簡報 (banner + 標題 + bullets + code block) |
+| `repo` / `document` / `url` | `core.render.pptx_style.PptxStyleRenderer` | Forest 主題簡報 (banner + 標題 + bullets + code block) |
 
 Repo 路徑採 Pillow 純 Python 渲染, **不**走 LibreOffice / Node 鏈路 — 沒有 .pptx
 檔案產出, 只有最終 mp4 (deck.json 是 source of truth, 編輯走 Web UI 改 deck)。
@@ -421,6 +426,25 @@ curl -X POST http://localhost:8000/jobs \
 - `artifacts/<section_id>.mp4 / .srt / .json` — 每章一支影片
 
 PR-2b-i 暫時用既有黑板渲染, PR-2b-ii 會切到 pptx 風格 (LibreOffice + pptxgenjs)。
+
+### 範例 3:把一份講義或部落格文章做成影片 (PR-3b)
+
+```bash
+# 講義 (PDF / MD / TXT)
+curl -X POST http://localhost:8000/jobs -H 'Content-Type: application/json' -d '{
+  "source_type": "document",
+  "source": {"path": "D:/path/to/lecture.pdf"}
+}'
+
+# 部落格文章 / 網頁
+curl -X POST http://localhost:8000/jobs -H 'Content-Type: application/json' -d '{
+  "source_type": "url",
+  "source": {"url": "https://example.com/blog/some-article"}
+}'
+```
+
+兩條路都共用 `outline_long_form` + `script_long_form` prompt, 走 Forest pptx 渲染。
+單檔最大讀取 80,000 字, 超過會 truncate 並標記 `stats.truncated=true`。
 
 ### 檔案佈局
 

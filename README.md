@@ -128,11 +128,16 @@ autoSolverVideo/
 ├── tts_backend.py      # TTS 抽象層 (edge / f5 / fallback)
 ├── make_sample_pdf.py  # 測試用考卷產生器
 │
-├── core/               # 公開 Python API (PR-1 引入,for 未來 FastAPI 包裝)
+├── core/               # 公開 Python API
 │   ├── __init__.py     #   re-export render_video / solve_pdf / ingest_slides 等
 │   ├── config.py       #   集中 paths / env vars / 模型名 / 字型路徑常數
 │   ├── runtime.py      #   setup_utf8_stdout() (Windows cp950 修正)
-│   └── text_utils.py   #   strip_latex / clean_json_escapes
+│   ├── text_utils.py   #   strip_latex / clean_json_escapes
+│   ├── deck.py         #   新 deck schema 定義 + 壓平成 v1 exam schema (PR-2b-i)
+│   ├── outliner.py     #   raw_content -> outline.json (Gemini, repo 用)
+│   ├── scriptor.py     #   outline -> deck.json (Gemini, 逐 section)
+│   └── adapters/
+│       └── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
 │
 ├── server/             # FastAPI server (PR-2a)
 │   ├── main.py         #   app factory + uvicorn CLI
@@ -142,7 +147,12 @@ autoSolverVideo/
 │   └── routes/jobs.py  #   /jobs CRUD + /draft + /approve + /artifacts
 │
 ├── jobs/               # Server runtime (gitignored)
-│   └── <job_id>/state.json + deck.json + artifacts/
+│   └── <job_id>/
+│       ├── state.json
+│       ├── raw_content.json   # repo 路徑才有 (PR-2b-i)
+│       ├── outline.json       # repo 路徑才有
+│       ├── deck.json
+│       └── artifacts/
 │
 ├── tts_config.json     # TTS 設定(backend、voice、速度…)
 ├── pipeline_config.json  # 渲染設定(老師頭像 overlay …)
@@ -328,6 +338,17 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 | `POST`   | `/jobs/{id}/approve`                   | review 通過,觸發渲染 |
 | `GET`    | `/jobs/{id}/artifacts/{filename}`      | 下載 MP4 / SRT |
 
+### Source types
+
+| `source_type` | `source.path` 指向 | ingest pipeline | 預設 require_review |
+|---|---|---|---|
+| `exam_pdf`   | 考卷 PDF 檔 | `solve.py` 三段 Gemini   | True (硬規則 #1) |
+| `slides_pdf` | 簡報 PDF 檔 | `slide_ingest.py` 章節+逐頁 narration | False |
+| `repo`       | 資料夾路徑 | `core/adapters/repo` → `core/outliner` → `core/scriptor` | False |
+
+`repo` 路徑 (PR-2b-i) 限 ≤50 檔, 用 `options.max_files` 可調整。其他類型 (document /
+url) 留給後續 PR。
+
 ### Job 狀態機
 
 ```
@@ -342,7 +363,7 @@ pending ── ingest ──► ingesting ──┬──► awaiting_review ─
 - `exam_pdf` → `True` (CLAUDE.md 硬規則 #1: AI 答案必須人工 review)
 - `slides_pdf` → `False` (簡報講解風險低,可一路跑完)
 
-### 範例:建立一個 mock exam job
+### 範例 1:建立一個 mock exam job
 
 ```bash
 curl -X POST http://localhost:8000/jobs \
@@ -366,6 +387,26 @@ curl -X POST http://localhost:8000/jobs/abc123def456/approve
 # 下載成果
 curl http://localhost:8000/jobs/abc123def456/artifacts/q1.mp4 -o q1.mp4
 ```
+
+### 範例 2:把一個 repo 資料夾講成影片 (PR-2b-i)
+
+```bash
+curl -X POST http://localhost:8000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_type": "repo",
+    "source": {"path": "D:/path/to/your/repo"},
+    "options": {"max_files": 50}
+  }'
+```
+
+預設 `require_review=false` 一路跑完, 中間產物會寫到 `jobs/<id>/`:
+- `raw_content.json` — adapter 掃出來的檔案樹 + 關鍵檔內容
+- `outline.json` — Gemini 切的章節大綱
+- `deck.json` — 完整 slides + narration (新 schema)
+- `artifacts/<section_id>.mp4 / .srt / .json` — 每章一支影片
+
+PR-2b-i 暫時用既有黑板渲染, PR-2b-ii 會切到 pptx 風格 (LibreOffice + pptxgenjs)。
 
 ### 檔案佈局
 

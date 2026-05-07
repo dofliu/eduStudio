@@ -18,11 +18,13 @@ from pydantic import BaseModel, ConfigDict, Field
 class SourceType(str, Enum):
     """支援的內容來源類型。
 
-    PR-2a 只支援 exam_pdf / slides_pdf (包現有 pipeline)。
-    PR-2b 會新增 repo / document / url。
+    PR-2a 支援 exam_pdf / slides_pdf (包現有 pipeline)。
+    PR-2b-i 加 repo (folder walker -> outliner -> scriptor -> deck.json)。
+    PR-2b-ii 之後會再加 document / url。
     """
     EXAM_PDF = "exam_pdf"        # 考卷 PDF -> solve.py 三段 Gemini
     SLIDES_PDF = "slides_pdf"    # 簡報 PDF -> slide_ingest.py 章節+逐頁 narration
+    REPO = "repo"                # 資料夾 / repo -> repo adapter + outliner + scriptor
 
 
 class JobState(str, Enum):
@@ -62,7 +64,12 @@ class JobOptions(BaseModel):
     mock: bool = Field(
         default=False,
         description="ingest 走離線 mock 路徑 (不打 Gemini),供 smoke test / 開發用。"
-                    "exam_pdf 用 solve.mock_output();slides_pdf 用 ingest_slides(mock=True)。",
+                    "exam_pdf 用 solve.mock_output();slides_pdf 用 ingest_slides(mock=True);"
+                    "repo 用 outliner.mock_outline + scriptor.mock_deck。",
+    )
+    max_files: int | None = Field(
+        default=None,
+        description="repo source 限制掃幾個檔 (預設 50)。其他 source_type 忽略此欄位。",
     )
 
     model_config = ConfigDict(extra="allow")

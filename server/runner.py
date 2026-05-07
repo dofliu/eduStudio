@@ -47,37 +47,80 @@ def _end_stage_fail(store: JobStore, job_id: str, err: str) -> None:
 # ---------- Source-type dispatch ----------
 
 async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
-    """跑 ingest 階段 (PDF → exam.json),回傳 deck dict 並寫 deck.json。"""
+    """跑 ingest 階段 (PDF / repo → deck.json),回傳 deck dict 並寫 deck.json。
+
+    各 source_type 寫到 deck.json 的格式不同:
+    - exam_pdf / slides_pdf: v1 exam schema (problems / steps), 直接給 pipeline.py 吃
+    - repo: 新 deck schema (sections / slides), 渲染前透過 deck_to_exam_schema 壓平
+    """
     src_path = Path(rec.source.path)
     if not src_path.exists():
         raise FileNotFoundError(f"source 不存在: {src_path}")
 
     mock = bool(rec.options.mock)
+    deck_path = JobStore.deck_path(rec.id)
 
-    # 同步函式丟 thread (避免阻塞 event loop)
     if rec.source_type == SourceType.EXAM_PDF:
         if mock:
-            # 不打 Gemini, 用 solve.mock_output() 的離線版本
             from solve import mock_output
             deck = mock_output()
         else:
             from core import solve_pdf
             deck = await asyncio.to_thread(solve_pdf, src_path)
-    elif rec.source_type == SourceType.SLIDES_PDF:
+        deck_path.write_text(
+            json.dumps(deck, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return deck
+
+    if rec.source_type == SourceType.SLIDES_PDF:
         from core import ingest_slides
         # ingest_slides 直接寫到 out_json, 我們導向 deck.json
-        deck_path = JobStore.deck_path(rec.id)
         await asyncio.to_thread(
             ingest_slides, src_path, deck_path,
             mock=mock, single=False, brief=False,
         )
-        deck = json.loads(deck_path.read_text(encoding="utf-8"))
-        return deck
-    else:
-        raise ValueError(f"未支援的 source_type: {rec.source_type}")
+        return json.loads(deck_path.read_text(encoding="utf-8"))
 
-    # exam_pdf 路徑: 自己把 deck dict 寫成 deck.json
-    deck_path = JobStore.deck_path(rec.id)
+    if rec.source_type == SourceType.REPO:
+        return await _run_ingest_repo(rec, deck_path, mock)
+
+    raise ValueError(f"未支援的 source_type: {rec.source_type}")
+
+
+async def _run_ingest_repo(rec: JobRecord, deck_path: Path, mock: bool) -> dict:
+    """repo 路徑: adapter → outliner → scriptor → deck.json (新 schema)。"""
+    from core.adapters.repo import scan_repo
+    from core.outliner import mock_outline, outline_repo
+    from core.scriptor import mock_deck_from_outline, script_repo
+
+    src_path = Path(rec.source.path)
+    if not src_path.is_dir():
+        raise NotADirectoryError(f"source.path 必須是資料夾 (source_type=repo): {src_path}")
+
+    max_files = rec.options.max_files or 50
+
+    # adapter 是純磁碟讀取, scriptor / outliner 是 Gemini 同步呼叫, 都丟 thread
+    raw = await asyncio.to_thread(scan_repo, src_path, max_files=max_files)
+
+    # 把中間產物也寫到 jobs/<id>/ 方便 debug (raw_content.json + outline.json)
+    job_dir = deck_path.parent
+    (job_dir / "raw_content.json").write_text(
+        json.dumps(raw, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    if mock:
+        outline = mock_outline(raw)
+        deck = mock_deck_from_outline(outline, raw)
+    else:
+        outline = await asyncio.to_thread(outline_repo, raw)
+        deck = await asyncio.to_thread(script_repo, outline, raw)
+
+    (job_dir / "outline.json").write_text(
+        json.dumps(outline, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     deck_path.write_text(
         json.dumps(deck, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -86,15 +129,25 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
 
 
 async def _run_render(store: JobStore, rec: JobRecord) -> None:
-    """跑 render 階段: deck.json → MP4 + SRT 進 jobs/<id>/artifacts/。"""
+    """跑 render 階段: deck.json → MP4 + SRT 進 jobs/<id>/artifacts/。
+
+    repo / 新 deck schema 先壓平成 v1 exam schema 再餵 pipeline.py 黑板渲染。
+    PR-2b-ii 之後會分支到 pipeline_pptx.py 走 pptx 路線。
+    """
     from core import problem_to_v0_json, render_video
     from core.config import OUTPUT_DIR
+    from core.deck import deck_to_exam_schema
 
     deck_path = JobStore.deck_path(rec.id)
     if not deck_path.exists():
         raise FileNotFoundError(f"deck.json 不存在,ingest 階段未完成?{deck_path}")
 
     deck = json.loads(deck_path.read_text(encoding="utf-8"))
+
+    # 判斷 schema: 新 deck schema 有 sections, v1 exam schema 有 problems
+    if "sections" in deck and "problems" not in deck:
+        deck = deck_to_exam_schema(deck)
+
     artifacts_dir = JobStore.artifacts_dir(rec.id)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -107,7 +160,6 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
     # 逐題渲染 → MP4 / SRT 從 OUTPUT_DIR 搬到 artifacts/
     for prob in deck["problems"]:
         pid = prob["id"]
-        # v0 single-question JSON
         v0 = problem_to_v0_json(deck["exam_title"], prob)
         v0_path = artifacts_dir / f"{pid}.json"
         v0_path.write_text(
@@ -118,7 +170,6 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
         unique_name = f"job_{rec.id}__{pid}"
         await render_video(str(v0_path), unique_name, start_step=None)
 
-        # pipeline 寫到 OUTPUT_DIR/<unique_name>.{mp4,srt} 搬到 artifacts/<pid>.{mp4,srt}
         for ext in ("mp4", "srt"):
             src = OUTPUT_DIR / f"{unique_name}.{ext}"
             dst = artifacts_dir / f"{pid}.{ext}"

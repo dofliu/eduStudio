@@ -29,3 +29,6 @@ __pycache__/
 *.pyo
 work/
 output/
+
+# Server (PR-2a) runtime: job state + artifacts 不追蹤
+jobs/

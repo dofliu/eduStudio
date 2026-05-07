@@ -134,6 +134,16 @@ autoSolverVideo/
 │   ├── runtime.py      #   setup_utf8_stdout() (Windows cp950 修正)
 │   └── text_utils.py   #   strip_latex / clean_json_escapes
 │
+├── server/             # FastAPI server (PR-2a)
+│   ├── main.py         #   app factory + uvicorn CLI
+│   ├── schemas.py      #   Pydantic request / response / state models
+│   ├── jobs.py         #   JobStore (in-memory + JSON 檔案持久化)
+│   ├── runner.py       #   背景任務 dispatch (source_type → core fn)
+│   └── routes/jobs.py  #   /jobs CRUD + /draft + /approve + /artifacts
+│
+├── jobs/               # Server runtime (gitignored)
+│   └── <job_id>/state.json + deck.json + artifacts/
+│
 ├── tts_config.json     # TTS 設定(backend、voice、速度…)
 ├── pipeline_config.json  # 渲染設定(老師頭像 overlay …)
 ├── pronunciation.json  # 符號 → TTS 發音對照表
@@ -281,6 +291,99 @@ videos/<exam_stem>/
     ├── q2.mp4 + q2.srt
     └── ...
 ```
+
+---
+
+## REST API (`server/`)
+
+PR-2a 引入的 FastAPI server,把 `core/` 包成 HTTP 端點供排程器 / 前端 / Webhook 使用。
+Job 採非同步背景執行 + JSON 檔案持久化 (重啟保留)。
+
+### 啟動
+
+```bash
+# 開發模式 (auto-reload)
+python -m server.main --reload
+
+# 預設 host=127.0.0.1 port=8000
+python -m server.main --port 8000
+
+# 也可以用 uvicorn (CI / docker compose)
+uvicorn server.main:app --host 127.0.0.1 --port 8000
+```
+
+開瀏覽器到 `http://localhost:8000/docs` 看互動式 OpenAPI 文件。
+
+### 端點
+
+| Method | Path | 用途 |
+|---|---|---|
+| `GET`    | `/health`                              | 健康檢查 |
+| `POST`   | `/jobs`                                | 建立 job 並背景排程 |
+| `GET`    | `/jobs`                                | 列出全部 (created_at desc) |
+| `GET`    | `/jobs/{id}`                           | 拿單一 job 完整 state |
+| `DELETE` | `/jobs/{id}`                           | 刪除 (含磁碟資料) |
+| `GET`    | `/jobs/{id}/draft`                     | 拿 deck.json |
+| `PUT`    | `/jobs/{id}/draft`                     | 改 deck.json (僅 awaiting_review) |
+| `POST`   | `/jobs/{id}/approve`                   | review 通過,觸發渲染 |
+| `GET`    | `/jobs/{id}/artifacts/{filename}`      | 下載 MP4 / SRT |
+
+### Job 狀態機
+
+```
+pending ── ingest ──► ingesting ──┬──► awaiting_review ──approve──┐
+                                  │                                ▼
+                                  └────────(require_review=False)──► rendering ──► done
+                                                                                     │
+                                                            (任何階段失敗) ─► failed
+```
+
+`require_review` 預設值依 `source_type`:
+- `exam_pdf` → `True` (CLAUDE.md 硬規則 #1: AI 答案必須人工 review)
+- `slides_pdf` → `False` (簡報講解風險低,可一路跑完)
+
+### 範例:建立一個 mock exam job
+
+```bash
+curl -X POST http://localhost:8000/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_type": "exam_pdf",
+    "source": {"path": "D:/path/to/exam.pdf"},
+    "options": {"mock": true, "require_review": true}
+  }'
+# {"job_id":"abc123def456","state":"pending","status_url":"/jobs/abc123def456"}
+
+# Poll
+curl http://localhost:8000/jobs/abc123def456
+
+# 看 deck
+curl http://localhost:8000/jobs/abc123def456/draft
+
+# 通過 review,進渲染
+curl -X POST http://localhost:8000/jobs/abc123def456/approve
+
+# 下載成果
+curl http://localhost:8000/jobs/abc123def456/artifacts/q1.mp4 -o q1.mp4
+```
+
+### 檔案佈局
+
+```
+jobs/                          # gitignored
+└── <job_id>/
+    ├── state.json             # JobRecord (狀態 / stages / artifacts)
+    ├── deck.json              # ingest 產物 (exam.json schema)
+    └── artifacts/
+        ├── q1.mp4 / q1.srt / q1.json
+        └── ...
+```
+
+### 排程使用
+
+未來搭配 cron / Windows Task Scheduler / scheduled-tasks MCP, 直接 `curl` 即可
+觸發定期 ingest + render, 不必 Web UI。`require_review=False` + `mock=False` 可以
+在後台跑完整 pipeline。
 
 ---
 

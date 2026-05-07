@@ -118,10 +118,76 @@ SECTION_PROMPT = """你是一位資深的軟體工程講師, 擅長把程式專�
 """
 
 
+# ---------- Long-form (document / url) section prompt ----------
+
+LONGFORM_SECTION_PROMPT = """你是一位資深的講師, 擅長把長篇文件 (講義 / 部落格文章 / 報告) 拆成清楚的講解投影片。
+請針對指定章節, 產出 5~10 張投影片的講解內容。
+
+==== 整體脈絡 ====
+文件: {deck_title}
+講解主軸: {summary}
+這是第 {section_idx}/{total_sections} 章
+
+==== 本章資訊 ====
+標題: {section_title}
+意圖: {section_intent}
+重點關鍵詞: {section_topics}
+
+==== 完整文件內容 (請聚焦在本章主題的部分) ====
+{document_content}
+
+==== 投影片設計原則 ====
+1. **5~10 張投影片**, 第一張通常是章節概觀, 最後一張為小結
+2. **每張 narration 100~200 字** (中文字數), 對應 30~60 秒語音
+3. **narration 用「劉老師」第一人稱口吻**, 自然口語, 解釋「為什麼這個概念重要」「實際怎麼用」
+4. **bullets 每點 ≤ 25 字**, 一張投影片不超過 4 個 bullet
+5. **slide title 簡潔 (4~14 字)**, 不要跟 narration 第一句重複
+6. **內容必須來自上方文件**, 不可發明文件沒提到的概念 / 數據 / 引言
+
+==== 嚴禁事項 ====
+- 不要 LaTeX、Markdown 標題符號、emoji、\\theta 之類反斜線命令
+- 不要編造文件沒提到的內容; 寧可少說也不要捏造
+- code_snippet / code_lang / file_path 全部設 null (這是文件講解, 不是程式碼導覽)
+- bullets / narration 不要使用金錢符號 (dollar sign) 包裹的數學模式
+
+==== 輸出格式 (嚴格) ====
+直接回 JSON object, 從 {{ 開頭到 }} 結尾, 不要 Markdown fence、不要前後說明文字:
+
+{{
+  "id": "{section_id}",
+  "title": "{section_title}",
+  "slides": [
+    {{
+      "id": "{section_id}_1",
+      "title": "...",
+      "bullets": ["...", "..."],
+      "code_snippet": null,
+      "code_lang": null,
+      "file_path": null,
+      "narration": "..."
+    }}
+  ]
+}}
+"""
+
+
 # ---------- Public API ----------
 
+def script(outline: dict, raw_content: dict) -> dict:
+    """Source-agnostic scriptor — 依 source_kind dispatch。
+
+    PR-3b: source_kind in {"repo", "document", "url"}。
+    """
+    kind = raw_content.get("source_kind")
+    if kind == "repo":
+        return script_repo(outline, raw_content)
+    if kind in ("document", "url"):
+        return script_long_form(outline, raw_content)
+    raise ValueError(f"未支援的 source_kind: {kind!r}")
+
+
 def script_repo(outline: dict, raw_content: dict) -> dict:
-    """outline + raw_content → 完整 deck.json。
+    """outline + raw_content (repo) → 完整 deck.json。
 
     每個 section 各自呼叫一次 Gemini, 失敗的 section 會留下佔位 slide
     (避免整份 deck 廢掉, 與 solve.py 的 partial-failure 哲學一致)。
@@ -171,6 +237,61 @@ def script_repo(outline: dict, raw_content: dict) -> dict:
             "root_name": raw_content.get("root_name"),
             "primary_language": raw_content.get("primary_language"),
             "scanned_files": raw_content.get("stats", {}).get("selected"),
+        },
+        "sections": sections_out,
+    }
+    return normalize_deck(deck)
+
+
+def script_long_form(outline: dict, raw_content: dict) -> dict:
+    """outline + raw_content (document / url) → 完整 deck.json。
+
+    跟 script_repo 結構一致 (逐 section call Gemini + 共用 retry / placeholder),
+    差別在 prompt 餵的是 long-form text 而不是 key_files。
+    """
+    kind = raw_content.get("source_kind")
+    if kind not in ("document", "url"):
+        raise ValueError(f"script_long_form 只吃 document / url, 收到 {kind!r}")
+
+    api_key = get_gemini_api_key()
+    if not api_key:
+        sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數")
+
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key)
+
+    document_content = raw_content.get("content", "")
+    sections_out = []
+    total = len(outline.get("sections", []))
+    for i, sec_outline in enumerate(outline["sections"]):
+        section_id = sec_outline.get("id", f"sec{i+1}")
+        print(f"   -> scripting {section_id} ({i+1}/{total}): {sec_outline.get('title')}")
+
+        prompt = LONGFORM_SECTION_PROMPT.format(
+            deck_title=outline.get("deck_title", ""),
+            summary=outline.get("summary", ""),
+            section_idx=i + 1,
+            total_sections=total,
+            section_id=section_id,
+            section_title=sec_outline.get("title", ""),
+            section_intent=sec_outline.get("intent", ""),
+            section_topics=", ".join(sec_outline.get("topics", [])),
+            document_content=document_content,
+        )
+
+        section_dict = _call_with_retry(client, types, prompt, section_id, sec_outline)
+        sections_out.append(section_dict)
+
+    deck = {
+        "deck_title": outline.get("deck_title", "未命名"),
+        "source_type": kind,
+        "source_meta": {
+            "title": raw_content.get("title"),
+            "format": raw_content.get("format"),
+            "url": raw_content.get("url"),
+            "chars": raw_content.get("stats", {}).get("chars"),
         },
         "sections": sections_out,
     }
@@ -327,12 +448,15 @@ def _placeholder_section(section_id: str, sec_outline: dict, err: str) -> dict:
 def mock_deck_from_outline(outline: dict, raw_content: dict) -> dict:
     """離線測試用 — 不打 Gemini, 從 outline 拼結構合法的 deck。
 
-    每個 section 產 2~3 張投影片, narration 用 outline 的 intent + topics 組,
+    每個 section 產 1~2 張投影片, narration 用 outline 的 intent + topics 組,
     確保下游 deck_to_exam_schema + pipeline.py 能跑得起來。
+    支援 repo / document / url 三種 source_kind。
     """
-    root_name = raw_content.get("root_name", "project")
-    primary_lang = raw_content.get("primary_language", "")
-    file_index = {kf["path"]: kf for kf in raw_content.get("key_files", [])}
+    kind = raw_content.get("source_kind", "repo")
+    file_index = (
+        {kf["path"]: kf for kf in raw_content.get("key_files", [])}
+        if kind == "repo" else {}
+    )
 
     sections = []
     for i, sec in enumerate(outline.get("sections", [])):
@@ -358,12 +482,11 @@ def mock_deck_from_outline(outline: dict, raw_content: dict) -> dict:
             },
         ]
 
-        # 第二張: 若有 key_files, 抓第一個出來給 code_snippet
-        if sec.get("key_files"):
+        # 第二張: repo 才會塞 code_snippet, document / url 跳過
+        if kind == "repo" and sec.get("key_files"):
             fp = sec["key_files"][0]
             kf = file_index.get(fp)
             if kf and kf.get("content"):
-                # 只取前 6 行避免太長
                 preview = "\n".join(kf["content"].splitlines()[:6])
                 slides.append({
                     "id": f"{section_id}_2",
@@ -381,14 +504,27 @@ def mock_deck_from_outline(outline: dict, raw_content: dict) -> dict:
 
         sections.append({"id": section_id, "title": title, "slides": slides})
 
-    deck = {
-        "deck_title": outline.get("deck_title", f"{root_name} — 講解 (Mock)"),
-        "source_type": "repo",
-        "source_meta": {
-            "root_name": root_name,
-            "primary_language": primary_lang,
+    # source_meta 依來源類型不同
+    if kind == "repo":
+        source_meta = {
+            "root_name": raw_content.get("root_name"),
+            "primary_language": raw_content.get("primary_language"),
             "scanned_files": raw_content.get("stats", {}).get("selected"),
-        },
+        }
+        title_for_default = raw_content.get("root_name", "project")
+    else:
+        source_meta = {
+            "title": raw_content.get("title"),
+            "format": raw_content.get("format"),
+            "url": raw_content.get("url"),
+            "chars": raw_content.get("stats", {}).get("chars"),
+        }
+        title_for_default = raw_content.get("title", "untitled")
+
+    deck = {
+        "deck_title": outline.get("deck_title", f"{title_for_default} — 講解 (Mock)"),
+        "source_type": kind,
+        "source_meta": source_meta,
         "sections": sections,
     }
     return normalize_deck(deck)
@@ -409,9 +545,9 @@ if __name__ == "__main__":
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
-    outline = json.loads(Path(args.outline).read_text(encoding="utf-8"))
+    outline_dict = json.loads(Path(args.outline).read_text(encoding="utf-8"))
     raw = json.loads(Path(args.raw_content).read_text(encoding="utf-8"))
-    deck = mock_deck_from_outline(outline, raw) if args.mock else script_repo(outline, raw)
+    deck = mock_deck_from_outline(outline_dict, raw) if args.mock else script(outline_dict, raw)
 
     out_path = Path(args.out) if args.out else Path(args.outline).with_name("deck.json")
     out_path.write_text(json.dumps(deck, ensure_ascii=False, indent=2), encoding="utf-8")

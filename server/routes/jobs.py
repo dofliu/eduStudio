@@ -49,13 +49,27 @@ def _require_job(job_id: str, store: JobStore = Depends(_store)) -> JobRecord:
 @router.post("", response_model=CreateJobResponse, status_code=status.HTTP_201_CREATED)
 async def create_job(req: CreateJobRequest, store: JobStore = Depends(_store)) -> CreateJobResponse:
     """建立 job 並立即在背景排程。回應裡的 status_url 可拿來 poll 狀態。"""
-    # 早期驗證: source.path 至少要存在,否則使用者很容易拼錯路徑
-    src_path = Path(req.source.path)
-    if not src_path.exists():
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"source.path 不存在: {req.source.path}",
-        )
+    from ..schemas import SourceType
+
+    # 依 source_type 做早期驗證 — 拼錯路徑 / 缺欄位的常見錯誤先攔下
+    if req.source_type == SourceType.URL:
+        url = (req.source.url or "").strip()
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "source_type=url 時必須提供 source.url (http:// 或 https://)",
+            )
+    else:
+        if not req.source.path:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"source_type={req.source_type.value} 時必須提供 source.path",
+            )
+        if not Path(req.source.path).exists():
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"source.path 不存在: {req.source.path}",
+            )
 
     rec = store.create(req)
     schedule_job(store, rec.id)

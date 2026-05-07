@@ -405,7 +405,14 @@ def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool, brief: b
     out_json.write_text(
         json.dumps(exam_data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"\n✅ 完成: {out_json.relative_to(BASE_DIR)}")
+    # resolve() 確保比 BASE_DIR 時兩邊都是 absolute, 否則 relative path 會 ValueError
+    out_resolved = out_json.resolve()
+    try:
+        display_path = out_resolved.relative_to(BASE_DIR)
+    except ValueError:
+        # 輸出在 repo 外的情境就直接顯示 absolute (例如使用者用 D:\... 指其他位置)
+        display_path = out_resolved
+    print(f"\n✅ 完成: {display_path}")
     print(f"   {len(problems)} 章 / {total} 張投影片")
 
 

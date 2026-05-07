@@ -137,7 +137,9 @@ autoSolverVideo/
 │   ├── outliner.py     #   raw_content -> outline.json (Gemini, repo 用)
 │   ├── scriptor.py     #   outline -> deck.json (Gemini, 逐 section)
 │   ├── adapters/
-│   │   └── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
+│   │   ├── repo.py     #   folder walker, 輸出 raw_content (≤50 檔)
+│   │   ├── document.py #   PDF / MD / TXT 單檔 long-form (PR-3b)
+│   │   └── url.py      #   靜態 HTML 文章抽取 (BS4 啟發式) (PR-3b)
 │   └── render/
 │       └── pptx_style.py  # Forest 主題 Pillow renderer (PR-2b-ii)
 │
@@ -146,7 +148,26 @@ autoSolverVideo/
 │   ├── schemas.py      #   Pydantic request / response / state models
 │   ├── jobs.py         #   JobStore (in-memory + JSON 檔案持久化)
 │   ├── runner.py       #   背景任務 dispatch (source_type → core fn)
-│   └── routes/jobs.py  #   /jobs CRUD + /draft + /approve + /artifacts
+│   └── routes/
+│       ├── jobs.py     #   /jobs CRUD + /draft + /approve + /artifacts
+│       └── editor.py   #   /editor Web UI (PR-3d, 新 deck schema)
+│
+├── scripts/
+│   └── submit_job.py   # 排程端 CLI wrapper (PR-3c)
+│
+├── web/                # React UI (PR-3e, gitignored: web/node_modules, web/dist)
+│   ├── package.json    #   React 18 + TS + Vite + Tailwind
+│   ├── vite.config.ts  #   base=/ui/, dev proxy /jobs -> :8000
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx + App.tsx + index.css
+│       ├── api.ts + types.ts
+│       ├── pages/
+│       │   ├── JobsIndex.tsx      # 列表 + 5s auto-poll + filter + create form
+│       │   └── JobEditor.tsx      # deck 逐 section/slide 編輯
+│       └── components/
+│           ├── JobCard.tsx, StatusBadge.tsx, Toast.tsx,
+│           ├── CreateJobForm.tsx, SlideEditor.tsx
 │
 ├── jobs/               # Server runtime (gitignored)
 │   └── <job_id>/
@@ -331,6 +352,8 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 | Method | Path | 用途 |
 |---|---|---|
 | `GET`    | `/health`                              | 健康檢查 |
+| `GET`    | `/editor`                              | Web UI (job 列表) (PR-3d) |
+| `GET`    | `/editor/{id}`                         | Web UI (deck 編輯頁) (PR-3d) |
 | `POST`   | `/jobs`                                | 建立 job 並背景排程 |
 | `GET`    | `/jobs`                                | 列出全部 (created_at desc) |
 | `GET`    | `/jobs/{id}`                           | 拿單一 job 完整 state |
@@ -346,10 +369,13 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 |---|---|---|---|
 | `exam_pdf`   | 考卷 PDF 檔 | `solve.py` 三段 Gemini   | True (硬規則 #1) |
 | `slides_pdf` | 簡報 PDF 檔 | `slide_ingest.py` 章節+逐頁 narration | False |
-| `repo`       | 資料夾路徑 | `core/adapters/repo` → `core/outliner` → `core/scriptor` | False |
+| `repo`       | 資料夾路徑 | `core/adapters/repo` → `outliner_repo` → `script_repo` | False |
+| `document`   | PDF / MD / TXT 檔 | `core/adapters/document` → `outliner_long_form` → `script_long_form` | False |
+| `url`        | HTTP(S) URL | `core/adapters/url` → `outliner_long_form` → `script_long_form` | False |
 
-`repo` 路徑 (PR-2b-i) 限 ≤50 檔, 用 `options.max_files` 可調整。其他類型 (document /
-url) 留給後續 PR。
+- `repo` 限 ≤50 檔, 用 `options.max_files` 可調整
+- `document` / `url` 走 long-form 文件講解 prompt, 不放 code_snippet
+- `url` 限靜態 HTML, 不跑 JS, 不繞付費牆 (用 BS4 簡單啟發式抽 `<article>` / `<main>`)
 
 ### 渲染風格
 
@@ -357,7 +383,7 @@ url) 留給後續 PR。
 |---|---|---|
 | `exam_pdf` / `slides_pdf` | `pipeline.BlackboardRenderer` (黑板模式) | 深綠黑板 + 粉筆色階 |
 | `slides_pdf` (slide-bg-image step) | `pipeline.SlideRenderer` | 原投影片 PNG 當底圖 |
-| `repo` (PR-2b-ii) | `core.render.pptx_style.PptxStyleRenderer` | Forest 主題簡報 (banner + 標題 + bullets + code block) |
+| `repo` / `document` / `url` | `core.render.pptx_style.PptxStyleRenderer` | Forest 主題簡報 (banner + 標題 + bullets + code block) |
 
 Repo 路徑採 Pillow 純 Python 渲染, **不**走 LibreOffice / Node 鏈路 — 沒有 .pptx
 檔案產出, 只有最終 mp4 (deck.json 是 source of truth, 編輯走 Web UI 改 deck)。
@@ -422,6 +448,59 @@ curl -X POST http://localhost:8000/jobs \
 
 PR-2b-i 暫時用既有黑板渲染, PR-2b-ii 會切到 pptx 風格 (LibreOffice + pptxgenjs)。
 
+### 範例 3:把一份講義或部落格文章做成影片 (PR-3b)
+
+```bash
+# 講義 (PDF / MD / TXT)
+curl -X POST http://localhost:8000/jobs -H 'Content-Type: application/json' -d '{
+  "source_type": "document",
+  "source": {"path": "D:/path/to/lecture.pdf"}
+}'
+
+# 部落格文章 / 網頁
+curl -X POST http://localhost:8000/jobs -H 'Content-Type: application/json' -d '{
+  "source_type": "url",
+  "source": {"url": "https://example.com/blog/some-article"}
+}'
+```
+
+兩條路都共用 `outline_long_form` + `script_long_form` prompt, 走 Forest pptx 渲染。
+單檔最大讀取 80,000 字, 超過會 truncate 並標記 `stats.truncated=true`。
+
+### Web UI
+
+兩套 UI 並存:
+
+**React UI** (PR-3e, 預設) — `http://localhost:8000/ui/` (或直接 `/`)
+
+- React 18 + TypeScript + Vite + Tailwind CSS, build 在 `web/dist`
+- **Index 頁**: job 列表, 狀態 badge, **新增 Job 表單** (5 種 source + mock 開關),
+  filter by state, 5 秒 auto-poll
+- **Editor 頁**: 逐 section / slide 編輯 (title / bullets / code_snippet / file_path
+  / narration), narration 字數即時提示 (目標 100-200), dirty state 警告
+
+**Vanilla 編輯器** (PR-3d, fallback) — `http://localhost:8000/editor/`
+
+- Server-side HTML + vanilla JS (無 build, 無 CDN)
+- 同樣的編輯功能, Web UI build 不存在時自動 fallback
+
+**開發模式** — Vite dev server:
+```bash
+cd web && npm install
+cd web && npm run dev          # http://localhost:5173 (proxy /jobs 到 8000)
+# 另一個 terminal
+python -m server.main          # http://localhost:8000
+```
+
+**生產模式** — build 然後讓 FastAPI 服務:
+```bash
+cd web && npm run build        # 寫到 web/dist/
+python -m server.main          # 自動把 /ui/ 掛到 web/dist
+```
+
+兩者都僅支援新 deck schema (repo / document / url); 考卷檢討的 v1 exam schema
+仍由既有 Flask `app.py` 服務 (port 5000)。
+
 ### 檔案佈局
 
 ```
@@ -436,9 +515,46 @@ jobs/                          # gitignored
 
 ### 排程使用
 
-未來搭配 cron / Windows Task Scheduler / scheduled-tasks MCP, 直接 `curl` 即可
-觸發定期 ingest + render, 不必 Web UI。`require_review=False` + `mock=False` 可以
-在後台跑完整 pipeline。
+`scripts/submit_job.py` 是排程端的 CLI wrapper, 用一行命令觸發 `POST /jobs`,
+不必每次手寫 JSON payload + curl。回傳結構化 JSON 給排程 log 抓 job_id。
+
+```bash
+# repo 講解 (預設 require_review=false, 一路跑完)
+python scripts/submit_job.py repo D:/path/to/your/repo
+
+# 講義 PDF / Markdown / TXT
+python scripts/submit_job.py document D:/lecture.pdf
+
+# 部落格文章 / 網頁
+python scripts/submit_job.py url https://example.com/blog/some-article
+
+# 考卷 (預設 require_review=true, 加 --no-review 跳過 review 一路跑)
+python scripts/submit_job.py exam D:/exam.pdf --no-review
+
+# 跨機器: 指 server 位址
+python scripts/submit_job.py repo D:/repo --server http://192.168.1.5:8000
+```
+
+#### 在 Claude Cowork 設排程
+
+打開 Claude 桌面 / Cowork session, 用 `schedule` 技能設定 cron, 觸發指令格式
+為「每天/每週執行 `python scripts/submit_job.py <type> <source>`」。Job 跑完
+後到 `jobs/<id>/state.json` 看狀態, mp4 在 `jobs/<id>/artifacts/`。
+
+要 review 通過才渲染的 (例: 考卷), 排程只跑到 `awaiting_review`, 然後人去
+編輯介面 (PR-3d, 預定) approve。
+
+#### 在 Windows 工作排程器設排程
+
+無需 Claude Cowork, 直接用 OS 內建排程器:
+
+1. 開啟「工作排程器」→ 建立基本工作
+2. 觸發程序: 每日 / 每週
+3. 動作: 啟動程式
+   - 程式: `python`
+   - 引數: `D:\Project_CodingSimulation\...\scripts\submit_job.py repo D:\path`
+   - 開始位置: 專案根目錄
+4. 條件 / 設定: 視需求
 
 ---
 

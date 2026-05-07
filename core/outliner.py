@@ -6,6 +6,11 @@
 - 強制輸出純 JSON (跟 solve.py / slide_ingest.py 同套 fence 處理)
 - 沒拿到合法 JSON 就 retry 1 次, 用更高 temperature
 
+支援的 source_kind (PR-3b 後):
+- "repo"     -> outline_repo(raw_content)        (檔樹 + key_files, code-walkthrough 取向)
+- "document" -> outline_long_form(raw_content)   (PDF / MD / TXT, 摘要型)
+- "url"      -> outline_long_form(raw_content)   (HTML 文章, 跟 document 共用 prompt)
+
 outline.json schema (給 scriptor 階段吃):
 {
   "deck_title": "...",
@@ -16,7 +21,7 @@ outline.json schema (給 scriptor 階段吃):
       "title": "專案目的",
       "intent": "讓觀眾理解這個專案要解決什麼問題",
       "topics": ["教學影片自動生成", "AI 輔助 vs 全自動"],
-      "key_files": ["README.md"]
+      "key_files": ["README.md"]   // 僅 repo 路徑會有, document / url 為 []
     },
     ...
   ]
@@ -88,7 +93,70 @@ OUTLINE_PROMPT_REPO = """你是一位資深的軟體工程師兼技術講師, �
 """
 
 
+# ---------- Long-form (document / url) prompt ----------
+
+OUTLINE_PROMPT_LONGFORM = """你是一位資深的講師, 擅長把長篇文件 (講義 / 部落格文章 / 報告) 拆成易懂的講解大綱。
+你會收到一份文件內容, 請設計一份 8~15 分鐘講解影片的章節大綱。
+
+==== 文件資訊 ====
+標題: {title}
+來源: {source_label}
+字數: {char_count}
+{source_extra}
+
+==== 文件內容 ====
+{content}
+
+==== 大綱設計原則 ====
+1. **章節數 4~6 章**, 每章對應一段 1.5~3 分鐘的講解 (約 5~10 張投影片)
+2. **第一章必為「主題引入」或「為什麼要看這個」**, 建立觀眾興趣
+3. **最後一章必為「重點回顧」或「延伸思考」**, 收束 take-away
+4. **中間章節依文件結構切**, 通常依小標 / 段落主題
+5. **章節 title 簡潔 (4~12 字)**, intent 一句話 (不超過 30 字)
+6. **topics 列 3~6 個重點關鍵詞**, 不是完整句子
+7. **deck_title 用文件實際標題或標題的精煉版** (不要硬抄 URL)
+8. **summary 1~2 句, 開場白用**, 描述「這份文件在講什麼 / 為什麼重要」
+
+==== 嚴禁事項 ====
+- 不要 LaTeX、Markdown 標題、emoji
+- 不要編造文件沒提到的內容; topics 必須是文件實際出現的概念
+- 不要把整段文字抄成 topics, 要提煉成關鍵詞
+- key_files 永遠回 [] (這是文件來源, 沒有檔案概念)
+
+==== 輸出格式 (嚴格) ====
+直接回 JSON object, 從 {{ 開頭到 }} 結尾, 不要 Markdown fence、不要前後說明文字:
+
+{{
+  "deck_title": "...",
+  "summary": "...",
+  "sections": [
+    {{
+      "id": "intro",
+      "title": "...",
+      "intent": "...",
+      "topics": ["...", "..."],
+      "key_files": []
+    }}
+  ]
+}}
+"""
+
+
 # ---------- Public API ----------
+
+def outline(raw_content: dict, **kwargs) -> dict:
+    """Source-agnostic outliner — 依 source_kind dispatch。
+
+    PR-3b: source_kind in {"repo", "document", "url"}。
+    Caller 不必判斷類型, 直接給 raw_content 即可。
+    """
+    kind = raw_content.get("source_kind")
+    if kind == "repo":
+        return outline_repo(raw_content, **kwargs)
+    if kind in ("document", "url"):
+        return outline_long_form(raw_content)
+    raise ValueError(f"未支援的 source_kind: {kind!r}")
+
 
 def outline_repo(raw_content: dict, *, max_files_in_prompt: int = 25) -> dict:
     """raw_content (repo adapter 輸出) → outline dict。
@@ -100,15 +168,6 @@ def outline_repo(raw_content: dict, *, max_files_in_prompt: int = 25) -> dict:
     if raw_content.get("source_kind") != "repo":
         raise ValueError(f"outline_repo 只吃 source_kind=repo, 收到 {raw_content.get('source_kind')}")
 
-    api_key = get_gemini_api_key()
-    if not api_key:
-        sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數")
-
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client(api_key=api_key)
-
     prompt = OUTLINE_PROMPT_REPO.format(
         root_name=raw_content.get("root_name", "(unknown)"),
         primary_language=raw_content.get("primary_language") or "unknown",
@@ -119,6 +178,53 @@ def outline_repo(raw_content: dict, *, max_files_in_prompt: int = 25) -> dict:
             max_files=max_files_in_prompt,
         ),
     )
+    return _call_outline_gemini(prompt)
+
+
+def outline_long_form(raw_content: dict) -> dict:
+    """raw_content (document / url adapter 輸出) → outline dict。
+
+    跟 outline_repo 共用 retry / parse / normalize 邏輯, 只差 prompt template
+    與 source 描述的格式。
+    """
+    kind = raw_content.get("source_kind")
+    if kind not in ("document", "url"):
+        raise ValueError(f"outline_long_form 只吃 document / url, 收到 {kind!r}")
+
+    if kind == "document":
+        source_label = f"file ({raw_content.get('format', '?')})"
+        source_extra = f"原始檔: {raw_content.get('title', '?')}"
+    else:  # url
+        source_label = "URL"
+        source_extra = f"網址: {raw_content.get('url', '?')}"
+
+    content = raw_content.get("content", "")
+    char_count = raw_content.get("stats", {}).get("chars", len(content))
+
+    prompt = OUTLINE_PROMPT_LONGFORM.format(
+        title=raw_content.get("title", "(unknown)"),
+        source_label=source_label,
+        source_extra=source_extra,
+        char_count=char_count,
+        content=content,
+    )
+    return _call_outline_gemini(prompt)
+
+
+def _call_outline_gemini(prompt: str) -> dict:
+    """共用 Gemini outline 呼叫 + retry + parse + normalize。
+
+    所有 outline_* 函式呼叫這個, 確保 retry 策略 / fence 處理 / 錯誤存檔
+    全程一致, 改一處全 source type 受益。
+    """
+    api_key = get_gemini_api_key()
+    if not api_key:
+        sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數")
+
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key)
 
     raw_text = ""
     last_err = None
@@ -147,12 +253,12 @@ def outline_repo(raw_content: dict, *, max_files_in_prompt: int = 25) -> dict:
             raw_text = (resp.text or "").strip()
             cleaned = _strip_fence(raw_text)
             cleaned = clean_json_escapes(cleaned)
-            outline = json.loads(cleaned)
-            _normalize_outline(outline)
+            outline_dict = json.loads(cleaned)
+            _normalize_outline(outline_dict)
             if attempt_i > 1:
                 print(f"   ↺ outline retry 成功 (temp={params['temp']}, "
                       f"thinking={'off' if params['no_thinking'] else 'on'})")
-            return outline
+            return outline_dict
         except Exception as e:
             last_err = e
             print(f"   ⚠ outline attempt {attempt_i} 失敗 "
@@ -236,33 +342,69 @@ def _normalize_outline(outline: dict) -> None:
 # ---------- Mock ----------
 
 def mock_outline(raw_content: dict) -> dict:
-    """離線測試用 — 不打 Gemini, 用 raw_content 拼一個結構合法的 outline。"""
-    root = raw_content.get("root_name", "project")
+    """離線測試用 — 不打 Gemini, 用 raw_content 拼結構合法的 outline。
+
+    支援 repo / document / url 三種 source_kind。
+    """
+    kind = raw_content.get("source_kind", "repo")
+
+    if kind == "repo":
+        root = raw_content.get("root_name", "project")
+        return {
+            "deck_title": f"{root} — Mock 講解大綱",
+            "summary": f"{root} 是一個 mock 模式產出的範例大綱,用於離線 smoke test。",
+            "sections": [
+                {
+                    "id": "intro",
+                    "title": "專案目的",
+                    "intent": "讓觀眾理解這個專案在做什麼",
+                    "topics": ["問題背景", "解法概觀"],
+                    "key_files": ["README.md"] if any(
+                        kf["path"] == "README.md" for kf in raw_content.get("key_files", [])
+                    ) else [],
+                },
+                {
+                    "id": "arch",
+                    "title": "整體架構",
+                    "intent": "拆解三層 (CLI / core / server) 各自負責什麼",
+                    "topics": ["分層設計", "資料流"],
+                    "key_files": [kf["path"] for kf in raw_content.get("key_files", [])[:3]],
+                },
+                {
+                    "id": "next",
+                    "title": "如何使用",
+                    "intent": "給觀眾立刻能上手的指令",
+                    "topics": ["安裝", "啟動", "進階"],
+                    "key_files": [],
+                },
+            ],
+        }
+
+    # document / url: 共用 long-form mock
+    title = raw_content.get("title", "untitled")
     return {
-        "deck_title": f"{root} — Mock 講解大綱",
-        "summary": f"{root} 是一個 mock 模式產出的範例大綱,用於離線 smoke test。",
+        "deck_title": f"{title} — Mock 講解大綱",
+        "summary": f"離線 mock 模式: 以 {title} 為主題的範例大綱結構。",
         "sections": [
             {
                 "id": "intro",
-                "title": "專案目的",
-                "intent": "讓觀眾理解這個專案在做什麼",
-                "topics": ["問題背景", "解法概觀"],
-                "key_files": ["README.md"] if any(
-                    kf["path"] == "README.md" for kf in raw_content.get("key_files", [])
-                ) else [],
+                "title": "主題引入",
+                "intent": "建立觀眾興趣與背景",
+                "topics": ["為什麼討論這個", "背景"],
+                "key_files": [],
             },
             {
-                "id": "arch",
-                "title": "整體架構",
-                "intent": "拆解三層 (CLI / core / server) 各自負責什麼",
-                "topics": ["分層設計", "資料流"],
-                "key_files": [kf["path"] for kf in raw_content.get("key_files", [])[:3]],
+                "id": "main_points",
+                "title": "重點內容",
+                "intent": "依文件順序講解核心概念",
+                "topics": ["核心概念 1", "核心概念 2", "核心概念 3"],
+                "key_files": [],
             },
             {
-                "id": "next",
-                "title": "如何使用",
-                "intent": "給觀眾立刻能上手的指令",
-                "topics": ["安裝", "啟動", "進階"],
+                "id": "wrap",
+                "title": "重點回顧",
+                "intent": "收束 take-away 與延伸閱讀",
+                "topics": ["重點整理", "下一步"],
                 "key_files": [],
             },
         ],
@@ -284,7 +426,7 @@ if __name__ == "__main__":
     args = ap.parse_args()
 
     raw = json.loads(Path(args.raw_content).read_text(encoding="utf-8"))
-    outline = mock_outline(raw) if args.mock else outline_repo(raw)
+    outline_dict = mock_outline(raw) if args.mock else outline(raw)
     out_path = Path(args.out) if args.out else Path(args.raw_content).with_name("outline.json")
-    out_path.write_text(json.dumps(outline, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"✅ outline 寫到 {out_path} ({len(outline['sections'])} sections)")
+    out_path.write_text(json.dumps(outline_dict, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"✅ outline 寫到 {out_path} ({len(outline_dict['sections'])} sections)")

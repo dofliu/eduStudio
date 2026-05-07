@@ -20,11 +20,13 @@ class SourceType(str, Enum):
 
     PR-2a 支援 exam_pdf / slides_pdf (包現有 pipeline)。
     PR-2b-i 加 repo (folder walker -> outliner -> scriptor -> deck.json)。
-    PR-2b-ii 之後會再加 document / url。
+    PR-3b 加 document (PDF/MD/TXT) / url (HTML 文章)。
     """
     EXAM_PDF = "exam_pdf"        # 考卷 PDF -> solve.py 三段 Gemini
     SLIDES_PDF = "slides_pdf"    # 簡報 PDF -> slide_ingest.py 章節+逐頁 narration
-    REPO = "repo"                # 資料夾 / repo -> repo adapter + outliner + scriptor
+    REPO = "repo"                # 資料夾 / repo -> repo adapter
+    DOCUMENT = "document"        # PDF / MD / TXT 單檔 long-form -> document adapter
+    URL = "url"                  # 靜態 HTML 文章 -> url adapter
 
 
 class JobState(str, Enum):
@@ -76,10 +78,19 @@ class JobOptions(BaseModel):
 
 
 class JobSource(BaseModel):
-    """來源描述。PR-2a 用 path 指本機檔案;後續會擴成支援 url / inline content。"""
-    path: str = Field(
-        description="server 本機可讀的絕對路徑 (PR-2a 限制)。"
-                    "未來會新增 url / upload_id 等欄位。",
+    """來源描述。
+
+    PR-2a/2b-i: path 指本機絕對路徑 (檔或資料夾依 source_type 而定)。
+    PR-3b: source_type=url 時改用 url 欄位; 其他類型仍走 path。
+    """
+    path: str | None = Field(
+        default=None,
+        description="server 本機可讀的絕對路徑。source_type=exam_pdf / slides_pdf / "
+                    "document 為檔案; source_type=repo 為資料夾; source_type=url 不用。",
+    )
+    url: str | None = Field(
+        default=None,
+        description="網址, 僅 source_type=url 使用 (必須 http:// 或 https://)。",
     )
 
     model_config = ConfigDict(extra="allow")

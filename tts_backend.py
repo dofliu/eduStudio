@@ -47,6 +47,57 @@ def _load_pronunciation_map() -> list[tuple[str, str]]:
     return _PRONUNCIATION_MAP_CACHE
 
 
+def split_for_f5(text: str, max_chars: int = 30) -> list[str]:
+    """PR-5b: F5-TTS 預切句, 解決 F5 內部 batch 不顧中文詞邊界的問題。
+
+    F5 把長 gen_text 切成內部 batch 時會在「字元數」邊界硬切, 對中文常常
+    切到詞中間 (例: 「處理與應用」→「處」+「理與應用」, 第二段聽起來像新句子)。
+    我們先用標點預切成 ≤ max_chars 的短段, 逐段呼叫 F5 後 concat, 等於我們
+    自己掌握 batch 切點。
+
+    切分策略:
+    - 主要切點 (。！？.!?) 一律 flush
+    - 次要切點 (，、；：;,:) 累積 >=60% max_chars 才 flush (避免太短)
+    - 累積到 max_chars 仍沒看到切點 → 找最近一個次要切點 / 空白
+    - 真的沒切點 (英文無標點 / 連續中文無標點) → 硬切 max_chars
+
+    max_chars=30 是實測值: F5 內部似乎 30~40 字會自切, 比它短一點就能搶在
+    它之前, 不會出現中-中切錯。不解中-英切換口音漂移 (那是 base model 訓練資料)。
+    """
+    if not text:
+        return []
+    if len(text) <= max_chars:
+        return [text]
+
+    PRIMARY = set("。！？.!?")
+    SECONDARY = set("，、；：;,:")
+    SOFT_SEC = SECONDARY | set(" \t")  # 找退路時也接受空白
+
+    segments: list[str] = []
+    buf = ""
+    for ch in text:
+        buf += ch
+        if ch in PRIMARY:
+            segments.append(buf)
+            buf = ""
+        elif ch in SECONDARY and len(buf) >= max_chars * 0.6:
+            segments.append(buf)
+            buf = ""
+        elif len(buf) >= max_chars:
+            # 太長還沒切, 找最後一個 soft 切點
+            last_sec = max((buf.rfind(c) for c in SOFT_SEC), default=-1)
+            if last_sec > max_chars * 0.5:
+                segments.append(buf[:last_sec + 1])
+                buf = buf[last_sec + 1:]
+            else:
+                # 找不到合理切點: 硬切 (英文單詞 / 純中文無標點)
+                segments.append(buf)
+                buf = ""
+    if buf:
+        segments.append(buf)
+    return [s for s in segments if s.strip()]
+
+
 def normalize_text(text: str) -> str:
     """進 TTS 前的標準前處理: 分數展開、變數下標、發音對照、空白清理。
 
@@ -162,27 +213,63 @@ class F5TTS(TTSBackend):
         text = normalize_text(text)
         try:
             self._lazy_init()
-            # F5 是同步 API,丟到 thread pool 不阻塞 asyncio
-            wav_path = out_path.with_suffix(".wav")
-            await asyncio.to_thread(
-                self._api.infer,
-                ref_file=self.ref_audio,
-                ref_text=self.ref_text,
-                gen_text=text,
-                file_wave=str(wav_path),
-                remove_silence=self.remove_silence,
-                speed=self.speed,
-                cfg_strength=self.cfg_strength,
-                cross_fade_duration=self.cross_fade_duration,
-                nfe_step=self.nfe_step,
-            )
+            # PR-5b: 先預切句, 每段 ≤ 30 字, 避免 F5 內部 batch 切到中文詞中間。
+            # 短文 (≤ 30 字) 仍是單段, 行為跟舊版一致。
+            segments = split_for_f5(text, max_chars=30)
+            if not segments:
+                return False
+
+            # 為每段呼叫一次 F5 → wav, 然後 ffmpeg concat 成一支
+            tmp_dir = out_path.parent
+            seg_wavs: list[Path] = []
+            for i, seg_text in enumerate(segments):
+                seg_wav = tmp_dir / f".{out_path.stem}.f5seg{i:03d}.wav"
+                await asyncio.to_thread(
+                    self._api.infer,
+                    ref_file=self.ref_audio,
+                    ref_text=self.ref_text,
+                    gen_text=seg_text,
+                    file_wave=str(seg_wav),
+                    remove_silence=self.remove_silence,
+                    speed=self.speed,
+                    cfg_strength=self.cfg_strength,
+                    cross_fade_duration=self.cross_fade_duration,
+                    nfe_step=self.nfe_step,
+                )
+                seg_wavs.append(seg_wav)
+
+            # 單段直接走舊路徑 (省一次 concat ffmpeg)
+            if len(seg_wavs) == 1:
+                wav_path = seg_wavs[0]
+            else:
+                # 寫 ffmpeg concat manifest, 同 dir 用相對檔名避免路徑空白問題
+                manifest = tmp_dir / f".{out_path.stem}.f5concat.txt"
+                manifest.write_text(
+                    "\n".join(f"file '{w.name}'" for w in seg_wavs),
+                    encoding="utf-8",
+                )
+                wav_path = tmp_dir / f".{out_path.stem}.f5merged.wav"
+                subprocess.run(
+                    ["ffmpeg", "-y", "-loglevel", "error",
+                     "-f", "concat", "-safe", "0",
+                     "-i", str(manifest), "-c", "copy", str(wav_path)],
+                    check=True,
+                )
+                manifest.unlink(missing_ok=True)
+
             # 下游 pipeline 吃 mp3;順便砍掉前 lead_trim_sec 秒的 ref 洩漏
+            # (預切後 lead_trim 仍套在最終 concat 結果首段, 跟舊版邏輯一致)
             ff = ["ffmpeg", "-y", "-loglevel", "error"]
             if self.lead_trim_sec > 0:
                 ff += ["-ss", f"{self.lead_trim_sec:.3f}"]
             ff += ["-i", str(wav_path), "-b:a", "128k", str(out_path)]
             subprocess.run(ff, check=True)
-            wav_path.unlink(missing_ok=True)
+
+            # 清掉所有暫存
+            for w in seg_wavs:
+                w.unlink(missing_ok=True)
+            if len(seg_wavs) > 1:
+                wav_path.unlink(missing_ok=True)
             return True
         except Exception as e:
             print(f"[F5-TTS] failed: {e}")

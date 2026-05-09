@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
 
 from ..jobs import JobStore, get_default_store
-from ..runner import schedule_job, schedule_render
+from ..runner import schedule_job, schedule_render, schedule_section_render
 from ..schemas import (
     CreateJobRequest,
     CreateJobResponse,
@@ -162,6 +162,59 @@ async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobReco
             f"approve 僅在 awaiting_review / failed 可用 (目前 {rec.state.value})",
         )
     schedule_render(store, job_id)
+    return store.get(job_id)
+
+
+# ---------- Section render (PR-4a) ----------
+
+def _deck_has_section_id(deck: dict, section_id: str) -> bool:
+    """deck 可能是 v1 exam (problems) 或新 deck schema (sections), 兩邊找。"""
+    for p in deck.get("problems", []):
+        if p.get("id") == section_id:
+            return True
+    for s in deck.get("sections", []):
+        if s.get("id") == section_id:
+            return True
+    return False
+
+
+@router.post("/{job_id}/sections/{section_id}/render", response_model=JobRecord)
+async def render_section(
+    job_id: str, section_id: str, store: JobStore = Depends(_store),
+) -> JobRecord:
+    """重新渲染單一 section / problem (PR-4a)。
+
+    使用情境: render 完發現某章 narration 想改, 改完按這個重跑該章 mp4,
+    其他章保留既有 artifact 不動。50 頁簡報改一章可省 ~30 分鐘。
+
+    狀態檢查:
+    - DONE: 正常 re-render 該章 (覆蓋舊 mp4)
+    - FAILED: 用於上次 render 在某章炸了, 修完 deck 後想只重跑那一章
+    - 其他狀態 (rendering / ingesting / awaiting_review / pending) → 409
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    if rec.state not in (JobState.DONE, JobState.FAILED):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"section render 僅在 done / failed 可用 (目前 {rec.state.value})",
+        )
+
+    deck_path = JobStore.deck_path(job_id)
+    if not deck_path.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "deck.json 不存在, 無法 render",
+        )
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+    if not _deck_has_section_id(deck, section_id):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"section_id={section_id} 在 deck 中找不到",
+        )
+
+    schedule_section_render(store, job_id, section_id)
     return store.get(job_id)
 
 

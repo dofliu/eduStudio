@@ -179,13 +179,18 @@ async def _run_ingest_long_form(rec: JobRecord, deck_path: Path, mock: bool) -> 
     return deck
 
 
-async def _run_render(store: JobStore, rec: JobRecord) -> None:
+async def _run_render(
+    store: JobStore, rec: JobRecord, *, section_id: str | None = None,
+) -> None:
     """跑 render 階段: deck.json → MP4 + SRT 進 jobs/<id>/artifacts/。
 
     schema 分流:
     - sections 為頂層 (新 deck schema) + source_type=repo: 走 pptx_slide 渲染 (Forest)
     - sections 為頂層 + 其他 source_type: 走黑板渲染 (deck_to_exam_schema)
     - problems 為頂層 (v1 exam schema): 直接餵 pipeline (考卷 / 簡報走這條)
+
+    PR-4a: section_id 非 None 時只 render 該 section, 其他章保持既有 mp4 不動。
+    讓使用者改一章 narration 後不必重跑全部 (50 頁簡報省 30 分鐘)。
     """
     from core import problem_to_v0_json, render_video
     from core.config import OUTPUT_DIR
@@ -213,6 +218,15 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
         else:
             deck = deck_to_exam_schema(deck)
 
+    # PR-4a: 過濾指定 section, 兩種 schema 經 deck_to_exam_schema_* 後 problems[].id
+    # 都對應原 section/problem 的 id (見 core.deck), 直接 filter 即可
+    problems = deck["problems"]
+    if section_id is not None:
+        matching = [p for p in problems if p.get("id") == section_id]
+        if not matching:
+            raise ValueError(f"section_id={section_id} 在 deck 中找不到")
+        problems = matching
+
     artifacts_dir = JobStore.artifacts_dir(rec.id)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -223,7 +237,7 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # 逐題渲染 → MP4 / SRT 從 OUTPUT_DIR 搬到 artifacts/
-    for prob in deck["problems"]:
+    for prob in problems:
         pid = prob["id"]
         v0 = problem_to_v0_json(deck["exam_title"], prob)
         v0_path = artifacts_dir / f"{pid}.json"
@@ -286,24 +300,30 @@ async def run_job(store: JobStore, job_id: str) -> None:
         store.update(job_id, state=JobState.FAILED, error=f"unexpected: {e}")
 
 
-async def _run_render_phase(store: JobStore, job_id: str) -> None:
+async def _run_render_phase(
+    store: JobStore, job_id: str, *, section_id: str | None = None,
+) -> None:
     """從 awaiting_review 或直接 ingest 完接著跑 render。供 /approve 也呼叫。
 
     PR-3j: 從 FAILED retry 進來時, 把舊 error 清掉 (不然成功後 record.error 還
     留著上次的 stale error, UI 會誤以為又失敗)。
+    PR-4a: section_id 非 None 時只渲染指定 section, stage name 帶上 section_id
+    讓 UI 跟 debug 看得出哪一章在跑。
     """
     store.update(job_id, state=JobState.RENDERING, error=None)
-    _start_stage(store, job_id, "render")
+    stage_name = f"render-section-{section_id}" if section_id else "render"
+    _start_stage(store, job_id, stage_name)
     try:
         rec = store.get(job_id)
-        await _run_render(store, rec)
+        await _run_render(store, rec, section_id=section_id)
     except (Exception, SystemExit) as e:
         _end_stage_fail(store, job_id, str(e))
         store.update(job_id, state=JobState.FAILED, error=f"render 失敗: {e}")
         return
     _end_stage_ok(store, job_id)
 
-    # render 完成後掃 artifacts 寫進 record
+    # render 完成後掃 artifacts 寫進 record (section render 也要 refresh, 讓
+    # 新 mp4 大小 / 修改時間反映到 JobRecord)
     store.refresh_artifacts(job_id)
     store.update(
         job_id,
@@ -324,3 +344,14 @@ def schedule_job(store: JobStore, job_id: str) -> asyncio.Task:
 def schedule_render(store: JobStore, job_id: str) -> asyncio.Task:
     """/approve 端點用: 從 awaiting_review 接著跑 render。"""
     return asyncio.create_task(_run_render_phase(store, job_id))
+
+
+def schedule_section_render(
+    store: JobStore, job_id: str, section_id: str,
+) -> asyncio.Task:
+    """PR-4a: section / problem 級別重 render。
+
+    呼叫端 (POST /jobs/{id}/sections/{sid}/render) 已驗證 state ∈ {DONE, FAILED}
+    且 section_id 在 deck 內存在, 所以這裡不再檢查。
+    """
+    return asyncio.create_task(_run_render_phase(store, job_id, section_id=section_id))

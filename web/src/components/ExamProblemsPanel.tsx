@@ -14,9 +14,16 @@ interface Props {
   exam: Exam;
   readOnly: boolean;
   onChange: (next: Exam) => void;
+  /** PR-4a: 單題重 render. 父層傳入時每題 header 多一個 🎬 按鈕. 不傳則隱藏. */
+  onRenderSection?: (sectionId: string, sectionLabel: string) => void;
 }
 
-export function ExamProblemsPanel({ exam, readOnly, onChange }: Props) {
+export function ExamProblemsPanel({
+  exam,
+  readOnly,
+  onChange,
+  onRenderSection,
+}: Props) {
   const updateProblem = (idx: number, next: Problem) => {
     const problems = [...exam.problems];
     problems[idx] = next;
@@ -66,6 +73,18 @@ export function ExamProblemsPanel({ exam, readOnly, onChange }: Props) {
               <span className="text-xs text-ink-muted shrink-0">
                 {p.steps.length} steps
               </span>
+              {/* PR-4a: 單題重 render */}
+              {onRenderSection && (
+                <button
+                  onClick={() =>
+                    onRenderSection(p.id, `${p.number} (${p.id})`)
+                  }
+                  className="btn btn-ghost text-xs shrink-0"
+                  title="只重渲染本題 (其他題不動)"
+                >
+                  🎬 重 render 本題
+                </button>
+              )}
             </div>
             <textarea
               className="field-input w-full min-h-[60px] text-sm"

@@ -65,6 +65,13 @@ export const api = {
   approve: (jobId: string) =>
     call<JobRecord>(`/jobs/${jobId}/approve`, { method: 'POST' }),
 
+  /** PR-4a: 重新渲染單一 section / problem (整章 mp4 換新, 其他章不動)。 */
+  renderSection: (jobId: string, sectionId: string) =>
+    call<JobRecord>(
+      `/jobs/${jobId}/sections/${encodeURIComponent(sectionId)}/render`,
+      { method: 'POST' },
+    ),
+
   // artifact download URL — 給 <a href> 直接用, 不走 fetch
   artifactUrl: (jobId: string, name: string) =>
     `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}`,

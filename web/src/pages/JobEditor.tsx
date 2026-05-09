@@ -123,6 +123,28 @@ export default function JobEditor() {
     }
   };
 
+  // PR-4a: 單章重 render. 跑前自動 save (避免改了沒存就跑舊版).
+  const onRenderSection = async (sectionId: string, sectionLabel: string) => {
+    if (!jobId || !draft) return;
+    if (!confirm(`重新渲染「${sectionLabel}」? 其他章不會動。`)) return;
+    setSaving(true);
+    try {
+      if (dirty) {
+        await api.saveDraft(jobId, draft as unknown as Deck);
+        setDirty(false);
+      }
+      await api.renderSection(jobId, sectionId);
+      show(`已觸發 ${sectionLabel} 重渲染, 進度看 JobsIndex 或本頁 state badge`);
+    } catch (e) {
+      show(`section render 失敗: ${e}`, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // section render 只能在 done / failed 觸發 (跟 server 端條件對齊)
+  const canRenderSection = job?.state === 'done' || job?.state === 'failed';
+
   if (loading && !job) {
     return <div className="text-center py-10 text-ink-muted">Loading…</div>;
   }
@@ -315,6 +337,7 @@ export default function JobEditor() {
           exam={draft as Exam}
           readOnly={!canEdit}
           onChange={onExamChange}
+          onRenderSection={canRenderSection ? onRenderSection : undefined}
         />
       )}
 
@@ -325,7 +348,7 @@ export default function JobEditor() {
               key={sec.id}
               className="bg-white border border-border rounded-md p-4 mb-4"
             >
-              <div className="border-b-2 border-chalk-yellow pb-2 mb-3 flex items-center gap-2">
+              <div className="border-b-2 border-chalk-yellow pb-2 mb-3 flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-forest text-sm shrink-0">
                   章 {sIdx + 1}:
                 </span>
@@ -339,6 +362,17 @@ export default function JobEditor() {
                 <span className="text-xs text-ink-muted shrink-0">
                   {sec.slides.length} slides
                 </span>
+                {/* PR-4a: 單章重 render */}
+                {canRenderSection && (
+                  <button
+                    onClick={() => onRenderSection(sec.id, `章 ${sIdx + 1} ${sec.title}`)}
+                    disabled={saving}
+                    className="btn btn-ghost text-xs shrink-0"
+                    title="只重新渲染本章 (其他章不動)"
+                  >
+                    🎬 重 render 本章
+                  </button>
+                )}
               </div>
               {sec.slides.map((sl, slIdx) => (
                 <SlideEditor

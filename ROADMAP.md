@@ -174,83 +174,127 @@
 
 ---
 
-## v3.1 — 平台合一(進行中,主任務)
+## v3.1 — 平台合一(2026-05 完成)
 
-**目標:把 Track A 的功能搬到 Track B,只留一個入口。**
+**目標達成:Track A 工作流上正式退場,所有功能搬到 Track B。**
 
-詳細 PR 順序:
+### PR-3f — Track B 接 YouTube 上傳 ✅ (commit b22bb36)
+- [x] `server/routes/youtube.py`:`POST /jobs/{id}/artifacts/{name}/publish` + `youtube_meta` 預填(章節時間軸自動算)+ `youtube_status` 輪詢
+- [x] `core/youtube.py`:`publish_artifact` + `auto_youtube_meta` + `OAuthBootstrapRequired`
+- [x] `web/src/pages/PublishReview.tsx`:嵌 video player + 預填 form + 進度條
+- [x] state.json 加 `youtube_uploads: dict[artifact_name, YoutubeUpload]`
+- [x] JobsIndex JobCard 顯示 📺 N/M badge
 
-### PR-3f — Track B 接 YouTube 上傳 🔴
-- [ ] `server/routes/youtube.py`(或併入 jobs.py):`POST /jobs/{id}/publish` + `GET/PUT /jobs/{id}/youtube_meta`
-- [ ] `web/src/pages/PublishReview.tsx`:嵌 video player + 預填 metadata + 隱私 radio + 一鍵上傳
-- [ ] reuse `core.upload_video` / `core.upload_caption` / `core.get_youtube_credentials`
-- [ ] 上傳結果寫回 `state.json`(新增 `youtube` 欄位)+ JobsIndex 顯示 badge
+### PR-3g — 考卷 v1 schema 接 React UI ✅ (commit e2dcf68)
+- [x] `web/src/components/ExamProblemsPanel.tsx` + `StepEditor.tsx`
+- [x] JobEditor 依 schema 自動分流(deck schema → SlideEditor / exam schema → ExamProblemsPanel)
+- [x] 字數提示 / `_section` 分類下拉 / bg_image step 顯示縮圖檔名 hint
 
-### PR-3g — 考卷 v1 schema 接 React UI 🔴
-- [ ] `web/src/pages/ExamEditor.tsx`:認出 `problems / steps` schema,Track A 那種逐題逐 step 編輯介面
-- [ ] JobEditor 依 schema 自動分流(deck schema → SlideEditor / exam schema → ExamEditor)
-- [ ] `app.py` 的 `/edit` 路由全功能對應(包含 single step 重生成、步驟補圖)
+### PR-3h — slides_pdf 升 deck schema ✅ (commit b1d669c)
+- [x] `slide_ingest.py` 加 `as_deck=True` 旗標
+- [x] `build_deck_sections()` 共用 chapter / narration 三階段, 只差最後組裝
+- [x] `core.deck.deck_to_exam_schema_slides` 渲染前壓平保留 bg_image
+- [x] `server/routes/slides.py`:`/slide_images/{stem}/{filename}` 縮圖路由
+- [x] `web/src/components/SlideEditor.tsx` isSlideMode 顯示 PNG 預覽
 
-### PR-3h — slides_pdf 升 deck schema 🔴
-- [ ] `slide_ingest.py` 輸出新 deck schema(每頁 section.slide,bg_image 欄位)
-- [ ] React `SlideEditor` 加 bg_image 縮圖預覽
-- [ ] `core.deck.deck_to_exam_schema_slides` 渲染前壓平,沿用 `SlideRenderer`
-- [ ] 既有 v1 schema slides_pdf JSON 加 migration helper(讀舊 → 自動轉新)
+### PR-3i — Track A redirect / 棄用 ✅ (commit 4716e7e)
+- [x] `app.py` 根路徑 `/` 預設 302 redirect 到 `TRACK_B_URL`
+- [x] `KEEP_TRACK_A=1` 保留原行為, `TRACK_B_URL` 自訂目的地
+- [x] 全頁黃底 banner 提示棄用
+- [x] 啟動 70 字寬橫幅雙模式區分
 
-### PR-3i — Track A redirect / 棄用 🟡
-- [ ] `app.py` 啟動加大字旗標「⚠ Track A 即將退場,請改用 :8000」
-- [ ] 新功能不再進 Track A,僅維護現有業務
-- [ ] 根路徑(`/`)redirect 到 `:8000`(可由 env var 關閉,過渡期保留)
-- [ ] README 主推改成 Track B,Track A 移到「legacy 段落」
+### Hotfix — Windows .js MIME (commit ada67b1)
+- [x] `mimetypes.add_type` 在 `server/main.py` 強制 `.js → application/javascript`
+- [x] 修 React UI 在 Windows 白畫面(strict MIME check 拒載 ES module)
+
+### PR-3j — FAILED 可編輯 + retry render ✅ (commit 1bb24da)
+- [x] `PUT /draft` + `POST /approve` 接受 FAILED state
+- [x] `_run_render_phase` 清掉 stale error
+- [x] React 紅色 banner + 「🔄 重試 render」按鈕
+
+### PR-3k — Track B PDF 上傳 ✅ (commit 9287884, 跟 PR-3l 同 commit)
+- [x] `server/routes/uploads.py`:`POST /upload` (multipart)
+- [x] 接受 exam_pdf / slides_pdf / document, 拒 repo / url
+- [x] `_sanitize_filename` + 同名加時間戳
+- [x] CreateJobForm 加上傳 / path / url 三模式 radio
+
+### PR-3l — 聲音 picker + 試聽 ✅
+- [x] `server/routes/voices.py`:GET / POST / sample 三端點
+- [x] VOICES list 6 個(5 edge + 1 F5),f5: 開頭切 backend
+- [x] `VoicePicker.tsx` header 全域顯示
+- [x] App.tsx header 整合
+
+### PR-3m — Library 跨 job 影片總覽 ✅ (commit a49d8fe)
+- [x] `server/routes/library.py`:`GET /library` 平鋪所有 mp4
+- [x] `web/src/pages/Library.tsx`:grid 卡片 + filter (source_type / YT 狀態)
+- [x] `/ui/library` 路由 + header nav 連結
 
 ---
 
-## v3.2 — 基礎建設(進行中,平行於 v3.1)
+## v3.2 — 基礎建設(2026-05 完成)
 
-### PR-4a — 單 section / 單 slide 重渲染 🟡
-- [ ] `POST /jobs/{id}/sections/{sid}/render` 端點(不重跑整個 deck)
-- [ ] React UI SlideEditor / ExamEditor 加「只渲染本章」按鈕
-- [ ] `runner.py` 階段管理改成可恢復式(目前是線性 ingest → render)
-- [ ] artifacts 增量更新而非全部覆蓋
+### PR-4a — 單 section / 單題重 render ✅ (commit 1007dc3)
+- [x] `POST /jobs/{id}/sections/{section_id}/render`
+- [x] `_run_render(section_id=...)` filter problems
+- [x] DONE / FAILED 才能觸發, 新 stage 名 `render-section-{id}`
+- [x] JobEditor / ExamProblemsPanel header 加「🎬 重 render 本章」
 
-### PR-4b — pytest 基底 + CI 雛型 🟡
-- [ ] `tests/` 結構,先補純函式:`text_utils` / `deck` / `adapters/repo` / `jobs.py` JobStore
-- [ ] GitHub Actions:Python 3.10/3.12 + Windows/Ubuntu matrix
-- [ ] 不打 LLM 的 mock fixture(rerun outline / scriptor 對 stable golden)
+### PR-4b — pytest 基底 + CI ✅ (commit 3b17ade)
+- [x] `pyproject.toml` [tool.pytest.ini_options]
+- [x] `requirements-dev.txt` (pytest + httpx)
+- [x] `.github/workflows/test.yml` 4 組 matrix (3.10/3.12 × Linux/Win)
+- [x] 108 tests 初版 (text_utils 22, deck 25, youtube_helper 17, jobs_store 32, voices 13)
 
-### PR-4c — Structured logging 🟡
-- [ ] 換 `logging` module + JSON formatter
-- [ ] 每 job 一個 log file:`jobs/<id>/log.jsonl`
-- [ ] React UI 加 logs panel(tail 最近 200 行)
-- [ ] failed job 一鍵 retry(目前要刪掉重跑)
+### PR-4c — Structured logging ✅ (commit f4f6008)
+- [x] `core/logging_setup.py`:setup_logging / attach_job_log / detach_job_log / read_job_log
+- [x] contextvar `current_job_id` 自動帶 job_id 進 log
+- [x] `runner.py` 開 job 自動 attach, 結束 detach
+- [x] `GET /jobs/{id}/log?tail=N`
+- [x] `LogPanel.tsx` 摺疊式 + LIVE 狀態 3 秒 auto-poll
 
 ---
 
-## v3.3 — 體驗加分(順位較後)
+## v3.3 — 體驗加分(2026-05 部份完成)
 
-### Navy pptx 主題
-- 對應個人偏好(Forest 教學類 / Navy 科技類)
-- `PptxStyleRenderer` 加 theme 參數,React UI 主題下拉
-- 範圍小,單 PR 解決
+### Navy pptx 主題 ✅ (PR-5a, commit ec8befb)
+- [x] `THEMES` dict (forest / navy) + `get_palette` 容錯查
+- [x] 全部 _draw_* 函式 palette 參數化
+- [x] `JobOptions.theme` 欄位
+- [x] `runner.py` 寫進 v0 dict
+- [x] CreateJobForm 主題下拉(只對 repo / document / url 顯示)
+- [x] 13 tests covering THEMES / get_palette / contrast
 
-### F5 中文預切句(TODO.md 🔴 治本)
-- F5 內部 batch 不顧中文詞邊界,「處理與應用」被切成「處」+「理與應用」
-- 在 F5TTS class 用標點先切短段,逐段 infer 後 concat
-- 預期能根除大部分中-中切錯;不解中-英切換口音漂移
+### F5 中文預切句 ✅ (PR-5b, commit c5d2f81)
+- [x] `split_for_f5(text, max_chars=30)` 標點預切
+- [x] `F5TTS.synthesize` 逐段 infer + ffmpeg concat
+- [x] 13 tests covering 切點規則 + 邊界
 
-### Phase 4 split-left layout
-- `SlideRenderer` 加 `layout="split-left"`,投影片左 + 右半累積式 step
-- 解題型投影片需要
+### 燒字幕選項 ✅ (PR-5c, commit e764cab)
+- [x] `pipeline._build_hardsub_cmd` + `burn_subtitles`
+- [x] `JobOptions.hardsub` 欄位
+- [x] CreateJobForm checkbox(對所有 source 顯示)
+- [x] force_style: Microsoft JhengHei 22pt + BorderStyle=3
+- [x] 6 tests for command construction
 
-### 燒字幕選項
-- `ffmpeg -vf subtitles=...` 一個 filter
-- Web UI 加 checkbox「要輸出硬字幕版本」
-- 優先度低,YouTube 上 SRT 也行
+### Phase 4 split-left layout(待做)
+- [ ] `SlideRenderer` 加 `layout="split-left"`,投影片左 + 右半累積式 step
+- [ ] 解題型投影片需要(目前簡報講解類用 layout="full")
 
-### 工程圖 AI 輔助
-- 自由體圖、彎矩圖、方塊圖、電路圖
-- Gemini 產 matplotlib / TikZ code,本地執行畫圖
-- 步驟 `image` 欄位動態切圖
+### 工程圖 AI 輔助(待做)
+- [ ] 自由體圖、彎矩圖、方塊圖、電路圖
+- [ ] Gemini 產 matplotlib / TikZ code,本地執行畫圖
+- [ ] 步驟 `image` 欄位動態切圖
+
+### Code Review follow-ups(2026-05-09 review 找出,順手做)
+- [ ] P0: `_job_handlers` 加 `threading.Lock`(server/runner 並行 section render 才會踩)
+- [ ] P0: `utc_now()` 改 `datetime.now(timezone.utc)` 帶 `+00:00`
+- [ ] P0: 上傳加 `MAX_UPLOAD_SIZE` (e.g. 200MB) + Content-Length 預檢
+- [ ] P0: `solve.py` 把 `sys.exit()` 改 raise, runner 移除 `SystemExit` catch
+- [ ] P1: `PptxStyleRenderer.render` 加 step_idx 越界防護
+- [ ] P1: F5 seg WAV cleanup 移到 finally
+- [ ] P1: PublishReview button 雙擊 race(前端加 disabled)
+
+詳細見 [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md)。
 
 ---
 

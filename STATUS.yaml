@@ -1,40 +1,61 @@
 name: autoSolverVideo
 name_zh: 教學影片自動生成平台
 category: edtech
-progress: 88
+progress: 95
 status: active
 last_updated: "2026-05-09"
-next_milestone: "v3.1 平台合一: PR-3f Track B 接 YouTube 上傳 → PR-3g 考卷編輯 UI 接 React → PR-3h slides_pdf 升 deck schema → PR-3i Track A redirect"
+next_milestone: "v3.3 加分功能 (Phase 4 split-left, ideate.py 自動企劃) 或 v4 平台收斂 (Docker + persistent worker)"
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
   - Pydantic v2
   - React 18 + TypeScript + Vite + Tailwind CSS
-  - Flask (legacy v1 review UI, Track A)
+  - Flask (legacy v1 review UI, 已 redirect, 過渡期保留)
   - Gemini 2.5 Flash (Vision + Text)
   - PyMuPDF
   - BeautifulSoup4 (URL adapter)
-  - Edge TTS / F5-TTS (聲音複製)
-  - Pillow / FFmpeg
+  - Edge TTS / F5-TTS (聲音複製, 預切句修中文邊界)
+  - Pillow / FFmpeg (含 hardsub subtitles filter)
   - Google YouTube Data API v3 + OAuth 2.0
+  - pytest + GitHub Actions CI
+  - structured logging (JSONL per-job)
 outputs:
   - tool
   - course
   - presentation
   - api
-description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini -> human review -> MP4 + SRT -> YouTube. Unified pipeline, on-going Track A->B consolidation."
-description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。同一條 pipeline,進行 Track A→B 平台合一中。"
+description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini -> human review -> MP4 + SRT -> YouTube. v3.1 platform consolidation done; v3.2 infrastructure done; Track A retired on the workflow level."
+description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。v3.1 平台合一 + v3.2 基礎建設完成,Track A 工作流上正式退場。"
 key_metrics: |
   v3.0 平台基礎完成 (PR-1 ~ PR-3e):
   - 5 種 source: exam_pdf / slides_pdf / repo / document / url
   - 3 種 renderer: 黑板 / 簡報原圖 / Forest pptx (Pillow, 0 LibreOffice 依賴)
   - REST API + React UI (port 8000) + 既有 Flask review UI (port 5000)
   - CLI: scripts/submit_job.py 給排程端用
-  - real Gemini 驗證: repo 5 章 33 slides / document 5 章 37 slides /
-    url 5 章 36 slides, 平均 narration 186~191 字
 
-  v3.1 進行中 (平台合一, 主任務):
-  - [ ] PR-3f: Track B 接 YouTube 上傳通道
-  - [ ] PR-3g: 考卷 v1 schema 接 React UI (取代 Flask 編輯頁)
-  - [ ] PR-3h: slides_pdf 升 deck schema (兩種 schema 統一)
-  - [ ] PR-3i: Track A redirect / 棄用準備
+  v3.1 平台合一 完成 (PR-3f ~ PR-3m):
+  - PR-3f: Track B 接 YouTube 上傳通道 (per-artifact upload + meta 預填 + 章節時間軸)
+  - PR-3g: 考卷 v1 schema 接 React UI (取代 Flask /edit)
+  - PR-3h: slides_pdf 升 deck schema, React UI 顯示投影片縮圖
+  - PR-3i: Track A redirect (預設 / → :8000/ui/, KEEP_TRACK_A=1 可關)
+  - PR-3j: FAILED 狀態可編輯 + retry render
+  - PR-3k: Track B 加 PDF multipart 上傳
+  - PR-3l: 聲音切換 picker + 試聽 sample
+  - PR-3m: 跨 job 影片 Library 頁
+
+  v3.2 基礎建設 完成 (PR-4a ~ PR-4c):
+  - PR-4a: 單章 / 單題重 render (省 30+ 分鐘整份重跑)
+  - PR-4b: pytest 基底 + GitHub Actions CI (140 tests, 4 組 matrix)
+  - PR-4c: per-job structured logging + React UI tail panel
+
+  v3.2 加分項目 完成 (PR-5a ~ PR-5c):
+  - PR-5a: Navy pptx 主題 (forest / navy 切換)
+  - PR-5b: F5-TTS 中文預切句 (修「處」+「理與應用」mid-word 切錯)
+  - PR-5c: 燒字幕進 MP4 選項 (UI checkbox + ffmpeg subtitles filter)
+
+  測試覆蓋: 140 tests (text_utils 22 / deck 25 / youtube 17 / jobs_store 32 /
+  voices 13 / pptx_themes 13 / f5_split 13 / hardsub 6)
+
+  Code review (2026-05-09): 4 個 P0 + 4 個 P1, 詳見 docs/CODE_REVIEW.md.
+  關鍵 fix (logging lock / utc_now timezone / upload size limit / F5 seg cleanup)
+  排在 v3.3 動工時順手補。

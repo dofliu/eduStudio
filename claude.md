@@ -17,23 +17,22 @@
 - DOF Lab: doflab.cc
 - 開發環境:Windows 11 + RTX 4080, 必要時 WSL
 
-## 三條 Track(過渡期共存,目標合一)
+## 三條 Track(2026-05-09: Track B 已涵蓋全部工作流, A 工作流上退場)
 
 ```
-                         ┌─── Track A (port 5000): app.py Flask
-                         │      考卷 / 簡報 review-and-render UI (成熟,業務在跑)
-                         │      v1 exam schema, 逐題逐段編輯 + YouTube 上傳審查
+                         ┌─── Track A (port 5000): app.py Flask (legacy)
+                         │      / redirect 到 :8000/ui/ (KEEP_TRACK_A=1 可關)
+                         │      實際工作流不用; v3.x 後期完全砍掉
 [ pipeline.py ]          │
-   渲染核心       ◄──────┤ ─── Track B (port 8000): server/ FastAPI + JobStore
+   渲染核心       ◄──────┤ ─── Track B (port 8000): server/ FastAPI + JobStore + React UI
 ( BlackboardRenderer     │      5 種 source: exam_pdf / slides_pdf / repo / document / url
-  SlideRenderer          │      非同步 job + 磁碟持久化 + 排程友善
-  PptxStyleRenderer )    │      ⚠ 缺 YouTube 整合 + 考卷編輯 UI (v3.1 補)
-                         │
-                         └─── Track C (web/): React 18 SPA
-                                掛 :8000/ui/, deck schema 編輯
+  SlideRenderer          │      非同步 job + 磁碟持久化 + per-job log + 排程友善
+  PptxStyleRenderer )    │      ✅ YouTube 上傳 / 考卷編輯 / 簡報縮圖 / Library /
+                         │         聲音切換 / PDF 上傳 / FAILED retry / 單章重 render /
+                         │         主題切換 (Forest/Navy) / 燒字幕 / 結構化 logging
 ```
 
-**v3.1 主任務**:把 Track A 功能搬進 Track B,只留一個入口。詳見 [ROADMAP.md](ROADMAP.md)。
+**v3.1 + v3.2 + 加分** 全部完成 (PR-3f~3m, PR-4a~4c, PR-5a~5c)。詳見 [ROADMAP.md](ROADMAP.md)。
 
 ## 技術棧
 
@@ -57,24 +56,30 @@
    - 學術誠信底線,不接受任何折衷。
 2. **不要自動 `git commit`。** 變更等我明確確認後再 commit。
 3. **修 bug 前先跟我討論**,除非顯而易見 typo。
-4. **新功能進 Track B 不進 Track A**(2026-05 起)。Track A 只維護現有業務,等 v3.1 完成 redirect。
+4. **新功能進 Track B 不進 Track A**(2026-05 起)。Track A 已退到只剩 redirect。
 5. **字型路徑不寫死。** 用 `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` / `CLAUDE_MONO_FONT_PATH`,Win/Mac/Linux 都跑得動。
 6. **設定檔 / 路徑常數集中 `core/config.py`**,不在各模組各定義 BASE_DIR。
+7. **新 PR 動 server / runner / schemas 要記得跑 `pytest tests/`**(2026-05-09 起,140 tests 護網)。
+8. **`tts_config.json` 別誤 commit**(server/smoke test 會改它,踩過兩次)。
+9. **Schema dispatch 用 type guard**(`isExamDraft` / `isDeckDraft` / `_deck_has_section_id`),不要硬寫 `if "problems" in deck`。
 
-## 目前進度速查
+## 目前進度速查 (2026-05-09)
 
 | 階段 | 狀態 | 對應 ROADMAP |
 |---|---|---|
 | v0 POC(沙箱黑板渲染) | ✅ | v0 |
 | v1 本機完整考卷產品 | ✅ | v1.0~v1.6 |
 | v1.7 簡報講解擴充 (Phase 1/2/3/5) | ✅ | v1.7.0~v1.7.4 |
-| v1.7 Phase 4 split-left layout | ⏳ 推到 v3.3 | v1.7.5 |
 | v2.0 YouTube 上傳通道 (Track A) | ✅ | v2.0 |
 | v3.0 平台基礎 (PR-1 ~ PR-3e) | ✅ | v3.0a~g |
-| **v3.1 平台合一 (PR-3f ~ PR-3i)** | 🔴 進行中 | v3.1 |
-| v3.2 基礎建設 (測試 / log / 重渲染) | 🟡 並行 | v3.2 |
-| v3.3 體驗加分 (Navy / F5 / split-left) | 📋 排隊 | v3.3 |
+| v3.1 平台合一 (PR-3f ~ PR-3m) | ✅ | v3.1 |
+| v3.2 基礎建設 (PR-4a/4b/4c) | ✅ | v3.2 |
+| v3.3 加分 (PR-5a Navy / 5b F5 預切句 / 5c 燒字幕) | ✅ 部份 | v3.3 |
+| v3.3 Phase 4 split-left layout | ⏳ 待做 | v3.3 |
+| **Code review follow-ups** (4 P0 + 4 P1) | 🔴 順手補 | TODO |
 | v4 平台收斂 (worker / Docker / ideate) | 📋 規劃 | v4 |
+
+**測試覆蓋**: 140 tests (text_utils 22, deck 25, youtube 17, jobs_store 32, voices 13, pptx_themes 13, f5_split 13, hardsub 6) + GitHub Actions CI 跑 4 組 matrix。
 
 ## JSON Schema
 

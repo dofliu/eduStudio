@@ -10,33 +10,30 @@
 
 ---
 
-## 目前能做到什麼
+## 目前能做到什麼 (2026-05-09 更新)
 
 - **5 種輸入** (`source_type`):`exam_pdf` / `slides_pdf` / `repo` / `document` / `url`
-- **3 種渲染風格**:深綠黑板 / 投影片原圖 letterbox / Forest 主題 pptx (Pillow 純畫,無 LibreOffice 依賴)
-- **2 種 TTS 後端**:edge-tts (預設, 雲端免費) / F5-TTS (本機聲音複製, RTX 4080)
-- **REST API + React UI** (`port 8000`):非同步 job + 磁碟持久化,排程器 / Webhook 友善
-- **YouTube 上傳通道**:OAuth 2.0 + resumable upload + SRT 字幕同步上傳
+- **3 種渲染風格**:深綠黑板 / 投影片原圖 letterbox / pptx 主題 (Forest 教學/Navy 科技,Pillow 純畫,無 LibreOffice 依賴)
+- **2 種 TTS 後端**:edge-tts (預設, 雲端免費, 6 種聲音可切) / F5-TTS (本機聲音複製, 中文預切句修 mid-word 切錯)
+- **完整 React UI** (`port 8000`):上傳 / 編輯 / Library / YouTube 上傳審查 / 即時 log / 主題切換 / 燒字幕選項 / 單章重 render
+- **REST API**:非同步 job + 磁碟持久化 + per-job 結構化 log,排程器 / Webhook 友善
+- **YouTube 上傳通道**:OAuth 2.0 + resumable upload + SRT 字幕同步上傳 + 章節時間軸自動算
+- **140 tests + GitHub Actions CI**:Python 3.10/3.12 × Linux/Win 4 組 matrix
 
 ---
 
-## 三條 Track(過渡期共存)
+## 兩個 Server(Track A 已退場到只剩 redirect)
 
-由於系統從 v0「考卷檢討」一路長到 v3「多來源平台」,目前有兩個 server 並存。**v3.x 的目標是把 Track A 的功能搬到 Track B,只留一個入口。**
+v3.1 平台合一完成後,日常工作只用 **Track B (port 8000)**。Track A (port 5000) 仍在但只剩根路徑 redirect。
 
 | | Track A — Flask v1 (port 5000) | Track B — FastAPI v3 (port 8000) |
 |---|---|---|
-| 啟動 | `python app.py` | `python -m server.main` |
-| 用 | 考卷 / 簡報的逐題逐段 review、YouTube 上傳審查 | repo / document / url 大綱→簡報→影片 |
-| UI | Server-side Flask template | React 18 + TS + Vite + Tailwind |
-| 狀態 | 成熟,業務在跑 | 平台化中,缺 YouTube 整合 + 考卷編輯 UI |
-| 計畫 | v3.x 結束時退場 (redirect 到 :8000) | 接手所有功能,變成主入口 |
+| 啟動 | `python app.py` (legacy) | `python -m server.main` (主推) |
+| 入口 | / 預設 redirect 到 :8000/ui/ | http://localhost:8000/ui/ |
+| 用途 | 不必再用; OAuth bootstrap 還是走 publish.py CLI | 全部工作流 |
+| 過渡 | `KEEP_TRACK_A=1` 保留原行為(過渡期) | 主入口, React UI 統一介面 |
 
-進度速查:
-- [Track B → 接 YouTube 上傳]:🔴 v3.1 第一個 PR
-- [考卷 v1 schema 接 React UI]:🔴 v3.1
-- [`slides_pdf` 升 deck schema]:🔴 v3.1
-- [Track A 棄用 redirect]:🟡 v3.1 結尾
+詳細 Track A → Track B 對照與功能搬遷見 [ROADMAP.md](ROADMAP.md) v3.1 段落。
 
 ---
 
@@ -139,19 +136,47 @@ python scripts/submit_job.py url https://example.com/blog/article
 
 ## 平台 REST API (`server/`)
 
+### Job 主流程
 | Method | Path | 用途 |
 |---|---|---|
-| `GET`    | `/health`                              | 健康檢查 |
-| `POST`   | `/jobs`                                | 建立 job 並背景排程 |
+| `GET`    | `/health`                              | 健康檢查 (含 ui_built 旗標) |
+| `POST`   | `/jobs`                                | 建立 job (JSON, source.path) 並背景排程 |
+| `POST`   | `/upload`                              | 多部分上傳 PDF/MD/TXT 並建 job (PR-3k) |
 | `GET`    | `/jobs`                                | 列出全部 (created_at desc) |
 | `GET`    | `/jobs/{id}`                           | 拿單一 job 完整 state |
 | `DELETE` | `/jobs/{id}`                           | 刪除 (含磁碟資料) |
 | `GET`    | `/jobs/{id}/draft`                     | 拿 deck.json |
-| `PUT`    | `/jobs/{id}/draft`                     | 改 deck.json (僅 awaiting_review) |
-| `POST`   | `/jobs/{id}/approve`                   | review 通過,觸發渲染 |
+| `PUT`    | `/jobs/{id}/draft`                     | 改 deck.json (awaiting_review / failed) |
+| `POST`   | `/jobs/{id}/approve`                   | review 通過,觸發渲染 (failed 也可重試) |
+| `POST`   | `/jobs/{id}/sections/{sid}/render`     | 重渲染單章 (PR-4a, done/failed 才能跑) |
 | `GET`    | `/jobs/{id}/artifacts/{filename}`      | 下載 MP4 / SRT |
+| `GET`    | `/jobs/{id}/log?tail=N`                | per-job log tail (PR-4c, JSONL parse 後) |
+
+### YouTube 上傳 (PR-3f)
+| Method | Path | 用途 |
+|---|---|---|
+| `GET`    | `/jobs/{id}/artifacts/{name}/youtube_meta`   | 預填 metadata (含章節時間軸) |
+| `POST`   | `/jobs/{id}/artifacts/{name}/publish`        | 觸發 YouTube 背景上傳 |
+| `GET`    | `/jobs/{id}/artifacts/{name}/youtube_status` | 上傳進度輪詢 |
+
+### 跨 job 視圖 + 設定 (PR-3l, 3m)
+| Method | Path | 用途 |
+|---|---|---|
+| `GET`    | `/library`                             | 跨 job 平鋪所有 mp4 (PR-3m) |
+| `GET`    | `/voices`                              | 列 6 種聲音 + 當前 active |
+| `POST`   | `/voices`                              | 切換聲音 (寫 tts_config.json) |
+| `GET`    | `/voices/{id}/sample`                  | 試聽 mp3 sample |
+
+### 投影片縮圖 (PR-3h)
+| Method | Path | 用途 |
+|---|---|---|
+| `GET`    | `/slide_images/{stem}/{filename}`      | 簡報 PDF 切出的 PNG 縮圖 |
+
+### React UI / Vanilla
+| Method | Path | 用途 |
+|---|---|---|
+| `GET`    | `/ui/`                                 | React Web UI (預設, PR-3e) |
 | `GET`    | `/editor`                              | Vanilla fallback Web UI |
-| `GET`    | `/ui/`                                 | React Web UI (預設) |
 
 詳細互動文件:`http://localhost:8000/docs` (Swagger)。
 
@@ -315,19 +340,36 @@ autoSolverVideo/
 │   ├── jobs.py          #   JobStore (memory + JSON 持久化)
 │   ├── runner.py        #   背景 task: source → core fn dispatch
 │   └── routes/
-│       ├── jobs.py      #   /jobs CRUD + /draft + /approve + /artifacts
+│       ├── jobs.py      #   /jobs CRUD + /draft + /approve + /artifacts +
+│                        #     /sections/{id}/render (PR-4a) + /log (PR-4c)
+│       ├── youtube.py   #   PR-3f: YouTube 上傳 (per-artifact)
+│       ├── slides.py    #   PR-3h: /slide_images/{stem}/{filename}
+│       ├── uploads.py   #   PR-3k: POST /upload multipart
+│       ├── voices.py    #   PR-3l: /voices GET/POST/sample
+│       ├── library.py   #   PR-3m: /library 跨 job 平鋪
 │       └── editor.py    #   Vanilla fallback Web UI
 │
 ├── scripts/
 │   └── submit_job.py    # 排程端 CLI wrapper
 │
-├── web/                 # Track C: React UI
+├── web/                 # React UI
 │   ├── package.json     #   React 18 + TS + Vite + Tailwind
 │   ├── vite.config.ts   #   base=/ui/, dev proxy → :8000
 │   └── src/
-│       ├── pages/       #   JobsIndex.tsx, JobEditor.tsx
-│       └── components/  #   JobCard, StatusBadge, Toast,
-│                        #   CreateJobForm, SlideEditor
+│       ├── pages/       #   JobsIndex / JobEditor / Library / PublishReview
+│       └── components/  #   JobCard / StatusBadge / Toast / CreateJobForm /
+│                        #   SlideEditor / StepEditor / ExamProblemsPanel /
+│                        #   VoicePicker / LogPanel
+│
+├── tests/               # PR-4b: pytest (140 tests, 8 modules)
+├── docs/
+│   ├── CODE_REVIEW.md   # 2026-05-09 獨立審查結果, 4 P0 + 4 P1 follow-ups
+│   └── SESSION_HANDOFF.md  # 給下個 Claude session 接手用
+├── pyproject.toml       # pytest 設定
+├── requirements-dev.txt # pytest + httpx
+├── .github/
+│   └── workflows/
+│       └── test.yml     # GitHub Actions CI (4 組 matrix)
 │
 ├── exams/               # exam.json (Track A 編輯, gitignored)
 ├── pdfs/                # 上傳的 PDF 原檔 (gitignored)
@@ -411,15 +453,38 @@ A: `solve.py` SYSTEM_PROMPT 已要求計算題 ≥ 20 step,概念類 narration �
 A: 多半是 ref_audio 跟 ref_text 沒對齊。F5 自動截 ref 到 12 秒,把 ref_audio 重截到 ≤ 12 秒,ref_text 只寫那段內容。
 
 **Q: 想換聲音?**
-A: Track A header 有「🗣 聲音」下拉即時試聽;或改 `tts_config.json` 的 `edge.voice`。
+A: Track B header 有「🗣 聲音」下拉即時試聽(PR-3l);也可改 `tts_config.json` 的 `edge.voice`。
+
+**Q: render 中途想看進度?**
+A: JobEditor 編輯頁的「📋 Job Log」摺疊面板(PR-4c),展開後 INGESTING / RENDERING 期間每 3 秒 auto-poll。
+
+**Q: 改一張 slide 要重跑整份 30 分鐘?**
+A: 不用。state=DONE 後每章 header 有「🎬 重 render 本章」(PR-4a)只重跑這一章。
+
+---
+
+## 開發 / 測試
+
+```bash
+# 跑單元測試
+pip install -r requirements-dev.txt
+pytest tests/
+
+# 確認 React UI build 過
+cd web && npm install && npm run build
+```
+
+GitHub Actions 在 push / PR 時跑 4 組 matrix(Python 3.10/3.12 × Linux/Win)。
 
 ---
 
 ## 相關文件
 
-- [ROADMAP.md](ROADMAP.md) — 版本路線圖(v3.x 平台合一進行中)
-- [TODO.md](TODO.md) — 短期可立即做的事項
+- [ROADMAP.md](ROADMAP.md) — 版本路線圖(v3.1+v3.2 完成,v3.3/v4 規劃中)
+- [TODO.md](TODO.md) — 短期可立即做的事項 + Code review follow-ups
 - [claude.md](claude.md) — 專案規則 / 溝通原則(給 Claude Code 用)
+- [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) — 2026-05-09 獨立審查結果
+- [docs/SESSION_HANDOFF.md](docs/SESSION_HANDOFF.md) — 給下個 Claude session 接手用
 
 ---
 

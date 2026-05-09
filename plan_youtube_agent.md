@@ -1,5 +1,14 @@
 # plan_youtube_agent.md — YouTube 自動發布代理人規劃
 
+> ⚠️ **DEPRECATED — 規劃歷史文件,保留作參考**
+> v2.0 publish.py CLI + Track A 上傳審查頁已完成,詳見 [ROADMAP.md](ROADMAP.md) v2.0。
+> v3.1 第一個 PR (PR-3f) 會把 YouTube 上傳通道接到 Track B (FastAPI / React),
+> 本文件描述的 Flask `/upload_review` 路徑屬於 Track A,過渡期保留。
+> v2.1 ideate.py 自動內容企劃推到 v4 平台收斂階段。
+> 新功能規劃請看 ROADMAP.md / TODO.md,不要繼續編輯本文件。
+
+---
+
 > 本文件根據 2026-05 與 Claude (Cowork) 的規劃討論整理而成。
 > 目的：讓 Claude Code session 可銜接繼續開發。
 > 文件本身是規劃，不是 spec；實作前請與 Dof 確認細節。

@@ -317,7 +317,7 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
 
 def build_problems(stem: str, chapters: list[dict], page_paths: list[Path],
                    narrations: list[str]) -> list[dict]:
-    """章節 + 每頁 narration → exam.json 的 problems 結構。
+    """章節 + 每頁 narration → v1 exam.json 的 problems 結構 (Track A 用)。
     每段 narration 進來前先 _truncate_at_sentence 兜底,避免單頁拖長影片。"""
     problems = []
     for ci, ch in enumerate(chapters):
@@ -343,7 +343,58 @@ def build_problems(stem: str, chapters: list[dict], page_paths: list[Path],
     return problems
 
 
-def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool, brief: bool):
+def build_deck_sections(stem: str, chapters: list[dict], page_paths: list[Path],
+                        narrations: list[str]) -> list[dict]:
+    """章節 + 每頁 narration → 新 deck schema 的 sections 結構 (Track B / PR-3h 用)。
+
+    對應規則:
+    - chapter → section (id="ch{N}", title=chapter.title)
+    - 每頁 → slide (id="ch{N}_p{P}", title="投影片 N", bg_image, narration)
+    - bullets / code_snippet 留空 (簡報講解不需要這些, 渲染走 SlideRenderer)
+    - layout 預設 "full"; 未來 Phase 4 split-left 出來時可由 React UI 改
+
+    React UI 看到這 schema 會走 deck 路徑 (sections/slides), SlideEditor 多帶
+    bg_image 顯示縮圖。
+    """
+    sections = []
+    for ci, ch in enumerate(chapters):
+        s, e = ch["start_page"], ch["end_page"]
+        sec_id = f"ch{ci+1}"
+        slides = []
+        for p in range(s, e + 1):
+            png_rel = page_paths[p - 1].relative_to(BASE_DIR).as_posix()
+            narration = _truncate_at_sentence(narrations[p - 1])
+            slides.append({
+                "id": f"{sec_id}_p{p:03d}",
+                "title": f"投影片 {p}",
+                "bullets": [],
+                "code_snippet": None,
+                "code_lang": None,
+                "file_path": None,
+                "narration": narration,
+                "notes": None,
+                # 簡報專屬欄位 (deck schema 擴充, render 階段被 deck_to_exam_schema_slides 讀)
+                "bg_image": png_rel,
+                "bg_type": "slide",
+                "layout": "full",
+            })
+        sections.append({
+            "id": sec_id,
+            "title": ch["title"],
+            "slides": slides,
+        })
+    return sections
+
+
+def ingest(pdf_path: Path, out_json: Path, *,
+           mock: bool, single: bool, brief: bool, as_deck: bool = False):
+    """簡報 PDF → JSON (預設 v1 exam schema, as_deck=True 改 deck schema)。
+
+    PR-3h 加 as_deck 旗標:
+    - False (預設, Track A CLI): 出 v1 exam (problems/steps), bg_image 在 step 上
+    - True (Track B server runner): 出 deck (sections/slides), bg_image 在 slide 上
+    兩條共用 PDF→PNG / 章節切分 / Gemini narration 三個慢階段, 只差最後組裝。
+    """
     _ensure_dirs()
     stem = pdf_path.stem
     slide_dir = SLIDES_ROOT / stem
@@ -394,16 +445,31 @@ def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool, brief: b
                 narrations[p - 1] = text
                 prev = text
 
-    # 組裝
-    problems = build_problems(stem, chapters, page_paths, narrations)
-    exam_data = {
-        "exam_title": f"{stem} 講解",
-        "source_type": "slides",
-        "problems": problems,
-    }
+    # 組裝 — 依 as_deck 旗標決定 schema
+    if as_deck:
+        sections = build_deck_sections(stem, chapters, page_paths, narrations)
+        deck_data = {
+            "deck_title": f"{stem} 講解",
+            "source_type": "slides",
+            "source_meta": {"pdf_path": str(pdf_path), "total_pages": total},
+            "sections": sections,
+        }
+        output_data = deck_data
+        unit_count = sum(len(s["slides"]) for s in sections)
+        print_label = f"{len(sections)} 章 / {unit_count} 張投影片 (deck schema)"
+    else:
+        problems = build_problems(stem, chapters, page_paths, narrations)
+        exam_data = {
+            "exam_title": f"{stem} 講解",
+            "source_type": "slides",
+            "problems": problems,
+        }
+        output_data = exam_data
+        print_label = f"{len(problems)} 章 / {total} 張投影片 (v1 exam schema)"
+
     out_json.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(
-        json.dumps(exam_data, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(output_data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     # resolve() 確保比 BASE_DIR 時兩邊都是 absolute, 否則 relative path 會 ValueError
     out_resolved = out_json.resolve()
@@ -413,7 +479,7 @@ def ingest(pdf_path: Path, out_json: Path, *, mock: bool, single: bool, brief: b
         # 輸出在 repo 外的情境就直接顯示 absolute (例如使用者用 D:\... 指其他位置)
         display_path = out_resolved
     print(f"\n✅ 完成: {display_path}")
-    print(f"   {len(problems)} 章 / {total} 張投影片")
+    print(f"   {print_label}")
 
 
 def main():
@@ -427,6 +493,9 @@ def main():
     ap.add_argument("--brief", action="store_true",
                     help="簡短風格 (50~120 字/頁), 預設是詳盡風格 (200~300 字/頁, 適合 ~15 分鐘影片)")
     ap.add_argument("--force", action="store_true", help="覆蓋既有 JSON (預設不覆蓋, 防呆)")
+    ap.add_argument("--deck-schema", action="store_true",
+                    help="輸出新 deck schema (sections/slides), 預設 v1 exam (problems/steps)。"
+                         "Track B server / React UI 用; Track A Flask 仍走 v1 schema。")
     args = ap.parse_args()
 
     pdf_path = Path(args.pdf)
@@ -440,7 +509,8 @@ def main():
             f"   為避免覆蓋(可能是 solve.py 產的考卷 JSON), 預設不覆蓋。\n"
             f"   要覆蓋請加 --force, 或用第二參數指定其他輸出路徑。"
         )
-    ingest(pdf_path, out_json, mock=args.mock, single=args.single, brief=args.brief)
+    ingest(pdf_path, out_json, mock=args.mock, single=args.single, brief=args.brief,
+           as_deck=args.deck_schema)
 
 
 if __name__ == "__main__":

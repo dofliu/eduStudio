@@ -79,9 +79,12 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
 
     if rec.source_type == SourceType.SLIDES_PDF:
         from core import ingest_slides
+        # PR-3h: slides_pdf 走 deck schema (sections/slides), 跟 repo / document / url 對齊。
+        # React UI 看到 sections 走 SlideEditor (含 bg_image 縮圖預覽),
+        # 渲染前會用 deck_to_exam_schema_slides 壓回 v1 給 pipeline.SlideRenderer 吃。
         await asyncio.to_thread(
             ingest_slides, src_path, deck_path,
-            mock=mock, single=False, brief=False,
+            mock=mock, single=False, brief=False, as_deck=True,
         )
         return json.loads(deck_path.read_text(encoding="utf-8"))
 
@@ -186,7 +189,11 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
     """
     from core import problem_to_v0_json, render_video
     from core.config import OUTPUT_DIR
-    from core.deck import deck_to_exam_schema, deck_to_exam_schema_pptx
+    from core.deck import (
+        deck_to_exam_schema,
+        deck_to_exam_schema_pptx,
+        deck_to_exam_schema_slides,
+    )
 
     deck_path = JobStore.deck_path(rec.id)
     if not deck_path.exists():
@@ -196,9 +203,12 @@ async def _run_render(store: JobStore, rec: JobRecord) -> None:
 
     # 判斷 schema: 新 deck schema 有 sections, v1 exam schema 有 problems
     if "sections" in deck and "problems" not in deck:
-        # 走 pptx Forest 主題的 source: repo / document / url
-        # (這些都是長篇內容講解, pptx 排版比黑板適合)
-        if rec.source_type in (SourceType.REPO, SourceType.DOCUMENT, SourceType.URL):
+        # 走哪條 renderer 看 source_type:
+        if rec.source_type == SourceType.SLIDES_PDF:
+            # PR-3h: 簡報走 SlideRenderer (原始投影片當底圖), 不是黑板也不是 pptx
+            deck = deck_to_exam_schema_slides(deck)
+        elif rec.source_type in (SourceType.REPO, SourceType.DOCUMENT, SourceType.URL):
+            # 長篇內容講解走 Forest pptx 主題, 比黑板適合
             deck = deck_to_exam_schema_pptx(deck)
         else:
             deck = deck_to_exam_schema(deck)

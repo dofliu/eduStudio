@@ -14,6 +14,7 @@ app.py — 考卷檢討影片系統 Web UI
 """
 import argparse
 import json
+import os
 import re
 import subprocess
 import threading
@@ -33,6 +34,19 @@ SLIDES_DIR = BASE_DIR / "slides"
 SOLVE_SCRIPT = BASE_DIR / "solve.py"
 SLIDE_INGEST_SCRIPT = BASE_DIR / "slide_ingest.py"
 PUBLISH_SCRIPT = BASE_DIR / "publish.py"
+
+# ------------------ Track A 棄用旗標 (PR-3i) ------------------
+# Track A (這個 Flask app) 進入 v3.1 棄用準備期, 預設根路徑 redirect 到 Track B.
+# 環境變數 KEEP_TRACK_A=1 可保留原行為 (給仍依賴 /upload 上傳 / 即時渲染進度頁的場景)。
+KEEP_TRACK_A = os.environ.get("KEEP_TRACK_A", "").lower() in ("1", "true", "yes")
+TRACK_B_URL = os.environ.get("TRACK_B_URL", "http://localhost:8000/ui/")
+TRACK_A_BANNER_HTML = f"""
+<div style="background:#fef3c7;border-bottom:2px solid #f59e0b;padding:8px 16px;font-size:13px;color:#78350f;text-align:center">
+  ⚠ <strong>Track A (Flask v1) 已進入棄用準備期 (v3.1)</strong> — 主要編輯流程已搬到
+  <a href="{TRACK_B_URL}" style="color:#7c2d12;font-weight:600;text-decoration:underline">Track B (port 8000)</a>。
+  本介面保留作 PDF 上傳 / 即時渲染進度等過渡功能, 預期於 v3.2 完全退場。
+</div>
+"""
 
 # 全域狀態 (啟動時設定)
 EXAM_PATH: Path | None = None     # 目前編輯中的 exam.json;None 代表未選
@@ -299,7 +313,7 @@ BASE_CSS = """
   .problem-body { font-size: 13px; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .actions { display: flex; gap: 8px; margin-left: 12px; }
 </style>
-"""
+""" + TRACK_A_BANNER_HTML
 
 VOICE_PICKER_HTML = """
 <div style="background:white;border:1px solid #e4e2dc;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
@@ -445,6 +459,9 @@ EDIT_HTML = BASE_CSS + """
 
 @app.route("/")
 def index():
+    # PR-3i: 預設 redirect 到 Track B (React UI), KEEP_TRACK_A=1 仍走原 Flask UI
+    if not KEEP_TRACK_A:
+        return redirect(TRACK_B_URL, code=302)
     if EXAM_PATH is None:
         return redirect(url_for("exams_list"))
     data = load_exam()
@@ -1315,6 +1332,22 @@ def main():
 
     print(f"🎬 影片根目錄: {VIDEO_ROOT}")
     print(f"🌐 Web UI: http://localhost:{args.port}")
+
+    # PR-3i: Track A 棄用準備 banner
+    print()
+    print("=" * 70)
+    if KEEP_TRACK_A:
+        print("⚠  Track A (Flask v1) — KEEP_TRACK_A=1, 維持原行為")
+        print(f"   v3.1 後主介面已搬到 Track B: {TRACK_B_URL}")
+        print(f"   本 UI 在 v3.2 預期完全退場, 請逐步遷移工作流程")
+    else:
+        print("⚠  Track A (Flask v1) 進入棄用準備期 (v3.1)")
+        print(f"   根路徑 / 已 redirect 到 Track B: {TRACK_B_URL}")
+        print(f"   要保留 Track A 完整行為請設環境變數 KEEP_TRACK_A=1")
+        print(f"   仍可直接訪問 /upload / /exams / /library 等子路徑")
+    print("=" * 70)
+    print()
+
     app.run(host="127.0.0.1", port=args.port, debug=False)
 
 

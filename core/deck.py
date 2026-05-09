@@ -73,6 +73,51 @@ def deck_to_exam_schema(deck: dict) -> dict:
     }
 
 
+def deck_to_exam_schema_slides(deck: dict) -> dict:
+    """slides_pdf 用: 把 deck (sections/slides) 壓成 v1 exam (problems/steps),
+    保留 bg_image / bg_type / layout 給 SlideRenderer 直接吃。
+
+    跟 deck_to_exam_schema 的差別:
+    - step.bg_type 預設 "slide" (不是黑板)
+    - step 額外帶 bg_image / layout 透傳, pipeline 走 SlideRenderer
+    - display 直接用 slide.title (無 bullets / code block 邏輯)
+
+    PR-3h 引入: server runner SLIDES_PDF 走這條;
+    其他 source_type 仍用 deck_to_exam_schema (黑板) 或 deck_to_exam_schema_pptx (Forest)。
+    """
+    problems = []
+    for i, section in enumerate(deck.get("sections", [])):
+        section_title = section.get("title", "").strip()
+        steps = []
+        for slide in section.get("slides", []):
+            steps.append({
+                # _section: 黑板模式才用得到, slide 模式不顯示但留著無妨
+                "_section": _shorten_section_label(section_title),
+                "display": (slide.get("title") or "").strip()
+                           or f"投影片",
+                "narration": (slide.get("narration") or "").strip(),
+                "bg_type": slide.get("bg_type") or "slide",
+                "bg_image": slide.get("bg_image"),
+                "layout": slide.get("layout") or "full",
+            })
+        if not steps:
+            continue
+        problems.append({
+            "id": section.get("id", f"ch{i+1}"),
+            "number": f"第 {i+1} 章 {section_title}",
+            "score": 0,
+            "problem": section_title,
+            "steps": steps,
+        })
+
+    return {
+        "exam_title": deck.get("deck_title", "未命名"),
+        "source_type": "slides",  # 給 pipeline / Library 看
+        "source_meta": deck.get("source_meta", {}),
+        "problems": problems,
+    }
+
+
 def deck_to_exam_schema_pptx(deck: dict) -> dict:
     """把 deck.json 壓成 v1 exam schema, 但 step 帶 pptx_slide 渲染所需欄位。
 

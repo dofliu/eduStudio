@@ -121,6 +121,10 @@ export interface Slide {
   file_path?: string | null;
   narration: string;
   notes?: string | null;
+  // PR-3h: slides_pdf 的 deck schema 帶這三個欄位 (其他 source 為 undefined)
+  bg_image?: string | null;
+  bg_type?: string | null;       // "slide" | undefined
+  layout?: string | null;         // "full" | "split-left" (Phase 4 預留)
 }
 
 export interface Section {

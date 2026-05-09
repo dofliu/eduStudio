@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { ExamProblemsPanel } from '../components/ExamProblemsPanel';
+import { LogPanel } from '../components/LogPanel';
 import { SlideEditor } from '../components/SlideEditor';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/Toast';
@@ -225,6 +226,9 @@ export default function JobEditor() {
           ← Back to Jobs
         </Link>
       </div>
+
+      {/* PR-4c: per-job log tail — 摺疊式, 進行中 auto-poll */}
+      <LogPanel jobId={job.id} jobState={job.state} />
 
       {/* PR-3f: render 完成後顯示 artifact 列 + YouTube 上傳入口 */}
       {job.state === 'done' && mp4s.length > 0 && (

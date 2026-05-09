@@ -5,6 +5,7 @@ import type {
   CreateJobRequest,
   CreateJobResponse,
   Deck,
+  JobLogResponse,
   JobOptions,
   JobRecord,
   LibraryResponse,
@@ -147,6 +148,12 @@ export const api = {
   // ---------- Library (PR-3m) ----------
 
   getLibrary: () => call<LibraryResponse>('/library'),
+
+  // ---------- Job log (PR-4c) ----------
+
+  /** 拉 jobs/<id>/log.jsonl 末尾 N 行 (預設 200). */
+  getJobLog: (jobId: string, tail = 200) =>
+    call<JobLogResponse>(`/jobs/${jobId}/log?tail=${tail}`),
 };
 
 export { ApiError };

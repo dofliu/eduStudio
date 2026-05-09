@@ -219,3 +219,20 @@ export interface LibraryResponse {
   items: LibraryItem[];
   total: number;
 }
+
+// ---------- Job log (PR-4c) ----------
+
+export interface LogEntry {
+  ts: string;
+  level: string;       // INFO / WARNING / ERROR / DEBUG / RAW
+  logger?: string;
+  msg: string;
+  job_id?: string;
+  stage?: string;
+  exc?: string;
+  [key: string]: unknown;   // 其他 extra 欄位 (step_idx 等)
+}
+
+export interface JobLogResponse {
+  entries: LogEntry[];
+}

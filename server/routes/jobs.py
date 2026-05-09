@@ -165,6 +165,29 @@ async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobReco
     return store.get(job_id)
 
 
+# ---------- Job log tail (PR-4c) ----------
+
+@router.get("/{job_id}/log")
+async def get_job_log(
+    job_id: str, tail: int = 200, store: JobStore = Depends(_store),
+) -> JSONResponse:
+    """讀 jobs/<id>/log.jsonl 末尾 N 筆 log, 給 React UI 即時看 render 進度。
+
+    回傳: {"entries": [{ts, level, logger, msg, job_id, stage?, ...}, ...]}
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    if tail < 1 or tail > 2000:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "tail 必須在 1~2000 之間",
+        )
+    from core.logging_setup import read_job_log
+    log_path = JobStore.job_dir(job_id) / "log.jsonl"
+    entries = read_job_log(log_path, tail=tail)
+    return JSONResponse(content={"entries": entries})
+
+
 # ---------- Section render (PR-4a) ----------
 
 def _deck_has_section_id(deck: dict, section_id: str) -> bool:

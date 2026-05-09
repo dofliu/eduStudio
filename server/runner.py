@@ -20,12 +20,22 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import shutil
 from pathlib import Path
 
+from core.logging_setup import (
+    attach_job_log,
+    current_job_id,
+    detach_job_log,
+)
+
 from .jobs import JobStore
 from .schemas import JobRecord, JobState, SourceType, StageInfo, utc_now
+
+
+logger = logging.getLogger(__name__)
 
 
 # ---------- Stage helpers ----------
@@ -263,24 +273,38 @@ async def run_job(store: JobStore, job_id: str) -> None:
 
     這個 coroutine 由 routes 層 schedule 成 asyncio.create_task() 背景執行,
     不要 await 它否則 HTTP request 會卡死。
+
+    PR-4c: 一進 task 就 attach per-job log file (jobs/<id>/log.jsonl) 並 set
+    contextvar, 結束時 detach + reset, 讓 logger.info / .warning 等自動帶 job_id。
     """
     rec = store.get(job_id)
     if rec is None:
         return
 
+    log_path = JobStore.job_dir(job_id) / "log.jsonl"
+    attach_job_log(job_id, log_path)
+    token = current_job_id.set(job_id)
+    logger.info(
+        "job 開始 (source_type=%s, mock=%s, require_review=%s)",
+        rec.source_type.value, rec.options.mock, rec.options.require_review,
+    )
+
     try:
         # ---- 1. Ingest ----
         store.update(job_id, state=JobState.INGESTING)
         _start_stage(store, job_id, "ingest")
+        logger.info("ingest 開始", extra={"stage": "ingest"})
         try:
             await _run_ingest(store, rec)
         except (Exception, SystemExit) as e:
             # 為什麼 catch SystemExit: solve.py 缺 GEMINI_API_KEY 時會 sys.exit(),
             # 不接住整個 task 會悄悄掛掉 job 卻維持 ingesting 狀態
+            logger.exception("ingest 失敗", extra={"stage": "ingest"})
             _end_stage_fail(store, job_id, str(e))
             store.update(job_id, state=JobState.FAILED, error=f"ingest 失敗: {e}")
             return
         _end_stage_ok(store, job_id)
+        logger.info("ingest 完成 → deck.json", extra={"stage": "ingest"})
         store.update(
             job_id,
             deck_path=str(JobStore.deck_path(job_id).relative_to(store.root.parent)).replace("\\", "/"),
@@ -290,6 +314,7 @@ async def run_job(store: JobStore, job_id: str) -> None:
         rec = store.get(job_id)  # refresh
         if rec.options.require_review:
             store.update(job_id, state=JobState.AWAITING_REVIEW)
+            logger.info("等候 review (require_review=True)")
             return  # 等 /approve
 
         # 否則直接續跑
@@ -297,7 +322,11 @@ async def run_job(store: JobStore, job_id: str) -> None:
 
     except Exception as e:
         # catch-all: 任何沒被內層 handle 的例外都標 failed
+        logger.exception("unexpected 錯誤")
         store.update(job_id, state=JobState.FAILED, error=f"unexpected: {e}")
+    finally:
+        current_job_id.reset(token)
+        detach_job_log(job_id)
 
 
 async def _run_render_phase(
@@ -309,28 +338,49 @@ async def _run_render_phase(
     留著上次的 stale error, UI 會誤以為又失敗)。
     PR-4a: section_id 非 None 時只渲染指定 section, stage name 帶上 section_id
     讓 UI 跟 debug 看得出哪一章在跑。
+    PR-4c: schedule_section_render 從另一條 entry 進來, 自己 attach log
+    (run_job 那層的 attach 不會跑到)。
     """
-    store.update(job_id, state=JobState.RENDERING, error=None)
-    stage_name = f"render-section-{section_id}" if section_id else "render"
-    _start_stage(store, job_id, stage_name)
-    try:
-        rec = store.get(job_id)
-        await _run_render(store, rec, section_id=section_id)
-    except (Exception, SystemExit) as e:
-        _end_stage_fail(store, job_id, str(e))
-        store.update(job_id, state=JobState.FAILED, error=f"render 失敗: {e}")
-        return
-    _end_stage_ok(store, job_id)
+    # PR-4c: 若 caller 還沒 attach log (e.g. schedule_section_render), 自己 attach
+    log_path = JobStore.job_dir(job_id) / "log.jsonl"
+    own_log = current_job_id.get() != job_id
+    token = None
+    if own_log:
+        attach_job_log(job_id, log_path)
+        token = current_job_id.set(job_id)
 
-    # render 完成後掃 artifacts 寫進 record (section render 也要 refresh, 讓
-    # 新 mp4 大小 / 修改時間反映到 JobRecord)
-    store.refresh_artifacts(job_id)
-    store.update(
-        job_id,
-        state=JobState.DONE,
-        error=None,    # 確保清掉之前 retry 的 stale error
-        output_dir=str(JobStore.artifacts_dir(job_id).relative_to(store.root.parent)).replace("\\", "/"),
-    )
+    try:
+        store.update(job_id, state=JobState.RENDERING, error=None)
+        stage_name = f"render-section-{section_id}" if section_id else "render"
+        _start_stage(store, job_id, stage_name)
+        if section_id:
+            logger.info("render 開始 (section_id=%s)", section_id, extra={"stage": stage_name})
+        else:
+            logger.info("render 開始 (整份)", extra={"stage": stage_name})
+        try:
+            rec = store.get(job_id)
+            await _run_render(store, rec, section_id=section_id)
+        except (Exception, SystemExit) as e:
+            logger.exception("render 失敗", extra={"stage": stage_name})
+            _end_stage_fail(store, job_id, str(e))
+            store.update(job_id, state=JobState.FAILED, error=f"render 失敗: {e}")
+            return
+        _end_stage_ok(store, job_id)
+        logger.info("render 完成", extra={"stage": stage_name})
+
+        # render 完成後掃 artifacts 寫進 record (section render 也要 refresh, 讓
+        # 新 mp4 大小 / 修改時間反映到 JobRecord)
+        store.refresh_artifacts(job_id)
+        store.update(
+            job_id,
+            state=JobState.DONE,
+            error=None,    # 確保清掉之前 retry 的 stale error
+            output_dir=str(JobStore.artifacts_dir(job_id).relative_to(store.root.parent)).replace("\\", "/"),
+        )
+    finally:
+        if own_log and token is not None:
+            current_job_id.reset(token)
+            detach_job_log(job_id)
 
 
 def schedule_job(store: JobStore, job_id: str) -> asyncio.Task:

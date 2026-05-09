@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.config import PROJECT_ROOT
+from core.logging_setup import setup_logging
 from core.runtime import setup_utf8_stdout
 
 from .jobs import get_default_store
@@ -44,6 +45,11 @@ mimetypes.add_type("application/javascript", ".mjs")
 mimetypes.add_type("text/css", ".css")
 mimetypes.add_type("application/json", ".json")
 mimetypes.add_type("image/svg+xml", ".svg")
+
+
+# PR-4c: 整套 logging 一次 init. 在 module-level 跑, uvicorn import server.main
+# 時就會生效, 不必等 main() 才 setup
+setup_logging()
 
 
 # 對齊 vite.config.ts 的 build outDir

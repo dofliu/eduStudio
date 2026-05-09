@@ -27,6 +27,10 @@ export interface JobOptions {
   output_name?: string | null;
   mock?: boolean;
   max_files?: number | null;
+  /** PR-5a: pptx 主題 (forest / navy). 只影響 repo / document / url. */
+  theme?: string | null;
+  /** PR-5c: 是否把 SRT 字幕燒進 MP4. 預設 false. */
+  hardsub?: boolean;
 }
 
 export interface StageInfo {

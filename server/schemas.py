@@ -73,6 +73,17 @@ class JobOptions(BaseModel):
         default=None,
         description="repo source 限制掃幾個檔 (預設 50)。其他 source_type 忽略此欄位。",
     )
+    theme: str | None = Field(
+        default=None,
+        description="pptx renderer 主題 (PR-5a): forest (預設, 教學) / navy (科技). "
+                    "只影響 repo / document / url 三種 (走 PptxStyleRenderer);"
+                    "exam_pdf / slides_pdf 不適用 (黑板 / 投影片底圖固定色)。",
+    )
+    hardsub: bool = Field(
+        default=False,
+        description="是否把 SRT 字幕直接燒進 MP4 (PR-5c). 預設 False — YouTube "
+                    "上傳吃分離 SRT 比較好, 燒字幕主要給離線播放用。",
+    )
 
     model_config = ConfigDict(extra="allow")
 

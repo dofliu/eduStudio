@@ -1,13 +1,18 @@
-"""Forest 主題 Pillow renderer — 把 deck slide 畫成 1920x1080 PNG。
+"""pptx 風格 Pillow renderer — 把 deck slide 畫成 1920x1080 PNG。
 
 設計目標:
-- 視覺風格沿用既有黑板系 (深綠底 + 粉筆色階), 跟 BlackboardRenderer 一致
+- 視覺風格沿用既有黑板系 (深底 + 高對比文字), 跟 BlackboardRenderer 一致
 - Layout 模仿一般教學投影片: 章節 banner / slide title / bullets / code block
 - 不依賴外部工具 (LibreOffice / Node) — 純 Pillow
 
+主題 (PR-5a 引入):
+- forest (預設): 深綠底 + 黃強調, 教學類用
+- navy: 深海軍藍 + 青藍強調, 科技 / 程式碼類用
+- 從 v0 單題 dict 的 data["theme"] 字串選色 (runner 端從 JobOptions.theme 帶過來)
+
 Layout (1920x1080):
-  y=0..70    章節 banner (深綠略深, 章節標題 + 分隔線)
-  y=70..200  slide title 區 (粉筆白大字 + 黃色底線)
+  y=0..70    章節 banner
+  y=70..200  slide title 區 (大字 + 強調色底線)
   y=200..900 內容區 (bullets + 可選 code block)
   y=900..1080 字幕黑帶 (跟 BlackboardRenderer / SlideRenderer 同位置)
 
@@ -28,6 +33,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import TypedDict
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -40,17 +46,57 @@ from core.config import (
 )
 
 
-# ---------- Forest 色票 ----------
+# ---------- Theme (PR-5a) ----------
+# 兩套色票都對齊「深底 + 高對比文字 + 強調色底線/marker」的視覺結構,
+# 切主題只是換 hue, layout / 字級 / 邊距完全不變。
 
-BG_DEEP_GREEN = (30, 58, 46)      # 主背景, 跟黑板版同色保持風格延續
-BG_BANNER = (20, 45, 35)          # 章節 banner 略深
-CODE_BG = (16, 36, 28)            # 程式碼區塊背景
-CODE_BORDER = (60, 90, 75)
-CHALK_WHITE = (232, 230, 216)     # 標題 / bullets 主色
-CHALK_HIGHLIGHT = (255, 217, 107) # 黃色: 標題下底線 / bullet marker
-CHALK_TITLE = (180, 220, 200)     # banner 文字
-CHALK_FILE_HEADER = (255, 200, 140) # 程式碼區塊上方檔名 header
-SUBTITLE_STRIP = (0, 0, 0)        # 底部字幕區黑帶 (跟 BlackboardRenderer 一致)
+class Palette(TypedDict):
+    bg: tuple[int, int, int]            # 主背景 (大面積)
+    banner: tuple[int, int, int]        # 頂部章節 banner 背景 (略深)
+    code_bg: tuple[int, int, int]       # 程式碼區塊背景
+    code_border: tuple[int, int, int]   # 程式碼區塊邊框
+    primary: tuple[int, int, int]       # 標題 / bullets 主色 (大字白系)
+    highlight: tuple[int, int, int]     # 強調色 (黃 / 青) — 底線 + bullet marker
+    secondary: tuple[int, int, int]     # banner 文字 / 次要色
+    file_header: tuple[int, int, int]   # 程式碼區塊上方檔名 # filename
+
+
+THEMES: dict[str, Palette] = {
+    "forest": {
+        # 沿用 PR-2b-ii 既有 Forest 色票, 跟黑板版同色保持風格延續
+        "bg": (30, 58, 46),
+        "banner": (20, 45, 35),
+        "code_bg": (16, 36, 28),
+        "code_border": (60, 90, 75),
+        "primary": (232, 230, 216),
+        "highlight": (255, 217, 107),       # 暖黃: 教學 / 重點
+        "secondary": (180, 220, 200),
+        "file_header": (255, 200, 140),     # 暖橘
+    },
+    "navy": {
+        # 深海軍藍 + 青藍, 科技 / 程式碼專案用
+        "bg": (24, 42, 80),
+        "banner": (16, 28, 56),
+        "code_bg": (14, 24, 50),
+        "code_border": (60, 80, 130),
+        "primary": (220, 232, 248),
+        "highlight": (102, 200, 255),       # 青藍: 程式碼 / 工程
+        "secondary": (170, 200, 240),
+        "file_header": (255, 180, 120),     # 跟主色拉開的暖橘 (對比)
+    },
+}
+
+DEFAULT_THEME = "forest"
+
+# 底部字幕黑帶 (跟既有 renderer 一致, 不依主題)
+SUBTITLE_STRIP = (0, 0, 0)
+
+
+def get_palette(name: str | None) -> Palette:
+    """容錯查 theme: 不認識的 name 退到 forest 並 print 警告。"""
+    if not name or name not in THEMES:
+        return THEMES[DEFAULT_THEME]
+    return THEMES[name]
 
 
 # ---------- 字級 ----------
@@ -72,9 +118,6 @@ SIDE_MARGIN = 100             # 左右留白
 
 
 # ---------- 字型 cache ----------
-# 為什麼自己 lru_cache 而不是 import pipeline._get_font:
-# - 避免循環 import (pipeline.py 註冊 renderer 時會 import 這個模組)
-# - 字型 cache 是純函式無狀態, 各模組各自 cache 沒成本
 
 @lru_cache(maxsize=None)
 def _font(path: str, size: int) -> ImageFont.FreeTypeFont:
@@ -139,25 +182,24 @@ def _draw_text_wrapped(draw, xy, text, font, fill, max_w, line_h, fb_font=None) 
     return y
 
 
-# ---------- 元件繪製 ----------
+# ---------- 元件繪製 (palette 是函式參數, 切主題只是換 palette) ----------
 
-def _draw_banner(draw: ImageDraw.ImageDraw, section_title: str) -> None:
+def _draw_banner(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
     """頂部章節 banner: 略深背景 + 章節標題 + 底線。"""
-    draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=BG_BANNER)
+    draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=palette["banner"])
     draw.line(
         [(0, BANNER_HEIGHT), (VIDEO_WIDTH, BANNER_HEIGHT)],
-        fill=CHALK_TITLE, width=2,
+        fill=palette["secondary"], width=2,
     )
     if section_title:
         font = _font(get_font_path(), BANNER_FONT_SIZE)
-        # 垂直居中: banner 高 70, 字 26, 大約 y=22
         text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
         _draw_text_mixed(
-            draw, (SIDE_MARGIN, text_y), section_title, font, CHALK_TITLE,
+            draw, (SIDE_MARGIN, text_y), section_title, font, palette["secondary"],
         )
 
 
-def _draw_title(draw: ImageDraw.ImageDraw, title: str) -> int:
+def _draw_title(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
     """slide 主標題, 回傳結束 y 座標 (含底線)。"""
     title = (title or "").strip()
     if not title:
@@ -165,35 +207,28 @@ def _draw_title(draw: ImageDraw.ImageDraw, title: str) -> int:
     font = _font(get_font_path(), TITLE_FONT_SIZE)
     title_y = CONTENT_TOP + 30
     end_y = _draw_text_wrapped(
-        draw, (SIDE_MARGIN, title_y), title, font, CHALK_WHITE,
+        draw, (SIDE_MARGIN, title_y), title, font, palette["primary"],
         max_w=VIDEO_WIDTH - SIDE_MARGIN * 2, line_h=TITLE_FONT_SIZE + 14,
     )
-    # 黃色底線寬度配合標題實際長度 (但限制最少 200px)
     underline_w = max(200, int(font.getlength(title.split("\n")[0])))
     underline_w = min(underline_w, VIDEO_WIDTH - SIDE_MARGIN * 2)
     underline_y = end_y + 8
     draw.line(
         [(SIDE_MARGIN, underline_y), (SIDE_MARGIN + underline_w, underline_y)],
-        fill=CHALK_HIGHLIGHT, width=5,
+        fill=palette["highlight"], width=5,
     )
     return underline_y + 30
 
 
 def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
-                  y_max: int) -> int:
-    """畫 bullets 列表, 黃色 ▸ marker + 白色文字, 回傳結束 y。
-
-    超過 y_max 時自動截斷 (留省略號) — 避免畫出去頂到字幕區。
-    """
+                  y_max: int, palette: Palette) -> int:
+    """畫 bullets 列表, 強調色 ▸ marker + 主色文字, 回傳結束 y。"""
     if not bullets:
         return y_start
     font = _font(get_font_path(), BULLET_FONT_SIZE)
     line_h = BULLET_FONT_SIZE + 16
     indent = 60
     text_max_w = VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
-
-    # marker 用較大字級的「•」(U+2022), 微軟正黑體有這個 glyph;
-    # 走 _draw_text_mixed 是為了真的缺字時也能 fallback (例如未來換主字型)
     marker_font = _font(get_font_path(), BULLET_FONT_SIZE + 6)
 
     y = y_start
@@ -202,17 +237,17 @@ def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
         if not bullet:
             continue
         _draw_text_mixed(
-            draw, (SIDE_MARGIN + 18, y - 8), "•", marker_font, CHALK_HIGHLIGHT,
+            draw, (SIDE_MARGIN + 18, y - 8), "•", marker_font, palette["highlight"],
         )
         end_y = _draw_text_wrapped(
-            draw, (SIDE_MARGIN + indent, y), bullet, font, CHALK_WHITE,
+            draw, (SIDE_MARGIN + indent, y), bullet, font, palette["primary"],
             max_w=text_max_w, line_h=line_h,
         )
         y = end_y + 12
         if y > y_max:
             if i < len(bullets) - 1:
                 draw.text(
-                    (SIDE_MARGIN + indent, y - 8), "...", font=font, fill=CHALK_WHITE,
+                    (SIDE_MARGIN + indent, y - 8), "...", font=font, fill=palette["primary"],
                 )
             break
     return y
@@ -220,7 +255,7 @@ def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
 
 def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
                      code: str, file_path: str | None,
-                     y_start: int, y_max: int) -> int:
+                     y_start: int, y_max: int, palette: Palette) -> int:
     """畫程式碼區塊: 上邊欄檔名 + bordered 等寬字內容。回傳結束 y。"""
     code = code.strip()
     if not code:
@@ -232,7 +267,6 @@ def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
     inner_pad = 16
     block_w = VIDEO_WIDTH - SIDE_MARGIN * 2
 
-    # 計算實際要顯示的行數: 限制在 y_max 內
     code_lines = code.splitlines()
     header_h = (FILE_HEADER_FONT_SIZE + 16) if file_path else 0
     available_h = y_max - y_start - header_h - inner_pad * 2 - 16
@@ -244,38 +278,33 @@ def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
     block_top = y_start
     block_bottom = block_top + block_h
 
-    # 背景 + 邊框
     draw.rectangle(
         [SIDE_MARGIN, block_top, SIDE_MARGIN + block_w, block_bottom],
-        fill=CODE_BG, outline=CODE_BORDER, width=2,
+        fill=palette["code_bg"], outline=palette["code_border"], width=2,
     )
 
-    # 檔名 header
     cur_y = block_top + 8
     if file_path:
         _draw_text_mixed(
             draw, (SIDE_MARGIN + inner_pad, cur_y),
-            f"# {file_path}", file_font, CHALK_FILE_HEADER,
+            f"# {file_path}", file_font, palette["file_header"],
         )
         cur_y += FILE_HEADER_FONT_SIZE + 16
-        # 檔名底下分隔線
         draw.line(
             [(SIDE_MARGIN + inner_pad, cur_y - 6),
              (SIDE_MARGIN + block_w - inner_pad, cur_y - 6)],
-            fill=CODE_BORDER, width=1,
+            fill=palette["code_border"], width=1,
         )
 
     cur_y += inner_pad - 4
-    # 程式碼本體 (等寬字, 不 wrap, 過長就截斷單行)
     for ln in code_lines:
-        # 防止單行超出 — 若超出 block_w 就 truncate
         ln_text = ln
         max_w = block_w - inner_pad * 2
         while code_font.getlength(ln_text) > max_w and len(ln_text) > 4:
             ln_text = ln_text[:-2] + "…"
         draw.text(
             (SIDE_MARGIN + inner_pad, cur_y),
-            ln_text, font=code_font, fill=CHALK_WHITE,
+            ln_text, font=code_font, fill=palette["primary"],
         )
         cur_y += line_h
 
@@ -283,7 +312,7 @@ def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
 
 
 def _draw_subtitle_strip(draw: ImageDraw.ImageDraw) -> None:
-    """底部 180px 黑帶, 給 SRT 字幕用 (與既有 renderer 一致)。"""
+    """底部 180px 黑帶, 給 SRT 字幕用 (與既有 renderer 一致, 不隨主題變)。"""
     draw.rectangle(
         [0, VIDEO_HEIGHT - SUBTITLE_STRIP_HEIGHT, VIDEO_WIDTH, VIDEO_HEIGHT],
         fill=SUBTITLE_STRIP,
@@ -293,57 +322,49 @@ def _draw_subtitle_strip(draw: ImageDraw.ImageDraw) -> None:
 # ---------- 公開 Renderer 類別 ----------
 
 class PptxStyleRenderer:
-    """deck slide → 1920x1080 PNG (Forest 主題)。
+    """deck slide → 1920x1080 PNG。
 
-    實作 pipeline.Renderer 的 render(data, step_idx, out_p, q_work) 介面,
-    所以可以直接註冊到 pipeline._RENDERERS["pptx_slide"]。
+    從 v0 dict 的 data["theme"] 字串選色 (PR-5a). runner.py 會根據 JobOptions.theme
+    把 theme 寫進 v0 dict, 預設 forest.
     """
 
     def render(self, data: dict, step_idx: int, out_p: Path, q_work: Path) -> None:
         step = data["steps"][step_idx - 1]
+        palette = get_palette(data.get("theme"))
 
-        img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), BG_DEEP_GREEN)
+        img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
 
-        # 章節 banner (取 step.section_title, 或 fallback 到 data.title)
         section_title = step.get("section_title") or data.get("title", "")
-        _draw_banner(draw, section_title)
+        _draw_banner(draw, section_title, palette)
 
-        # slide 主標題
         title = step.get("title", "")
-        title_end_y = _draw_title(draw, title)
+        title_end_y = _draw_title(draw, title, palette)
 
-        # 內容區: bullets 與 code 共享垂直空間
         content_y = title_end_y
         bullets = step.get("bullets") or []
         code = step.get("code_snippet") or ""
         file_path = step.get("file_path")
 
-        # 預留底部黑帶上方 24px buffer
         content_y_max = CONTENT_BOTTOM - 24
 
-        # bullets 先畫上半, code 在下半 (若有 code 限制 bullets 高度)
         if code:
-            # 簡單分配: code 區塊估計需要 (lines * 34 + 80)px, 但封頂在 360px
             estimated_code_h = min(
                 360,
                 max(120, len(code.splitlines()) * (CODE_FONT_SIZE + 8) + 80),
             )
             bullets_y_max = content_y_max - estimated_code_h - 20
-            content_y = _draw_bullets(draw, bullets, content_y, bullets_y_max)
+            content_y = _draw_bullets(draw, bullets, content_y, bullets_y_max, palette)
             content_y = max(content_y, content_y_max - estimated_code_h)
-            _draw_code_block(draw, img, code, file_path, content_y, content_y_max)
+            _draw_code_block(draw, img, code, file_path, content_y, content_y_max, palette)
         else:
-            # 沒 code: bullets 吃滿
-            _draw_bullets(draw, bullets, content_y, content_y_max)
+            _draw_bullets(draw, bullets, content_y, content_y_max, palette)
 
-        # 底部字幕黑帶 + teacher photo overlay
         _draw_subtitle_strip(draw)
         try:
             from pipeline import _overlay_teacher_photo
             _overlay_teacher_photo(img)
         except Exception:
-            # PR-2b-ii 引入時 pipeline.py 還沒載入也不應掛掉
             pass
 
         img.save(out_p, "PNG")

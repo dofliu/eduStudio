@@ -39,6 +39,10 @@ export function CreateJobForm({ onCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [requireReview, setRequireReview] = useState(false);
   const [mock, setMock] = useState(false);
+  // PR-5a: theme 只對 repo / document / url 有意義 (走 PptxStyleRenderer)
+  const [theme, setTheme] = useState<'forest' | 'navy'>('forest');
+  // PR-5c: 燒字幕選項, 對所有 source_type 都適用
+  const [hardsub, setHardsub] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -53,6 +57,17 @@ export function CreateJobForm({ onCreated }: Props) {
   const supportsUpload = FILE_UPLOADABLE.includes(sourceType);
   const supportsPath = !URL_ONLY.includes(sourceType);
 
+  // theme 只對走 pptx renderer 的 source 有效 (repo / document / url)
+  const themeApplicable: SourceType[] = ['repo', 'document', 'url'];
+  const showTheme = themeApplicable.includes(sourceType);
+
+  const buildOptions = () => ({
+    mock,
+    require_review: requireReview,
+    hardsub,
+    ...(showTheme ? { theme } : {}),    // 不適用就不送, 後端用預設
+  });
+
   const submit = async () => {
     setSubmitting(true);
     try {
@@ -61,17 +76,14 @@ export function CreateJobForm({ onCreated }: Props) {
           show('請選檔', 'error');
           return;
         }
-        const r = await api.uploadFile(file, sourceType, {
-          mock,
-          require_review: requireReview,
-        });
+        const r = await api.uploadFile(file, sourceType, buildOptions());
         show(`已上傳 ${file.name} 並建 job ${r.job_id}`);
       } else {
         const source = inputMode === 'url' ? { url } : { path };
         const r = await api.createJob({
           source_type: sourceType,
           source,
-          options: { mock, require_review: requireReview },
+          options: buildOptions(),
         });
         show(`已建立 job ${r.job_id}`);
       }
@@ -208,7 +220,22 @@ export function CreateJobForm({ onCreated }: Props) {
         </div>
       )}
 
-      <div className="flex items-center gap-4 mt-3 text-sm">
+      {/* PR-5a: pptx 主題下拉, 只對 repo / document / url 顯示 */}
+      {showTheme && (
+        <div className="mt-3">
+          <label className="field-label">pptx 主題</label>
+          <select
+            className="field-input"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as 'forest' | 'navy')}
+          >
+            <option value="forest">🌲 Forest — 深綠 + 黃 (教學類)</option>
+            <option value="navy">🌐 Navy — 深藍 + 青 (科技類)</option>
+          </select>
+        </div>
+      )}
+
+      <div className="flex items-center gap-4 mt-3 text-sm flex-wrap">
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
             type="checkbox"
@@ -216,6 +243,15 @@ export function CreateJobForm({ onCreated }: Props) {
             onChange={(e) => setRequireReview(e.target.checked)}
           />
           停在 awaiting_review (人工確認後再渲染)
+        </label>
+        {/* PR-5c: 燒字幕選項 */}
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hardsub}
+            onChange={(e) => setHardsub(e.target.checked)}
+          />
+          燒字幕進 MP4 (離線播放看得到; YouTube 不必勾)
         </label>
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input

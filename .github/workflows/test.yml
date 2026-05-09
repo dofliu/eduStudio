@@ -32,13 +32,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # 裝執行測試所需的最小依賴: pytest + 我們程式碼會 import 的核心 lib
-      # (Pydantic / FastAPI 等) — 不裝 PIL / pymupdf / f5-tts 等重型 + 平台相依
-      # 的東西, 因為純函式測試用不到, 也避免 Windows runner 卡 wheel build。
+      # 裝執行測試所需的依賴: pytest + 我們程式碼會 import 的核心 lib.
+      # Pillow / fontTools 因 PR-5a (theme) 需要, 還算輕量。
+      # 不裝 pymupdf / google-genai / f5-tts 等重型 + 平台相依的東西, 因為
+      # 純函式測試用不到, 也避免 Windows runner 卡 wheel build。
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pydantic httpx beautifulsoup4
+          pip install fastapi uvicorn pydantic httpx beautifulsoup4 Pillow fonttools
           pip install -r requirements-dev.txt
 
       - name: Run pytest

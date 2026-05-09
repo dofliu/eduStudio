@@ -24,6 +24,9 @@ YouTube:
     upload_video(youtube, video_path, *, title, description, tags, privacy, category) -> str
     upload_caption(youtube, video_id, srt_path, language="zh-TW", name="繁體中文") -> str
     get_youtube_credentials() -> Credentials
+    publish_artifact(video_path, *, title, description, tags, privacy, category, srt_path,
+                     on_progress) -> PublishResult     # PR-3f, server 用 (含 progress callback)
+    auto_youtube_meta(deck, problem_id, *, source_type) -> dict   # PR-3f, 預填產生器
 
 文字工具:
     strip_latex(text) -> str
@@ -58,6 +61,10 @@ __all__ = [
     "upload_video",
     "upload_caption",
     "get_youtube_credentials",
+    # PR-3f: server 用 YouTube helper
+    "publish_artifact",
+    "auto_youtube_meta",
+    "OAuthBootstrapRequired",
 ]
 
 
@@ -93,5 +100,13 @@ def __getattr__(name: str):
             "upload_video": upload_video,
             "upload_caption": upload_caption,
             "get_youtube_credentials": get_credentials,
+        }[name]
+    if name in ("publish_artifact", "auto_youtube_meta", "OAuthBootstrapRequired"):
+        # PR-3f: server 用的 YouTube helper, 不靠 sys.exit, 給 progress callback
+        from .youtube import publish_artifact, auto_youtube_meta, OAuthBootstrapRequired
+        return {
+            "publish_artifact": publish_artifact,
+            "auto_youtube_meta": auto_youtube_meta,
+            "OAuthBootstrapRequired": OAuthBootstrapRequired,
         }[name]
     raise AttributeError(f"module 'core' has no attribute {name!r}")

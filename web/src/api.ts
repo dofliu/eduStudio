@@ -6,6 +6,9 @@ import type {
   CreateJobResponse,
   Deck,
   JobRecord,
+  PublishRequest,
+  YoutubeMeta,
+  YoutubeUpload,
 } from './types';
 
 class ApiError extends Error {
@@ -61,6 +64,27 @@ export const api = {
   // artifact download URL — 給 <a href> 直接用, 不走 fetch
   artifactUrl: (jobId: string, name: string) =>
     `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}`,
+
+  // ---------- YouTube (PR-3f) ----------
+
+  getYoutubeMeta: (jobId: string, name: string) =>
+    call<YoutubeMeta>(
+      `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}/youtube_meta`,
+    ),
+
+  publish: (jobId: string, name: string, req: PublishRequest) =>
+    call<YoutubeUpload>(
+      `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}/publish`,
+      {
+        method: 'POST',
+        body: JSON.stringify(req),
+      },
+    ),
+
+  youtubeStatus: (jobId: string, name: string) =>
+    call<YoutubeUpload>(
+      `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}/youtube_status`,
+    ),
 };
 
 export { ApiError };

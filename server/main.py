@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import mimetypes
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
@@ -27,6 +28,18 @@ from .jobs import get_default_store
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
 from .routes import youtube as youtube_routes
+
+
+# Windows 上 Python mimetypes.guess_type() 對 .js / .mjs 常回 text/plain
+# (取決 HKLM\Software\Classes 是否有 .js 對應 Content Type 鍵, 不一定有),
+# Starlette StaticFiles 用這函式決定 Content-Type, 導致瀏覽器 strict MIME check
+# 拒載 ES module → React UI (web/dist) 整頁白畫面。
+# 在 module 頂部強制覆寫常見前端 asset 的 MIME, 確保跨平台一致。
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("application/javascript", ".mjs")
+mimetypes.add_type("text/css", ".css")
+mimetypes.add_type("application/json", ".json")
+mimetypes.add_type("image/svg+xml", ".svg")
 
 
 # 對齊 vite.config.ts 的 build outDir

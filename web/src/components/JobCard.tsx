@@ -33,13 +33,17 @@ export function JobCard({ job, onChanged }: Props) {
   ).length;
 
   const onApprove = async () => {
-    if (!confirm('Approve 後會立刻開始渲染, 確定?')) return;
+    const isRetry = job.state === 'failed';
+    const msg = isRetry
+      ? '重試 render? 用目前 deck.json 跑'
+      : 'Approve 後會立刻開始渲染, 確定?';
+    if (!confirm(msg)) return;
     try {
       await api.approve(job.id);
-      show('已 Approve, 渲染中...');
+      show(isRetry ? '已重新觸發 render...' : '已 Approve, 渲染中...');
       onChanged();
     } catch (e) {
-      show(`Approve 失敗: ${e}`, 'error');
+      show(`${isRetry ? '重試' : 'Approve'} 失敗: ${e}`, 'error');
     }
   };
 
@@ -92,6 +96,12 @@ export function JobCard({ job, onChanged }: Props) {
         {job.state === 'awaiting_review' && (
           <button onClick={onApprove} className="btn btn-primary">
             ✓ Approve
+          </button>
+        )}
+        {/* PR-3j: failed 也提供 retry 入口, 不必砍 job 重跑 ingest */}
+        {job.state === 'failed' && (
+          <button onClick={onApprove} className="btn btn-primary" title="用目前 deck.json 重新 render">
+            🔄 重試
           </button>
         )}
         {job.state === 'done' && mp4s.length > 0 && (

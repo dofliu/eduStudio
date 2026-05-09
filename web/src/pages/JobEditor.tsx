@@ -102,7 +102,11 @@ export default function JobEditor() {
 
   const onApprove = async () => {
     if (!jobId || !draft) return;
-    if (!confirm('Approve 後會立刻開始渲染, 確定?')) return;
+    const isRetryAction = job?.state === 'failed';
+    const confirmMsg = isRetryAction
+      ? '重試 render? 用目前 deck.json 跑 (上次失敗的 stage 會被覆蓋)'
+      : 'Approve 後會立刻開始渲染, 確定?';
+    if (!confirm(confirmMsg)) return;
     setSaving(true);
     try {
       if (dirty) {
@@ -110,10 +114,10 @@ export default function JobEditor() {
         setDirty(false);
       }
       await api.approve(jobId);
-      show('已 Approve, 渲染中...');
+      show(isRetryAction ? '已重新觸發 render...' : '已 Approve, 渲染中...');
       setTimeout(() => navigate('/'), 1500);
     } catch (e) {
-      show(`Approve 失敗: ${e}`, 'error');
+      show(`${isRetryAction ? '重試' : 'Approve'} 失敗: ${e}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -133,7 +137,9 @@ export default function JobEditor() {
     );
   }
 
-  const canEdit = job.state === 'awaiting_review';
+  // PR-3j: failed 也可編輯 + retry render (deck.json 視為已 review)
+  const canEdit = job.state === 'awaiting_review' || job.state === 'failed';
+  const isRetry = job.state === 'failed';
 
   if (!draft) {
     return (
@@ -278,15 +284,28 @@ export default function JobEditor() {
           onClick={onApprove}
           disabled={!canEdit || saving}
           className="btn btn-primary"
+          title={isRetry ? '清掉之前的錯誤, 用目前 deck.json 重新跑 render' : undefined}
         >
-          ✓ Approve & Render
+          {isRetry ? '🔄 重試 render' : '✓ Approve & Render'}
         </button>
       </div>
+
+      {/* PR-3j: 失敗 banner + 提示可直接重試 (不必重做 ingest) */}
+      {isRetry && job.error && (
+        <div className="bg-red-50 border border-red-300 rounded p-3 mb-4 text-sm">
+          <div className="font-semibold text-red-800">⚠ 上次 render 失敗</div>
+          <div className="text-red-700 mt-1 break-all">{job.error}</div>
+          <div className="text-xs text-ink-muted mt-2">
+            可直接編輯 deck 後按「🔄 重試 render」重跑, 不會重新做 ingest。
+          </div>
+        </div>
+      )}
 
       {!canEdit && (
         <div className="bg-stone-100 border border-border rounded p-3 mb-4 text-sm text-ink-muted">
           目前 state=<code className="font-mono">{job.state}</code>, 為唯讀模式。僅
-          <code className="font-mono mx-1">awaiting_review</code> 可儲存 / approve。
+          <code className="font-mono mx-1">awaiting_review</code> /
+          <code className="font-mono mx-1">failed</code> 可儲存 / 重新 render。
         </div>
       )}
 

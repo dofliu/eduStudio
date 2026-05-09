@@ -115,14 +115,22 @@ async def get_draft(job_id: str, store: JobStore = Depends(_store)) -> JSONRespo
 async def update_draft(
     job_id: str, body: UpdateDeckRequest, store: JobStore = Depends(_store),
 ) -> JobRecord:
-    """覆寫 deck.json。僅 awaiting_review 狀態可改 (避免 race condition)。"""
+    """覆寫 deck.json。
+
+    可編輯的狀態:
+    - awaiting_review: ingest 完成等人工 review (主路徑)
+    - failed:          render 失敗後可改 deck.json 再重試 (PR-3j 加入,
+                       避免使用者要從頭跑 ingest 30 分鐘)
+
+    其他狀態擋住, 避免 race condition (例: rendering 中改 deck 會跟在跑的渲染衝突)。
+    """
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    if rec.state != JobState.AWAITING_REVIEW:
+    if rec.state not in (JobState.AWAITING_REVIEW, JobState.FAILED):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"目前狀態 {rec.state.value}, 僅 awaiting_review 可改 deck",
+            f"目前狀態 {rec.state.value}, 僅 awaiting_review / failed 可改 deck",
         )
     JobStore.deck_path(job_id).write_text(
         json.dumps(body.deck, ensure_ascii=False, indent=2),
@@ -136,18 +144,22 @@ async def update_draft(
 
 @router.post("/{job_id}/approve", response_model=JobRecord)
 async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobRecord:
-    """從 awaiting_review 進入 rendering。
+    """進入 rendering 階段。可在兩種狀態觸發:
 
-    僅 awaiting_review 狀態合法。done / failed 可重新跑 render: 但要先把
-    job 改回 awaiting_review (目前不開放這條路, 避免誤觸覆寫成果)。
+    - awaiting_review: 主路徑, 第一次 review 通過開始渲染
+    - failed:          重試 render (PR-3j 加入)。deck.json 視為已 review,
+                       新一輪 _run_render_phase 會把 state=FAILED 翻 RENDERING,
+                       error 清掉, 加新的 "render" stage。
+
+    擋住 rendering / done / pending / ingesting (避免覆寫進行中或既有成果)。
     """
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    if rec.state != JobState.AWAITING_REVIEW:
+    if rec.state not in (JobState.AWAITING_REVIEW, JobState.FAILED):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"approve 僅在 awaiting_review 可用 (目前 {rec.state.value})",
+            f"approve 僅在 awaiting_review / failed 可用 (目前 {rec.state.value})",
         )
     schedule_render(store, job_id)
     return store.get(job_id)

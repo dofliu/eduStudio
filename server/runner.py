@@ -287,8 +287,12 @@ async def run_job(store: JobStore, job_id: str) -> None:
 
 
 async def _run_render_phase(store: JobStore, job_id: str) -> None:
-    """從 awaiting_review 或直接 ingest 完接著跑 render。供 /approve 也呼叫。"""
-    store.update(job_id, state=JobState.RENDERING)
+    """從 awaiting_review 或直接 ingest 完接著跑 render。供 /approve 也呼叫。
+
+    PR-3j: 從 FAILED retry 進來時, 把舊 error 清掉 (不然成功後 record.error 還
+    留著上次的 stale error, UI 會誤以為又失敗)。
+    """
+    store.update(job_id, state=JobState.RENDERING, error=None)
     _start_stage(store, job_id, "render")
     try:
         rec = store.get(job_id)
@@ -304,6 +308,7 @@ async def _run_render_phase(store: JobStore, job_id: str) -> None:
     store.update(
         job_id,
         state=JobState.DONE,
+        error=None,    # 確保清掉之前 retry 的 stale error
         output_dir=str(JobStore.artifacts_dir(job_id).relative_to(store.root.parent)).replace("\\", "/"),
     )
 

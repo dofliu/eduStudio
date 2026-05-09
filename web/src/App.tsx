@@ -14,9 +14,12 @@ export default function App() {
             <div className="flex-1" />
             {/* PR-3l: 全域聲音 picker, 切了影響後續 render */}
             <VoicePicker />
-            <nav className="text-sm shrink-0">
+            <nav className="text-sm shrink-0 flex gap-3">
               <Link to="/" className="text-chalk-yellow hover:underline">
                 Jobs
+              </Link>
+              <Link to="/library" className="text-chalk-yellow hover:underline">
+                Library
               </Link>
             </nav>
           </div>

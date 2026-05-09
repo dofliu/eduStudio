@@ -200,3 +200,22 @@ export interface VoiceListResponse {
   voices: VoiceInfo[];
   current: string;
 }
+
+// ---------- Library (PR-3m) ----------
+
+export interface LibraryItem {
+  job_id: string;
+  artifact_name: string;       // "q1.mp4" / "ch1.mp4"
+  source_type: SourceType;
+  deck_title: string;
+  mp4_size_bytes: number;
+  srt_exists: boolean;
+  youtube?: YoutubeUpload | null;
+  artifact_url: string;        // /jobs/{id}/artifacts/{name}
+  publish_url: string;         // /ui/jobs/{id}/publish/{name}
+}
+
+export interface LibraryResponse {
+  items: LibraryItem[];
+  total: number;
+}

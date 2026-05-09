@@ -27,6 +27,7 @@ from core.runtime import setup_utf8_stdout
 from .jobs import get_default_store
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
+from .routes import library as library_routes
 from .routes import slides as slides_routes
 from .routes import uploads as uploads_routes
 from .routes import voices as voices_routes
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(slides_routes.router)
     app.include_router(uploads_routes.router)
     app.include_router(voices_routes.router)
+    app.include_router(library_routes.router)
     app.include_router(editor_routes.router)
 
     # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor

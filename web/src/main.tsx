@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import App from './App';
 import JobsIndex from './pages/JobsIndex';
 import JobEditor from './pages/JobEditor';
+import Library from './pages/Library';
 import PublishReview from './pages/PublishReview';
 import './index.css';
 
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<App />}>
           <Route index element={<JobsIndex />} />
+          <Route path="library" element={<Library />} />
           <Route path="jobs/:jobId" element={<JobEditor />} />
           <Route
             path="jobs/:jobId/publish/:artifactName"

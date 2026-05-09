@@ -7,6 +7,7 @@ import type {
   Deck,
   JobOptions,
   JobRecord,
+  LibraryResponse,
   PublishRequest,
   SourceType,
   VoiceListResponse,
@@ -135,6 +136,10 @@ export const api = {
   /** 試聽 sample mp3 URL — 給 <audio src> 用. */
   voiceSampleUrl: (voiceId: string) =>
     `/voices/${encodeURIComponent(voiceId)}/sample`,
+
+  // ---------- Library (PR-3m) ----------
+
+  getLibrary: () => call<LibraryResponse>('/library'),
 };
 
 export { ApiError };

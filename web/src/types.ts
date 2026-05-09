@@ -187,3 +187,16 @@ export function isExamDraft(d: unknown): d is Exam {
 export function isDeckDraft(d: unknown): d is Deck {
   return !!d && typeof d === 'object' && Array.isArray((d as any).sections);
 }
+
+// ---------- Voice picker (PR-3l) ----------
+
+export interface VoiceInfo {
+  id: string;
+  label: string;
+  sample_url: string;
+}
+
+export interface VoiceListResponse {
+  voices: VoiceInfo[];
+  current: string;
+}

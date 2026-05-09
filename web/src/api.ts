@@ -5,8 +5,11 @@ import type {
   CreateJobRequest,
   CreateJobResponse,
   Deck,
+  JobOptions,
   JobRecord,
   PublishRequest,
+  SourceType,
+  VoiceListResponse,
   YoutubeMeta,
   YoutubeUpload,
 } from './types';
@@ -98,6 +101,40 @@ export const api = {
     if (!m) return null;
     return `/slide_images/${encodeURIComponent(m[1])}/${encodeURIComponent(m[2])}`;
   },
+
+  // ---------- Upload (PR-3k) ----------
+
+  /** 上傳檔案 + 建 job. 不走 call() 因為 multipart 不能 set Content-Type 為 JSON. */
+  uploadFile: async (
+    file: File,
+    sourceType: SourceType,
+    options: JobOptions,
+  ): Promise<CreateJobResponse> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('source_type', sourceType);
+    fd.append('options_json', JSON.stringify(options));
+    const r = await fetch('/upload', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      throw new ApiError(r.status, text || r.statusText);
+    }
+    return r.json() as Promise<CreateJobResponse>;
+  },
+
+  // ---------- Voice picker (PR-3l) ----------
+
+  getVoices: () => call<VoiceListResponse>('/voices'),
+
+  setVoice: (voiceId: string) =>
+    call<VoiceListResponse>('/voices', {
+      method: 'POST',
+      body: JSON.stringify({ voice_id: voiceId }),
+    }),
+
+  /** 試聽 sample mp3 URL — 給 <audio src> 用. */
+  voiceSampleUrl: (voiceId: string) =>
+    `/voices/${encodeURIComponent(voiceId)}/sample`,
 };
 
 export { ApiError };

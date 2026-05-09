@@ -1,5 +1,14 @@
 # 任務:擴充為「簡報講解影片」生成器(slide-video 模式)
 
+> ⚠️ **DEPRECATED — 規劃歷史文件,保留作參考**
+> 主要事項已併入 [ROADMAP.md](ROADMAP.md) v1.7 段落,Phase 1/2/3/5 完成。
+> Phase 4 (split-left) 推到 v3.3 加分階段。
+> v3.1 起 slides_pdf 會升級為 deck schema,跟 repo / document / url 走同一條 pipeline,
+> 本文件描述的 v1 exam schema 簡報路徑會被取代。
+> 新功能規劃請看 ROADMAP.md / TODO.md,不要繼續編輯本文件。
+
+---
+
 > **狀態 (2026-05-07)**:Phase 1, 2, 3, 5 已完成並驗證,Phase 4 (split-left) 待做。
 > 詳見 ROADMAP.md v1.7 段落。
 

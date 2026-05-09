@@ -338,6 +338,51 @@ def build_clip(f_p, a_p, dur, out_p, q_work):
     ]
     subprocess.run(cmd, check=True)
 
+def _build_hardsub_cmd(out_name: str, work_dir: Path) -> list[str]:
+    """產生 ffmpeg 燒字幕指令 (PR-5c). 抽出函式給 unit test 用 (不必跑 ffmpeg).
+
+    cwd 設為 OUTPUT_DIR 讓 subtitles filter 用相對檔名, 避開 Windows path 含
+    冒號要 escape 的麻煩 (`D\:/foo/bar.srt`)。
+
+    force_style 把字型固定 Microsoft JhengHei (Windows) / SimHei (跨平台後備),
+    白字黑邊 BorderStyle=3 (字幕底有 box) 在多種背景都看得清楚。
+    """
+    return [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-i", f"{out_name}.mp4",
+        "-vf", (
+            f"subtitles={out_name}.srt:"
+            "force_style='FontName=Microsoft JhengHei,FontSize=22,"
+            "PrimaryColour=&H00FFFFFF&,OutlineColour=&H00000000&,"
+            "BorderStyle=3,MarginV=40'"
+        ),
+        "-c:a", "copy",   # 音訊不重編碼, 節省時間
+        f"{out_name}.hardsub.mp4",
+    ]
+
+
+def burn_subtitles(out_name: str) -> None:
+    """把 SRT 燒進 MP4: ffmpeg subtitles filter 重新編碼影片軌, 音訊直 copy.
+
+    輸出取代原 OUTPUT_DIR/{out_name}.mp4 (移檔), 字幕 SRT 仍然保留方便 YouTube
+    上傳。失敗時保留原 mp4 不動, 印警告。
+    """
+    cmd = _build_hardsub_cmd(out_name, OUTPUT_DIR)
+    try:
+        subprocess.run(cmd, cwd=OUTPUT_DIR, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"⚠ 燒字幕失敗 (保留原版 mp4): {e}")
+        # 清掉可能殘留的部分輸出
+        (OUTPUT_DIR / f"{out_name}.hardsub.mp4").unlink(missing_ok=True)
+        return
+    # 取代原檔
+    final = OUTPUT_DIR / f"{out_name}.mp4"
+    hard = OUTPUT_DIR / f"{out_name}.hardsub.mp4"
+    final.unlink(missing_ok=True)
+    hard.replace(final)
+    print(f"   字幕已燒入 {out_name}.mp4")
+
+
 async def main(json_path, out_name, start_step=None):
     q_work = WORK_DIR / out_name; q_work.mkdir(parents=True, exist_ok=True)
     if start_step is None:
@@ -361,7 +406,7 @@ async def main(json_path, out_name, start_step=None):
         
     list_f = q_work / "concat.txt"; list_f.write_text("\n".join(f"file '{p.absolute().as_posix().replace('\\', '/')}'" for p in clips), encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_f), "-c", "copy", str(OUTPUT_DIR / f"{out_name}.mp4")], check=True)
-    
+
     srt, cue, t = [], 1, 0.0
     for s, d in zip(data["steps"], durs):
         sent = [p.strip() for p in re.split(r"(?<=[。！？!?])\s*", s.get("narration", "")) if p.strip()]
@@ -373,6 +418,12 @@ async def main(json_path, out_name, start_step=None):
             cue += 1; sub_s = sub_e
         t += d + PAUSE_AFTER_EACH
     (OUTPUT_DIR / f"{out_name}.srt").write_text("\n".join(srt), encoding="utf-8")
+
+    # PR-5c: 燒字幕 — 把外掛 SRT 直接畫進畫面, 取代原 mp4。
+    # data["hardsub"] 由 runner.py 從 JobOptions.hardsub 帶過來; 預設 False。
+    if data.get("hardsub"):
+        burn_subtitles(out_name)
+
     print(f"✅ 完成: {out_name}.mp4")
 
 if __name__ == "__main__":

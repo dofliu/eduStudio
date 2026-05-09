@@ -249,12 +249,15 @@ async def _run_render(
     # PR-5a: 從 JobOptions.theme 帶 theme 進 v0 dict, PptxStyleRenderer.render
     # 會讀 data["theme"] 切色票。其他 renderer (黑板 / SlideRenderer) 不看。
     theme = rec.options.theme or "forest"
+    # PR-5c: 燒字幕旗標, pipeline.main 看 data["hardsub"] 決定要不要跑 burn_subtitles
+    hardsub = bool(rec.options.hardsub)
 
     # 逐題渲染 → MP4 / SRT 從 OUTPUT_DIR 搬到 artifacts/
     for prob in problems:
         pid = prob["id"]
         v0 = problem_to_v0_json(deck["exam_title"], prob)
         v0["theme"] = theme
+        v0["hardsub"] = hardsub
         v0_path = artifacts_dir / f"{pid}.json"
         v0_path.write_text(
             json.dumps(v0, ensure_ascii=False, indent=2),

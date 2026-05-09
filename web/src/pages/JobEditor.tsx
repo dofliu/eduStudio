@@ -150,6 +150,7 @@ export default function JobEditor() {
   }
 
   const totalSlides = deck.sections.reduce((s, sec) => s + sec.slides.length, 0);
+  const mp4s = job.artifacts.filter((a) => a.kind === 'mp4');
 
   return (
     <div>
@@ -158,6 +159,61 @@ export default function JobEditor() {
           ← Back to Jobs
         </Link>
       </div>
+
+      {/* PR-3f: render 完成後顯示 artifact 列 + YouTube 上傳入口 */}
+      {job.state === 'done' && mp4s.length > 0 && (
+        <div className="bg-white border border-border rounded-md p-4 mb-4">
+          <div className="font-semibold text-forest mb-2">📦 Artifacts ({mp4s.length})</div>
+          <div className="space-y-2">
+            {mp4s.map((a) => {
+              const yt = job.youtube_uploads?.[a.name];
+              return (
+                <div
+                  key={a.name}
+                  className="flex items-center gap-2 text-sm border-t border-border pt-2 first:border-t-0 first:pt-0 flex-wrap"
+                >
+                  <span className="font-mono">{a.name}</span>
+                  <span className="text-ink-muted text-xs">
+                    {(a.size_bytes / 1024 / 1024).toFixed(1)} MB
+                  </span>
+                  <a
+                    href={api.artifactUrl(job.id, a.name)}
+                    className="text-forest underline"
+                  >
+                    ▶ 預覽
+                  </a>
+                  <Link
+                    to={`/jobs/${job.id}/publish/${encodeURIComponent(a.name)}`}
+                    className={
+                      'btn btn-ghost text-xs ' +
+                      (yt?.state === 'done' ? 'text-green-700' : '')
+                    }
+                  >
+                    📺{' '}
+                    {yt?.state === 'done'
+                      ? '已上傳 (查看)'
+                      : yt?.state === 'uploading'
+                      ? `上傳中 ${yt.progress_percent}%`
+                      : yt?.state === 'failed'
+                      ? '上傳失敗 (重試)'
+                      : '上傳到 YouTube'}
+                  </Link>
+                  {yt?.url && (
+                    <a
+                      href={yt.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-forest underline break-all"
+                    >
+                      {yt.url}
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* sticky toolbar */}
       <div className="sticky top-0 z-10 bg-forest-bg/95 backdrop-blur py-3 border-b border-border mb-4 flex items-center gap-3">

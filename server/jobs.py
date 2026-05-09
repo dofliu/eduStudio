@@ -31,6 +31,7 @@ from .schemas import (
     JobState,
     SourceType,
     StageInfo,
+    YoutubeUpload,
     utc_now,
 )
 
@@ -204,6 +205,32 @@ class JobStore:
 
     def refresh_artifacts(self, job_id: str) -> JobRecord:
         return self.update(job_id, artifacts=self.scan_artifacts(job_id))
+
+    # ---- YouTube uploads (PR-3f) ----
+
+    def set_youtube_upload(self, job_id: str, artifact_name: str,
+                           upload: YoutubeUpload) -> JobRecord:
+        """整顆覆寫單一 artifact 的 YT 上傳記錄, 寫盤。"""
+        with self._lock:
+            rec = self._cache.get(job_id)
+            if rec is None:
+                raise KeyError(job_id)
+            new_map = dict(rec.youtube_uploads)
+            new_map[artifact_name] = upload
+            return self.update(job_id, youtube_uploads=new_map)
+
+    def patch_youtube_upload(self, job_id: str, artifact_name: str,
+                             **fields) -> JobRecord:
+        """部分更新 YT 上傳記錄 (不存在會自動建空 record)。背景 task 用得最多。"""
+        with self._lock:
+            rec = self._cache.get(job_id)
+            if rec is None:
+                raise KeyError(job_id)
+            current = rec.youtube_uploads.get(artifact_name) or YoutubeUpload()
+            updated = current.model_copy(update=fields)
+            new_map = dict(rec.youtube_uploads)
+            new_map[artifact_name] = updated
+            return self.update(job_id, youtube_uploads=new_map)
 
     # ---- Disk I/O ----
 

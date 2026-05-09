@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import App from './App';
 import JobsIndex from './pages/JobsIndex';
 import JobEditor from './pages/JobEditor';
+import PublishReview from './pages/PublishReview';
 import './index.css';
 
 // basename="/ui" 對齊 vite.config.ts 的 base, 讓 React Router 在 /ui/jobs 等
@@ -15,6 +16,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<App />}>
           <Route index element={<JobsIndex />} />
           <Route path="jobs/:jobId" element={<JobEditor />} />
+          <Route
+            path="jobs/:jobId/publish/:artifactName"
+            element={<PublishReview />}
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

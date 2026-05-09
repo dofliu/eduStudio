@@ -130,6 +130,38 @@ class Artifact(BaseModel):
     kind: str  # mp4 | srt | json | png | other
 
 
+# ---------- YouTube upload (PR-3f) ----------
+
+class YoutubeUploadState(str, Enum):
+    """YouTube 上傳的獨立狀態機,跟 Job 主狀態機分離 (上傳失敗不該讓 Job 倒退)。"""
+    PENDING = "pending"        # 還沒按上傳
+    UPLOADING = "uploading"    # 背景 task 正在跑
+    DONE = "done"
+    FAILED = "failed"
+
+
+class YoutubeUpload(BaseModel):
+    """單一 artifact (通常 = 一支 mp4) 的 YouTube 上傳記錄。
+    寫到 JobRecord.youtube_uploads[<artifact_name>] 之下。
+    """
+    state: YoutubeUploadState = YoutubeUploadState.PENDING
+    title: str = ""
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    privacy: str = "unlisted"      # unlisted | public | private
+    category: str = "27"            # 27 = Education, 28 = Science & Tech
+    video_id: str | None = None
+    url: str | None = None
+    caption_id: str | None = None   # SRT captions.insert 結果
+    progress_percent: int = 0       # 0~100, 上傳中由背景 task 更新
+    started_at: datetime | None = None
+    uploaded_at: datetime | None = None
+    error: str | None = None
+    caption_error: str | None = None  # 字幕上傳失敗不致命, 影片仍可用
+
+    model_config = ConfigDict(extra="allow")
+
+
 class JobRecord(BaseModel):
     """寫到 jobs/<id>/state.json 的完整內容,也直接當 GET /jobs/{id} 的 response。"""
     id: str
@@ -145,6 +177,9 @@ class JobRecord(BaseModel):
     # 內部欄位: ingest 後的 deck path, render 後的 output dir
     deck_path: str | None = None
     output_dir: str | None = None
+    # PR-3f: YouTube 上傳記錄, key 是 artifact name (例 "q1.mp4")
+    # 為什麼是 dict 不是 list: 多 artifact 各自獨立, lookup 要 O(1), append 不太需要
+    youtube_uploads: dict[str, YoutubeUpload] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="allow")
 

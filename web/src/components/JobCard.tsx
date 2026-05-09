@@ -24,6 +24,13 @@ export function JobCard({ job, onChanged }: Props) {
   })();
 
   const mp4s = job.artifacts.filter((a) => a.kind === 'mp4');
+  // PR-3f: 統計 YouTube 上傳進度 — N/M 已上傳 done
+  const ytDoneCount = mp4s.filter(
+    (a) => job.youtube_uploads?.[a.name]?.state === 'done',
+  ).length;
+  const ytUploadingCount = mp4s.filter(
+    (a) => job.youtube_uploads?.[a.name]?.state === 'uploading',
+  ).length;
 
   const onApprove = async () => {
     if (!confirm('Approve 後會立刻開始渲染, 確定?')) return;
@@ -50,10 +57,26 @@ export function JobCard({ job, onChanged }: Props) {
   return (
     <div className="bg-white border border-border rounded-md p-4 mb-3 flex gap-4 items-start">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className="font-mono text-xs text-ink-muted">{job.id}</span>
           <StatusBadge state={job.state} />
           {stats && <span className="text-sm text-ink-muted">{stats}</span>}
+          {job.state === 'done' && mp4s.length > 0 && (
+            <span
+              className={
+                'text-xs px-2 py-0.5 rounded ' +
+                (ytDoneCount === mp4s.length
+                  ? 'bg-green-100 text-green-800'
+                  : ytUploadingCount > 0
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-stone-100 text-ink-muted')
+              }
+              title="YouTube 上傳進度"
+            >
+              📺 {ytDoneCount}/{mp4s.length}
+              {ytUploadingCount > 0 && ` (${ytUploadingCount} 上傳中)`}
+            </span>
+          )}
         </div>
         <div className="text-forest font-semibold break-all">{sourceLabel}</div>
         {job.error && (

@@ -57,6 +57,45 @@ export interface JobRecord {
   error?: string | null;
   deck_path?: string | null;
   output_dir?: string | null;
+  // PR-3f: YouTube 上傳記錄, key 是 artifact name (例如 "q1.mp4")
+  youtube_uploads?: Record<string, YoutubeUpload>;
+}
+
+// ---------- YouTube upload (PR-3f) ----------
+
+export type YoutubeUploadState = 'pending' | 'uploading' | 'done' | 'failed';
+
+export interface YoutubeUpload {
+  state: YoutubeUploadState;
+  title: string;
+  description: string;
+  tags: string[];
+  privacy: string;        // "unlisted" | "public" | "private"
+  category: string;       // "27" = Education
+  video_id?: string | null;
+  url?: string | null;
+  caption_id?: string | null;
+  progress_percent: number;  // 0~100
+  started_at?: string | null;
+  uploaded_at?: string | null;
+  error?: string | null;
+  caption_error?: string | null;
+}
+
+export interface YoutubeMeta {
+  title: string;
+  description: string;
+  tags: string[];
+  privacy: string;
+  category: string;
+}
+
+export interface PublishRequest {
+  title: string;
+  description?: string;
+  tags?: string[];
+  privacy?: string;
+  category?: string;
 }
 
 export interface CreateJobRequest {

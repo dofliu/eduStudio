@@ -85,6 +85,19 @@ export const api = {
     call<YoutubeUpload>(
       `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}/youtube_status`,
     ),
+
+  // ---------- Slide images (PR-3h) ----------
+
+  /** 投影片 PNG 縮圖 URL — slide.bg_image 是 "slides/<stem>/p001.png" 形式,
+   * 拆出 stem + filename 餵給 /slide_images endpoint。給 <img src> 直接用。
+   * 找不到合法路徑回 null (例: bg_image 是 absolute / 不是 slides/ 開頭)。 */
+  slideImageUrl: (bgImage: string | null | undefined): string | null => {
+    if (!bgImage) return null;
+    const norm = bgImage.replace(/\\/g, '/');
+    const m = norm.match(/^slides\/([^/]+)\/([^/]+)$/);
+    if (!m) return null;
+    return `/slide_images/${encodeURIComponent(m[1])}/${encodeURIComponent(m[2])}`;
+  },
 };
 
 export { ApiError };

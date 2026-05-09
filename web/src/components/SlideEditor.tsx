@@ -1,3 +1,4 @@
+import { api } from '../api';
 import type { Slide } from '../types';
 
 interface Props {
@@ -26,9 +27,33 @@ export function SlideEditor({ slide, readOnly, onChange }: Props) {
     narrationLen > 0 && (narrationLen < NARRATION_TARGET.min || narrationLen > NARRATION_TARGET.max);
   const narrationHard = narrationLen > NARRATION_TARGET.hardMax;
 
+  // PR-3h: 簡報 slide 才有 bg_image (其他 source 為 undefined)。
+  // 簡報模式 bullets / code 沒意義, 隱藏那些欄位讓畫面乾淨。
+  const isSlideMode = !!slide.bg_image;
+  const slideImgUrl = api.slideImageUrl(slide.bg_image);
+
   return (
     <div className="bg-forest-bg border border-border rounded p-3 mb-3">
-      <div className="font-mono text-xs text-ink-muted mb-2">{slide.id}</div>
+      <div className="font-mono text-xs text-ink-muted mb-2">
+        {slide.id}
+        {isSlideMode && (
+          <span className="ml-2 text-chalk-yellow">📊 簡報模式 ({slide.layout || 'full'})</span>
+        )}
+      </div>
+
+      {/* PR-3h: 簡報縮圖預覽 — 點開大圖 */}
+      {isSlideMode && slideImgUrl && (
+        <div className="mb-3 bg-stone-900 rounded p-2">
+          <a href={slideImgUrl} target="_blank" rel="noreferrer" title="點擊看大圖">
+            <img
+              src={slideImgUrl}
+              alt={slide.title}
+              className="w-full max-w-md rounded border border-border block mx-auto"
+              loading="lazy"
+            />
+          </a>
+        </div>
+      )}
 
       <div className="mb-3">
         <label className="field-label">Title</label>
@@ -41,57 +66,62 @@ export function SlideEditor({ slide, readOnly, onChange }: Props) {
         />
       </div>
 
-      <div className="mb-3">
-        <label className="field-label">Bullets</label>
-        <ul className="space-y-1.5">
-          {slide.bullets.map((b, i) => (
-            <li key={i} className="flex gap-1.5">
-              <input
-                type="text"
-                className="field-input flex-1"
-                value={b}
-                disabled={readOnly}
-                onChange={(e) => setBullet(i, e.target.value)}
-              />
-              {!readOnly && (
-                <button
-                  onClick={() => removeBullet(i)}
-                  className="btn btn-ghost"
-                  title="刪除"
-                >
-                  ×
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-        {!readOnly && (
-          <button onClick={addBullet} className="btn btn-ghost mt-2">
-            + add bullet
-          </button>
-        )}
-      </div>
+      {/* 非簡報模式才顯示 bullets / code 欄位 (簡報這些不渲染, 隱藏避免誤導) */}
+      {!isSlideMode && (
+        <>
+          <div className="mb-3">
+            <label className="field-label">Bullets</label>
+            <ul className="space-y-1.5">
+              {slide.bullets.map((b, i) => (
+                <li key={i} className="flex gap-1.5">
+                  <input
+                    type="text"
+                    className="field-input flex-1"
+                    value={b}
+                    disabled={readOnly}
+                    onChange={(e) => setBullet(i, e.target.value)}
+                  />
+                  {!readOnly && (
+                    <button
+                      onClick={() => removeBullet(i)}
+                      className="btn btn-ghost"
+                      title="刪除"
+                    >
+                      ×
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {!readOnly && (
+              <button onClick={addBullet} className="btn btn-ghost mt-2">
+                + add bullet
+              </button>
+            )}
+          </div>
 
-      <div className="mb-3">
-        <label className="field-label">Code snippet (留空 = 不放程式碼)</label>
-        <textarea
-          className="field-input font-mono min-h-[100px]"
-          value={slide.code_snippet || ''}
-          disabled={readOnly}
-          onChange={(e) => set('code_snippet', e.target.value || null)}
-        />
-      </div>
+          <div className="mb-3">
+            <label className="field-label">Code snippet (留空 = 不放程式碼)</label>
+            <textarea
+              className="field-input font-mono min-h-[100px]"
+              value={slide.code_snippet || ''}
+              disabled={readOnly}
+              onChange={(e) => set('code_snippet', e.target.value || null)}
+            />
+          </div>
 
-      <div className="mb-3">
-        <label className="field-label">File path (code 來源, 例 core/foo.py)</label>
-        <input
-          type="text"
-          className="field-input font-mono"
-          value={slide.file_path || ''}
-          disabled={readOnly}
-          onChange={(e) => set('file_path', e.target.value || null)}
-        />
-      </div>
+          <div className="mb-3">
+            <label className="field-label">File path (code 來源, 例 core/foo.py)</label>
+            <input
+              type="text"
+              className="field-input font-mono"
+              value={slide.file_path || ''}
+              disabled={readOnly}
+              onChange={(e) => set('file_path', e.target.value || null)}
+            />
+          </div>
+        </>
+      )}
 
       <div className="mb-1">
         <div className="flex items-center justify-between mb-1">

@@ -135,3 +135,51 @@ export interface Deck {
   source_meta?: Record<string, unknown>;
   sections: Section[];
 }
+
+// ---------- v1 exam schema (考卷 / 簡報 用, PR-3g 接 React UI) ----------
+
+export interface Step {
+  /** Gemini 自我分類 meta, UI 不依賴它做判斷, 但顯示給 reviewer 看 */
+  _section?: string | null;
+  /** 黑板顯示 (≤40 字精煉) */
+  display: string;
+  /** 老師口語旁白 (60~180 字) */
+  narration: string;
+  /** 此步驟覆蓋的圖片 (選填) */
+  image?: string | null;
+  /** 投影片模式: bg_type=slide + bg_image 投影片路徑 (slides_pdf 用) */
+  bg_type?: string | null;
+  bg_image?: string | null;
+  layout?: string | null;
+}
+
+export interface Problem {
+  id: string;
+  number: string;
+  score?: number;
+  /** 題目原文 */
+  problem: string;
+  steps: Step[];
+}
+
+export interface Exam {
+  exam_title: string;
+  /** 用來區分 v1 exam (problems) vs deck schema (sections) */
+  source_type?: string;
+  source_meta?: Record<string, unknown>;
+  problems: Problem[];
+}
+
+/**
+ * 共通的 draft 型別: 後端 GET /jobs/{id}/draft 回 dict, 可能是 Exam 或 Deck。
+ * UI 用 isExamDraft / isDeckDraft 兩個 type guard 分流。
+ */
+export type Draft = Exam | Deck | Record<string, unknown>;
+
+export function isExamDraft(d: unknown): d is Exam {
+  return !!d && typeof d === 'object' && Array.isArray((d as any).problems);
+}
+
+export function isDeckDraft(d: unknown): d is Deck {
+  return !!d && typeof d === 'object' && Array.isArray((d as any).sections);
+}

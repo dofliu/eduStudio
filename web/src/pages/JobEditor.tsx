@@ -1,10 +1,19 @@
+// JobEditor — Job 編輯頁的「外殼」: 載入 / 存檔 / approve 邏輯統一,
+// 內容渲染依 schema 分流到 deck 或 exam 兩個 Panel。
+//
+// PR-3e: deck schema (sections / slides) 編輯
+// PR-3f: done 階段顯示 artifact 列 + 📺 上傳到 YouTube 入口
+// PR-3g: exam schema (problems / steps) 編輯, 取代 Flask app.py /edit 頁
+
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
+import { ExamProblemsPanel } from '../components/ExamProblemsPanel';
 import { SlideEditor } from '../components/SlideEditor';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/Toast';
-import type { Deck, JobRecord, Slide } from '../types';
+import type { Deck, Draft, Exam, JobRecord, Slide } from '../types';
+import { isDeckDraft, isExamDraft } from '../types';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -14,7 +23,8 @@ export default function JobEditor() {
   const { show } = useToast();
 
   const [job, setJob] = useState<JobRecord | null>(null);
-  const [deck, setDeck] = useState<Deck | null>(null);
+  // 使用泛型 Draft, schema 由 type guard 在 render 時辨識
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -24,14 +34,15 @@ export default function JobEditor() {
     try {
       const j = await api.getJob(jobId);
       setJob(j);
-      // 只在 dirty=false 時才覆蓋本地 deck, 避免吃掉使用者尚未存檔的修改
+      // 只在 dirty=false 時才覆蓋本地 draft, 避免吃掉使用者尚未存檔的修改
       if (!dirty) {
         try {
-          const d = await api.getDraft(jobId);
-          setDeck(d);
+          // server /draft 端點型別宣告是 Deck, 但實際回傳是 dict.
+          // 我們在 client 用 Draft (= Exam | Deck | unknown) 接, runtime 由 guard 分流
+          const d = (await api.getDraft(jobId)) as unknown as Draft;
+          setDraft(d);
         } catch {
-          // 還沒有 deck (ingest 中) — 不算錯
-          setDeck(null);
+          setDraft(null);
         }
       }
     } catch (e) {
@@ -43,34 +54,43 @@ export default function JobEditor() {
 
   useEffect(() => {
     reloadAll();
-    // rendering / ingesting 中持續輪詢, 其他狀態 reload 一次就停
+    // ingesting / rendering 中持續輪詢, 其他狀態 reload 一次也無妨
     const t = setInterval(reloadAll, POLL_INTERVAL_MS);
     return () => clearInterval(t);
   }, [reloadAll]);
 
+  // ---- Deck schema mutators ----
   const updateSlide = (sectionIdx: number, slideIdx: number, next: Slide) => {
-    if (!deck) return;
-    const sections = [...deck.sections];
+    if (!draft || !isDeckDraft(draft)) return;
+    const sections = [...draft.sections];
     const slides = [...sections[sectionIdx].slides];
     slides[slideIdx] = next;
     sections[sectionIdx] = { ...sections[sectionIdx], slides };
-    setDeck({ ...deck, sections });
+    setDraft({ ...draft, sections });
     setDirty(true);
   };
 
   const updateSectionTitle = (sectionIdx: number, title: string) => {
-    if (!deck) return;
-    const sections = [...deck.sections];
+    if (!draft || !isDeckDraft(draft)) return;
+    const sections = [...draft.sections];
     sections[sectionIdx] = { ...sections[sectionIdx], title };
-    setDeck({ ...deck, sections });
+    setDraft({ ...draft, sections });
     setDirty(true);
   };
 
+  // ---- Exam schema mutators (整顆替換, panel 內部負責 immutable update) ----
+  const onExamChange = (next: Exam) => {
+    setDraft(next);
+    setDirty(true);
+  };
+
+  // ---- Save / Approve ----
   const onSave = async () => {
-    if (!deck || !jobId) return;
+    if (!draft || !jobId) return;
     setSaving(true);
     try {
-      await api.saveDraft(jobId, deck);
+      // server schema 是 dict, cast 過去
+      await api.saveDraft(jobId, draft as unknown as Deck);
       setDirty(false);
       show('已儲存');
     } catch (e) {
@@ -81,12 +101,12 @@ export default function JobEditor() {
   };
 
   const onApprove = async () => {
-    if (!jobId || !deck) return;
+    if (!jobId || !draft) return;
     if (!confirm('Approve 後會立刻開始渲染, 確定?')) return;
     setSaving(true);
     try {
       if (dirty) {
-        await api.saveDraft(jobId, deck);
+        await api.saveDraft(jobId, draft as unknown as Deck);
         setDirty(false);
       }
       await api.approve(jobId);
@@ -115,7 +135,7 @@ export default function JobEditor() {
 
   const canEdit = job.state === 'awaiting_review';
 
-  if (!deck) {
+  if (!draft) {
     return (
       <div>
         <div className="mb-4">
@@ -133,8 +153,11 @@ export default function JobEditor() {
     );
   }
 
-  // v1 exam schema 不在這裡編
-  if (!deck.sections) {
+  // ---- Schema 辨識 ----
+  const isExam = isExamDraft(draft);
+  const isDeck = isDeckDraft(draft);
+
+  if (!isExam && !isDeck) {
     return (
       <div>
         <div className="mb-4">
@@ -143,13 +166,28 @@ export default function JobEditor() {
           </Link>
         </div>
         <div className="bg-white border border-border rounded p-6 text-center text-ink-muted">
-          這是 v1 exam schema (考卷檢討), 請使用 Flask <code>app.py</code> 介面 (port 5000) 編輯。
+          無法辨識 schema (既無 problems 也無 sections), 請檢查 jobs/&lt;id&gt;/deck.json
         </div>
       </div>
     );
   }
 
-  const totalSlides = deck.sections.reduce((s, sec) => s + sec.slides.length, 0);
+  // ---- 統計資訊 (toolbar 顯示) ----
+  const title = isExam
+    ? (draft as Exam).exam_title
+    : (draft as Deck).deck_title;
+  const subtitle = isExam
+    ? (() => {
+        const e = draft as Exam;
+        const totalSteps = e.problems.reduce((s, p) => s + p.steps.length, 0);
+        return `${e.problems.length} 題 · ${totalSteps} steps`;
+      })()
+    : (() => {
+        const d = draft as Deck;
+        const totalSlides = d.sections.reduce((s, sec) => s + sec.slides.length, 0);
+        return `${d.sections.length} sections · ${totalSlides} slides`;
+      })();
+
   const mp4s = job.artifacts.filter((a) => a.kind === 'mp4');
 
   return (
@@ -218,17 +256,29 @@ export default function JobEditor() {
       {/* sticky toolbar */}
       <div className="sticky top-0 z-10 bg-forest-bg/95 backdrop-blur py-3 border-b border-border mb-4 flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-forest truncate">{deck.deck_title}</div>
+          <div className="font-semibold text-forest truncate">
+            {isExam && '📝 '}
+            {isDeck && '🎬 '}
+            {title}
+          </div>
           <div className="text-xs text-ink-muted">
-            {deck.sections.length} sections · {totalSlides} slides
+            {subtitle}
             {dirty && <span className="ml-2 text-orange-700">• 未存檔</span>}
           </div>
         </div>
         <StatusBadge state={job.state} />
-        <button onClick={onSave} disabled={!canEdit || saving || !dirty} className="btn btn-primary">
+        <button
+          onClick={onSave}
+          disabled={!canEdit || saving || !dirty}
+          className="btn btn-primary"
+        >
           {saving ? '...' : '💾 Save'}
         </button>
-        <button onClick={onApprove} disabled={!canEdit || saving} className="btn btn-primary">
+        <button
+          onClick={onApprove}
+          disabled={!canEdit || saving}
+          className="btn btn-primary"
+        >
           ✓ Approve & Render
         </button>
       </div>
@@ -240,34 +290,49 @@ export default function JobEditor() {
         </div>
       )}
 
-      {deck.sections.map((sec, sIdx) => (
-        <section
-          key={sec.id}
-          className="bg-white border border-border rounded-md p-4 mb-4"
-        >
-          <div className="border-b-2 border-chalk-yellow pb-2 mb-3 flex items-center gap-2">
-            <span className="font-semibold text-forest text-sm shrink-0">章 {sIdx + 1}:</span>
-            <input
-              type="text"
-              className="field-input flex-1 text-base font-semibold"
-              value={sec.title}
-              disabled={!canEdit}
-              onChange={(e) => updateSectionTitle(sIdx, e.target.value)}
-            />
-            <span className="text-xs text-ink-muted shrink-0">
-              {sec.slides.length} slides
-            </span>
-          </div>
-          {sec.slides.map((sl, slIdx) => (
-            <SlideEditor
-              key={sl.id}
-              slide={sl}
-              readOnly={!canEdit}
-              onChange={(next) => updateSlide(sIdx, slIdx, next)}
-            />
+      {/* ---- Schema-specific panel ---- */}
+      {isExam && (
+        <ExamProblemsPanel
+          exam={draft as Exam}
+          readOnly={!canEdit}
+          onChange={onExamChange}
+        />
+      )}
+
+      {isDeck && (
+        <>
+          {(draft as Deck).sections.map((sec, sIdx) => (
+            <section
+              key={sec.id}
+              className="bg-white border border-border rounded-md p-4 mb-4"
+            >
+              <div className="border-b-2 border-chalk-yellow pb-2 mb-3 flex items-center gap-2">
+                <span className="font-semibold text-forest text-sm shrink-0">
+                  章 {sIdx + 1}:
+                </span>
+                <input
+                  type="text"
+                  className="field-input flex-1 text-base font-semibold"
+                  value={sec.title}
+                  disabled={!canEdit}
+                  onChange={(e) => updateSectionTitle(sIdx, e.target.value)}
+                />
+                <span className="text-xs text-ink-muted shrink-0">
+                  {sec.slides.length} slides
+                </span>
+              </div>
+              {sec.slides.map((sl, slIdx) => (
+                <SlideEditor
+                  key={sl.id}
+                  slide={sl}
+                  readOnly={!canEdit}
+                  onChange={(next) => updateSlide(sIdx, slIdx, next)}
+                />
+              ))}
+            </section>
           ))}
-        </section>
-      ))}
+        </>
+      )}
     </div>
   );
 }

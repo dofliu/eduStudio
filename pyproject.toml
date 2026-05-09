@@ -1,0 +1,18 @@
+# pytest 設定 (PR-4b). 還沒打算用 build / package / setup.cfg, 純粹給 pytest 看。
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",                    # short summary for all (a)ll except (p)assed
+    "--strict-markers",        # 未註冊 marker 直接 fail
+    "--tb=short",
+]
+filterwarnings = [
+    # Pydantic / google-genai / mutagen 等第三方 lib 在 Py 3.12 下噴 DeprecationWarning,
+    # 不是我們程式碼的問題, 忽略避免 CI log 太雜.
+    "ignore::DeprecationWarning",
+]
+markers = [
+    "slow: 標註跑得慢的測試 (例: 真的呼叫 Gemini / FFmpeg)",
+    "integration: 跨多個模組的整合測試 (FastAPI TestClient 等)",
+]

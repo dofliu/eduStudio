@@ -8,7 +8,7 @@
 // 注意: video player 走 /jobs/<id>/artifacts/<name> 端點 (FastAPI FileResponse),
 // 跨網域 / chunked 都自動處理。
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
@@ -34,6 +34,9 @@ export default function PublishReview() {
   const [status, setStatus] = useState<YoutubeUpload | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  // 同步雙擊防呆: setSubmitting 是 async, 雙擊兩個 onSubmit closure 可能都看到
+  // submitting=false 而各自送一次 publish (server 端會 409, 但 UX 看到上傳成功 + 409 交錯)
+  const submittingRef = useRef(false);
 
   const reload = useCallback(async () => {
     if (!jobId || !artifactName) return;
@@ -81,12 +84,14 @@ export default function PublishReview() {
   }, [status?.state, jobId, artifactName]);
 
   const onSubmit = async () => {
+    if (submittingRef.current) return;     // 同步擋雙擊
     if (!jobId || !artifactName) return;
     if (!title.trim()) {
       show('標題不能空白', 'error');
       return;
     }
     if (!confirm('開始上傳到 YouTube? 預設 unlisted, 確認無誤再切 public。')) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const tags = tagsRaw
@@ -105,6 +110,7 @@ export default function PublishReview() {
     } catch (e) {
       show(`上傳失敗: ${e}`, 'error');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -301,7 +307,7 @@ export default function PublishReview() {
             <div className="flex gap-2 mt-5 pt-4 border-t border-border">
               <button
                 onClick={onSubmit}
-                disabled={submitting || !title.trim()}
+                disabled={submitting || isUploading || !title.trim()}
                 className="btn btn-primary"
               >
                 {submitting ? '提交中…' : '⬆ 上傳到 YouTube'}

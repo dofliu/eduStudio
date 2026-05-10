@@ -211,6 +211,9 @@ class F5TTS(TTSBackend):
 
     async def synthesize(self, text: str, out_path: Path) -> bool:
         text = normalize_text(text)
+        # 暫存檔追蹤: 不論 try 成功或失敗都要清, 避免失敗路徑累積 .f5segNNN.wav
+        # / .f5concat.txt / .f5merged.wav 在 OUTPUT_DIR (PR-5b 後若預切失敗會踩到)
+        tmp_files: list[Path] = []
         try:
             self._lazy_init()
             # PR-5b: 先預切句, 每段 ≤ 30 字, 避免 F5 內部 batch 切到中文詞中間。
@@ -224,6 +227,7 @@ class F5TTS(TTSBackend):
             seg_wavs: list[Path] = []
             for i, seg_text in enumerate(segments):
                 seg_wav = tmp_dir / f".{out_path.stem}.f5seg{i:03d}.wav"
+                tmp_files.append(seg_wav)
                 await asyncio.to_thread(
                     self._api.infer,
                     ref_file=self.ref_audio,
@@ -244,18 +248,19 @@ class F5TTS(TTSBackend):
             else:
                 # 寫 ffmpeg concat manifest, 同 dir 用相對檔名避免路徑空白問題
                 manifest = tmp_dir / f".{out_path.stem}.f5concat.txt"
+                tmp_files.append(manifest)
                 manifest.write_text(
                     "\n".join(f"file '{w.name}'" for w in seg_wavs),
                     encoding="utf-8",
                 )
                 wav_path = tmp_dir / f".{out_path.stem}.f5merged.wav"
+                tmp_files.append(wav_path)
                 subprocess.run(
                     ["ffmpeg", "-y", "-loglevel", "error",
                      "-f", "concat", "-safe", "0",
                      "-i", str(manifest), "-c", "copy", str(wav_path)],
                     check=True,
                 )
-                manifest.unlink(missing_ok=True)
 
             # 下游 pipeline 吃 mp3;順便砍掉前 lead_trim_sec 秒的 ref 洩漏
             # (預切後 lead_trim 仍套在最終 concat 結果首段, 跟舊版邏輯一致)
@@ -264,16 +269,17 @@ class F5TTS(TTSBackend):
                 ff += ["-ss", f"{self.lead_trim_sec:.3f}"]
             ff += ["-i", str(wav_path), "-b:a", "128k", str(out_path)]
             subprocess.run(ff, check=True)
-
-            # 清掉所有暫存
-            for w in seg_wavs:
-                w.unlink(missing_ok=True)
-            if len(seg_wavs) > 1:
-                wav_path.unlink(missing_ok=True)
             return True
         except Exception as e:
             print(f"[F5-TTS] failed: {e}")
             return False
+        finally:
+            # 不論成功失敗都清, missing_ok 容忍尚未生出的 seg
+            for f in tmp_files:
+                try:
+                    f.unlink(missing_ok=True)
+                except OSError:
+                    pass    # Windows 偶爾鎖檔, 留著當下次 finally 一併清
 
 
 # ---------- Fallback wrapper ----------

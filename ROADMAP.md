@@ -285,14 +285,14 @@
 - [ ] Gemini 產 matplotlib / TikZ code,本地執行畫圖
 - [ ] 步驟 `image` 欄位動態切圖
 
-### Code Review follow-ups(2026-05-09 review 找出,順手做)
-- [ ] P0: `_job_handlers` 加 `threading.Lock`(server/runner 並行 section render 才會踩)
-- [ ] P0: `utc_now()` 改 `datetime.now(timezone.utc)` 帶 `+00:00`
-- [ ] P0: 上傳加 `MAX_UPLOAD_SIZE` (e.g. 200MB) + Content-Length 預檢
-- [ ] P0: `solve.py` 把 `sys.exit()` 改 raise, runner 移除 `SystemExit` catch
-- [ ] P1: `PptxStyleRenderer.render` 加 step_idx 越界防護
-- [ ] P1: F5 seg WAV cleanup 移到 finally
-- [ ] P1: PublishReview button 雙擊 race(前端加 disabled)
+### Code Review follow-ups(2026-05-09 review 找出)
+- [x] P0: `_job_handlers` 加 `threading.Lock` (2026-05-10)
+- [x] P0: `utc_now()` 改 `datetime.now(timezone.utc)` (2026-05-10)
+- [x] P0: 上傳加 `MAX_UPLOAD_SIZE` (200MB) + Content-Length 預檢 (2026-05-10)
+- [x] P0: `solve.py` / scriptor / outliner / slide_ingest 把 `sys.exit()` 改 raise, runner 移除 `SystemExit` catch (2026-05-10)
+- [x] P1: `PptxStyleRenderer.render` 加 step_idx 越界防護 (2026-05-10)
+- [x] P1: F5 seg WAV cleanup 移到 finally (2026-05-10)
+- [x] P1: PublishReview button 雙擊 race (submittingRef 同步擋, 2026-05-10)
 
 詳細見 [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md)。
 

@@ -14,25 +14,24 @@
 獨立 review 報告: [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) (2026-05-09)
 
 ### P0 真該補
-- [ ] **`core/logging_setup.py` `_job_handlers` 加 lock**
-  - 目前 sequential runner 不會踩, 但未來改 worker pool / 並行 section render 會撞
-  - 5 行 code: `_handlers_lock = threading.Lock()` + with 包 attach/detach
-- [ ] **`utc_now()` 帶 timezone**
-  - 改 `datetime.now(timezone.utc)`, 序列化時 Pydantic 會帶 `+00:00`
-  - 現在前端 `new Date(s)` 不同瀏覽器解讀可能差 8 小時
-- [ ] **`/upload` 加 size limit**
-  - `MAX_UPLOAD_SIZE = 200 * 1024 * 1024` + content-length 預檢
-  - 現在接受任意大檔, 攻擊者可耗滿磁碟
-- [ ] **`solve.py` 改 raise 取代 sys.exit**
-  - runner 才能 cleanup `SystemExit` catch hack (Track A 退場後的清理工作)
+- [x] **`core/logging_setup.py` `_job_handlers` 加 lock** (2026-05-10)
+  - `threading.Lock()` 包 attach/detach, 順手把 `datetime.utcnow()` 也換掉
+- [x] **`utc_now()` 帶 timezone** (2026-05-10)
+  - 改 `datetime.now(timezone.utc)`, Pydantic 序列化吐 `Z` 字尾, 跨瀏覽器都認
+- [x] **`/upload` 加 size limit** (2026-05-10)
+  - `MAX_UPLOAD_SIZE = 200 MB` + content-length 預檢 + read 後二次防呆
+- [x] **`solve.py` 改 raise 取代 sys.exit** (2026-05-10)
+  - solve.py / scriptor.py / outliner.py / slide_ingest.py 全改 `raise RuntimeError`
+  - runner.py 兩處 `except (Exception, SystemExit)` 收回 `except Exception`
+  - core/youtube.py 那條 SystemExit catch 是 publish.py CLI 的 OAuth bootstrap, 留著
 
 ### P1 應補
-- [ ] **`PptxStyleRenderer.render` step_idx 越界防護**
-  - 損毀 deck 不該 IndexError 500, 該 raise 帶清楚訊息
-- [ ] **F5 seg WAV cleanup 移 finally**
-  - `tts_backend.py` `F5TTS.synthesize` 失敗路徑漏清 .f5segNNN.wav
-- [ ] **PublishReview 雙擊防呆**
-  - `onSubmit` 一進入立刻 setSubmitting(true) + button disabled
+- [x] **`PptxStyleRenderer.render` step_idx 越界防護** (2026-05-10)
+  - 缺 steps / step_idx 越界 → `raise ValueError` 帶清楚訊息
+- [x] **F5 seg WAV cleanup 移 finally** (2026-05-10)
+  - `tmp_files` list 收所有暫存 (seg / manifest / merged), finally 統一 unlink
+- [x] **PublishReview 雙擊防呆** (2026-05-10)
+  - `submittingRef` 同步擋雙擊 closure stale, button 加 isUploading 條件 disabled
 
 ---
 

@@ -329,7 +329,17 @@ class PptxStyleRenderer:
     """
 
     def render(self, data: dict, step_idx: int, out_p: Path, q_work: Path) -> None:
-        step = data["steps"][step_idx - 1]
+        # 防越界: 損毀 deck (step_idx 0 / 超過 steps 長度) 直接 raise 帶清楚訊息,
+        # 不讓 IndexError 透到 server runner 變成模糊的 500
+        steps = data.get("steps") or []
+        if not steps:
+            raise ValueError("deck data 沒有 steps, 無法 render")
+        if step_idx < 1 or step_idx > len(steps):
+            raise ValueError(
+                f"step_idx={step_idx} 越界 (有效範圍 1..{len(steps)}), "
+                f"deck 可能損毀或 caller 傳錯"
+            )
+        step = steps[step_idx - 1]
         palette = get_palette(data.get("theme"))
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])

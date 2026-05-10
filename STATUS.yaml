@@ -3,8 +3,8 @@ name_zh: 教學影片自動生成平台
 category: edtech
 progress: 95
 status: active
-last_updated: "2026-05-09"
-next_milestone: "v3.3 加分功能 (Phase 4 split-left, ideate.py 自動企劃) 或 v4 平台收斂 (Docker + persistent worker)"
+last_updated: "2026-05-10"
+next_milestone: "v3.3 Phase 4 split-left layout 或 v4 平台收斂 (Docker + persistent worker); P0 follow-ups (logging lock / utc_now / upload size / sys.exit refactor) 已完成"
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -56,6 +56,15 @@ key_metrics: |
   測試覆蓋: 140 tests (text_utils 22 / deck 25 / youtube 17 / jobs_store 32 /
   voices 13 / pptx_themes 13 / f5_split 13 / hardsub 6)
 
-  Code review (2026-05-09): 4 個 P0 + 4 個 P1, 詳見 docs/CODE_REVIEW.md.
-  關鍵 fix (logging lock / utc_now timezone / upload size limit / F5 seg cleanup)
-  排在 v3.3 動工時順手補。
+  Code review (2026-05-09) → P0 4 條 + P1 3 條全數修完 (2026-05-10):
+  P0:
+  - logging lock (threading.Lock 包 _job_handlers attach/detach)
+  - utc_now() tz-aware (Pydantic 吐 Z 字尾, 跨瀏覽器一致)
+  - /upload MAX_UPLOAD_SIZE 200MB (content-length 預檢 + read 後二次防呆)
+  - solve.py / scriptor.py / outliner.py / slide_ingest.py sys.exit → raise,
+    runner.py 兩條 SystemExit catch 收回為純 Exception
+  P1:
+  - PptxStyleRenderer 缺 steps / step_idx 越界 raise ValueError
+  - F5TTS.synthesize 暫存檔追蹤改 finally 統一 cleanup
+  - PublishReview submittingRef 同步擋雙擊 + button isUploading 條件 disabled
+  P2 (logger import / SRT 浮點 / tts_config gitignore) 評估後接受不修.

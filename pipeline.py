@@ -273,23 +273,32 @@ class SlideRenderer(Renderer):
             self._render_full(step, step_idx, out_p)
 
     def _render_full(self, step, step_idx, out_p):
-        """既有 layout: 投影片 letterbox-fit 整個 1920×900 (扣 180 字幕區)."""
+        """既有 layout: 投影片 letterbox-fit 進可視區 1920×900 (扣字幕帶 180px).
+
+        修正前 letterbox 用整個 1920×1080, 再蓋黑帶在 y=900..1080, 會把 slide
+        底部 16.7% 切掉 (例: x 軸標籤 / footer / 穩定區域字 全消失).
+        現在 letterbox 進 1920×900, 並居中於該區, slide 完整可見.
+        """
         canvas = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
+        # 可視區 (字幕帶之上)
+        SUBTITLE_BAND = 180
+        visible_h = HEIGHT - SUBTITLE_BAND   # 900
 
         bg_rel = step.get("bg_image", "")
         bg_path = _resolve_asset(bg_rel) if bg_rel else None
         if bg_path and bg_path.exists():
             slide = Image.open(bg_path).convert("RGB")
-            ratio = min(WIDTH / slide.width, HEIGHT / slide.height)
+            ratio = min(WIDTH / slide.width, visible_h / slide.height)
             sw, sh = max(1, int(slide.width * ratio)), max(1, int(slide.height * ratio))
             slide = slide.resize((sw, sh), Image.LANCZOS)
-            canvas.paste(slide, ((WIDTH - sw) // 2, (HEIGHT - sh) // 2))
+            # 居中於可視區 (不是整個 1080), 否則 slide 會被字幕帶蓋掉底部
+            canvas.paste(slide, ((WIDTH - sw) // 2, (visible_h - sh) // 2))
             print(f"[frame {step_idx:03d}] 🖼 slide: {bg_path.name} ({sw}x{sh})")
         else:
             print(f"[frame {step_idx:03d}] ⚠ slide 找不到: {bg_rel!r} (純黑底 fallback)")
 
         draw = ImageDraw.Draw(canvas)
-        draw.rectangle([0, HEIGHT - 180, WIDTH, HEIGHT], fill=(0, 0, 0))
+        draw.rectangle([0, HEIGHT - SUBTITLE_BAND, WIDTH, HEIGHT], fill=(0, 0, 0))
         _overlay_teacher_photo(canvas)
         canvas.save(out_p, "PNG")
 

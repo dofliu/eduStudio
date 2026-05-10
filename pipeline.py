@@ -255,10 +255,25 @@ def _resolve_asset(rel_or_abs: str) -> Path:
 
 
 class SlideRenderer(Renderer):
-    # layout="full": 投影片 letterbox-fit 到 1920×1080,
-    # 底部保留 180px 黑帶讓 SRT 字幕區與黑板模式視覺一致。
+    """投影片渲染器, 兩種 layout:
+
+    - layout="full" (預設): 投影片 letterbox-fit 到 1920×1080
+    - layout="split-left" (Phase 4): 左半放投影片縮小, 右半放 title + bullets
+      文字註解; 解題型投影片用, 老師可在右側列出該頁要點/算式
+
+    底部 180px 黑帶讓 SRT 字幕區與黑板模式視覺一致。
+    """
+
     def render(self, data, step_idx, out_p, q_work):
         step = data["steps"][step_idx - 1]
+        layout = (step.get("layout") or "full").strip().lower()
+        if layout == "split-left":
+            self._render_split_left(step, step_idx, out_p)
+        else:
+            self._render_full(step, step_idx, out_p)
+
+    def _render_full(self, step, step_idx, out_p):
+        """既有 layout: 投影片 letterbox-fit 整個 1920×900 (扣 180 字幕區)."""
         canvas = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
 
         bg_rel = step.get("bg_image", "")
@@ -273,8 +288,97 @@ class SlideRenderer(Renderer):
         else:
             print(f"[frame {step_idx:03d}] ⚠ slide 找不到: {bg_rel!r} (純黑底 fallback)")
 
-        # 字幕區黑帶, 與 BlackboardRenderer 對齊
         draw = ImageDraw.Draw(canvas)
+        draw.rectangle([0, HEIGHT - 180, WIDTH, HEIGHT], fill=(0, 0, 0))
+        _overlay_teacher_photo(canvas)
+        canvas.save(out_p, "PNG")
+
+    def _render_split_left(self, step, step_idx, out_p):
+        """Phase 4: 左半 (~940 寬) slide 縮放, 右半 (~920 寬) title + bullets.
+
+        Layout 常數參考 1920×1080 扣 180 底部字幕帶 = 0..900 內容區:
+          x=0..940     左半 slide 區 (含內距)
+          x=950..960   分隔線
+          x=970..1880  右半文字區 (title + bullets)
+          y=900..1080  字幕黑帶 (跟 _render_full / BlackboardRenderer 同位置)
+        """
+        canvas = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
+
+        # 左半: slide image
+        LEFT_X1, LEFT_Y1 = 20, 30
+        LEFT_X2, LEFT_Y2 = 940, HEIGHT - 180 - 30
+        left_w = LEFT_X2 - LEFT_X1
+        left_h = LEFT_Y2 - LEFT_Y1
+
+        bg_rel = step.get("bg_image", "")
+        bg_path = _resolve_asset(bg_rel) if bg_rel else None
+        if bg_path and bg_path.exists():
+            slide = Image.open(bg_path).convert("RGB")
+            ratio = min(left_w / slide.width, left_h / slide.height)
+            sw, sh = max(1, int(slide.width * ratio)), max(1, int(slide.height * ratio))
+            slide = slide.resize((sw, sh), Image.LANCZOS)
+            sx = LEFT_X1 + (left_w - sw) // 2
+            sy = LEFT_Y1 + (left_h - sh) // 2
+            canvas.paste(slide, (sx, sy))
+            print(f"[frame {step_idx:03d}] 🖼 split-left slide: {bg_path.name} ({sw}x{sh})")
+        else:
+            print(f"[frame {step_idx:03d}] ⚠ split-left slide 找不到: {bg_rel!r}")
+
+        draw = ImageDraw.Draw(canvas)
+
+        # 中間分隔線 (粉筆青, 對齊 BlackboardRenderer 配色)
+        DIVIDER_X = 955
+        draw.line(
+            [(DIVIDER_X, 30), (DIVIDER_X, HEIGHT - 180 - 30)],
+            fill=CHALK_TITLE, width=2,
+        )
+
+        # 右半: title + bullets (字級對齊 PptxStyleRenderer)
+        RIGHT_X = DIVIDER_X + 25
+        RIGHT_W = WIDTH - RIGHT_X - 30
+        TITLE_FONT_SIZE = 52
+        BULLET_FONT_SIZE = 32
+        BULLET_LINE_H = 44
+        title_font = _get_font(FONT_PATH, TITLE_FONT_SIZE)
+        bullet_font = _get_font(FONT_PATH, BULLET_FONT_SIZE)
+
+        y = 50
+        title = (step.get("title") or step.get("display") or "").strip()
+        if title:
+            y = draw_text_wrapped(
+                draw, (RIGHT_X, y), title, title_font,
+                CHALK_HIGHLIGHT, RIGHT_W, TITLE_FONT_SIZE + 8,
+            )
+            # 標題底線
+            draw.line(
+                [(RIGHT_X, y + 6), (RIGHT_X + 220, y + 6)],
+                fill=CHALK_HIGHLIGHT, width=3,
+            )
+            y += 36
+
+        bullets = step.get("bullets") or []
+        bullet_max_w = RIGHT_W - 32
+        content_y_max = HEIGHT - 180 - 30
+        for b in bullets:
+            text = (b or "").strip()
+            if not text:
+                continue
+            # 圓點 marker (對齊 bullet 第一行垂直中心)
+            marker_y = y + (BULLET_FONT_SIZE - 12) // 2
+            draw.ellipse(
+                [(RIGHT_X, marker_y), (RIGHT_X + 12, marker_y + 12)],
+                fill=CHALK_HIGHLIGHT,
+            )
+            y = draw_text_wrapped(
+                draw, (RIGHT_X + 28, y), text, bullet_font,
+                CHALK_WHITE, bullet_max_w, BULLET_LINE_H,
+            )
+            y += 14
+            # bullets 太多時截斷, 不壓到字幕區 (使用者要拆兩張投影片)
+            if y > content_y_max:
+                break
+
+        # 字幕黑帶, 與 _render_full / BlackboardRenderer 對齊
         draw.rectangle([0, HEIGHT - 180, WIDTH, HEIGHT], fill=(0, 0, 0))
         _overlay_teacher_photo(canvas)
         canvas.save(out_p, "PNG")

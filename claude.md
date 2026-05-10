@@ -74,12 +74,12 @@
 | v3.0 平台基礎 (PR-1 ~ PR-3e) | ✅ | v3.0a~g |
 | v3.1 平台合一 (PR-3f ~ PR-3m) | ✅ | v3.1 |
 | v3.2 基礎建設 (PR-4a/4b/4c) | ✅ | v3.2 |
-| v3.3 加分 (PR-5a Navy / 5b F5 預切句 / 5c 燒字幕) | ✅ 部份 | v3.3 |
-| v3.3 Phase 4 split-left layout | ⏳ 待做 | v3.3 |
-| **Code review follow-ups** (4 P0 + 4 P1) | 🔴 順手補 | TODO |
+| v3.3 加分 (PR-5a Navy / 5b F5 預切句 / 5c 燒字幕) | ✅ | v3.3 |
+| v3.3 Phase 4 split-left layout (Option A 靜態版) | ✅ | v3.3 |
+| **Code review follow-ups** (4 P0 + 3 P1) | ✅ | docs/CODE_REVIEW.md |
 | v4 平台收斂 (worker / Docker / ideate) | 📋 規劃 | v4 |
 
-**測試覆蓋**: 140 tests (text_utils 22, deck 25, youtube 17, jobs_store 32, voices 13, pptx_themes 13, f5_split 13, hardsub 6) + GitHub Actions CI 跑 4 組 matrix。
+**測試覆蓋**: 147 tests (text_utils 22, deck 27, youtube 17, jobs_store 32, voices 13, pptx_themes 13, f5_split 13, hardsub 6, slide_renderer 5) + GitHub Actions CI 跑 4 組 matrix。
 
 ## JSON Schema
 

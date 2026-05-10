@@ -4,7 +4,7 @@ category: edtech
 progress: 95
 status: active
 last_updated: "2026-05-10"
-next_milestone: "v3.3 Phase 4 split-left layout 或 v4 平台收斂 (Docker + persistent worker); P0 follow-ups (logging lock / utc_now / upload size / sys.exit refactor) 已完成"
+next_milestone: "v3.3 完整收尾 (Phase 4 + P0/P1 全清); 下一步 v4 平台收斂 (Docker + persistent worker) 或 ideate.py 自動內容企劃"
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -53,8 +53,14 @@ key_metrics: |
   - PR-5b: F5-TTS 中文預切句 (修「處」+「理與應用」mid-word 切錯)
   - PR-5c: 燒字幕進 MP4 選項 (UI checkbox + ffmpeg subtitles filter)
 
-  測試覆蓋: 140 tests (text_utils 22 / deck 25 / youtube 17 / jobs_store 32 /
-  voices 13 / pptx_themes 13 / f5_split 13 / hardsub 6)
+  v3.3 Phase 4 split-left layout 完成 (Option A 靜態版, 2026-05-10):
+  - SlideRenderer.render() 依 step.layout dispatch _render_full / _render_split_left
+  - 左半 940 寬投影片, 右半 920 寬 title + bullets, 字幕黑帶 180px
+  - core.deck.deck_to_exam_schema_slides 透傳 title + bullets (full 不讀, 保 schema 一致)
+  - SlideEditor 加 layout <select>, split-left 才顯示 bullets 編輯器
+
+  測試覆蓋: 147 tests (text_utils 22 / deck 27 / youtube 17 / jobs_store 32 /
+  voices 13 / pptx_themes 13 / f5_split 13 / hardsub 6 / slide_renderer 5)
 
   Code review (2026-05-09) → P0 4 條 + P1 3 條全數修完 (2026-05-10):
   P0:

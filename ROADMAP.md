@@ -276,9 +276,14 @@
 - [x] force_style: Microsoft JhengHei 22pt + BorderStyle=3
 - [x] 6 tests for command construction
 
-### Phase 4 split-left layout(待做)
-- [ ] `SlideRenderer` 加 `layout="split-left"`,投影片左 + 右半累積式 step
-- [ ] 解題型投影片需要(目前簡報講解類用 layout="full")
+### Phase 4 split-left layout ✅ (2026-05-10, Option A 靜態版)
+- [x] `SlideRenderer` 加 `layout="split-left"` 分支
+  - 左半 940 寬投影片縮放, 右半 920 寬 title + bullets, 字幕黑帶 180px
+  - 案內常數: DIVIDER_X=955, RIGHT_X=980, TITLE 52px, BULLET 32px
+- [x] `core.deck.deck_to_exam_schema_slides` 透傳 title + bullets (full 不讀, 保 schema 一致)
+- [x] `SlideEditor` 加 layout `<select>`, split-left 才顯示 bullets 編輯器
+- [x] 7 tests (5 dispatch + 2 deck passthrough); 140 → 147 tests
+- 未做: Option B 累積式 (section 共用一張題目圖 + 右側疊 step 行) — schema 大改, 等真有解題影片需求再評估
 
 ### 工程圖 AI 輔助(待做)
 - [ ] 自由體圖、彎矩圖、方塊圖、電路圖

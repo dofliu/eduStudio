@@ -90,15 +90,20 @@ def deck_to_exam_schema_slides(deck: dict) -> dict:
         section_title = section.get("title", "").strip()
         steps = []
         for slide in section.get("slides", []):
+            slide_title = (slide.get("title") or "").strip()
             steps.append({
                 # _section: 黑板模式才用得到, slide 模式不顯示但留著無妨
                 "_section": _shorten_section_label(section_title),
-                "display": (slide.get("title") or "").strip()
-                           or f"投影片",
+                "display": slide_title or "投影片",
                 "narration": (slide.get("narration") or "").strip(),
                 "bg_type": slide.get("bg_type") or "slide",
                 "bg_image": slide.get("bg_image"),
                 "layout": slide.get("layout") or "full",
+                # Phase 4 split-left 用 (full layout 不讀, 一律透傳保留 schema 一致):
+                # title 跟 display 重複 (split-left 用 title 才能還原 layout="full" 改回 split-left 時的原文),
+                # bullets 是 split-left 右半文字
+                "title": slide_title,
+                "bullets": list(slide.get("bullets") or []),
             })
         if not steps:
             continue

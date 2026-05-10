@@ -38,9 +38,12 @@
 ## 🟡 中優先(實戰打磨)
 
 ### Phase 4 split-left layout (留 v3.3)
-- [ ] **`SlideRenderer` 加 layout="split-left"** (從 v1.7 移過來)
-  - 投影片縮到左半,右半當黑板區疊累積式 step
-  - 解題型投影片需要
+- [x] **`SlideRenderer` 加 layout="split-left"** (2026-05-10, Option A 靜態版)
+  - 左半 940 寬投影片縮放, 右半 920 寬 title + bullets, 字幕黑帶 180px
+  - SlideEditor 加 layout 下拉, split-left 模式顯示 bullets 編輯器
+  - deck_to_exam_schema_slides 透傳 title + bullets, full layout 不讀但保 schema 一致
+  - 5 dispatch test + 2 deck passthrough test (140 → 147 tests)
+  - **未做**: Option B 累積式 (一張題目圖 + 多個 step 疊在右側), 真有解題影片需要再考慮
 
 ### 內容品質
 - [ ] **Gemini narration 截斷率 22%** (2026-05-07)

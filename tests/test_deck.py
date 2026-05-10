@@ -301,3 +301,46 @@ class TestDeckToExamSchemaSlides:
         step = exam["problems"][0]["steps"][0]
         assert step["bg_type"] == "slide"
         assert step["layout"] == "full"
+
+    def test_title_and_bullets_passthrough_for_split_left(self):
+        # Phase 4: split-left layout 要讀 step.title + step.bullets,
+        # deck → v1 exam 必須透傳這兩欄 (full layout 不讀, 但仍透傳保 schema 一致)
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1",
+                    "title": "傅立葉頻譜分析",
+                    "bullets": ["定義", "用途", "實例"],
+                    "narration": "n",
+                    "bg_image": "slides/x/p001.png",
+                    "layout": "split-left",
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        step = exam["problems"][0]["steps"][0]
+        assert step["layout"] == "split-left"
+        assert step["title"] == "傅立葉頻譜分析"
+        assert step["bullets"] == ["定義", "用途", "實例"]
+        # display 仍保持向後相容 (= title 或 "投影片")
+        assert step["display"] == "傅立葉頻譜分析"
+
+    def test_bullets_independent_copy(self):
+        # 透傳 bullets 不能跟原 slide 共用 list, 不然 caller mutate 會污染原 deck
+        original_bullets = ["a", "b"]
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1", "title": "x", "bullets": original_bullets,
+                    "narration": "n", "bg_image": "p.png",
+                    "layout": "split-left",
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        exam["problems"][0]["steps"][0]["bullets"].append("c")
+        assert original_bullets == ["a", "b"]    # 原 list 未被波及

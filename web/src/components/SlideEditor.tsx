@@ -31,13 +31,16 @@ export function SlideEditor({ slide, readOnly, onChange }: Props) {
   // 簡報模式 bullets / code 沒意義, 隱藏那些欄位讓畫面乾淨。
   const isSlideMode = !!slide.bg_image;
   const slideImgUrl = api.slideImageUrl(slide.bg_image);
+  // Phase 4: split-left 右半才會渲染 title + bullets, full 仍然只放投影片本身
+  const layout = slide.layout || 'full';
+  const showBulletsInSlideMode = isSlideMode && layout === 'split-left';
 
   return (
     <div className="bg-forest-bg border border-border rounded p-3 mb-3">
       <div className="font-mono text-xs text-ink-muted mb-2">
         {slide.id}
         {isSlideMode && (
-          <span className="ml-2 text-chalk-yellow">📊 簡報模式 ({slide.layout || 'full'})</span>
+          <span className="ml-2 text-chalk-yellow">📊 簡報模式 ({layout})</span>
         )}
       </div>
 
@@ -66,8 +69,25 @@ export function SlideEditor({ slide, readOnly, onChange }: Props) {
         />
       </div>
 
-      {/* 非簡報模式才顯示 bullets / code 欄位 (簡報這些不渲染, 隱藏避免誤導) */}
-      {!isSlideMode && (
+      {/* Phase 4: 簡報模式 layout 切換 (full = 投影片整版, split-left = 左圖右字) */}
+      {isSlideMode && (
+        <div className="mb-3">
+          <label className="field-label">Layout</label>
+          <select
+            className="field-input"
+            value={layout}
+            disabled={readOnly}
+            onChange={(e) => set('layout', e.target.value || 'full')}
+          >
+            <option value="full">full — 投影片整版</option>
+            <option value="split-left">split-left — 左圖 + 右側 title/bullets</option>
+          </select>
+        </div>
+      )}
+
+      {/* 非簡報模式 OR 簡報模式 + split-left 都顯示 bullets (split-left 的右半要靠它). */}
+      {/* 但 code/file_path 永遠不在簡報模式渲染, 簡報模式整段隱藏避免誤導. */}
+      {!isSlideMode ? (
         <>
           <div className="mb-3">
             <label className="field-label">Bullets</label>
@@ -121,7 +141,40 @@ export function SlideEditor({ slide, readOnly, onChange }: Props) {
             />
           </div>
         </>
-      )}
+      ) : showBulletsInSlideMode ? (
+        <div className="mb-3">
+          <label className="field-label">
+            Bullets <span className="normal-case font-normal text-ink-muted">(渲染在右半)</span>
+          </label>
+          <ul className="space-y-1.5">
+            {slide.bullets.map((b, i) => (
+              <li key={i} className="flex gap-1.5">
+                <input
+                  type="text"
+                  className="field-input flex-1"
+                  value={b}
+                  disabled={readOnly}
+                  onChange={(e) => setBullet(i, e.target.value)}
+                />
+                {!readOnly && (
+                  <button
+                    onClick={() => removeBullet(i)}
+                    className="btn btn-ghost"
+                    title="刪除"
+                  >
+                    ×
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {!readOnly && (
+            <button onClick={addBullet} className="btn btn-ghost mt-2">
+              + add bullet
+            </button>
+          )}
+        </div>
+      ) : null}
 
       <div className="mb-1">
         <div className="flex items-center justify-between mb-1">

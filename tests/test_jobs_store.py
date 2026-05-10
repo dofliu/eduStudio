@@ -126,6 +126,42 @@ class TestList:
         assert listed[2].id == rec1.id
 
 
+    def test_list_mixes_naive_and_aware_state_jsons(self, store, basic_request):
+        # Regression (2026-05-10): 既存 state.json 是舊版 utc_now 的 naive datetime,
+        # 新建 job 的 created_at 是 aware (P0 #4 fix). store.list() 要能 sort
+        # 兩種混存而不 TypeError. 修法是 schemas AwareDatetime AfterValidator 統一補 UTC.
+        import json
+        # 先建一個 aware (走正常 store.create 路徑)
+        rec_aware = store.create(basic_request)
+        # 再手寫一份 naive 的 state.json 模擬舊資料
+        legacy_id = "abc123def456"
+        legacy_dir = store.root / legacy_id
+        legacy_dir.mkdir(parents=True, exist_ok=True)
+        legacy = {
+            "id": legacy_id,
+            "source_type": "exam_pdf",
+            "source": {"path": "/legacy.pdf", "url": None},
+            "options": {},
+            "state": "done",
+            # 沒帶 tz 字尾 (naive ISO), 模擬 P0 #4 之前的格式
+            "created_at": "2026-05-09T10:00:00.000000",
+            "updated_at": "2026-05-09T10:30:00.000000",
+            "stages": [], "artifacts": [],
+        }
+        (legacy_dir / "state.json").write_text(
+            json.dumps(legacy), encoding="utf-8",
+        )
+        # 重新從磁碟 load → list(), 應該能 sort 兩筆 (一 naive 一 aware) 不 TypeError
+        new_store = JobStore(root=store.root)
+        listed = new_store.list()
+        assert len(listed) == 2
+        # 新建 job 比 legacy 晚, 應該排第一 (新到舊)
+        assert listed[0].id == rec_aware.id
+        assert listed[1].id == legacy_id
+        # legacy record 的 datetime 也已被 normalize 成 aware
+        assert listed[1].created_at.tzinfo is not None
+
+
 # ---------- Update ----------
 
 class TestUpdate:

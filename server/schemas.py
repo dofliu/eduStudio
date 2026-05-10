@@ -8,9 +8,24 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+
+
+# ---------- Datetime normalize helper ----------
+# 為什麼: 2026-05-10 utc_now() 從 datetime.utcnow() (naive) 換成 datetime.now(timezone.utc)
+# (aware) 後, 既存 state.json 裡寫的 naive ISO 字串 parse 進來變 naive datetime,
+# 跟新建 job 的 aware 混在一起時 sorted() / 比較會 TypeError. 這裡讀檔/組 model 時
+# 把 naive 一律當 UTC 補 tzinfo, 全程記憶體裡都是 aware, sort/比較 安全.
+
+def _ensure_aware_utc(v: datetime) -> datetime:
+    if v.tzinfo is None:
+        return v.replace(tzinfo=timezone.utc)
+    return v
+
+
+AwareDatetime = Annotated[datetime, AfterValidator(_ensure_aware_utc)]
 
 
 # ---------- Enums ----------
@@ -128,8 +143,8 @@ class StageInfo(BaseModel):
     """單一階段的執行紀錄,寫進 state.json 給 caller 與 debug 用。"""
     name: str
     state: str  # pending | running | done | failed
-    started_at: datetime | None = None
-    ended_at: datetime | None = None
+    started_at: AwareDatetime | None = None
+    ended_at: AwareDatetime | None = None
     error: str | None = None
 
 
@@ -165,8 +180,8 @@ class YoutubeUpload(BaseModel):
     url: str | None = None
     caption_id: str | None = None   # SRT captions.insert 結果
     progress_percent: int = 0       # 0~100, 上傳中由背景 task 更新
-    started_at: datetime | None = None
-    uploaded_at: datetime | None = None
+    started_at: AwareDatetime | None = None
+    uploaded_at: AwareDatetime | None = None
     error: str | None = None
     caption_error: str | None = None  # 字幕上傳失敗不致命, 影片仍可用
 
@@ -180,8 +195,8 @@ class JobRecord(BaseModel):
     source: JobSource
     options: JobOptions
     state: JobState
-    created_at: datetime
-    updated_at: datetime
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
     stages: list[StageInfo] = Field(default_factory=list)
     artifacts: list[Artifact] = Field(default_factory=list)
     error: str | None = None

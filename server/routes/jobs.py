@@ -121,16 +121,19 @@ async def update_draft(
     - awaiting_review: ingest 完成等人工 review (主路徑)
     - failed:          render 失敗後可改 deck.json 再重試 (PR-3j 加入,
                        避免使用者要從頭跑 ingest 30 分鐘)
+    - done:            已 render 完仍可改 + 用 section render (PR-4a) 重跑該章
+                       (例如: 切 layout=split-left 後想看新版 / 補錯字後重做一章).
+                       既有 mp4 會跟新 deck 不同步, caller 要自行重 render section.
 
     其他狀態擋住, 避免 race condition (例: rendering 中改 deck 會跟在跑的渲染衝突)。
     """
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    if rec.state not in (JobState.AWAITING_REVIEW, JobState.FAILED):
+    if rec.state not in (JobState.AWAITING_REVIEW, JobState.FAILED, JobState.DONE):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"目前狀態 {rec.state.value}, 僅 awaiting_review / failed 可改 deck",
+            f"目前狀態 {rec.state.value}, 僅 awaiting_review / failed / done 可改 deck",
         )
     JobStore.deck_path(job_id).write_text(
         json.dumps(body.deck, ensure_ascii=False, indent=2),

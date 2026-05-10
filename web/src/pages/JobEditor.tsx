@@ -160,9 +160,17 @@ export default function JobEditor() {
     );
   }
 
-  // PR-3j: failed 也可編輯 + retry render (deck.json 視為已 review)
-  const canEdit = job.state === 'awaiting_review' || job.state === 'failed';
+  // 可編輯狀態:
+  // - awaiting_review: 主路徑
+  // - failed: PR-3j retry render
+  // - done: 改 layout / 補錯字後用 section re-render 重跑該章 (mp4 會被新版蓋掉)
+  const canEdit =
+    job.state === 'awaiting_review' ||
+    job.state === 'failed' ||
+    job.state === 'done';
   const isRetry = job.state === 'failed';
+  // done 狀態 dirty 時 mp4 跟 deck 不同步, 提示 user 用 section re-render 更新
+  const showStaleArtifactWarning = job.state === 'done' && dirty;
 
   if (!draft) {
     return (
@@ -306,14 +314,17 @@ export default function JobEditor() {
         >
           {saving ? '...' : '💾 Save'}
         </button>
-        <button
-          onClick={onApprove}
-          disabled={!canEdit || saving}
-          className="btn btn-primary"
-          title={isRetry ? '清掉之前的錯誤, 用目前 deck.json 重新跑 render' : undefined}
-        >
-          {isRetry ? '🔄 重試 render' : '✓ Approve & Render'}
-        </button>
+        {/* Approve 對 done 狀態沒意義 (已 approved 過), 只在 awaiting_review / failed 顯示 */}
+        {job.state !== 'done' && (
+          <button
+            onClick={onApprove}
+            disabled={!canEdit || saving}
+            className="btn btn-primary"
+            title={isRetry ? '清掉之前的錯誤, 用目前 deck.json 重新跑 render' : undefined}
+          >
+            {isRetry ? '🔄 重試 render' : '✓ Approve & Render'}
+          </button>
+        )}
       </div>
 
       {/* PR-3j: 失敗 banner + 提示可直接重試 (不必重做 ingest) */}
@@ -327,11 +338,22 @@ export default function JobEditor() {
         </div>
       )}
 
+      {/* DONE 狀態改了 deck 但還沒重 render: 既有 mp4 跟新 deck 不同步, 提示 user */}
+      {showStaleArtifactWarning && (
+        <div className="bg-orange-50 border border-orange-300 rounded p-3 mb-4 text-sm">
+          <div className="font-semibold text-orange-800">⚠ Deck 已修改, 但 mp4 仍是舊版</div>
+          <div className="text-orange-700 mt-1">
+            修改不會自動重 render。先按 💾 Save 存 deck, 然後到底下對應章節點「重新渲染本章」。
+          </div>
+        </div>
+      )}
+
       {!canEdit && (
         <div className="bg-stone-100 border border-border rounded p-3 mb-4 text-sm text-ink-muted">
           目前 state=<code className="font-mono">{job.state}</code>, 為唯讀模式。僅
           <code className="font-mono mx-1">awaiting_review</code> /
-          <code className="font-mono mx-1">failed</code> 可儲存 / 重新 render。
+          <code className="font-mono mx-1">failed</code> /
+          <code className="font-mono mx-1">done</code> 可儲存 / 重新 render。
         </div>
       )}
 

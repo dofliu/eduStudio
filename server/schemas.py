@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -208,5 +208,9 @@ class JobListResponse(BaseModel):
 # ---------- Utility ----------
 
 def utc_now() -> datetime:
-    """統一 timestamp 來源,方便未來換 timezone-aware 處理。"""
-    return datetime.utcnow()
+    """統一 timestamp 來源, 一律帶 UTC tzinfo。
+
+    為什麼要 tz-aware: 寫進 state.json 的 ISO 字串會帶 +00:00, 前端 new Date(s)
+    才不會誤當本地時間 (差 8 小時)。從 datetime.utcnow() (naive) 改過來。
+    """
+    return datetime.now(timezone.utc)

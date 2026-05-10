@@ -22,7 +22,8 @@ import contextvars
 import json
 import logging
 import sys
-from datetime import datetime
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +41,7 @@ class JobJsonFormatter(logging.Formatter):
         # 從 contextvar 取 job_id (runner attach_job_log 時 set 過)
         job_id = current_job_id.get() or getattr(record, "job_id", None)
         payload: dict[str, Any] = {
-            "ts": datetime.utcnow().isoformat(timespec="milliseconds"),
+            "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
             "level": record.levelname,
             "logger": record.name,
             "msg": record.getMessage(),
@@ -61,7 +62,7 @@ class HumanFormatter(logging.Formatter):
     """stderr 用, 給開發者直接看 console."""
 
     def format(self, record: logging.LogRecord) -> str:
-        ts = datetime.utcnow().strftime("%H:%M:%S")
+        ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
         job_id = current_job_id.get() or getattr(record, "job_id", "")
         prefix = f"[{ts}] {record.levelname:5s} {record.name}"
         if job_id:
@@ -76,6 +77,9 @@ class HumanFormatter(logging.Formatter):
 
 _configured = False
 _job_handlers: dict[str, logging.Handler] = {}    # job_id → FileHandler
+# 保護 _job_handlers: 未來改 worker pool 可能多 task 同時 attach/detach,
+# 沒鎖會踩到 dict 同步改寫 (CPython GIL 雖然單 op 安全, 但 contains+set 不是 atomic)
+_job_handlers_lock = threading.Lock()
 
 
 def setup_logging(level: int = logging.INFO) -> None:
@@ -115,27 +119,29 @@ def attach_job_log(job_id: str, log_path: Path) -> None:
 
     log_path 父層必須先存在 (jobs/<id>/ 已被 JobStore 建好)。
     """
-    if job_id in _job_handlers:
-        return     # 重複 attach 視為已開, 不亂加 handler
+    with _job_handlers_lock:
+        if job_id in _job_handlers:
+            return     # 重複 attach 視為已開, 不亂加 handler
 
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-    handler.setFormatter(JobJsonFormatter())
-    handler.setLevel(logging.INFO)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+        handler.setFormatter(JobJsonFormatter())
+        handler.setLevel(logging.INFO)
 
-    # 只收 contextvar = 這個 job 的訊息
-    def _filter(record: logging.LogRecord) -> bool:
-        cur = current_job_id.get()
-        return cur == job_id
+        # 只收 contextvar = 這個 job 的訊息
+        def _filter(record: logging.LogRecord) -> bool:
+            cur = current_job_id.get()
+            return cur == job_id
 
-    handler.addFilter(_filter)
-    logging.getLogger().addHandler(handler)
-    _job_handlers[job_id] = handler
+        handler.addFilter(_filter)
+        logging.getLogger().addHandler(handler)
+        _job_handlers[job_id] = handler
 
 
 def detach_job_log(job_id: str) -> None:
     """背景 task 結束時呼叫, 把 handler 收掉避免 file descriptor 累積。"""
-    handler = _job_handlers.pop(job_id, None)
+    with _job_handlers_lock:
+        handler = _job_handlers.pop(job_id, None)
     if handler is not None:
         logging.getLogger().removeHandler(handler)
         try:

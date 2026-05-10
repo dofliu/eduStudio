@@ -167,7 +167,9 @@ def solve_with_gemini(pdf_path: Path) -> dict:
     
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數。")
+        # raise 不 sys.exit: server runner 要能用 except Exception 接住,
+        # 不該污染上層 task 的 exit semantics
+        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數。")
 
     client = genai.Client(api_key=api_key)
     images_b64 = pdf_to_images_b64(pdf_path)
@@ -191,10 +193,11 @@ def solve_with_gemini(pdf_path: Path) -> dict:
     try:
         exam_data = json.loads(raw_text1)
     except Exception as e:
-        print(f"❌ 第一階段 JSON 解析失敗: {e}")
         # 儲存錯誤內容供調試
         Path("gemini_error_identify.txt").write_text(raw_text1, encoding="utf-8")
-        sys.exit(1)
+        raise RuntimeError(
+            f"第一階段 JSON 解析失敗: {e} (raw 已存到 gemini_error_identify.txt)"
+        ) from e
 
     # 清掉 Pass 1 產生的 problem/exam_title 裡混進來的 LaTeX 標記 ($F_1$ 之類)
     if "exam_title" in exam_data:

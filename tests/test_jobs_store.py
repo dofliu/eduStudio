@@ -115,7 +115,7 @@ class TestList:
     def test_lists_in_created_at_desc(self, store, basic_request):
         import time
         rec1 = store.create(basic_request)
-        time.sleep(0.002)   # utc_now 用 datetime.utcnow() 微秒級, 防同時間戳
+        time.sleep(0.002)   # utc_now 微秒級時間戳, sleep 防同時間戳排序不穩
         rec2 = store.create(basic_request)
         time.sleep(0.002)
         rec3 = store.create(basic_request)

@@ -197,7 +197,7 @@ def script_repo(outline: dict, raw_content: dict) -> dict:
 
     api_key = get_gemini_api_key()
     if not api_key:
-        sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數")
+        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
 
     from google import genai
     from google.genai import types
@@ -255,7 +255,7 @@ def script_long_form(outline: dict, raw_content: dict) -> dict:
 
     api_key = get_gemini_api_key()
     if not api_key:
-        sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數")
+        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
 
     from google import genai
     from google.genai import types

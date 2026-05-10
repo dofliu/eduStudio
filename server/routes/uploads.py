@@ -20,7 +20,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
 from core.config import PROJECT_ROOT
 
@@ -39,6 +39,10 @@ router = APIRouter(prefix="/upload", tags=["uploads"])
 
 
 PDFS_DIR = PROJECT_ROOT / "pdfs"
+
+# 上傳大小上限 (bytes). 200 MB 大於合理教學 PDF, 小於記憶體炸點 (await file.read()
+# 整檔載入). 真要超過 200 MB 應走分塊上傳; 現階段不需要。
+MAX_UPLOAD_SIZE = 200 * 1024 * 1024
 
 # 檔名清理: 跟 Track A app.py 同套規則, 避免 path injection / Windows 保留字
 _FNAME_BAD = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
@@ -87,6 +91,7 @@ def _store() -> JobStore:
 
 @router.post("", response_model=CreateJobResponse, status_code=status.HTTP_201_CREATED)
 async def upload_and_create_job(
+    request: Request,
     file: UploadFile = File(..., description="PDF / MD / TXT 檔案"),
     source_type: SourceType = Form(..., description="exam_pdf / slides_pdf / document"),
     options_json: str = Form(
@@ -111,6 +116,20 @@ async def upload_and_create_job(
     if not file.filename:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "缺檔名")
 
+    # 預檢 Content-Length: 避免明顯超大檔吃 await file.read() 把記憶體打滿
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            cl = int(content_length)
+        except ValueError:
+            cl = None
+        if cl is not None and cl > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                f"檔案過大: {cl} bytes 超過上限 {MAX_UPLOAD_SIZE} bytes "
+                f"({MAX_UPLOAD_SIZE // (1024 * 1024)} MB)",
+            )
+
     # 解析 options
     try:
         opts_dict = json.loads(options_json) if options_json else {}
@@ -129,6 +148,13 @@ async def upload_and_create_job(
     target = _unique_target_path(PDFS_DIR, safe_name)
 
     contents = await file.read()
+    # client 沒帶 Content-Length 或謊報時, read() 後再檢一次 (防呆)
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"檔案過大: {len(contents)} bytes 超過上限 {MAX_UPLOAD_SIZE} bytes "
+            f"({MAX_UPLOAD_SIZE // (1024 * 1024)} MB)",
+        )
     if not contents:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "上傳的檔案是空的")
     target.write_bytes(contents)

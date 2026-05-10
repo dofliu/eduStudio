@@ -304,9 +304,9 @@ async def run_job(store: JobStore, job_id: str) -> None:
         logger.info("ingest 開始", extra={"stage": "ingest"})
         try:
             await _run_ingest(store, rec)
-        except (Exception, SystemExit) as e:
-            # 為什麼 catch SystemExit: solve.py 缺 GEMINI_API_KEY 時會 sys.exit(),
-            # 不接住整個 task 會悄悄掛掉 job 卻維持 ingesting 狀態
+        except Exception as e:
+            # solve.py / scriptor.py / outliner.py / slide_ingest.py 的 sys.exit
+            # 已改 raise RuntimeError, 不再需要 catch SystemExit
             logger.exception("ingest 失敗", extra={"stage": "ingest"})
             _end_stage_fail(store, job_id, str(e))
             store.update(job_id, state=JobState.FAILED, error=f"ingest 失敗: {e}")
@@ -368,7 +368,7 @@ async def _run_render_phase(
         try:
             rec = store.get(job_id)
             await _run_render(store, rec, section_id=section_id)
-        except (Exception, SystemExit) as e:
+        except Exception as e:
             logger.exception("render 失敗", extra={"stage": stage_name})
             _end_stage_fail(store, job_id, str(e))
             store.update(job_id, state=JobState.FAILED, error=f"render 失敗: {e}")

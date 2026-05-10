@@ -165,7 +165,7 @@ def detect_chapters_with_gemini(thumbs: list[bytes], total_pages: int) -> list[d
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數")
+        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
     client = genai.Client(api_key=api_key)
 
     parts = [types.Part.from_bytes(data=t, mime_type="image/png") for t in thumbs]
@@ -428,7 +428,7 @@ def ingest(pdf_path: Path, out_json: Path, *,
         from google import genai
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            sys.exit("❌ 缺少 GEMINI_API_KEY 環境變數")
+            raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
         client = genai.Client(api_key=api_key)
 
         for ch in chapters:

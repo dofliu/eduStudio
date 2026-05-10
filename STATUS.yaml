@@ -59,7 +59,7 @@ key_metrics: |
   - core.deck.deck_to_exam_schema_slides 透傳 title + bullets (full 不讀, 保 schema 一致)
   - SlideEditor 加 layout <select>, split-left 才顯示 bullets 編輯器
 
-  測試覆蓋: 147 tests (text_utils 22 / deck 27 / youtube 17 / jobs_store 32 /
+  測試覆蓋: 148 tests (text_utils 22 / deck 27 / youtube 17 / jobs_store 32 /
   voices 13 / pptx_themes 13 / f5_split 13 / hardsub 6 / slide_renderer 5)
 
   Code review Round 1 (2026-05-09): P0 4 + P1 3 條全數修完 (2026-05-10):

@@ -62,15 +62,17 @@ key_metrics: |
   測試覆蓋: 147 tests (text_utils 22 / deck 27 / youtube 17 / jobs_store 32 /
   voices 13 / pptx_themes 13 / f5_split 13 / hardsub 6 / slide_renderer 5)
 
-  Code review (2026-05-09) → P0 4 條 + P1 3 條全數修完 (2026-05-10):
-  P0:
-  - logging lock (threading.Lock 包 _job_handlers attach/detach)
-  - utc_now() tz-aware (Pydantic 吐 Z 字尾, 跨瀏覽器一致)
-  - /upload MAX_UPLOAD_SIZE 200MB (content-length 預檢 + read 後二次防呆)
-  - solve.py / scriptor.py / outliner.py / slide_ingest.py sys.exit → raise,
-    runner.py 兩條 SystemExit catch 收回為純 Exception
-  P1:
-  - PptxStyleRenderer 缺 steps / step_idx 越界 raise ValueError
-  - F5TTS.synthesize 暫存檔追蹤改 finally 統一 cleanup
-  - PublishReview submittingRef 同步擋雙擊 + button isUploading 條件 disabled
+  Code review Round 1 (2026-05-09): P0 4 + P1 3 條全數修完 (2026-05-10):
+  P0: logging lock / utc_now tz-aware / /upload size limit / sys.exit → raise
+  P1: PptxStyle 越界 / F5 seg cleanup / publish 雙擊
   P2 (logger import / SRT 浮點 / tts_config gitignore) 評估後接受不修.
+
+  Code review Round 2 (2026-05-10) — Round 1 漏抓 + 實戰才踩出的三條:
+  - AwareDatetime AfterValidator (P0 #4 沒做 schema migration, 既存 naive
+    state.json 與新 aware datetime 共存時 sorted() TypeError → GET /jobs 500)
+  - F5._lazy_init to_thread (1.35GB safetensors download 阻 event loop,
+    GET /jobs 全部 hang. Track A 多 process 沒踩, Track B 單一 process 踩)
+  - _render_full letterbox 進 visible_h = HEIGHT - 180 (slide 底部 16.7%
+    一直被字幕帶蓋掉, PR-3h 引入 SlideRenderer 就有, Phase 4 才注意到)
+  Lessons learned 三通則寫進 docs/CODE_REVIEW.md (改 schema type / sync I/O /
+  letterbox-fit), 給未來 v4 規劃參考.

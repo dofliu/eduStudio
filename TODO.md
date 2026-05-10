@@ -9,9 +9,26 @@
 
 ---
 
-## 🔴 高優先(Code review follow-ups, v3.3 動工時順手)
+## 🔴 高優先(實戰才浮現的後續, Round 2 review 抓出)
 
-獨立 review 報告: [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) (2026-05-09)
+完整 review + lessons-learned: [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) (2026-05-09 + 2026-05-10 Round 2)
+
+### Round 2 三條實戰補洞 ✅ 已修
+- [x] AwareDatetime AfterValidator (commit f3fca88, P0 #4 schema migration 漏洞)
+- [x] F5 _lazy_init `to_thread` (commit 318f5e8, sync I/O 阻 event loop)
+- [x] `_render_full` letterbox 進可視區 (commit 07c4a45, slide 底部 16.7% 被字幕帶蓋)
+
+### Round 2 殘留小事 (低頻, 看心情)
+- [ ] `_render_split_left` bullets 截斷時機: 越界檢查在已畫完之後 (CR Round 2 #1)
+- [ ] `tests/test_jobs_store.py` 165/174/176 用 `datetime.utcnow()` 風格不一致
+- [ ] README / ROADMAP 補一句:`07c4a45` 之後 _render_full slide 寬度小 16.7% (visual regression)
+- [ ] `tts_backend.py` 加 module-level docstring 強調「sync method 不能在 async 路徑直接呼叫」
+
+---
+
+## 🔴 已完成(Round 1 P0/P1, 2026-05-10)
+
+[docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) Round 1 (2026-05-09)
 
 ### P0 真該補
 - [x] **`core/logging_setup.py` `_job_handlers` 加 lock** (2026-05-10)

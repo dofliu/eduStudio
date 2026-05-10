@@ -215,7 +215,11 @@ class F5TTS(TTSBackend):
         # / .f5concat.txt / .f5merged.wav 在 OUTPUT_DIR (PR-5b 後若預切失敗會踩到)
         tmp_files: list[Path] = []
         try:
-            self._lazy_init()
+            # _lazy_init 第一次跑會去 huggingface_hub 下載 1.35GB safetensors (sync I/O),
+            # 直接在 async function 裡呼叫會卡死整個 event loop, GET /jobs / Library /
+            # 所有端點都 hang 到下載完. Track B 是單一 process 跑 server + render task,
+            # 必須丟 to_thread 不阻塞. (Track A 是分離 CLI process, 沒這問題.)
+            await asyncio.to_thread(self._lazy_init)
             # PR-5b: 先預切句, 每段 ≤ 30 字, 避免 F5 內部 batch 切到中文詞中間。
             # 短文 (≤ 30 字) 仍是單段, 行為跟舊版一致。
             segments = split_for_f5(text, max_chars=30)

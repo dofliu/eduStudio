@@ -8,6 +8,9 @@ interface Props {
 }
 
 const NARRATION_TARGET = { min: 100, max: 200, hardMax: 280 };
+// Phase 4: split-left 右半文字區能塞的 bullets 大概是 4~5 條 (多行) / 12 條 (單行) 上限,
+// 超過會被 renderer 靜默截斷。給編輯者一個 visible cue。
+const SPLIT_LEFT_BULLETS_SOFT_MAX = 5;
 
 export function SlideEditor({ slide, readOnly, onChange }: Props) {
   const set = <K extends keyof Slide>(key: K, value: Slide[K]) =>
@@ -144,8 +147,16 @@ export function SlideEditor({ slide, readOnly, onChange }: Props) {
       ) : showBulletsInSlideMode ? (
         <div className="mb-3">
           <label className="field-label">
-            Bullets <span className="normal-case font-normal text-ink-muted">(渲染在右半)</span>
+            Bullets{' '}
+            <span className="normal-case font-normal text-ink-muted">
+              (渲染在右半,建議 ≤ {SPLIT_LEFT_BULLETS_SOFT_MAX} 條,過多會被截斷)
+            </span>
           </label>
+          {slide.bullets.length > SPLIT_LEFT_BULLETS_SOFT_MAX && (
+            <div className="text-xs text-orange-700 mb-1">
+              ⚠ 目前 {slide.bullets.length} 條超出建議上限,渲染時最末幾條可能被截掉
+            </div>
+          )}
           <ul className="space-y-1.5">
             {slide.bullets.map((b, i) => (
               <li key={i} className="flex gap-1.5">

@@ -11,6 +11,23 @@
 使用方式:
     backend = load_tts_backend()
     await backend.synthesize(text, Path("out.mp3"))
+
+⚠️ async 路徑警告 (Round 2 lessons-learned #2)
+-----------------------------------------------
+Track B (server/) 是單一 FastAPI process, server 端點跟背景 render task 共用同一個
+event loop。本模組任何 sync I/O — `_lazy_init` 觸發的 1.35GB huggingface download、
+`subprocess.run` 跑 ffmpeg/edge-tts、大檔案 I/O — **絕對不能在 async function 裡
+直接呼叫**, 否則整個 server 卡死 (GET /jobs / Library / 所有端點 hang 數分鐘)。
+
+呼叫規則:
+- async 路徑 (server route / runner background task / `synthesize`):
+      `await asyncio.to_thread(self._sync_method, ...)`
+- sync 路徑 (CLI / pipeline.py 同步腳本): 直接呼叫即可
+
+踩過的洞 (commit 318f5e8): `F5TTS._lazy_init` 漏 `to_thread` 包, 第一次 F5 inference
+觸發 1.35GB safetensors download 阻塞整個 event loop。Track A (Flask 多 process)
+不會踩, Track B 一定踩。新增 TTS backend / model loader 前請看 docs/CODE_REVIEW.md
+Round 2 lessons-learned。
 """
 from __future__ import annotations
 

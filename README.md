@@ -18,7 +18,7 @@
 - **完整 React UI** (`port 8000`):上傳 / 編輯 / Library / YouTube 上傳審查 / 即時 log / 主題切換 / 燒字幕選項 / 單章重 render
 - **REST API**:非同步 job + 磁碟持久化 + per-job 結構化 log,排程器 / Webhook 友善
 - **YouTube 上傳通道**:OAuth 2.0 + resumable upload + SRT 字幕同步上傳 + 章節時間軸自動算
-- **140 tests + GitHub Actions CI**:Python 3.10/3.12 × Linux/Win 4 組 matrix
+- **148 tests + GitHub Actions CI**:Python 3.10/3.12 × Linux/Win 4 組 matrix
 
 ---
 
@@ -361,7 +361,7 @@ autoSolverVideo/
 │                        #   SlideEditor / StepEditor / ExamProblemsPanel /
 │                        #   VoicePicker / LogPanel
 │
-├── tests/               # PR-4b: pytest (140 tests, 8 modules)
+├── tests/               # PR-4b: pytest (148 tests, 9 modules)
 ├── docs/
 │   ├── CODE_REVIEW.md   # 2026-05-09 獨立審查結果, 4 P0 + 4 P1 follow-ups
 │   └── SESSION_HANDOFF.md  # 給下個 Claude session 接手用

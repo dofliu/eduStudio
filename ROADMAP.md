@@ -301,6 +301,15 @@
 
 詳細見 [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md)。
 
+### Round 2 hotfix(2026-05-10 實戰才踩)
+- [x] `AwareDatetime AfterValidator` — naive/aware datetime 共存防炸 (commit f3fca88)
+- [x] F5 `_lazy_init` 包 `asyncio.to_thread` — 1.35GB safetensors download 不阻 event loop (commit 318f5e8)
+- [x] `update_draft` 允許 `DONE` state — 接通 DONE section re-render (commit e372b7f)
+- [x] `_render_full` letterbox 縮 `HEIGHT - 180` 進可視區 — slide 底部 16.7% 不被字幕帶蓋 (commit 07c4a45)
+  - ⚠ **Visual regression**:fix 之前產出的 mp4 (含 `jobs/b40d51a96a07` 的 Chap05 4 支)
+    視覺比 fix 後大 17%,底部標籤/footer 被字幕帶覆蓋。要不要重 render 由用戶決定,
+    不重 render 也能用,只是底部缺失。
+
 ---
 
 ## v4 — 平台收斂與部署(規劃中)

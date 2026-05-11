@@ -4,7 +4,7 @@ JobStore 是核心狀態, 一旦壞掉所有 server 行為都崩, 所以這層 t
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -198,7 +198,7 @@ class TestStages:
     def test_add_stage(self, store, basic_request):
         rec = store.create(basic_request)
         store.add_stage(rec.id, StageInfo(
-            name="ingest", state="running", started_at=datetime.utcnow(),
+            name="ingest", state="running", started_at=datetime.now(timezone.utc),
         ))
         got = store.get(rec.id)
         assert len(got.stages) == 1
@@ -207,9 +207,9 @@ class TestStages:
     def test_update_last_stage(self, store, basic_request):
         rec = store.create(basic_request)
         store.add_stage(rec.id, StageInfo(
-            name="ingest", state="running", started_at=datetime.utcnow(),
+            name="ingest", state="running", started_at=datetime.now(timezone.utc),
         ))
-        store.update_last_stage(rec.id, state="done", ended_at=datetime.utcnow())
+        store.update_last_stage(rec.id, state="done", ended_at=datetime.now(timezone.utc))
         got = store.get(rec.id)
         assert got.stages[-1].state == "done"
         assert got.stages[-1].ended_at is not None

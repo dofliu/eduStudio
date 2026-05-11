@@ -312,26 +312,84 @@
 
 ---
 
-## v4 — 平台收斂與部署(規劃中)
+## v4 — 平台收斂與部署(2026-05-11 規劃排定)
 
-### 持久化 job worker
-- 取消 `asyncio.create_task` 即起即忘,改 SQLite + worker process
-- server 重啟能 resume 正在跑的 job
-- 候選:RQ / Celery / 自寫 thin worker
+> 短期任務追蹤在 [TODO.md](TODO.md#-下階段規劃2026-05-11-排定按投報率)。
+> 這裡是版本路線圖,完成項目打勾後保留以追溯決策歷史。
+>
+> 排序邏輯:投報率優先,先做能立即幫研究室擴張 + 部署可行性的(C / A),
+> 再上產品差異化(B / E),最後才是雲端化前置(D)。
 
-### Docker file + deploy 文件
-- 給雲端 / 學生協作用
-- 拆 web (建 image) + python (建 image) + nginx reverse proxy
+### v4 暖身 — `core/visuals.py` 集中 layout 常數 ✅ (2026-05-11, commit 8abfb2e)
+- [x] `SUBTITLE_BAND_HEIGHT` / `CONTENT_BOTTOM` / `SUBTITLE_STRIP_COLOR` 集中到 `core/visuals.py`
+- [x] pipeline.py / pptx_style.py 7 處 magic number 改 import
+- [x] `tests/test_visuals.py` 7 tests 鎖值 + cross-module 一致性 (148 → 155)
+- 為什麼: Round 2 lessons-learned #3「magic number 散一份, 改一處忘改另一處」根因處理
 
-### v2.1 — 自動內容企劃(`ideate.py`)
-- 掃 watched_folders → Gemini 分析 PDF → `proposals.json`
-- React UI 加企劃列表 + 核准
+---
+
+### 階段 1 — 短期 1~2 週
+
+#### C. Claude Code skill 包裝 (1~2 天) ✨ 建議先做
+- [ ] `pdf-to-video` skill: PDF → JSON → 暫停 review → render
+- [ ] `video-to-youtube` skill: 已 review 的 JSON → publish
+- [ ] skill metadata + README + 範例 PDF
+- [ ] 強制 review 點寫進 skill 規範 (接 P0 #4)
+- 價值: 研究室擴張 (Kiwi / Christian / 任何 repo 一鍵跑)
+- trade-off: 單機 skill 只能本地跑
+
+#### A. Docker + docker-compose (2~3 天)
+- [ ] Dockerfile (Python + FFmpeg + msjh.ttc 字型)
+- [ ] docker-compose.yml (server + 可選 nginx)
+- [ ] `web/` 建 image 階段 + production build
+- [ ] F5 GPU passthrough 文件 (nvidia-docker)
+- [ ] volume mount: jobs/ output/ uploads/ models/
+- 價值: 部署可行性 + 學生協作, 解 P0 #1 部分 (容器 restart policy)
+- trade-off: F5 GPU passthrough 跨平台不一致
+
+---
+
+### 階段 2 — 中期 2~3 週
+
+#### B. v2.1 `ideate.py` 自動內容企劃 (4~5 天)
+- [ ] `watched_folders/` 設計 + 路徑配置
+- [ ] Gemini 掃 PDF → 產 `proposals.json` (主題 / 片單建議)
+- [ ] React UI ProposalsList 頁 + 核准 / 否決 / 編輯
+- [ ] 核准 → 自動 create job
 - 詳見 [plan_youtube_agent.md](plan_youtube_agent.md) v2.1
+- 價值: 從「批次工具」升級成「自動內容企劃平台」
+- 風險: Gemini token 成本 / proposals 品質可能要二次篩
 
-### v2.2 — Claude Code skill 包裝
-- `pdf-to-video` skill:PDF → JSON → 暫停 review → render
-- `video-to-youtube` skill:已 review 的 JSON → publish
-- 強制 review 點(配合硬規則 #1)
+#### E. 工程圖 AI 輔助 (3~5 天, 可跟 B 平行)
+- [ ] Gemini 產 matplotlib / TikZ code → 本地執行畫圖
+- [ ] step `image` 欄位動態切圖
+- [ ] 圖類: 自由體圖、彎矩圖、方塊圖、電路圖
+- [ ] 失敗 fallback: 純文字描述
+- 價值: 材料力學 / 自動控制影片價值跳一階
+- 風險: 產 code 品質起伏大, 要 review 機制
+
+---
+
+### 階段 3 — 遠期(等真要上雲再做)
+
+#### D. 持久化 job worker (7~10 天, 要先列選型 RFC)
+- [ ] 技術選型 RFC: RQ / Celery / SQLite + 自寫 trade-off
+- [ ] schema migration 設計 (跟 P0 #3 一起做)
+- [ ] worker process 拆出 server, IPC 機制
+- [ ] server 重啟 resume 機制
+- 價值: 雲端化前置, 沒這個其他都白搭
+- trade-off: 架構複雜度跳一階, Kiwi / Christian 學習成本提高
+
+---
+
+### P0 結構性弱點(2026-05-11 辨識, 對應規劃)
+
+這四條是 v4 規劃的根因, 同步追蹤在 [TODO.md](TODO.md#-p0-結構性弱點2026-05-11-規劃時辨識影響可靠性--擴張性):
+
+- [ ] **#1 無 job 持久化** → 對應 階段 1 A (部分救) + 階段 3 D (根治)
+- [ ] **#2 sync I/O 阻 event loop 風險** → 沒人扛, 下次加 backend 順手解
+- [ ] **#3 schema migration 無框架** → 階段 3 D 一起做
+- [ ] **#4 無 review gate 強制機制** → 階段 1 C (skill 鎖死) + 階段 3 D (根治)
 
 ---
 

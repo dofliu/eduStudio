@@ -5,62 +5,94 @@
 規則:
 - 完成的打勾,定期把勾完的搬去 ROADMAP 或刪掉
 - 新增項目加日期當引用(方便追)
-- 優先度標示:🔴 高 / 🟡 中 / 🟢 低
+- 優先度標示:🌟 下階段重點 / 🔴 高 / 🟡 中 / 🟢 低
 
 ---
 
-## 🔴 高優先(實戰才浮現的後續, Round 2 review 抓出)
+## 🌟 下階段規劃(2026-05-11 排定,按投報率)
 
-完整 review + lessons-learned: [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) (2026-05-09 + 2026-05-10 Round 2)
+> 這是當前 active 工作清單,user 問「下一個做什麼」直接從這裡挑。
+> 階段 1 → 階段 2 → 階段 3 漸進,每階段內部可重排。
 
-### Round 2 三條實戰補洞 ✅ 已修
-- [x] AwareDatetime AfterValidator (commit f3fca88, P0 #4 schema migration 漏洞)
-- [x] F5 _lazy_init `to_thread` (commit 318f5e8, sync I/O 阻 event loop)
-- [x] `_render_full` letterbox 進可視區 (commit 07c4a45, slide 底部 16.7% 被字幕帶蓋)
+### 階段 1 — 短期 1~2 週
 
-### Round 2 殘留小事 (低頻, 看心情)
-- [ ] `_render_split_left` bullets 截斷時機: 越界檢查在已畫完之後 (CR Round 2 #1)
-- [ ] `tests/test_jobs_store.py` 165/174/176 用 `datetime.utcnow()` 風格不一致
-- [ ] README / ROADMAP 補一句:`07c4a45` 之後 _render_full slide 寬度小 16.7% (visual regression)
-- [ ] `tts_backend.py` 加 module-level docstring 強調「sync method 不能在 async 路徑直接呼叫」
+**C. Claude Code skill 包裝 `pdf-to-video`** (1~2 天) ✨ 建議先做
+- [ ] `pdf-to-video` skill: PDF → JSON → 暫停 review → render
+  - 強制 review point 寫進 skill 規範, 接 P0 #4
+- [ ] `video-to-youtube` skill: 已 review 的 JSON → publish
+- [ ] skill metadata + README + 範例 PDF
+- 價值: 研究室擴張 (Kiwi / Christian / 任何 repo 一鍵跑)
+- trade-off: 單機 skill 只能本地跑, 跨機器要走別的 hosting
+
+**A. Docker + docker-compose** (2~3 天)
+- [ ] Dockerfile (Python + FFmpeg + msjh.ttc 字型)
+- [ ] docker-compose.yml (server + 可選 nginx)
+- [ ] `web/` 建 image 階段 + production build
+- [ ] F5 GPU passthrough 文件 (nvidia-docker)
+- [ ] volume mount: jobs/ output/ uploads/ models/
+- [ ] 解 P0 #1 部分 (server 在容器內, restart policy 救基本場景)
+- 價值: 部署可行性 + 學生協作
+
+### 階段 2 — 中期 2~3 週
+
+**B. v2.1 `ideate.py` 自動內容企劃** (4~5 天)
+- [ ] `watched_folders/` 設計 + 路徑配置
+- [ ] Gemini 掃 PDF → 產 `proposals.json` (主題 / 片單建議)
+- [ ] React UI ProposalsList 頁 + 核准 / 否決 / 編輯
+- [ ] 核准 → 自動 create job
+- 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」
+- 風險: Gemini token 成本 / proposals 品質可能要二次篩
+
+**E. 工程圖 AI 輔助** (3~5 天, 可跟 B 平行)
+- [ ] Gemini 產 matplotlib / TikZ code → 本地畫圖
+- [ ] step `image` 欄位動態切圖
+- [ ] 圖類: 自由體圖、彎矩圖、方塊圖、電路圖
+- [ ] 失敗 fallback: 純文字描述
+- 價值: 材料力學 / 自動控制影片價值跳一階
+- 風險: 產 code 品質起伏大, 要 review 機制
+
+### 階段 3 — 遠期(等真要上雲再做)
+
+**D. 持久化 job worker** (7~10 天, 要先列選型 RFC)
+- [ ] 技術選型 RFC: RQ / Celery / SQLite + 自寫 trade-off
+- [ ] schema migration 設計 (跟 P0 #3 一起做)
+- [ ] worker process 拆出 server, IPC 機制
+- [ ] server 重啟 resume 機制
+- 價值: 雲端化前置, 沒這個其他都白搭
+- trade-off: 架構複雜度跳一階
+
+**F. 課程網站整合 / Moodle plugin** (10+ 天)
+- 學生掃 QR code → 跳該題目影片
+- 學期跑下來實際使用數據, 寫成 EdTech 論文
+- 工程量大, IAE 課程網站工作流要先 alignment
 
 ---
 
-## 🔴 已完成(Round 1 P0/P1, 2026-05-10)
+## 🔴 P0 結構性弱點(2026-05-11 規劃時辨識,影響可靠性 / 擴張性)
 
-[docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) Round 1 (2026-05-09)
+> 對個人使用 OK, 對「交給 Kiwi / Christian / 雲端」不可接受。
+> 這四條是上述規劃的根因,動 D 之前要先想清楚 #1 + #3 怎麼解。
 
-### P0 真該補
-- [x] **`core/logging_setup.py` `_job_handlers` 加 lock** (2026-05-10)
-  - `threading.Lock()` 包 attach/detach, 順手把 `datetime.utcnow()` 也換掉
-- [x] **`utc_now()` 帶 timezone** (2026-05-10)
-  - 改 `datetime.now(timezone.utc)`, Pydantic 序列化吐 `Z` 字尾, 跨瀏覽器都認
-- [x] **`/upload` 加 size limit** (2026-05-10)
-  - `MAX_UPLOAD_SIZE = 200 MB` + content-length 預檢 + read 後二次防呆
-- [x] **`solve.py` 改 raise 取代 sys.exit** (2026-05-10)
-  - solve.py / scriptor.py / outliner.py / slide_ingest.py 全改 `raise RuntimeError`
-  - runner.py 兩處 `except (Exception, SystemExit)` 收回 `except Exception`
-  - core/youtube.py 那條 SystemExit catch 是 publish.py CLI 的 OAuth bootstrap, 留著
-
-### P1 應補
-- [x] **`PptxStyleRenderer.render` step_idx 越界防護** (2026-05-10)
-  - 缺 steps / step_idx 越界 → `raise ValueError` 帶清楚訊息
-- [x] **F5 seg WAV cleanup 移 finally** (2026-05-10)
-  - `tmp_files` list 收所有暫存 (seg / manifest / merged), finally 統一 unlink
-- [x] **PublishReview 雙擊防呆** (2026-05-10)
-  - `submittingRef` 同步擋雙擊 closure stale, button 加 isUploading 條件 disabled
+- [ ] **#1 無 job 持久化** — `asyncio.create_task` 即起即忘, server 重啟 / Ctrl+C / Windows update 丟所有 job
+  - 候選: SQLite + 自寫 thin worker / RQ / Celery
+  - blocker: 雲端部署 / 長時間 batch 跑
+  - 對應規劃: 階段 1 A (Docker restart 部分救) → 階段 3 D (根治)
+- [ ] **#2 單一 process FastAPI 的 sync I/O 仍是炸雷** — F5 download 已踩 (commit 318f5e8), 下次加新 backend / model loader 高機率復發
+  - 候選: `core/async_safe.py` 裝飾器強制 `to_thread`, 加 lint 規則或 runtime guard
+  - 目前 mitigation: `tts_backend.py` docstring 警告 (commit 75bf434), 沒 enforcement
+  - 對應規劃: 沒人扛, 看下次加什麼順手解
+- [ ] **#3 schema migration 無框架** — Round 2 P0 #4 已踩 (naive↔aware datetime), 下次改型別還會踩
+  - 候選: Pydantic v2 migration validator pattern + 版本化 schema
+  - 加 regression test 模擬「混存舊新格式」
+  - 對應規劃: 階段 3 D 一起做 (worker 重啟要 reload state)
+- [ ] **#4 無 review gate 強制機制** — `require_review=True` 靠 server flag 擋, 測試/誤操作可繞
+  - 學術誠信底線, Kiwi / Christian 接手後是真風險
+  - 候選: schema 層強制 `awaiting_review` → `done` 轉換需 explicit approve event
+  - 對應規劃: 階段 1 C (skill 包裝順手鎖死) ; 階段 3 D schema 重整時根治
 
 ---
 
-## 🟡 中優先(實戰打磨)
-
-### Phase 4 split-left layout (留 v3.3)
-- [x] **`SlideRenderer` 加 layout="split-left"** (2026-05-10, Option A 靜態版)
-  - 左半 940 寬投影片縮放, 右半 920 寬 title + bullets, 字幕黑帶 180px
-  - SlideEditor 加 layout 下拉, split-left 模式顯示 bullets 編輯器
-  - deck_to_exam_schema_slides 透傳 title + bullets, full layout 不讀但保 schema 一致
-  - 5 dispatch test + 2 deck passthrough test (140 → 147 tests)
-  - **未做**: Option B 累積式 (一張題目圖 + 多個 step 疊在右側), 真有解題影片需要再考慮
+## 🟡 中優先(實戰打磨, 不急但會回頭做)
 
 ### 內容品質
 - [ ] **Gemini narration 截斷率 22%** (2026-05-07)
@@ -95,16 +127,6 @@
 
 ## 🟢 低優先(看時間)
 
-### v4 平台收斂
-- [ ] **Docker file + deploy 文件** — 給雲端 / 學生協作用
-- [ ] **持久化 job worker** — server 重啟可 resume(SQLite + worker)
-- [ ] **包成 Claude Code skill** — `pdf-to-video` / `video-to-youtube`
-- [ ] **v2.1 ideate.py** — watched_folders 自動企劃
-
-### 工程圖 AI 輔助
-- [ ] **Gemini → matplotlib / TikZ → 本地執行畫圖**(自由體圖、彎矩圖、方塊圖)
-- [ ] 步驟 `image` 欄位動態切圖
-
 ### 技術債
 - [ ] **`pipeline.py` 拆檔**(800+ 行,候選: render / tts / srt / photo overlay)
 - [ ] **`requirements.txt` 區分必要 / 選用** — fastapi 等 Track B 才用
@@ -118,6 +140,9 @@
 - [ ] **操作手冊給研究室助理** — Kiwi / Christian 接手用
 - [ ] **demo 影片** — YouTube 頻道開專區介紹這個系統
 
+### Round 2 殘留(實戰罕見不修)
+- [ ] `_render_split_left` bullets 截斷時機: 越界檢查在已畫完之後 (CR Round 2 #1)
+
 ---
 
 ## 已知問題(不修)
@@ -130,28 +155,30 @@
 
 ---
 
-## 已完成(最近 1~2 週,完整列表搬到 ROADMAP)
+## ✅ 最近完成(由新到舊)
 
-### v3.2 + 加分 (2026-05-09)
-- [x] PR-5c 燒字幕進 MP4 選項
-- [x] PR-5b F5 中文預切句(治本 mid-word 切錯)
-- [x] PR-5a Navy pptx 主題
-- [x] PR-4c structured logging + log panel
-- [x] PR-4b pytest 基底 + GitHub Actions CI (140 tests)
-- [x] PR-4a 單章 / 單題重 render
-- [x] docs/CODE_REVIEW.md 獨立審查 (4 P0 + 4 P1 follow-ups)
+### 2026-05-11
+- [x] **`core/visuals.py` 集中 layout 常數** (commit 8abfb2e) — v4 暖身, 解 Round 2 lessons-learned #3 根因
+  - `SUBTITLE_BAND_HEIGHT` / `CONTENT_BOTTOM` / `SUBTITLE_STRIP_COLOR` 集中
+  - pipeline.py / pptx_style.py magic number 7 處統一
+  - `tests/test_visuals.py` 7 tests 鎖值 + cross-module 一致性 (148 → 155 tests)
+- [x] **Round 2 殘留 5 件全清** (commit ad7f4e1 + 75bf434)
+  - `test_jobs_store.py` 三處 `datetime.utcnow()` → aware UTC
+  - `tts_backend.py` module-level docstring「sync method 不能在 async 路徑直接呼叫」
+  - `SlideEditor` split-left bullets 上限 UI hint (建議 ≤ 5 條)
+  - README / ROADMAP 補 `07c4a45` visual regression 註記
 
-### v3.1 平台合一 (2026-05-08~09)
-- [x] PR-3m Library 跨 job 影片總覽
-- [x] PR-3l 聲音 picker + 試聽
-- [x] PR-3k Track B PDF 上傳 (multipart)
-- [x] PR-3j FAILED 可編輯 + retry render
-- [x] hotfix Windows .js MIME (修 React UI 白畫面)
-- [x] PR-3i Track A redirect (預設 / → :8000/ui/)
-- [x] PR-3h slides_pdf 升 deck schema + 縮圖預覽
-- [x] PR-3g 考卷 v1 schema 接 React UI
-- [x] PR-3f Track B YouTube 上傳通道
-- [x] docs branch 重整文件對齊三輸入定位
+### 2026-05-10
+- [x] **Round 2 三條實戰補洞** (commit f3fca88 + 318f5e8 + 07c4a45)
+- [x] **Phase 4 split-left layout** (Option A 靜態版, commit 7b1eba2)
+- [x] **Round 1 P0+P1 follow-ups** (4 P0 + 3 P1, commit 7db9aab + e093720)
 
-### v3.0 平台基礎 (2026-05-07)
-- [x] PR-1 ~ PR-3e (core / FastAPI / repo+document+url 來源 / pptx 主題 / vanilla + React UI)
+### 2026-05-09
+- [x] **PR-5a/5b/5c v3.3 加分**: Navy 主題 / F5 中文預切句 / 燒字幕進 MP4
+- [x] **PR-4a/4b/4c v3.2 基礎建設**: 單章重 render / pytest CI / structured logging
+- [x] **docs/CODE_REVIEW.md** 獨立審查 (Round 1: 4 P0 + 4 P1)
+
+### 2026-05-08
+- [x] **PR-3f ~ PR-3m v3.1 平台合一**: YouTube 上傳 / 考卷編輯 / 簡報縮圖 / Library / 聲音切換 / PDF 上傳 / FAILED retry
+
+完整歷史見 [ROADMAP.md](ROADMAP.md)。

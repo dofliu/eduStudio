@@ -44,6 +44,11 @@ from core.config import (
     get_font_path,
     get_mono_font_path,
 )
+from core.visuals import (
+    CONTENT_BOTTOM,
+    SUBTITLE_BAND_HEIGHT,
+    SUBTITLE_STRIP_COLOR,
+)
 
 
 # ---------- Theme (PR-5a) ----------
@@ -88,8 +93,8 @@ THEMES: dict[str, Palette] = {
 
 DEFAULT_THEME = "forest"
 
-# 底部字幕黑帶 (跟既有 renderer 一致, 不依主題)
-SUBTITLE_STRIP = (0, 0, 0)
+# 底部字幕黑帶 — 跨 renderer 共用, 從 core.visuals 集中載入 (Round 2 lessons-learned #3)
+SUBTITLE_STRIP = SUBTITLE_STRIP_COLOR
 
 
 def get_palette(name: str | None) -> Palette:
@@ -111,9 +116,9 @@ FILE_HEADER_FONT_SIZE = 22 # 程式碼區塊上方 # filename
 # ---------- 版面常數 ----------
 
 BANNER_HEIGHT = 70
-SUBTITLE_STRIP_HEIGHT = 180   # 底部字幕區 (跟既有 renderer 一致)
+SUBTITLE_STRIP_HEIGHT = SUBTITLE_BAND_HEIGHT   # 別名, 對齊 core.visuals 集中版
 CONTENT_TOP = 90
-CONTENT_BOTTOM = VIDEO_HEIGHT - SUBTITLE_STRIP_HEIGHT  # 900
+# CONTENT_BOTTOM 由 core.visuals 提供, 值 = VIDEO_HEIGHT - SUBTITLE_BAND_HEIGHT (900)
 SIDE_MARGIN = 100             # 左右留白
 
 

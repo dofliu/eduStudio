@@ -19,6 +19,10 @@ from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
 from mutagen.mp3 import MP3
 from tts_backend import TTSBackend, load_tts_backend
+from core.visuals import (
+    CONTENT_BOTTOM,
+    SUBTITLE_STRIP_COLOR,
+)
 
 # ---------- 設定 ----------
 WIDTH, HEIGHT = 1920, 1080
@@ -182,7 +186,7 @@ class BlackboardRenderer(Renderer):
         # 字體大小:縮小 30~35% 騰出空間給更多步驟與更大的 SVG
         title_f, prob_f, step_f = _get_font(FONT_PATH, 22), _get_font(FONT_PATH, 40), _get_font(FONT_PATH, 46)
         PROB_LH, STEP_LH = 52, 56  # 行高配合字體縮小
-        STEP_Y_MAX = HEIGHT - 180
+        STEP_Y_MAX = CONTENT_BOTTOM
         draw.rectangle([0, STEP_Y_MAX, WIDTH, HEIGHT], fill=(0, 0, 0, 180))
         y = draw_text_wrapped(draw, (60, 20), data.get("title", ""), title_f, CHALK_TITLE, WIDTH-160, 28)
         y = draw_text_wrapped(draw, (60, y), data.get("subtitle", ""), title_f, CHALK_TITLE, WIDTH-160, 28)
@@ -280,9 +284,8 @@ class SlideRenderer(Renderer):
         現在 letterbox 進 1920×900, 並居中於該區, slide 完整可見.
         """
         canvas = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
-        # 可視區 (字幕帶之上)
-        SUBTITLE_BAND = 180
-        visible_h = HEIGHT - SUBTITLE_BAND   # 900
+        # 可視區 = 整個畫面扣字幕帶, 常數由 core.visuals 集中提供
+        visible_h = CONTENT_BOTTOM   # 900
 
         bg_rel = step.get("bg_image", "")
         bg_path = _resolve_asset(bg_rel) if bg_rel else None
@@ -298,7 +301,7 @@ class SlideRenderer(Renderer):
             print(f"[frame {step_idx:03d}] ⚠ slide 找不到: {bg_rel!r} (純黑底 fallback)")
 
         draw = ImageDraw.Draw(canvas)
-        draw.rectangle([0, HEIGHT - SUBTITLE_BAND, WIDTH, HEIGHT], fill=(0, 0, 0))
+        draw.rectangle([0, CONTENT_BOTTOM, WIDTH, HEIGHT], fill=SUBTITLE_STRIP_COLOR)
         _overlay_teacher_photo(canvas)
         canvas.save(out_p, "PNG")
 
@@ -315,7 +318,7 @@ class SlideRenderer(Renderer):
 
         # 左半: slide image
         LEFT_X1, LEFT_Y1 = 20, 30
-        LEFT_X2, LEFT_Y2 = 940, HEIGHT - 180 - 30
+        LEFT_X2, LEFT_Y2 = 940, CONTENT_BOTTOM - 30
         left_w = LEFT_X2 - LEFT_X1
         left_h = LEFT_Y2 - LEFT_Y1
 
@@ -338,7 +341,7 @@ class SlideRenderer(Renderer):
         # 中間分隔線 (粉筆青, 對齊 BlackboardRenderer 配色)
         DIVIDER_X = 955
         draw.line(
-            [(DIVIDER_X, 30), (DIVIDER_X, HEIGHT - 180 - 30)],
+            [(DIVIDER_X, 30), (DIVIDER_X, CONTENT_BOTTOM - 30)],
             fill=CHALK_TITLE, width=2,
         )
 
@@ -367,7 +370,7 @@ class SlideRenderer(Renderer):
 
         bullets = step.get("bullets") or []
         bullet_max_w = RIGHT_W - 32
-        content_y_max = HEIGHT - 180 - 30
+        content_y_max = CONTENT_BOTTOM - 30
         for b in bullets:
             text = (b or "").strip()
             if not text:
@@ -388,7 +391,7 @@ class SlideRenderer(Renderer):
                 break
 
         # 字幕黑帶, 與 _render_full / BlackboardRenderer 對齊
-        draw.rectangle([0, HEIGHT - 180, WIDTH, HEIGHT], fill=(0, 0, 0))
+        draw.rectangle([0, CONTENT_BOTTOM, WIDTH, HEIGHT], fill=SUBTITLE_STRIP_COLOR)
         _overlay_teacher_photo(canvas)
         canvas.save(out_p, "PNG")
 

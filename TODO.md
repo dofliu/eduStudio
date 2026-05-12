@@ -143,11 +143,14 @@
 - [ ] **`requirements.txt` 區分必要 / 選用** — fastapi 等 Track B 才用
 - [ ] **`core/scriptor.py` prompt 抽到 `prompts/`** — 555 行裡 prompt 占大半
 - [ ] **更多測試覆蓋** (CR 指出的並行 / 邊界):
-  - `test_runner_concurrent_section_render`
+  - [ ] `test_runner_concurrent_section_render` (需 asyncio TestClient + 真 runner mock, 暫緩)
   - [x] **`test_upload_oversized_pdf`** (2026-05-12 完成, 7 tests)
     - 涵蓋 size limit / 不支援 source_type / 空檔 / options_json 驗證
     - 第一個 FastAPI TestClient 整合測試, 為未來加更多 route 測試鋪路
-  - `test_burn_subtitles_windows_path`
+  - [x] **`test_burn_subtitles_windows_path`** (2026-05-12 完成, +4 tests)
+    - PureWindowsPath 防 D:/ 漏入 vf filter; burn_subtitles cwd 驗證;
+      失敗 cleanup 保留原 mp4; 成功 rename 行為
+    - test_hardsub.py 6 → 10 tests
 
 ### 文件
 - [ ] **操作手冊給研究室助理** — Kiwi / Christian 接手用

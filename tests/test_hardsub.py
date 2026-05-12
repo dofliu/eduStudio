@@ -1,7 +1,9 @@
 """PR-5c: 燒字幕 ffmpeg 指令組合 unit test (不跑 ffmpeg)."""
 from __future__ import annotations
 
-from pathlib import Path
+import subprocess
+from pathlib import Path, PureWindowsPath
+from unittest.mock import patch
 
 import pytest
 
@@ -67,3 +69,112 @@ class TestBuildHardsubCmd:
         assert "q1.hardsub.mp4" in cmd
         # 確實是最後一個參數 (output)
         assert cmd[-1] == "q1.hardsub.mp4"
+
+
+class TestWindowsPathSafety:
+    """CR 已知測試覆蓋盲點之一 (test_burn_subtitles_windows_path).
+
+    Windows OUTPUT_DIR 含冒號 (例 'D:\\Project\\...\\output') 是 subtitles
+    filter 跨平台 escape 規則差異的常見地雷. 邏輯靠 cwd=OUTPUT_DIR + 相對
+    檔名繞過, 這層測試確保未來重構不會「優化」回絕對路徑。
+    """
+
+    def test_cmd_no_windows_drive_letter_even_with_windows_workdir(self):
+        # 模擬 Windows: 用 PureWindowsPath 傳入, 確認回傳的 cmd 仍是相對檔名
+        win_dir = PureWindowsPath("D:/Project_CodingSimulation/output")
+        cmd = pipeline._build_hardsub_cmd("foo", win_dir)
+        vf = cmd[cmd.index("-vf") + 1]
+        # 任何形態的絕對路徑碎片都不該出現
+        assert "D:" not in vf
+        assert "\\" not in vf
+        assert "D:/" not in vf
+        # 仍然是相對檔名
+        assert "subtitles=foo.srt" in vf
+
+
+class TestBurnSubtitles:
+    """burn_subtitles wrapper 行為測試 (CR 已知盲點).
+
+    這個 wrapper 是 _build_hardsub_cmd 之外的另一層保險:
+    - 必須 cwd=OUTPUT_DIR (subtitles filter 解析相對檔名靠這個)
+    - 失敗時保留原 mp4 + 清掉殘留 hardsub.mp4
+    """
+
+    def test_subprocess_called_with_cwd_output_dir(self, monkeypatch, tmp_path):
+        """關鍵防禦: subprocess.run 一定要帶 cwd=OUTPUT_DIR.
+
+        沒這個的話 ffmpeg subtitles filter 解析的工作目錄是別處,
+        相對檔名 foo.srt 找不到 → ffmpeg 報錯 → 字幕燒不進去。
+        """
+        # 假裝 OUTPUT_DIR 換成 tmp_path, 模擬 Windows 含冒號路徑
+        mp4 = tmp_path / "foo.mp4"
+        hard = tmp_path / "foo.hardsub.mp4"
+        mp4.write_bytes(b"fake mp4")
+        hard.write_bytes(b"fake hardsub")  # 模擬 ffmpeg 成功產出
+
+        monkeypatch.setattr(pipeline, "OUTPUT_DIR", tmp_path)
+
+        captured = {}
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            captured["cwd"] = kwargs.get("cwd")
+            return subprocess.CompletedProcess(cmd, 0)
+        monkeypatch.setattr(subprocess, "run", fake_run)
+
+        pipeline.burn_subtitles("foo")
+
+        # 關鍵: cwd 一定是 OUTPUT_DIR, 不是 None / 隨機
+        assert captured["cwd"] == tmp_path
+        assert captured["cmd"][0] == "ffmpeg"
+
+    def test_failure_cleanup_preserves_original_mp4(self, monkeypatch, tmp_path):
+        """ffmpeg 失敗時應該保留原 mp4 + 清掉殘留 .hardsub.mp4.
+
+        失敗常見原因: 字型缺 / SRT 編碼壞 / 影片軌損毀. 不能因此把原 mp4 也丟。
+        """
+        mp4 = tmp_path / "foo.mp4"
+        hard = tmp_path / "foo.hardsub.mp4"
+        mp4.write_bytes(b"original")
+        hard.write_bytes(b"partial")  # ffmpeg 半成品
+
+        monkeypatch.setattr(pipeline, "OUTPUT_DIR", tmp_path)
+        # 模擬 ffmpeg 失敗
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *a, **kw: (_ for _ in ()).throw(
+                subprocess.CalledProcessError(1, a[0])
+            ),
+        )
+
+        pipeline.burn_subtitles("foo")  # 不應該 raise
+
+        # 原 mp4 必須還在 (內容不變)
+        assert mp4.exists()
+        assert mp4.read_bytes() == b"original"
+        # 殘留 hardsub 已清掉
+        assert not hard.exists()
+
+    def test_success_replaces_original_with_hardsub(self, monkeypatch, tmp_path):
+        """ffmpeg 成功時 foo.mp4 應該被 foo.hardsub.mp4 取代."""
+        mp4 = tmp_path / "foo.mp4"
+        hard = tmp_path / "foo.hardsub.mp4"
+        mp4.write_bytes(b"original")
+        # 假裝 ffmpeg 已經寫好 hardsub
+        monkeypatch.setattr(pipeline, "OUTPUT_DIR", tmp_path)
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *a, **kw: (
+                hard.write_bytes(b"with subs"),
+                subprocess.CompletedProcess(a[0], 0),
+            )[1],
+        )
+
+        pipeline.burn_subtitles("foo")
+
+        # 原 mp4 位置現在是 hardsub 版本內容
+        assert mp4.exists()
+        assert mp4.read_bytes() == b"with subs"
+        # .hardsub.mp4 已經 rename 走, 不該還在
+        assert not hard.exists()

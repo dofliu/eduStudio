@@ -40,3 +40,7 @@ web/.vite/
 web/*.tsbuildinfo
 web/vite.config.d.ts
 web/vite.config.js
+
+# Claude Code harness 運行狀態 (worktrees / session state 等)
+# 注意: .claude/commands/ 是專案層級 slash commands, 要追蹤, 不在這條 ignore 內
+.claude/worktrees/

@@ -15,8 +15,11 @@ from __future__ import annotations
 
 import pytest
 
-# 整支 module 都需要 fastapi.testclient + server.main, 任一缺就跳過 (CI 都有裝)
+# 整支 module 都需要 fastapi.testclient + python-multipart, 任一缺就跳過。
+# python-multipart 不裝會在 FastAPI Form/File 路由 collection 階段就炸,
+# 必須先 importorskip 才能避免擋住整個 pytest 收集 (commit 8548906 踩過)。
 pytest.importorskip("fastapi.testclient", reason="需要 fastapi 安裝")
+pytest.importorskip("multipart", reason="需要 python-multipart 才能測 FastAPI Form/File 路由")
 
 from fastapi.testclient import TestClient
 

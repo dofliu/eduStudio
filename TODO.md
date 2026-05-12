@@ -60,7 +60,15 @@
   - core/config.py 加 PROPOSALS_PATH / IDEATE_CONFIG_PATH 常數
   - 15 個新 tests (TestScanChangedFiles 9 + TestLoadSaveProposals 7, 共 21 ideate tests)
   - 172 → 187 tests
-- [ ] **iter 12**: `propose_from_file` (Gemini Vision call + parse) + mock tests
+- [x] **iter 12: propose_from_file** (2026-05-13 commit pending)
+  - 拆三個 helper: `_render_pdf_thumbs` (PyMuPDF, lazy import) /
+    `_call_gemini_vision` (genai client + Part.from_bytes 多模態) /
+    `_parse_proposals_response` (JSON parse + 容錯)
+  - 容錯一切失敗回 [] 不擋 batch (檔不存在 / 損毀 / API 失敗 / parse 失敗 / schema 錯)
+  - 順手: 截斷至 max_proposals_per_file / chapters 限 6 條 / reason 限 300 字 /
+    Markdown fence 自動 strip
+  - prompts/ideate_propose.txt — 依 source_type (exam/slides/document) 差異化提示
+  - 12 個新 mock tests (TestProposeFromFile), 198 → 209 tests
 - [ ] **iter 13**: `dedupe_against_jobs` (對 JobStore + YouTube + 前次 proposals) + tests
 - [ ] **iter 14**: server route `/proposals` + React UI ProposalsList 頁
 - 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」

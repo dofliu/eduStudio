@@ -35,31 +35,222 @@ class TestProposalStatusEnum:
 
 
 class TestStillStubbed:
-    """這些 stub 等 iter 12/13 才實作, 鎖簽名 + raise 行為."""
-
-    def test_propose_from_file_still_stub(self):
-        from core.ideate import FileCandidate, IdeateConfig, propose_from_file
-
-        candidate: FileCandidate = {
-            "path": "/x.pdf",
-            "source_type": "exam_pdf",
-            "mtime": 0.0,
-            "size_bytes": 0,
-        }
-        config: IdeateConfig = {
-            "watched_folders": [],
-            "llm_model": "gemini-2.5-flash",
-            "max_proposals_per_file": 3,
-            "enabled": True,
-        }
-        with pytest.raises(NotImplementedError):
-            propose_from_file(candidate, config)
+    """這些 stub 等 iter 13 才實作, 鎖簽名 + raise 行為."""
 
     def test_dedupe_against_jobs_still_stub(self):
         from core.ideate import dedupe_against_jobs
 
         with pytest.raises(NotImplementedError):
             dedupe_against_jobs([], None)  # type: ignore[arg-type]
+
+
+class TestProposeFromFile:
+    """propose_from_file (Gemini Vision) — mock 所有外部呼叫。"""
+
+    @pytest.fixture
+    def base_config(self):
+        from core.ideate import IdeateConfig
+
+        cfg: IdeateConfig = {
+            "watched_folders": [],
+            "llm_model": "gemini-2.5-flash",
+            "max_proposals_per_file": 3,
+            "enabled": True,
+        }
+        return cfg
+
+    @pytest.fixture
+    def fake_pdf(self, tmp_path):
+        p = tmp_path / "exam.pdf"
+        p.write_bytes(b"%PDF-1.4\nfake content")
+        return {
+            "path": str(p),
+            "source_type": "exam_pdf",
+            "mtime": 0.0,
+            "size_bytes": len(b"%PDF-1.4\nfake content"),
+        }
+
+    @pytest.fixture
+    def mock_io(self, monkeypatch):
+        """Mock thumbs render + Gemini call. 回 helper 讓 test 客製化 raw_json."""
+        from core import ideate
+
+        monkeypatch.setattr(
+            ideate, "_render_pdf_thumbs",
+            lambda path, max_pages=5: [b"\x89PNG fake"],
+        )
+
+        state = {"raw_json": ""}
+
+        def set_response(s: str):
+            state["raw_json"] = s
+
+        def fake_gemini(**kwargs):
+            return state["raw_json"]
+
+        monkeypatch.setattr(ideate, "_call_gemini_vision", fake_gemini)
+        return set_response
+
+    def test_missing_file_returns_empty(self, base_config):
+        from core.ideate import FileCandidate, propose_from_file
+
+        candidate: FileCandidate = {
+            "path": "/this/does/not/exist.pdf",
+            "source_type": "exam_pdf",
+            "mtime": 0.0,
+            "size_bytes": 0,
+        }
+        assert propose_from_file(candidate, base_config) == []
+
+    def test_non_pdf_returns_empty(self, tmp_path, base_config):
+        from core.ideate import FileCandidate, propose_from_file
+
+        md = tmp_path / "note.md"
+        md.write_text("# hi", encoding="utf-8")
+        candidate: FileCandidate = {
+            "path": str(md),
+            "source_type": "document",
+            "mtime": 0.0,
+            "size_bytes": md.stat().st_size,
+        }
+        # propose_from_file 目前只走 PDF (md/txt 沒 Vision path), 回 []
+        assert propose_from_file(candidate, base_config) == []
+
+    def test_thumbs_render_fail_returns_empty(self, fake_pdf, base_config, monkeypatch):
+        from core import ideate
+        from core.ideate import propose_from_file
+
+        def boom(*a, **kw):
+            raise RuntimeError("pymupdf failed")
+        monkeypatch.setattr(ideate, "_render_pdf_thumbs", boom)
+
+        assert propose_from_file(fake_pdf, base_config) == []
+
+    def test_gemini_raise_returns_empty(self, fake_pdf, base_config, monkeypatch):
+        from core import ideate
+        from core.ideate import propose_from_file
+
+        monkeypatch.setattr(
+            ideate, "_render_pdf_thumbs",
+            lambda *a, **kw: [b"\x89PNG"],
+        )
+
+        def boom(**kw):
+            raise RuntimeError("API limit")
+        monkeypatch.setattr(ideate, "_call_gemini_vision", boom)
+
+        assert propose_from_file(fake_pdf, base_config) == []
+
+    def test_happy_path_valid_json(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        mock_io('''
+{
+  "proposals": [
+    {
+      "suggested_title": "材料力學 第 3 題解析",
+      "suggested_chapters": [],
+      "reason": "計算多步, 學生易在彎矩計算錯",
+      "estimated_duration_min": 5
+    }
+  ]
+}
+        '''.strip())
+
+        result = propose_from_file(fake_pdf, base_config)
+        assert len(result) == 1
+        p = result[0]
+        assert p["suggested_title"] == "材料力學 第 3 題解析"
+        assert p["status"] == "pending"
+        assert p["source_file"] == fake_pdf["path"]
+        assert p["source_type"] == "exam_pdf"
+        assert p["estimated_duration_min"] == 5
+        assert p["job_id"] is None
+        # id 格式 prop_<timestamp>_NN
+        assert p["id"].startswith("prop_")
+
+    def test_invalid_json_returns_empty(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        mock_io("{ not valid json at all")
+        assert propose_from_file(fake_pdf, base_config) == []
+
+    def test_empty_response_returns_empty(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        mock_io("")
+        assert propose_from_file(fake_pdf, base_config) == []
+
+    def test_proposals_not_list_returns_empty(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        mock_io('{"proposals": "not a list"}')
+        assert propose_from_file(fake_pdf, base_config) == []
+
+    def test_truncated_to_max_proposals(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        # max_proposals_per_file=3, 但 Gemini 給 5 個
+        mock_io('''
+{
+  "proposals": [
+    {"suggested_title": "T1", "reason": "r1", "estimated_duration_min": 5},
+    {"suggested_title": "T2", "reason": "r2", "estimated_duration_min": 5},
+    {"suggested_title": "T3", "reason": "r3", "estimated_duration_min": 5},
+    {"suggested_title": "T4", "reason": "r4", "estimated_duration_min": 5},
+    {"suggested_title": "T5", "reason": "r5", "estimated_duration_min": 5}
+  ]
+}
+        '''.strip())
+
+        result = propose_from_file(fake_pdf, base_config)
+        assert len(result) == 3
+        titles = [p["suggested_title"] for p in result]
+        assert titles == ["T1", "T2", "T3"]
+
+    def test_empty_title_filtered(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        mock_io('''
+{
+  "proposals": [
+    {"suggested_title": "", "reason": "no title", "estimated_duration_min": 5},
+    {"suggested_title": "Real Title", "reason": "ok", "estimated_duration_min": 5}
+  ]
+}
+        '''.strip())
+
+        result = propose_from_file(fake_pdf, base_config)
+        assert len(result) == 1
+        assert result[0]["suggested_title"] == "Real Title"
+
+    def test_markdown_fence_stripped(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        mock_io('''```json
+{"proposals": [{"suggested_title": "T1", "reason": "r", "estimated_duration_min": 5}]}
+```''')
+        result = propose_from_file(fake_pdf, base_config)
+        assert len(result) == 1
+        assert result[0]["suggested_title"] == "T1"
+
+    def test_chapters_only_strings_up_to_six(self, fake_pdf, base_config, mock_io):
+        from core.ideate import propose_from_file
+
+        mock_io('''
+{
+  "proposals": [
+    {
+      "suggested_title": "Slides",
+      "suggested_chapters": ["c1", "c2", "c3", "c4", "c5", "c6", "c7"],
+      "reason": "r",
+      "estimated_duration_min": 15
+    }
+  ]
+}
+        '''.strip())
+        result = propose_from_file(fake_pdf, base_config)
+        assert len(result[0]["suggested_chapters"]) == 6  # 截斷
 
 
 class TestScanChangedFiles:

@@ -173,20 +173,169 @@ def propose_from_file(
 ) -> list[Proposal]:
     """Gemini Vision 看 PDF 首頁/目錄, 提出影片企劃。
 
-    iter 12 實作。
-
     參數:
-        candidate: 待分析的檔案
+        candidate: 待分析的檔案 (PDF only — md/txt 不走 vision)
         config: IdeateConfig, 取 llm_model + max_proposals_per_file
 
     回傳:
         list[Proposal], 最多 max_proposals_per_file 個 (PENDING 狀態)
 
-    錯誤處理:
-        - Gemini API 限流 / parse 失敗 → 回 [] (不擋批次)
-        - 檔案讀取失敗 → 回 [] + log warning
+    錯誤處理 (一律不 raise, 回 [] 不擋批次):
+        - 檔案不存在 / 不是 PDF: 回 []
+        - PyMuPDF 開檔失敗 (損毀 / 加密): 回 []
+        - Gemini API 限流 / parse 失敗 / 空回應: 回 []
+        - JSON parse / schema 不對: 回 []
     """
-    raise NotImplementedError("iter 12 補實作 (Gemini Vision call + JSON parse)")
+    path = Path(candidate["path"])
+    if not path.exists() or path.suffix.lower() != ".pdf":
+        return []
+
+    # 1. 讀前 5 頁 PDF, 渲染成縮圖 PNG bytes
+    try:
+        thumbs = _render_pdf_thumbs(path, max_pages=5)
+    except Exception:
+        return []
+    if not thumbs:
+        return []
+
+    # 2. 呼叫 Gemini Vision (容錯一切失敗)
+    try:
+        raw_json = _call_gemini_vision(
+            thumbs=thumbs,
+            filename=path.name,
+            source_type=candidate["source_type"],
+            max_proposals=config.get("max_proposals_per_file", 3),
+            model_name=config.get("llm_model", "gemini-2.5-flash"),
+        )
+    except Exception:
+        return []
+
+    # 3. Parse + build Proposal list
+    try:
+        return _parse_proposals_response(
+            raw_json=raw_json,
+            candidate=candidate,
+            max_proposals=config.get("max_proposals_per_file", 3),
+        )
+    except Exception:
+        return []
+
+
+def _render_pdf_thumbs(pdf_path: Path, max_pages: int = 5) -> list[bytes]:
+    """PDF 前 max_pages 頁 → 縮圖 PNG bytes (in-memory).
+
+    用 PyMuPDF, 不寫檔. 200 DPI 對 Gemini Vision 足夠 (再高 token 飆升)。
+    """
+    # lazy import 避免 module-level 強拉 pymupdf
+    import fitz  # type: ignore[import-untyped]
+
+    doc = fitz.open(pdf_path)
+    try:
+        thumbs: list[bytes] = []
+        for i, page in enumerate(doc):
+            if i >= max_pages:
+                break
+            # zoom = 1.5 約等於 1500px 寬, Gemini Vision 看得清楚又不爆 token
+            mat = fitz.Matrix(1.5, 1.5)
+            pix = page.get_pixmap(matrix=mat)
+            thumbs.append(pix.tobytes("png"))
+        return thumbs
+    finally:
+        doc.close()
+
+
+def _call_gemini_vision(
+    *,
+    thumbs: list[bytes],
+    filename: str,
+    source_type: str,
+    max_proposals: int,
+    model_name: str,
+) -> str:
+    """組 prompt + images, 呼叫 Gemini, 回 raw text。
+    這函式失敗會 raise (caller 在 try/except 接住)。
+    """
+    # lazy import — google-genai 是核心 dep 但 import 慢
+    from google import genai
+    from google.genai import types
+
+    from core.prompts_loader import load_prompt
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("缺 GEMINI_API_KEY")
+
+    prompt = load_prompt("ideate_propose").format(
+        filename=filename,
+        source_type=source_type,
+        max_proposals_per_file=max_proposals,
+    )
+
+    client = genai.Client(api_key=api_key)
+    parts = [types.Part.from_bytes(data=b, mime_type="image/png") for b in thumbs]
+    resp = client.models.generate_content(
+        model=model_name,
+        contents=parts + [prompt],
+        config=types.GenerateContentConfig(
+            temperature=0.3,         # 偏保守, 別亂編
+            max_output_tokens=4096,
+        ),
+    )
+    return (resp.text or "").strip()
+
+
+def _parse_proposals_response(
+    *,
+    raw_json: str,
+    candidate: FileCandidate,
+    max_proposals: int,
+) -> list[Proposal]:
+    """解析 Gemini 回應字串成 Proposal list。失敗會 raise (caller 接住回 [])。"""
+    # 處理 Gemini 偶爾包 markdown fence 的 case
+    text = raw_json.strip()
+    if text.startswith("```"):
+        # 抓 ``` ... ``` 中間 (跳過 ```json / ``` 標記)
+        import re as _re
+        m = _re.search(r"```(?:json)?\s*\n?(.*?)```", text, _re.DOTALL)
+        if m:
+            text = m.group(1).strip()
+    # 若 model 回的不是純 object, 嘗試抓第一個 {...} 區塊
+    if not text.startswith("{"):
+        first = text.find("{")
+        last = text.rfind("}")
+        if first == -1 or last == -1 or last <= first:
+            return []
+        text = text[first:last + 1]
+
+    data = json.loads(text)
+    raw_items = data.get("proposals") if isinstance(data, dict) else None
+    if not isinstance(raw_items, list):
+        return []
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    out: list[Proposal] = []
+    for i, item in enumerate(raw_items[:max_proposals]):
+        if not isinstance(item, dict):
+            continue
+        title = (item.get("suggested_title") or "").strip()
+        if not title:
+            continue
+        chapters = item.get("suggested_chapters") or []
+        if not isinstance(chapters, list):
+            chapters = []
+        out.append({
+            "id": f"prop_{int(time.time())}_{i:02d}",
+            "generated_at": now_iso,
+            "source_file": candidate["path"],
+            "source_type": candidate["source_type"],
+            "suggested_title": title,
+            "suggested_chapters": [str(c) for c in chapters][:6],
+            "reason": (item.get("reason") or "").strip()[:300],
+            "estimated_duration_min": int(item.get("estimated_duration_min", 5)),
+            "status": ProposalStatus.PENDING.value,
+            "job_id": None,
+        })
+    return out
 
 
 def dedupe_against_jobs(

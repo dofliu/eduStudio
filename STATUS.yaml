@@ -1,10 +1,10 @@
 name: autoSolverVideo
 name_zh: 教學影片自動生成平台
 category: edtech
-progress: 96
+progress: 97
 status: active
-last_updated: "2026-05-11"
-next_milestone: "v4 階段 1: Claude Code skill 包裝 (C, 1~2 天) → Docker + compose (A, 2~3 天); 階段 2 接 ideate.py (B) + 工程圖 AI (E); 階段 3 持久化 worker (D, 雲端化才做)"
+last_updated: "2026-05-13"
+next_milestone: "v4 階段 1 A Docker 等 user 本機實測; 階段 1 C skill scaffold 完成等實測; 階段 2 B ideate iter 12 propose_from_file 是下個主要工作"
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -59,9 +59,10 @@ key_metrics: |
   - core.deck.deck_to_exam_schema_slides 透傳 title + bullets (full 不讀, 保 schema 一致)
   - SlideEditor 加 layout <select>, split-left 才顯示 bullets 編輯器
 
-  測試覆蓋: 155 tests (text_utils 22 / deck 27 / youtube 17 / jobs_store 32 /
-  voices 13 / pptx_themes 13 / f5_split 13 / hardsub 6 / slide_renderer 5 /
-  visuals 7)
+  測試覆蓋: 198 tests / 12 modules (text_utils 22 / deck 27 / youtube 17 /
+  jobs_store 32 / voices 13 / pptx_themes 13 / f5_split 13 / hardsub 10 (+4) /
+  slide_renderer 5 / visuals 7 / upload 7 (新) / ideate 21 (新) /
+  prompts_loader 11 (新)) + GitHub Actions CI 4 組 matrix。
 
   Code review Round 1 (2026-05-09): P0 4 + P1 3 條全數修完 (2026-05-10):
   P0: logging lock / utc_now tz-aware / /upload size limit / sys.exit → raise
@@ -95,3 +96,18 @@ key_metrics: |
   - 階段 1: C Claude Code skill 包裝 → A Docker (1~2 週)
   - 階段 2: B ideate.py 自動企劃 + E 工程圖 AI (2~3 週)
   - 階段 3: D 持久化 worker (雲端化前置, 等真需要才做)
+
+  2026-05-12~13 /advance 自動化迭代進度 (14 commits, 全部綠燈):
+  - 階段 1 A Docker: Dockerfile v1 draft + docker-compose.yml v1 +
+    .env.example (commit d4b3b04 + 3fe99e3) — 等 user 本機實測
+  - 階段 1 C skill: pdf-to-video SKILL.md scaffold (commit 0e6cddb) — 等實測
+  - 階段 2 B ideate: scaffold + design RFC (commit f894b74) +
+    scan_changed_files / load/save_proposals (commit f533995) — propose_from_file
+    iter 12 是下個主要工作
+  - 技術債清理: tts_config gitignored / requirements 分層 + 修漏列 google-genai
+    / 死碼 deps 移除 / scriptor + outliner prompt 抽到 prompts/*.txt
+    (scriptor 555 → 434, outliner 432 → 343, 合計 -210 行)
+  - 測試補完 CR 已知盲點: test_upload +7 / test_hardsub +4
+  - CI 紅修兩條 (python-multipart / mutagen 缺裝)
+  - core/prompts_loader.py 新建 — load_prompt(lru_cache) + prompt_version(sha256)
+  - core/ideate.py 新建 — scan/save 實作, Gemini call 留 iter 12 補

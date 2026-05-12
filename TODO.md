@@ -164,7 +164,13 @@
   - 移除 requirements.txt 內 anthropic / pdfplumber / reportlab 註解區塊
   - 全 repo (.py / .md / .yaml / .json) re-grep 確認 0 production import
   - 留紀錄: 「已移除的 deps」段落寫進 requirements.txt 註解
-- [ ] **`core/scriptor.py` prompt 抽到 `prompts/`** — 555 行裡 prompt 占大半
+- [x] **`core/scriptor.py` prompt 抽到 `prompts/`** (2026-05-12 iter 13, commit pending)
+  - SECTION_PROMPT (88 行) → `prompts/scriptor_repo_section.txt`
+  - LONGFORM_SECTION_PROMPT (48 行) → `prompts/scriptor_longform_section.txt`
+  - 新建 `core/prompts_loader.py` — `load_prompt` (lru_cache) + `prompt_version` (sha256 前 8 字)
+  - scriptor.py 改用 loader, 既有 SECTION_PROMPT / LONGFORM_SECTION_PROMPT 名稱 alias 向後相容
+  - scriptor.py 555 → 434 行 (-22%)
+  - 8 個 prompts_loader tests + 1 個 scriptor backward-compat test (195 tests)
 - [ ] **更多測試覆蓋** (CR 指出的並行 / 邊界):
   - [ ] `test_runner_concurrent_section_render` (需 asyncio TestClient + 真 runner mock, 暫緩)
   - [x] **`test_upload_oversized_pdf`** (2026-05-12 完成, 7 tests)

@@ -33,6 +33,12 @@ PIPELINE_CONFIG_PATH = PROJECT_ROOT / "pipeline_config.json"
 TTS_CONFIG_PATH = PROJECT_ROOT / "tts_config.json"
 PRONUNCIATION_PATH = PROJECT_ROOT / "pronunciation.json"
 
+# v4 階段 2 B: 自動內容企劃 (core/ideate.py) 用
+# proposals.json 跟 job state.json 並列, 放 jobs/ 目錄但不是某個 job 的
+JOBS_DIR = PROJECT_ROOT / "jobs"
+PROPOSALS_PATH = JOBS_DIR / "proposals.json"
+IDEATE_CONFIG_PATH = PROJECT_ROOT / "ideate_config.yaml"
+
 
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)

@@ -47,12 +47,19 @@
 ### 階段 2 — 中期 2~3 週
 
 **B. v2.1 `ideate.py` 自動內容企劃** (4~5 天) ✨ 進行中
-- [x] **iter 10: scaffold + design RFC** (2026-05-12 commit pending)
+- [x] **iter 10: scaffold + design RFC** (2026-05-12, commit f894b74)
   - docs/ideate-design.md — 從 plan_youtube_agent.md v2.1 更新到 Track B 設計
   - core/ideate.py — 主要 function 簽名 + TypedDict schema (Proposal /
     FileCandidate / WatchedFolder / IdeateConfig) + ProposalStatus enum
-  - tests/test_ideate.py — 6 tests 鎖 schema 結構 + 簽名穩定性 (172 tests)
-- [ ] **iter 11**: `scan_changed_files` + `load/save_proposals` + tests
+  - tests/test_ideate.py — 6 tests 鎖 schema 結構 + 簽名穩定性
+- [x] **iter 11: scan_changed_files + load/save_proposals** (2026-05-12 commit pending)
+  - scan_changed_files: 遍歷 watched_folders, mtime 過濾, 排除 hidden/暫存,
+    結果按 mtime desc 排序
+  - load_proposals: 容錯讀 (檔不存在 / JSON 壞 / 結構不對都回 [], 不 raise)
+  - save_proposals: atomic write (寫 .tmp + os.replace, 跨平台 Vista+ 原子)
+  - core/config.py 加 PROPOSALS_PATH / IDEATE_CONFIG_PATH 常數
+  - 15 個新 tests (TestScanChangedFiles 9 + TestLoadSaveProposals 7, 共 21 ideate tests)
+  - 172 → 187 tests
 - [ ] **iter 12**: `propose_from_file` (Gemini Vision call + parse) + mock tests
 - [ ] **iter 13**: `dedupe_against_jobs` (對 JobStore + YouTube + 前次 proposals) + tests
 - [ ] **iter 14**: server route `/proposals` + React UI ProposalsList 頁

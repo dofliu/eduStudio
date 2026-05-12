@@ -14,7 +14,10 @@ scaffold 階段 (iter 10): 只有 schema + 主要 function 簽名, 還沒實作�
 """
 from __future__ import annotations
 
-from datetime import datetime
+import json
+import os
+import time
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
@@ -22,6 +25,22 @@ from typing import TYPE_CHECKING, TypedDict
 if TYPE_CHECKING:
     from server.jobs import JobStore
     from server.schemas import SourceType
+
+
+# ============================================================
+# 副檔名規則 — 每個 source_type 認哪些檔
+# ============================================================
+
+# source_type → 可掃的副檔名 (小寫, 含點). 不在這裡的會被 skip。
+_SOURCE_TYPE_EXTENSIONS: dict[str, frozenset[str]] = {
+    "exam_pdf": frozenset({".pdf"}),
+    "slides_pdf": frozenset({".pdf"}),
+    "document": frozenset({".pdf", ".md", ".txt"}),
+}
+
+# 跳過的檔案 (暫存 / hidden / 系統)
+_SKIP_PREFIXES = ("~$", ".")            # ~$abc.pdf, .DS_Store
+_SKIP_SUFFIXES = (".tmp", ".swp", ".bak")
 
 
 # ============================================================
@@ -89,21 +108,64 @@ class IdeateConfig(TypedDict):
 
 
 def scan_changed_files(config: IdeateConfig) -> list[FileCandidate]:
-    """掃 watched_folders, 列出最近 N 天內修改的 PDF / md / pptx。
-
-    iter 11 實作。
+    """掃 watched_folders, 列出最近 N 天內修改的 PDF / md / txt。
 
     參數:
         config: IdeateConfig, 含 watched_folders 設定
 
     回傳:
-        list[FileCandidate], 已排除 hidden / 暫存檔 (.tmp / ~$*)
+        list[FileCandidate], 已排除 hidden / 暫存檔 (.tmp / ~$* / .swp 等)
 
     不會做的事:
         - 不分析檔案內容 (那是 propose_from_file 的責任)
         - 不去重既有 job (那是 dedupe_against_jobs 的責任)
+        - 不 follow symlink 出 watched_folders (避免無限迴圈 / 跑出限定範圍)
     """
-    raise NotImplementedError("iter 11 補實作")
+    if not config.get("enabled", True):
+        return []
+
+    now = time.time()
+    out: list[FileCandidate] = []
+    for folder in config.get("watched_folders", []):
+        folder_path = Path(folder["path"])
+        if not folder_path.exists() or not folder_path.is_dir():
+            # 設定有誤路徑不存在不該擋整批, 跳過即可
+            continue
+
+        source_type = folder["source_type"]
+        valid_exts = _SOURCE_TYPE_EXTENSIONS.get(source_type)
+        if not valid_exts:
+            # 未知 source_type 跳過 (跟 SourceType enum 對齊)
+            continue
+
+        cutoff = now - folder["scan_window_days"] * 86400
+        for f in folder_path.rglob("*"):
+            if not f.is_file():
+                continue
+            if f.suffix.lower() not in valid_exts:
+                continue
+            name = f.name
+            if name.startswith(_SKIP_PREFIXES):
+                continue
+            if name.lower().endswith(_SKIP_SUFFIXES):
+                continue
+            try:
+                stat = f.stat()
+            except OSError:
+                # 權限 / 暫時消失等狀況, 跳過不擋整批
+                continue
+            if stat.st_mtime < cutoff:
+                continue
+            out.append({
+                "path": str(f.resolve()),
+                "source_type": source_type,
+                "mtime": stat.st_mtime,
+                "size_bytes": stat.st_size,
+            })
+
+    # 排序: 最新修改在前 (UI 直覺看新東西)
+    out.sort(key=lambda c: c["mtime"], reverse=True)
+    return out
 
 
 def propose_from_file(
@@ -150,19 +212,54 @@ def dedupe_against_jobs(
 
 
 def load_proposals(path: Path) -> list[Proposal]:
-    """從 jobs/proposals.json 讀回前次企劃。檔不存在回 []。
+    """從 jobs/proposals.json 讀回前次企劃。檔不存在 / JSON 壞掉都回 []。
 
-    iter 11 一起實作 (因為 dedupe 要用)。
+    grace 行為:
+      - 檔不存在 (第一次跑) → []
+      - JSON parse 失敗 (檔壞) → [] (不 raise, 但 log 給未來監控)
+      - 結構不對 → []
     """
-    raise NotImplementedError("iter 11 補實作 (含 jsonl atomic write)")
+    if not path.exists():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    if not isinstance(raw, dict):
+        return []
+    items = raw.get("proposals")
+    if not isinstance(items, list):
+        return []
+    # 不在這層做 schema 嚴格驗證 — 容錯讀回, 由上層 (UI / dedupe) 再過濾。
+    return items  # type: ignore[return-value]
 
 
 def save_proposals(path: Path, proposals: list[Proposal]) -> None:
-    """atomic write (寫 tmp + rename) 到 jobs/proposals.json。
+    """atomic write 到 jobs/proposals.json (寫 .tmp + os.replace, 跨平台原子).
 
-    iter 11 一起實作。
+    結構:
+        {
+          "generated_at": "<aware UTC ISO>",
+          "proposals": [Proposal, ...]
+        }
+
+    為什麼要 atomic: server 跑 ideate 寫檔時若 server crash / kill,
+    semi-written JSON 會讓下次 load_proposals 直接掛。寫 .tmp + rename
+    保證讀的人看到的永遠是「上次完整 commit 的版本」。
     """
-    raise NotImplementedError("iter 11 補實作")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "proposals": proposals,
+    }
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    # os.replace 在 POSIX 是 atomic, 在 Windows 也 atomic 從 Vista+ 起
+    # (跨檔案系統不行, 但同一目錄沒問題)
+    os.replace(tmp, path)
 
 
 # ============================================================

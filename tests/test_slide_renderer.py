@@ -9,7 +9,13 @@ from unittest.mock import patch
 
 import pytest
 
-from pipeline import SlideRenderer
+# pipeline.py 在頂部 import PIL / mutagen 等, CI 環境 (有裝 Pillow) 可以跑,
+# 但 mutagen 不在必要 deps 裡 — 跟 test_hardsub.py 一致用 importorskip 跳過。
+pipeline = pytest.importorskip(
+    "pipeline",
+    reason="pipeline.py 需要 PIL / mutagen, CI 沒裝就跳過",
+)
+SlideRenderer = pipeline.SlideRenderer
 
 
 def _step(layout: str | None) -> dict:

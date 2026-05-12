@@ -520,7 +520,10 @@ async def main(json_path, out_name, start_step=None):
         if start_step is None or i+1 >= start_step or not cp.exists(): build_clip(fp, ap, d, cp, q_work)
         clips.append(cp)
         
-    list_f = q_work / "concat.txt"; list_f.write_text("\n".join(f"file '{p.absolute().as_posix().replace('\\', '/')}'" for p in clips), encoding="utf-8")
+    # Py 3.10 不允許 f-string 表達式內含反斜線, 把 .replace('\\', '/') 拉出來算
+    posix_clips = [p.absolute().as_posix().replace("\\", "/") for p in clips]
+    list_f = q_work / "concat.txt"
+    list_f.write_text("\n".join(f"file '{path}'" for path in posix_clips), encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_f), "-c", "copy", str(OUTPUT_DIR / f"{out_name}.mp4")], check=True)
 
     srt, cue, t = [], 1, 0.0

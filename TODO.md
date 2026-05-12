@@ -75,7 +75,13 @@
   - 加 `_normalize_path` helper — Windows 大小寫不敏感 + 跨平台 / 統一
   - 10 個新 mock tests (FakeStore / FakeRecord / FakeUpload pattern)
   - 209 → 218 tests 全綠
-- [ ] **iter 14**: server route `/proposals` + React UI ProposalsList 頁
+- [x] **iter 14 第一半: server route /proposals** (2026-05-13 commit pending)
+  - `GET /proposals?only_pending=true` 列出待決策提案
+  - `POST /proposals/{id}/approve` 核准 → 走既有 schedule_job (不繞 require_review, P0 #4)
+  - `PATCH /proposals/{id}/ignore` 標 IGNORED 不建 job
+  - server/main.py 掛 proposals_routes.router
+  - 12 個新 tests (TestList 4 + TestApprove 5 + TestIgnore 3), 245 → 257 tests
+  - **未做**: React UI ProposalsList 頁 (留 iter 22), CLI run_ideate trigger (iter 23)
 - 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩
 

@@ -40,106 +40,17 @@ from .config import GEMINI_MODEL, get_gemini_api_key
 from .text_utils import clean_json_escapes, strip_latex
 
 
-# ---------- Prompt ----------
+# ---------- Prompt loaders ----------
+#
+# Prompts 抽到 prompts/*.txt, 走 core.prompts_loader 載入 + sha256 hash 追蹤。
+# 詳細設計見 iter 13 commit 1828ac5 (scriptor 也走同 infra)。
 
-OUTLINE_PROMPT_REPO = """你是一位資深的軟體工程師兼技術講師, 擅長把 GitHub 專案拆成易懂的講解大綱。
-你會收到一份 repo 的精簡內容 (檔案樹 + 主要檔案內容), 請設計一份 8~15 分鐘講解影片的章節大綱。
+from core.prompts_loader import load_prompt  # noqa: E402
 
-==== Repo 內容 ====
-專案名稱: {root_name}
-主要語言: {primary_language}
-語言分佈 (副檔名: bytes): {lang_stats}
-
-檔案樹:
-```
-{tree}
-```
-
-關鍵檔案內容 (依重要性排序):
-{key_files_section}
-
-==== 大綱設計原則 ====
-1. **章節數 4~6 章**, 每章對應一段 1.5~3 分鐘的講解 (約 5~10 張投影片)
-2. **第一章必為「專案目的」或「整體介紹」**, 讓觀眾理解 motivation 與大架構
-3. **最後一章必為「如何使用」或「下一步」**, 給觀眾具體 take-away
-4. **中間章節依重點分配** — 核心模組逐個介紹、關鍵流程拆解、特殊技術點
-5. **章節 title 簡潔 (4~12 字)**, intent 一句話 (不超過 30 字)
-6. **topics 列 3~6 個重點關鍵詞**, 不是完整句子
-7. **key_files 列出本章會引用的檔案路徑** (來自上面檔案樹), 沒對應就空 list
-8. **deck_title 用專案實際名稱 + 副標題** (例: "autoSolverVideo — 考卷檢討影片自動生成")
-9. **summary 1~2 句, 開場白用**, 描述「這個專案解決什麼問題」
-
-==== 嚴禁事項 ====
-- 不要 LaTeX、Markdown 標題、emoji
-- 不要編造 repo 裡不存在的檔案/功能 (key_files 必須真實存在)
-- 不要把 README 整段抄成 topics, 要提煉成關鍵詞
-
-==== 輸出格式 (嚴格) ====
-直接回 JSON object, 從 {{ 開頭到 }} 結尾, 不要 Markdown fence、不要前後說明文字:
-
-{{
-  "deck_title": "...",
-  "summary": "...",
-  "sections": [
-    {{
-      "id": "intro",
-      "title": "...",
-      "intent": "...",
-      "topics": ["...", "..."],
-      "key_files": ["README.md", "core/__init__.py"]
-    }}
-  ]
-}}
-"""
-
-
-# ---------- Long-form (document / url) prompt ----------
-
-OUTLINE_PROMPT_LONGFORM = """你是一位資深的講師, 擅長把長篇文件 (講義 / 部落格文章 / 報告) 拆成易懂的講解大綱。
-你會收到一份文件內容, 請設計一份 8~15 分鐘講解影片的章節大綱。
-
-==== 文件資訊 ====
-標題: {title}
-來源: {source_label}
-字數: {char_count}
-{source_extra}
-
-==== 文件內容 ====
-{content}
-
-==== 大綱設計原則 ====
-1. **章節數 4~6 章**, 每章對應一段 1.5~3 分鐘的講解 (約 5~10 張投影片)
-2. **第一章必為「主題引入」或「為什麼要看這個」**, 建立觀眾興趣
-3. **最後一章必為「重點回顧」或「延伸思考」**, 收束 take-away
-4. **中間章節依文件結構切**, 通常依小標 / 段落主題
-5. **章節 title 簡潔 (4~12 字)**, intent 一句話 (不超過 30 字)
-6. **topics 列 3~6 個重點關鍵詞**, 不是完整句子
-7. **deck_title 用文件實際標題或標題的精煉版** (不要硬抄 URL)
-8. **summary 1~2 句, 開場白用**, 描述「這份文件在講什麼 / 為什麼重要」
-
-==== 嚴禁事項 ====
-- 不要 LaTeX、Markdown 標題、emoji
-- 不要編造文件沒提到的內容; topics 必須是文件實際出現的概念
-- 不要把整段文字抄成 topics, 要提煉成關鍵詞
-- key_files 永遠回 [] (這是文件來源, 沒有檔案概念)
-
-==== 輸出格式 (嚴格) ====
-直接回 JSON object, 從 {{ 開頭到 }} 結尾, 不要 Markdown fence、不要前後說明文字:
-
-{{
-  "deck_title": "...",
-  "summary": "...",
-  "sections": [
-    {{
-      "id": "intro",
-      "title": "...",
-      "intent": "...",
-      "topics": ["...", "..."],
-      "key_files": []
-    }}
-  ]
-}}
-"""
+# 向後相容 alias — 既有 caller 用 OUTLINE_PROMPT_REPO / OUTLINE_PROMPT_LONGFORM
+# 不必動 .format() 用法
+OUTLINE_PROMPT_REPO = load_prompt("outliner_repo")
+OUTLINE_PROMPT_LONGFORM = load_prompt("outliner_longform")
 
 
 # ---------- Public API ----------

@@ -31,6 +31,25 @@ def test_load_scriptor_longform_section():
     assert "{document_content}" in prompt
 
 
+def test_load_outliner_repo():
+    from core.prompts_loader import load_prompt
+
+    prompt = load_prompt("outliner_repo")
+    assert "==== Repo 內容 ====" in prompt
+    assert "{root_name}" in prompt
+    assert "{tree}" in prompt
+    assert "{key_files_section}" in prompt
+
+
+def test_load_outliner_longform():
+    from core.prompts_loader import load_prompt
+
+    prompt = load_prompt("outliner_longform")
+    assert "==== 文件資訊 ====" in prompt
+    assert "{content}" in prompt
+    assert "{source_extra}" in prompt
+
+
 def test_load_missing_raises_with_clear_message():
     from core.prompts_loader import PromptNotFoundError, load_prompt
 
@@ -94,3 +113,14 @@ def test_scriptor_backward_compat_constants_loaded():
     assert len(scriptor.SECTION_PROMPT) > 100
     assert len(scriptor.LONGFORM_SECTION_PROMPT) > 100
     assert "{deck_title}" in scriptor.SECTION_PROMPT
+
+
+def test_outliner_backward_compat_constants_loaded():
+    """既有 OUTLINE_PROMPT_REPO / OUTLINE_PROMPT_LONGFORM 仍可用 (alias)。"""
+    pytest.importorskip("google.genai", reason="outliner module 依賴 google-genai")
+    from core import outliner
+
+    assert len(outliner.OUTLINE_PROMPT_REPO) > 100
+    assert len(outliner.OUTLINE_PROMPT_LONGFORM) > 100
+    assert "{root_name}" in outliner.OUTLINE_PROMPT_REPO
+    assert "{content}" in outliner.OUTLINE_PROMPT_LONGFORM

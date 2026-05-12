@@ -45,6 +45,7 @@ voices/*.mp3
 client_secret*.json
 youtube_token.json
 tts_config.json
+.env
 
 # 開發工具設定
 .vscode

@@ -67,6 +67,24 @@ python -m server.main
 # → http://localhost:8000  (自動 redirect 到 /ui/)
 ```
 
+### Docker(實驗中,v4 階段 1 A,本機未實測)
+
+```bash
+# 1. 環境變數範本
+cp .env.example .env       # 編輯填 GEMINI_API_KEY
+cp tts_config.example.json tts_config.json
+
+# 2. 一鍵啟動 (build + run)
+docker compose up -d --build
+# → http://localhost:8000/ui/
+
+# 停止 / 看 log
+docker compose logs -f server
+docker compose down                  # 保留 volume
+docker compose down -v               # 連 jobs/ volume 一起砍
+```
+F5 GPU passthrough、production reverse proxy、YouTube OAuth 安全 mount 待 iter 10+ 處理。
+
 ---
 
 ## 安裝需求

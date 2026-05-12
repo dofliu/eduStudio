@@ -1,0 +1,78 @@
+# autoSolverVideo Compose — v4 階段 1 A 第二步 (draft, 未實測)
+#
+# 用法:
+#   1. cp .env.example .env  # 填 GEMINI_API_KEY
+#   2. cp tts_config.example.json tts_config.json  # 預設 edge tts 即可
+#   3. docker compose up -d  # 背景啟動
+#   4. 瀏覽器開 http://localhost:8000/ui/
+#
+# 停止:
+#   docker compose down       # 停容器, 保留 volume
+#   docker compose down -v    # 連 volume 一起砍 (jobs 會清空)
+#
+# 已知未實測 (留下次):
+#   - F5 GPU passthrough (需 nvidia-docker, 看 user 機器有沒有)
+#   - YouTube OAuth client_secret 怎麼安全 mount (架構決策)
+#   - production reverse proxy (nginx + TLS)
+#   - log rotation (job log 長期跑會吃磁碟)
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: autosolvervideo:latest
+    container_name: autosolvervideo-server
+    restart: unless-stopped   # 解 P0 #1 部分: container 掛掉自動重啟
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+
+    # 容器內 /app/<dir> ↔ 宿主機 <dir>
+    # 所有 runtime 狀態都 mount 出來, 重建 image 不丟資料
+    volumes:
+      # job state + render artifacts (.json, .mp4, .srt) — 絕對不能進 image
+      - ./jobs:/app/jobs
+      - ./output:/app/output
+      - ./videos:/app/videos       # legacy Track A 輸出路徑, 仍會用
+      - ./work:/app/work           # 中間檔 (frame PNG / audio MP3 / clip MP4)
+
+      # 上傳 / 個人資源 — runtime mount 進去
+      - ./pdfs:/app/pdfs           # 上傳的 PDF
+      - ./slides:/app/slides       # slide_ingest 切的 PNG (大檔)
+      - ./photos:/app/photos       # 老師頭像 overlay (可選)
+      - ./voices:/app/voices       # F5 ref audio (用 F5 才需要)
+      - ./exams:/app/exams         # 考卷 JSON
+
+      # 設定檔 — read-only mount, 避免容器內被 server 改動寫回宿主機
+      - ./tts_config.json:/app/tts_config.json:ro
+      - ./pipeline_config.json:/app/pipeline_config.json:ro
+      - ./pronunciation.json:/app/pronunciation.json:ro
+
+      # F5 model cache — 1.35GB safetensors 第一次下載, 跨容器重啟保留
+      # 走 named volume, 不污染 repo
+      - hf-cache:/root/.cache/huggingface
+
+    # F5 GPU passthrough — 取消註解 + 確認有 nvidia-docker
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+    # Healthcheck 跟 Dockerfile 內定義對齊 (curl /health)
+    # 這裡覆寫一次, 方便外部監控腳本看 docker ps 狀態
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s   # cold start 含 web/dist 載入 + JobStore load
+      retries: 3
+
+volumes:
+  # F5 huggingface model cache — 跨容器重啟保留, 避免每次重建 image 都下載 1.35GB
+  hf-cache:
+    driver: local

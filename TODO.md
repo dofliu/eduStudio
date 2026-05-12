@@ -30,18 +30,19 @@
 - trade-off: 單機 skill 只能本地跑, 跨機器要走別的 hosting
 
 **A. Docker + docker-compose** (2~3 天) ✨ 進行中
-- [x] **Dockerfile v1 draft** (2026-05-12 commit pending) — 未實測, 待 user 跑 build
-  - Multi-stage: web-builder (Node 20) → final (Python 3.12-slim + FFmpeg + Noto CJK)
-  - .dockerignore 排除 runtime / 個人資源 / .git / __pycache__
-  - 字型走 Noto CJK (Linux 安裝的, 不是 Windows msjh.ttc 專屬)
-  - ENV: GEMINI_API_KEY runtime / CLAUDE_FONT_PATH 對齊 noto / TTS_PROVIDER=edge
-  - Healthcheck 走 /health
-- [ ] **下一步**: docker-compose.yml (volumes + ports + env_file + restart policy)
-- [ ] **下一步**: user 本機 docker build 實測, 修可能踩到的 deps / 字型問題
-- [ ] F5 GPU passthrough 文件 (nvidia-docker / --gpus all, 需 user 有 GPU 環境才能測)
-- [ ] production reverse proxy (nginx) — 等真要上雲時做
-- [ ] 解 P0 #1 部分 (server 在容器內, restart policy 救基本場景)
-- 價值: 部署可行性 + 學生協作
+- [x] **Dockerfile v1 draft** (2026-05-12, commit d4b3b04)
+- [x] **docker-compose.yml v1 draft** (2026-05-12, commit pending)
+  - volumes 全 mount runtime 狀態 (jobs/ output/ pdfs/ etc) + tts_config.json ro mount
+  - hf-cache named volume 保存 F5 model 跨容器重啟
+  - restart: unless-stopped (解 P0 #1 部分 — server 掛掉自動重啟)
+  - F5 GPU passthrough section 註解, user 取消即可開
+- [x] **.env.example** 範本 + .gitignore + .dockerignore 排除 .env (commit pending)
+- [x] **README quick-start** 補 Docker compose up 流程 (commit pending)
+- [ ] **下一步**: user 本機 `docker compose up --build` 實測, 修可能踩到的問題
+- [ ] F5 GPU passthrough 實測 (nvidia-docker, 需 user 有 GPU 環境)
+- [ ] production reverse proxy (nginx + TLS) — 等真要上雲時做
+- [ ] YouTube OAuth client_secret 安全 mount 模式 — STOP 條件, 等用戶決策
+- 價值: 部署可行性 + 學生協作 + P0 #1 部分解 (restart policy)
 
 ### 階段 2 — 中期 2~3 週
 

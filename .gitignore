@@ -52,3 +52,7 @@ web/vite.config.js
 # 個人 TTS 設定 — server / smoke test 會改它, 容易誤 commit (踩過兩次)。
 # 範本見 tts_config.example.json, 第一次 clone 後 copy 即可。
 tts_config.json
+
+# 環境變數 — 含 GEMINI_API_KEY 等 secrets, 絕不 commit
+# 範本見 .env.example
+.env

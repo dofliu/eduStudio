@@ -343,10 +343,14 @@
 #### A. Docker + docker-compose (2~3 天) ✨ 進行中
 - [x] **Dockerfile v1 draft** (2026-05-12) — multi-stage (Node 20 → Python 3.12-slim
       + FFmpeg + Noto CJK), .dockerignore, ENV 配字型, healthcheck /health
-- [ ] docker-compose.yml (volumes / ports / env_file / restart policy)
-- [ ] user 本機 build 實測 (我跑不了 docker, 要 user 確認)
-- [ ] F5 GPU passthrough 文件 (nvidia-docker, 需 GPU 環境)
-- [ ] production reverse proxy (nginx) — 等上雲時做
+- [x] **docker-compose.yml v1 draft** (2026-05-12) — volumes 全 mount runtime,
+      hf-cache named volume 保留 F5 model, restart: unless-stopped 解 P0 #1 部分
+- [x] **.env.example + 補 .gitignore .env** (2026-05-12)
+- [x] **README 補 Docker quick-start** (2026-05-12)
+- [ ] user 本機 docker compose up --build 實測 (跨平台)
+- [ ] F5 GPU passthrough 實測 (nvidia-docker)
+- [ ] production reverse proxy (nginx + TLS) — 等上雲時做
+- [ ] YouTube OAuth client_secret 安全 mount — STOP 條件, 等用戶決策
 - 價值: 部署可行性 + 學生協作, 解 P0 #1 部分 (容器 restart policy)
 - trade-off: 字型用 Noto CJK 不是 msjh.ttc (Windows 專屬), 視覺微差但跨平台
 

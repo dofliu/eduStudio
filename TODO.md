@@ -110,8 +110,9 @@
   - 產 F5 ref 用的朗讀腳本(10~12 秒、抑揚頓挫)
 
 ### UI / UX
-- [ ] **LogPanel auto-scroll 在 user 上滑時打斷** (CR P2 #10)
-  - detect scrolledToBottom, 只在底端時 auto-scroll
+- [x] **LogPanel auto-scroll 在 user 上滑時打斷** (CR P2 #10, 2026-05-12 完成)
+  - pinnedToBottomRef + onScroll handler, 距底 < 5px 才視為 pinned 才 auto-scroll
+  - 開啟 panel 時 reset pin = true (上次閱讀位置不跨開關週期)
 - [ ] **上傳審查頁 SRT 重生成預覽**(若 user 手動編了 narration 後)
 - [x] **`tts_config.json` 容易誤 commit** (CR P2 #9, 2026-05-12 完成)
   - 加 .gitignore + tts_config.example.json 範本 + README quick-start copy 步驟

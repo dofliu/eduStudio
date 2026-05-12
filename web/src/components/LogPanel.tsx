@@ -28,6 +28,9 @@ export function LogPanel({ jobId, jobState }: Props) {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // 用戶是否還貼在底部 — 上滑閱讀歷史時設 false, 新 log 進來就不打斷.
+  // (CR Round 1 P2 #10) 預設 true, 開啟時也會 reset 成 true.
+  const pinnedToBottomRef = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,12 +54,28 @@ export function LogPanel({ jobId, jobState }: Props) {
     return undefined;
   }, [open, jobState, load]);
 
-  // 新 log 進來時自動滾到底
+  // 開啟 panel 時強制 scroll-to-bottom + reset pin (上次的閱讀位置不跨開關週期)
   useEffect(() => {
-    if (open && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const el = scrollRef.current;
+    if (!open || !el) return;
+    el.scrollTop = el.scrollHeight;
+    pinnedToBottomRef.current = true;
+  }, [open]);
+
+  // 新 log 進來時只在 user 還貼在底部才 auto-scroll, 上滑閱讀時不打斷
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!open || !el || !pinnedToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [entries, open]);
+
+  // 用戶滾動時更新 pin 狀態. 距底 < 5px 視為 pinned (浮點誤差容忍).
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    pinnedToBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 5;
+  }, []);
 
   const isLive = LIVE_STATES.includes(jobState);
 
@@ -84,6 +103,7 @@ export function LogPanel({ jobId, jobState }: Props) {
       {open && (
         <div
           ref={scrollRef}
+          onScroll={handleScroll}
           className="border-t border-border bg-stone-50 max-h-96 overflow-y-auto p-2 font-mono text-xs"
         >
           {loading && entries.length === 0 && (

@@ -139,7 +139,9 @@
 - [ ] **`core/scriptor.py` prompt 抽到 `prompts/`** — 555 行裡 prompt 占大半
 - [ ] **更多測試覆蓋** (CR 指出的並行 / 邊界):
   - `test_runner_concurrent_section_render`
-  - `test_upload_oversized_pdf`
+  - [x] **`test_upload_oversized_pdf`** (2026-05-12 完成, 7 tests)
+    - 涵蓋 size limit / 不支援 source_type / 空檔 / options_json 驗證
+    - 第一個 FastAPI TestClient 整合測試, 為未來加更多 route 測試鋪路
   - `test_burn_subtitles_windows_path`
 
 ### 文件

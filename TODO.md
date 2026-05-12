@@ -201,7 +201,9 @@
     - test_hardsub.py 6 → 10 tests
 
 ### 文件
-- [ ] **操作手冊給研究室助理** — Kiwi / Christian 接手用
+- [x] **操作手冊給研究室助理** (2026-05-13 commit pending, docs/onboarding.md)
+  - 30 分鐘讀完上手版, 涵蓋: 專案做什麼 / 環境準備 / 跑一份 PDF / 開發架構 /
+    硬規則 / 你能改什麼(從小往大)/ 常見問題 / 開發習慣 / 找資源
 - [ ] **demo 影片** — YouTube 頻道開專區介紹這個系統
 
 ### Round 2 殘留(實戰罕見不修)

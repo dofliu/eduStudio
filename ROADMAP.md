@@ -330,11 +330,13 @@
 
 ### 階段 1 — 短期 1~2 週
 
-#### C. Claude Code skill 包裝 (1~2 天) ✨ 建議先做
-- [ ] `pdf-to-video` skill: PDF → JSON → 暫停 review → render
-- [ ] `video-to-youtube` skill: 已 review 的 JSON → publish
-- [ ] skill metadata + README + 範例 PDF
-- [ ] 強制 review 點寫進 skill 規範 (接 P0 #4)
+#### C. Claude Code skill 包裝 (1~2 天) ✨ 進行中
+- [x] `pdf-to-video` SKILL.md scaffold (2026-05-12) — 包裝 submit_job.py CLI,
+      流程文件涵蓋 exam / slides / document 三種, Step 4 強制 review 點
+- [ ] `pdf-to-video` 自動 poll + bash helper (現是純文字指引)
+- [ ] 本機實測 (從對話到 artifacts 完整跑一遍)
+- [ ] `video-to-youtube` skill — 動 OAuth, STOP 條件, 要先討論安全模型
+- [ ] skill 整合 README + 範例 PDF
 - 價值: 研究室擴張 (Kiwi / Christian / 任何 repo 一鍵跑)
 - trade-off: 單機 skill 只能本地跑
 

@@ -16,11 +16,16 @@
 
 ### 階段 1 — 短期 1~2 週
 
-**C. Claude Code skill 包裝 `pdf-to-video`** (1~2 天) ✨ 建議先做
-- [ ] `pdf-to-video` skill: PDF → JSON → 暫停 review → render
-  - 強制 review point 寫進 skill 規範, 接 P0 #4
+**C. Claude Code skill 包裝 `pdf-to-video`** (1~2 天) ✨ 進行中
+- [x] `pdf-to-video` skill SKILL.md scaffold (2026-05-12, commit pending)
+  - 包裝既有 `scripts/submit_job.py` CLI, 強制 review point 寫進 skill 流程 (Step 4)
+  - 涵蓋 exam / slides / document 三種 source
+  - 明文化「不繞 require_review=True」「不偽裝 AI 值」等硬規則
+- [ ] **下一步**: 實測 skill 真的可以從對話一路跑到 artifacts (本機驗收)
+- [ ] **下一步**: skill 自動 poll 流程實作 (目前是文字指引, 改 Bash 包成 helper)
 - [ ] `video-to-youtube` skill: 已 review 的 JSON → publish
-- [ ] skill metadata + README + 範例 PDF
+  - 動 OAuth → 需先跟用戶討論安全模型, STOP 條件
+- [ ] skill 整合 README + 範例 PDF (放 docs/skills.md)
 - 價值: 研究室擴張 (Kiwi / Christian / 任何 repo 一鍵跑)
 - trade-off: 單機 skill 只能本地跑, 跨機器要走別的 hosting
 

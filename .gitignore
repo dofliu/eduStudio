@@ -42,9 +42,12 @@ web/vite.config.d.ts
 web/vite.config.js
 
 # Claude Code harness 運行狀態 (worktrees / scheduled_tasks.lock / 其他 session state)
-# 規則: .claude/ 內部全部不追蹤, 但 commands/ (專案層級 slash commands) 要追蹤
+# 規則: .claude/ 內部全部不追蹤, 但下面這幾個專案層級資產要追蹤:
+# - commands/  專案 slash commands (給 team 共用, 例 /advance)
+# - skills/    專案 skills (給 team 共用, 例 pdf-to-video)
 .claude/*
 !.claude/commands/
+!.claude/skills/
 
 # 個人 TTS 設定 — server / smoke test 會改它, 容易誤 commit (踩過兩次)。
 # 範本見 tts_config.example.json, 第一次 clone 後 copy 即可。

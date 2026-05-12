@@ -46,11 +46,16 @@
 
 ### 階段 2 — 中期 2~3 週
 
-**B. v2.1 `ideate.py` 自動內容企劃** (4~5 天)
-- [ ] `watched_folders/` 設計 + 路徑配置
-- [ ] Gemini 掃 PDF → 產 `proposals.json` (主題 / 片單建議)
-- [ ] React UI ProposalsList 頁 + 核准 / 否決 / 編輯
-- [ ] 核准 → 自動 create job
+**B. v2.1 `ideate.py` 自動內容企劃** (4~5 天) ✨ 進行中
+- [x] **iter 10: scaffold + design RFC** (2026-05-12 commit pending)
+  - docs/ideate-design.md — 從 plan_youtube_agent.md v2.1 更新到 Track B 設計
+  - core/ideate.py — 主要 function 簽名 + TypedDict schema (Proposal /
+    FileCandidate / WatchedFolder / IdeateConfig) + ProposalStatus enum
+  - tests/test_ideate.py — 6 tests 鎖 schema 結構 + 簽名穩定性 (172 tests)
+- [ ] **iter 11**: `scan_changed_files` + `load/save_proposals` + tests
+- [ ] **iter 12**: `propose_from_file` (Gemini Vision call + parse) + mock tests
+- [ ] **iter 13**: `dedupe_against_jobs` (對 JobStore + YouTube + 前次 proposals) + tests
+- [ ] **iter 14**: server route `/proposals` + React UI ProposalsList 頁
 - 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩
 

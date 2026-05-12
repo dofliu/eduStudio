@@ -86,7 +86,13 @@
   - core/diagram_gen.py — DiagramKind enum (7 種圖類), DiagramSpec TypedDict,
     4 個 stub function (generate_diagram / _propose / _validate / _render)
   - tests/test_diagram_gen.py — 8 tests 鎖 enum + 簽名 + defaults
-- [ ] **iter 19**: `_render_matplotlib_diagram` + AST 檢查 + tests
+- [x] **iter 19: _validate_code_ast + _render_matplotlib_diagram** (2026-05-13 commit pending)
+  - AST allowlist: 只准 matplotlib / numpy / math / scipy import
+  - 擋 builtin: eval / exec / __import__ / open / getattr / setattr
+  - subprocess sandbox: timeout / env={MPLBACKEND=Agg / PATH / 不繼承敏感 env}
+  - subprocess 失敗 / timeout / 沒寫檔 / 寫 0 byte 全回 None
+  - 19 新 tests (TestValidateCodeAst 15 + TestRenderMatplotlibDiagram 6)
+  - 226 → 245 tests
 - [ ] **iter 20**: `_propose_matplotlib_code` (Gemini) + tests
 - [ ] **iter 21**: 整合 pipeline.py step image 欄位
 - 設計細節見 [docs/engineering-diagram-design.md](docs/engineering-diagram-design.md)

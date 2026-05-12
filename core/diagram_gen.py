@@ -12,12 +12,43 @@ scaffold 階段 (iter 18): schema + function 簽名, 還沒實作。
 """
 from __future__ import annotations
 
+import ast
+import subprocess
+import sys
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     pass
+
+
+# ============================================================
+# AST allowlist — Gemini code 必須先過 AST 檢查才能 exec
+# ============================================================
+
+# 允許的頂層 module — matplotlib / numpy / math / scipy 是工程圖必要
+# 任何其他 import 一律拒絕 (擋 os / sys / subprocess / socket / requests etc)
+_ALLOWED_IMPORT_ROOTS: frozenset[str] = frozenset({
+    "matplotlib",
+    "numpy",
+    "np",        # 雖然 np 是 alias 不是 module, 加進來防 caller 寫 import np
+    "math",
+    "scipy",
+})
+
+# 禁止的 builtin call (即使 import 過了, 這些 call 仍然危險)
+_BLOCKED_BUILTINS: frozenset[str] = frozenset({
+    "__import__",
+    "eval",
+    "exec",
+    "compile",
+    "open",      # 不讓 Gemini code 自己讀寫檔, 由 matplotlib savefig 接管
+    "input",
+    "globals",
+    "locals",
+    "vars",
+})
 
 
 # ============================================================
@@ -98,37 +129,101 @@ def _propose_matplotlib_code(spec: DiagramSpec) -> str:
 
 
 def _validate_code_ast(code: str) -> bool:
-    """AST 檢查 — 只允許 matplotlib / numpy / math import, 擋 os / sys / subprocess。
-
-    iter 19 實作。
+    """AST 檢查 — 走 allowlist 模式: 只允許 matplotlib / numpy / math / scipy。
 
     回傳:
-        True: 安全
-        False: 偵測到惡意 import / call → caller 應拒絕 exec
+        True: code 安全, 可以 subprocess exec
+        False: 偵測到惡意 import / call → caller 應拒絕
 
-    白名單 (允許):
-        - matplotlib.* / numpy / math / scipy
-        - 內建 type / list / dict / range / etc
-    黑名單 (拒絕):
-        - import os / sys / subprocess / socket / urllib / requests
-        - __import__ / eval / exec / compile
-        - open() (除非寫 out_path)
+    檢查內容:
+        - Import / ImportFrom: 頂層 module 必須在 _ALLOWED_IMPORT_ROOTS
+        - Call: 函式名稱不能是 _BLOCKED_BUILTINS (eval / exec / __import__ etc)
+        - 不檢查語法正確性 (那是 ast.parse 自己丟 SyntaxError 的事, caller try)
     """
-    raise NotImplementedError("iter 19 補實作 (ast.walk + node 類型檢查)")
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+
+    for node in ast.walk(tree):
+        # 1. import X
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
+                if root not in _ALLOWED_IMPORT_ROOTS:
+                    return False
+
+        # 2. from X import Y
+        elif isinstance(node, ast.ImportFrom):
+            if node.module is None:
+                # `from . import X` 之類, 拒絕 (relative import 不該出現在獨立腳本)
+                return False
+            root = node.module.split(".")[0]
+            if root not in _ALLOWED_IMPORT_ROOTS:
+                return False
+
+        # 3. builtin call (eval / exec / open / __import__ 等)
+        elif isinstance(node, ast.Call):
+            func = node.func
+            # `eval(...)` 直接 Name
+            if isinstance(func, ast.Name) and func.id in _BLOCKED_BUILTINS:
+                return False
+            # `getattr(builtins, "eval")(...)` 之類繞過用 Attribute 形式 — 拒絕 getattr 整批
+            # (簡單嚴格: 直接擋 getattr / setattr / delattr)
+            if isinstance(func, ast.Name) and func.id in ("getattr", "setattr", "delattr"):
+                return False
+
+    return True
 
 
 def _render_matplotlib_diagram(code: str, out_path: Path, timeout: int = 30) -> Path | None:
     """subprocess exec matplotlib code, 寫 PNG 到 out_path。
 
-    iter 19 實作。
-
-    安全措施:
-        - subprocess.run(["python", "-c", code], timeout=30, env={})
-        - 不開網路 (env 清空)
-        - 失敗 / timeout / 找不到輸出檔 → None
+    安全措施 (跟 docs/engineering-diagram-design.md 對齊):
+        - subprocess.run(["python", "-c", code], timeout=30, env={...受限})
+        - MPLBACKEND=Agg: 不開 GUI (CI / Docker / 無 X server 都可跑)
+        - 不傳 GEMINI_API_KEY / OAuth 等敏感 env 進子 process
 
     回傳:
-        Path: 寫檔成功
-        None: 失敗
+        Path: 寫檔成功 (out_path 存在且非空)
+        None: subprocess 失敗 / timeout / 沒寫出檔 / 寫出檔但是空的
     """
-    raise NotImplementedError("iter 19 補實作")
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 確保 caller 沒在 out_path 留舊檔混淆「成功 / 失敗」判斷
+    if out_path.exists():
+        out_path.unlink()
+
+    # 子 process env: 只給能跑 matplotlib 必要的, 不繼承 caller 整套
+    # PYTHONPATH 空避免 caller 環境的可疑 module 被 import; PATH 仍要 (找 python)
+    child_env = {
+        "MPLBACKEND": "Agg",      # headless 後端, 不需 GUI
+        "PATH": __import__("os").environ.get("PATH", ""),
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONPATH": "",
+        "LANG": "C.UTF-8",
+    }
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            timeout=timeout,
+            env=child_env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    except (OSError, ValueError):
+        return None
+
+    if result.returncode != 0:
+        # 留 stderr 給 caller debug (這層不 log, log 是 caller / pipeline 的責任)
+        return None
+
+    if not out_path.exists() or out_path.stat().st_size == 0:
+        return None
+
+    return out_path

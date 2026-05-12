@@ -370,13 +370,16 @@
 - 價值: 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩
 
-#### E. 工程圖 AI 輔助 (3~5 天, 可跟 B 平行)
-- [ ] Gemini 產 matplotlib / TikZ code → 本地執行畫圖
-- [ ] step `image` 欄位動態切圖
-- [ ] 圖類: 自由體圖、彎矩圖、方塊圖、電路圖
-- [ ] 失敗 fallback: 純文字描述
+#### E. 工程圖 AI 輔助 (3~5 天, 可跟 B 平行) ✨ 進行中
+- [x] **scaffold + design RFC** (2026-05-13) — docs/engineering-diagram-design.md
+      技術選型 matplotlib vs TikZ, sandbox exec 設計; core/diagram_gen.py 模組
+      DiagramKind/DiagramSpec scaffold; 8 tests 鎖 enum + 簽名
+- [ ] _render_matplotlib_diagram + AST 檢查 (iter 19)
+- [ ] _propose_matplotlib_code (Gemini) (iter 20)
+- [ ] pipeline.py step image 欄位整合 (iter 21)
+- 設計細節見 [docs/engineering-diagram-design.md](../docs/engineering-diagram-design.md)
 - 價值: 材料力學 / 自動控制影片價值跳一階
-- 風險: 產 code 品質起伏大, 要 review 機制
+- 風險: 產 code 品質起伏大, 要 sandbox + review 機制
 
 ---
 

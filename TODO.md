@@ -140,7 +140,13 @@
 
 ### 技術債
 - [ ] **`pipeline.py` 拆檔**(800+ 行,候選: render / tts / srt / photo overlay)
-- [ ] **`requirements.txt` 區分必要 / 選用** — fastapi 等 Track B 才用
+- [x] **`requirements.txt` 區分必要 / 選用** (2026-05-12 完成)
+  - 重組為 core / llm / pdf / server / legacy 分組註解
+  - **修漏列 bug**: 加 `google-genai` (核心 LLM dep, 之前漏)
+  - 移除 `anthropic` (v0 後不用 Claude, 死碼)
+  - 註解 `pdfplumber` / `reportlab` 為「死碼候選, 下次清」
+  - 移 `fpdf2` 到新建 `requirements-optional.txt` (sample 工具)
+  - README quick-start 提到三層 deps 結構
 - [ ] **`core/scriptor.py` prompt 抽到 `prompts/`** — 555 行裡 prompt 占大半
 - [ ] **更多測試覆蓋** (CR 指出的並行 / 邊界):
   - [ ] `test_runner_concurrent_section_render` (需 asyncio TestClient + 真 runner mock, 暫緩)

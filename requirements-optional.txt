@@ -1,0 +1,24 @@
+# Optional deps — 不在 requirements.txt 預設裝, 對應 backend / 額外功能才需要
+#
+# 安裝方式: pip install -r requirements-optional.txt (要某個功能才裝對應段)
+#
+# 開發測試 deps 看 requirements-dev.txt。
+
+# ============================================================
+# F5-TTS — 本機聲音複製 backend (tts_config.json backend=f5 才需要)
+# ============================================================
+# 注意:
+#   1. 需要 CUDA-enabled torch — 先裝對應版本 torch:
+#      https://pytorch.org/get-started/locally/
+#      (例 RTX 4080 走 cu121: pip install torch torchvision --index-url ...)
+#   2. F5 model 第一次 inference 會自動下載 1.35GB safetensors
+#      到 ~/.cache/huggingface/hub/
+#   3. 跟 edge-tts 雙線並存, tts_backend.py 失敗會自動 fallback 到 edge
+# f5-tts
+
+# ============================================================
+# Sample PDF 產生工具 (make_sample_pdf.py)
+# 只測試 / demo 用, runtime 不需要
+# 想跑 `python make_sample_pdf.py` 產樣本考卷再裝
+# ============================================================
+fpdf2>=2.8

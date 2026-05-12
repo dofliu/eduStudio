@@ -1,21 +1,50 @@
-edge-tts>=7.0
-Pillow>=10.0
-fonttools>=4.50
-mutagen>=1.47
-anthropic>=0.40
-pdfplumber>=0.11
-pymupdf>=1.24
-fpdf2>=2.8
-Flask>=3.0
-reportlab>=4.0
+# autoSolverVideo runtime deps — 任何使用者跑 pipeline / server 都需要。
+#
+# 分組原則:
+#   - core: 核心庫, 任何流程都會用到 (schema / 影像 / TTS / 音訊)
+#   - llm: Gemini API client (v1.7 起改用, 早期 anthropic 已淘汰)
+#   - pdf: PDF → 影像 / 內容抽取
+#   - server: REST API (Track B, 主要工作流)
+#   - legacy: Track A Flask UI (已退到只剩 redirect, 過渡期保留)
+#   - optional: 不在預設裝, 對應 backend / 額外功能才需要 — 見 requirements-optional.txt
+#
+# 開發測試 deps (pytest / httpx) 在 requirements-dev.txt。
 
-# REST API (PR-2a)
+# ============================================================
+# core
+# ============================================================
+Pillow>=10.0           # 所有 renderer 的底層 (黑板 / 簡報 / pptx style)
+fonttools>=4.50        # 字型 cmap 解析 (CJK + symbol fallback)
+mutagen>=1.47          # MP3 duration 抓取, 算字幕時間軸用
+pydantic>=2.6          # schema / settings (Track B)
+edge-tts>=7.0          # 預設 TTS backend (cloud 免費)
+
+# ============================================================
+# llm — Gemini 2.5 Flash 是主要 LLM (vision + text)
+# ============================================================
+google-genai>=0.3      # core/outliner / scriptor / slide_ingest / solve / publish 用
+
+# ============================================================
+# pdf — input ingestion
+# ============================================================
+pymupdf>=1.24          # slide_ingest.py PDF → PNG (高效率, libmupdf C 庫)
+
+# ============================================================
+# server — Track B REST API + React UI
+# ============================================================
 fastapi>=0.110
-uvicorn>=0.27
-python-multipart>=0.0.9
-pydantic>=2.6
+uvicorn>=0.27          # ASGI server, server/main.py 啟動用
+python-multipart>=0.0.9  # FastAPI File/Form 多部分上傳 (PR-3k 用)
 
-# 選用:本機聲音複製 backend(tts_config.json backend=f5 才需要)
-# 需 CUDA-enabled torch;RTX 4080 請先裝對應版 torch: https://pytorch.org/get-started/locally/
-# 然後:  pip install f5-tts
-# f5-tts
+# ============================================================
+# legacy — Track A (已退場到只剩 redirect, 過渡期保留)
+# ============================================================
+Flask>=3.0             # app.py legacy UI, 想完全砍掉等 Track B 實戰穩定一週後
+
+# ============================================================
+# 死碼候選 — 沒 import 但歷史 dep, 下次 release 前確認可刪 (見 TODO.md)
+# ============================================================
+# anthropic>=0.40      # 已移除, v0 用 Claude API 寫 exam JSON, 現改 Gemini
+# pdfplumber>=0.11     # 死碼候選, 沒任何 .py grep 到
+# reportlab>=4.0       # 死碼候選, 沒任何 .py grep 到
+# fpdf2>=2.8           # 死碼候選, 只 make_sample_pdf.py 用 (test 工具, 不算 runtime)

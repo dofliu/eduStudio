@@ -40,8 +40,14 @@ v3.1 平台合一完成後,日常工作只用 **Track B (port 8000)**。Track A 
 ## 快速開始
 
 ```bash
-# 1. 安裝
+# 1. 安裝 (core runtime deps, ~150MB)
 pip install -r requirements.txt
+
+# (選用) F5-TTS 本機聲音複製 + sample 工具 — 不裝也跑得起來
+# pip install -r requirements-optional.txt   # 需先裝 CUDA-enabled torch
+
+# (開發) pytest + httpx + 開發工具
+# pip install -r requirements-dev.txt
 
 # 2. 設 API key
 export GEMINI_API_KEY=AIza...        # Linux / macOS

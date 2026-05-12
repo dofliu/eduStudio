@@ -340,14 +340,15 @@
 - 價值: 研究室擴張 (Kiwi / Christian / 任何 repo 一鍵跑)
 - trade-off: 單機 skill 只能本地跑
 
-#### A. Docker + docker-compose (2~3 天)
-- [ ] Dockerfile (Python + FFmpeg + msjh.ttc 字型)
-- [ ] docker-compose.yml (server + 可選 nginx)
-- [ ] `web/` 建 image 階段 + production build
-- [ ] F5 GPU passthrough 文件 (nvidia-docker)
-- [ ] volume mount: jobs/ output/ uploads/ models/
+#### A. Docker + docker-compose (2~3 天) ✨ 進行中
+- [x] **Dockerfile v1 draft** (2026-05-12) — multi-stage (Node 20 → Python 3.12-slim
+      + FFmpeg + Noto CJK), .dockerignore, ENV 配字型, healthcheck /health
+- [ ] docker-compose.yml (volumes / ports / env_file / restart policy)
+- [ ] user 本機 build 實測 (我跑不了 docker, 要 user 確認)
+- [ ] F5 GPU passthrough 文件 (nvidia-docker, 需 GPU 環境)
+- [ ] production reverse proxy (nginx) — 等上雲時做
 - 價值: 部署可行性 + 學生協作, 解 P0 #1 部分 (容器 restart policy)
-- trade-off: F5 GPU passthrough 跨平台不一致
+- trade-off: 字型用 Noto CJK 不是 msjh.ttc (Windows 專屬), 視覺微差但跨平台
 
 ---
 

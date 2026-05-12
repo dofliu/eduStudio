@@ -1,0 +1,77 @@
+# .dockerignore — 不 COPY 進 image 的東西
+#
+# 跟 .gitignore 邏輯類似, 但更嚴格:
+# - runtime 產出 (jobs/ output/ work/ videos/ slides/ 等) 進不去 image
+# - 開發工具 (.git .vscode IDE settings) 進不去
+# - 個人資料 (photos/ voices/ client_secret*.json) 進不去 (mount 進去更乾淨)
+# - node_modules / __pycache__ 進不去 (image 內會重裝)
+
+# Git / VCS
+.git
+.gitignore
+.gitattributes
+.github
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Node / web build (web/dist 由 web-builder stage 重建)
+web/node_modules
+web/dist
+web/.vite
+web/*.tsbuildinfo
+
+# Runtime / 生成物 (volume mount 進去就好, 不該 bake 進 image)
+jobs
+output
+work
+videos
+videos_test
+slides
+pdfs
+
+# 個人化資源 (mount 或環境變數提供)
+photos/*.png
+photos/*.jpg
+photos/*.jpeg
+voices/*.wav
+voices/*.mp3
+client_secret*.json
+youtube_token.json
+tts_config.json
+
+# 開發工具設定
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Claude harness state
+.claude
+
+# 文件不必進 image (部署只要程式碼)
+docs
+*.md
+!README.md
+
+# 測試 / 樣本 / debug 輸出
+tests
+sample_exam.pdf
+test_svg*
+gemini_error_*.txt
+gemini_raw_output.txt
+exams_temp.html
+make_sample_pdf.py
+plan_*.md
+
+# Dockerfile 自己 + compose (image 內不需要)
+Dockerfile
+.dockerignore
+docker-compose*.yml

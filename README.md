@@ -47,11 +47,15 @@ pip install -r requirements.txt
 export GEMINI_API_KEY=AIza...        # Linux / macOS
 set GEMINI_API_KEY=AIza...           # Windows cmd
 
-# 3a. 跑考卷 / 簡報 review UI (Track A, 主推流程)
+# 3. 複製 TTS 設定範本 (第一次 clone 才需要; tts_config.json 已 gitignored)
+cp tts_config.example.json tts_config.json     # Linux / macOS
+copy tts_config.example.json tts_config.json   # Windows
+
+# 4a. 跑考卷 / 簡報 review UI (Track A, 主推流程)
 python app.py
 # → http://localhost:5000
 
-# 3b. 跑平台 API + React UI (Track B, repo / document / url 用)
+# 4b. 跑平台 API + React UI (Track B, repo / document / url 用)
 cd web && npm install && npm run build && cd ..
 python -m server.main
 # → http://localhost:8000  (自動 redirect 到 /ui/)

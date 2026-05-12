@@ -44,3 +44,7 @@ web/vite.config.js
 # Claude Code harness 運行狀態 (worktrees / session state 等)
 # 注意: .claude/commands/ 是專案層級 slash commands, 要追蹤, 不在這條 ignore 內
 .claude/worktrees/
+
+# 個人 TTS 設定 — server / smoke test 會改它, 容易誤 commit (踩過兩次)。
+# 範本見 tts_config.example.json, 第一次 clone 後 copy 即可。
+tts_config.json

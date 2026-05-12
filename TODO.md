@@ -113,9 +113,9 @@
 - [ ] **LogPanel auto-scroll 在 user 上滑時打斷** (CR P2 #10)
   - detect scrolledToBottom, 只在底端時 auto-scroll
 - [ ] **上傳審查頁 SRT 重生成預覽**(若 user 手動編了 narration 後)
-- [ ] **`tts_config.json` 容易誤 commit** (CR P2 #9)
-  - 候選: 加 .gitignore + tts_config.example.json 模板
-  - 或 pre-commit hook 偵測並警告
+- [x] **`tts_config.json` 容易誤 commit** (CR P2 #9, 2026-05-12 完成)
+  - 加 .gitignore + tts_config.example.json 範本 + README quick-start copy 步驟
+  - git rm --cached 既有檔, 新 clone 走 example → 真檔 copy 模式
 
 ### Track A 殘留(可選, 等 Track B 實戰一週後再評估)
 - [ ] **Track A 完全退場** (Track B 已涵蓋全部工作流)

@@ -42,9 +42,10 @@ python-multipart>=0.0.9  # FastAPI File/Form 多部分上傳 (PR-3k 用)
 Flask>=3.0             # app.py legacy UI, 想完全砍掉等 Track B 實戰穩定一週後
 
 # ============================================================
-# 死碼候選 — 沒 import 但歷史 dep, 下次 release 前確認可刪 (見 TODO.md)
+# 已移除的 deps (留紀錄, 不影響裝機):
+# - anthropic (v0 用 Claude API, v1.7 改 Gemini 後完全沒 import)
+# - pdfplumber (歷史 dep, 沒任何 .py grep 到)
+# - reportlab (歷史 dep, 沒任何 .py grep 到)
+# - fpdf2 (移到 requirements-optional.txt, 只 make_sample_pdf.py 用)
+# 詳見 commit history: v4 階段 2 B iter 12 (2026-05-12)
 # ============================================================
-# anthropic>=0.40      # 已移除, v0 用 Claude API 寫 exam JSON, 現改 Gemini
-# pdfplumber>=0.11     # 死碼候選, 沒任何 .py grep 到
-# reportlab>=4.0       # 死碼候選, 沒任何 .py grep 到
-# fpdf2>=2.8           # 死碼候選, 只 make_sample_pdf.py 用 (test 工具, 不算 runtime)

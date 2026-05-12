@@ -69,7 +69,12 @@
     Markdown fence 自動 strip
   - prompts/ideate_propose.txt — 依 source_type (exam/slides/document) 差異化提示
   - 12 個新 mock tests (TestProposeFromFile), 198 → 209 tests
-- [ ] **iter 13**: `dedupe_against_jobs` (對 JobStore + YouTube + 前次 proposals) + tests
+- [x] **iter 13: dedupe_against_jobs** (2026-05-13 commit pending)
+  - 三層去重: JobStore (state=done) / YouTube (video_id 非 None) / 前次 proposals (APPROVED/IGNORED)
+  - 加 `previous_proposals: list[Proposal] | None` 參數 (caller 自己傳, 不偷讀檔避免測試污染)
+  - 加 `_normalize_path` helper — Windows 大小寫不敏感 + 跨平台 / 統一
+  - 10 個新 mock tests (FakeStore / FakeRecord / FakeUpload pattern)
+  - 209 → 218 tests 全綠
 - [ ] **iter 14**: server route `/proposals` + React UI ProposalsList 頁
 - 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩

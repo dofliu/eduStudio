@@ -34,14 +34,167 @@ class TestProposalStatusEnum:
         assert all_values == {"pending", "approved", "ignored", "expired"}
 
 
-class TestStillStubbed:
-    """這些 stub 等 iter 13 才實作, 鎖簽名 + raise 行為."""
+class TestDedupeAgainstJobs:
+    """dedupe_against_jobs — JobStore + 前次 proposals 三層去重。"""
 
-    def test_dedupe_against_jobs_still_stub(self):
+    @pytest.fixture
+    def make_proposal(self):
+        def _build(source_file: str, status: str = "pending", title: str = "T") -> dict:
+            return {
+                "id": f"prop_{source_file}",
+                "generated_at": "2026-05-13T00:00:00+00:00",
+                "source_file": source_file,
+                "source_type": "exam_pdf",
+                "suggested_title": title,
+                "suggested_chapters": [],
+                "reason": "r",
+                "estimated_duration_min": 5,
+                "status": status,
+                "job_id": None,
+            }
+        return _build
+
+    @pytest.fixture
+    def fake_store(self):
+        """超簡 JobStore — 只實作 list() 回測試指定的 JobRecord-shaped objects."""
+        class FakeUpload:
+            def __init__(self, video_id=None):
+                self.video_id = video_id
+
+        class FakeState:
+            def __init__(self, value):
+                self.value = value
+
+        class FakeSource:
+            def __init__(self, path):
+                self.path = path
+
+        class FakeRecord:
+            def __init__(self, path, state="done", youtube_uploads=None):
+                self.source = FakeSource(path)
+                self.state = FakeState(state)
+                self.youtube_uploads = youtube_uploads or {}
+
+        class FakeStore:
+            def __init__(self, records):
+                self._records = records
+
+            def list(self):
+                return self._records
+
+        return FakeRecord, FakeUpload, FakeStore
+
+    def test_empty_input_returns_empty(self, fake_store):
         from core.ideate import dedupe_against_jobs
 
-        with pytest.raises(NotImplementedError):
-            dedupe_against_jobs([], None)  # type: ignore[arg-type]
+        _, _, FakeStore = fake_store
+        store = FakeStore([])
+        assert dedupe_against_jobs([], store) == []
+
+    def test_no_dups_passes_through(self, fake_store, make_proposal):
+        from core.ideate import dedupe_against_jobs
+
+        _, _, FakeStore = fake_store
+        store = FakeStore([])
+        proposals = [make_proposal("/x/a.pdf"), make_proposal("/x/b.pdf")]
+        result = dedupe_against_jobs(proposals, store)
+        assert len(result) == 2
+
+    def test_done_state_filters_out(self, fake_store, make_proposal):
+        from core.ideate import dedupe_against_jobs
+
+        FakeRecord, _, FakeStore = fake_store
+        store = FakeStore([FakeRecord("/x/a.pdf", state="done")])
+        proposals = [make_proposal("/x/a.pdf"), make_proposal("/x/b.pdf")]
+        result = dedupe_against_jobs(proposals, store)
+        assert len(result) == 1
+        assert result[0]["source_file"] == "/x/b.pdf"
+
+    def test_non_done_state_does_not_filter(self, fake_store, make_proposal):
+        """state=ingesting / rendering / failed 不算「已做過」, 應保留 proposal."""
+        from core.ideate import dedupe_against_jobs
+
+        FakeRecord, _, FakeStore = fake_store
+        store = FakeStore([
+            FakeRecord("/x/a.pdf", state="rendering"),
+            FakeRecord("/x/b.pdf", state="failed"),
+        ])
+        proposals = [make_proposal("/x/a.pdf"), make_proposal("/x/b.pdf")]
+        # 雖然 a/b 都有對應 job, 但 state 不是 done → 仍保留
+        result = dedupe_against_jobs(proposals, store)
+        assert len(result) == 2
+
+    def test_youtube_uploaded_filters_out(self, fake_store, make_proposal):
+        from core.ideate import dedupe_against_jobs
+
+        FakeRecord, FakeUpload, FakeStore = fake_store
+        store = FakeStore([
+            FakeRecord(
+                "/x/a.pdf",
+                state="rendering",  # 即使非 done, video_id 存在仍算已上傳
+                youtube_uploads={"q1.mp4": FakeUpload(video_id="abc123")},
+            )
+        ])
+        proposals = [make_proposal("/x/a.pdf"), make_proposal("/x/b.pdf")]
+        result = dedupe_against_jobs(proposals, store)
+        assert len(result) == 1
+        assert result[0]["source_file"] == "/x/b.pdf"
+
+    def test_youtube_upload_without_video_id_no_filter(self, fake_store, make_proposal):
+        from core.ideate import dedupe_against_jobs
+
+        FakeRecord, FakeUpload, FakeStore = fake_store
+        store = FakeStore([
+            FakeRecord(
+                "/x/a.pdf",
+                state="rendering",
+                youtube_uploads={"q1.mp4": FakeUpload(video_id=None)},  # 上傳中, 還沒拿到 id
+            )
+        ])
+        proposals = [make_proposal("/x/a.pdf")]
+        result = dedupe_against_jobs(proposals, store)
+        assert len(result) == 1
+
+    def test_previous_approved_filters_out(self, fake_store, make_proposal):
+        from core.ideate import dedupe_against_jobs
+
+        _, _, FakeStore = fake_store
+        store = FakeStore([])
+        proposals = [make_proposal("/x/a.pdf"), make_proposal("/x/b.pdf")]
+        previous = [make_proposal("/x/a.pdf", status="approved")]
+        result = dedupe_against_jobs(proposals, store, previous_proposals=previous)
+        assert len(result) == 1
+        assert result[0]["source_file"] == "/x/b.pdf"
+
+    def test_previous_ignored_filters_out(self, fake_store, make_proposal):
+        from core.ideate import dedupe_against_jobs
+
+        _, _, FakeStore = fake_store
+        store = FakeStore([])
+        proposals = [make_proposal("/x/a.pdf")]
+        previous = [make_proposal("/x/a.pdf", status="ignored")]
+        assert dedupe_against_jobs(proposals, store, previous_proposals=previous) == []
+
+    def test_previous_pending_does_not_filter(self, fake_store, make_proposal):
+        """前次還是 pending 表示用戶還沒決策, 允許再次提案 (refresh proposals)."""
+        from core.ideate import dedupe_against_jobs
+
+        _, _, FakeStore = fake_store
+        store = FakeStore([])
+        proposals = [make_proposal("/x/a.pdf")]
+        previous = [make_proposal("/x/a.pdf", status="pending")]
+        result = dedupe_against_jobs(proposals, store, previous_proposals=previous)
+        assert len(result) == 1
+
+    def test_path_case_insensitive_match(self, fake_store, make_proposal):
+        """Windows path 大小寫不敏感, D:\\Foo == d:\\foo 應該命中。"""
+        from core.ideate import dedupe_against_jobs
+
+        FakeRecord, _, FakeStore = fake_store
+        store = FakeStore([FakeRecord("/Path/To/A.PDF", state="done")])
+        proposals = [make_proposal("/path/to/a.pdf")]
+        result = dedupe_against_jobs(proposals, store)
+        assert len(result) == 0  # 大小寫不敏感命中 → 過濾掉
 
 
 class TestProposeFromFile:

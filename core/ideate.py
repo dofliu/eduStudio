@@ -339,25 +339,73 @@ def _parse_proposals_response(
 
 
 def dedupe_against_jobs(
-    proposals: list[Proposal], store: "JobStore"
+    proposals: list[Proposal],
+    store: "JobStore",
+    previous_proposals: list[Proposal] | None = None,
 ) -> list[Proposal]:
     """過濾已有 job / 已上傳 YouTube / 前次已處理的 proposal。
 
-    iter 13 實作。
-
-    比對規則:
-        - source.path 相同且 state=DONE → 已做過, skip
-        - YoutubeUpload.video_id 存在 → 已上傳, skip
-        - 前次 proposals.json 已 APPROVED/IGNORED → skip
+    比對規則 (任一中即 skip):
+      1. JobStore 內 source.path == proposal.source_file 且 state=DONE → 已做過
+      2. 上述 job 任一 youtube_uploads.video_id 非 None → 已上傳到 YouTube
+      3. previous_proposals 中 source_file 相同且 status APPROVED/IGNORED → 用戶已決策
 
     參數:
-        proposals: 待去重的 proposal 清單
-        store: 既有 JobStore (用既有 list/get/搜尋 API)
+        proposals: 待去重的新企劃 (通常從 propose_from_file 來)
+        store: 既有 JobStore (走 store.list() 拿 JobRecord)
+        previous_proposals: 上一輪 ideate 的 proposals.json 內容
+            (None → 直接跑 load_proposals(PROPOSALS_PATH) 太隱性 + 易污染測試;
+            caller 自己傳, dedupe 不偷讀檔)
 
     回傳:
-        list[Proposal] — 過濾後剩下的, 仍是 PENDING
+        list[Proposal] — 仍是 PENDING, 順序保持輸入順序
     """
-    raise NotImplementedError("iter 13 補實作")
+    if not proposals:
+        return []
+
+    # 1+2. 從 JobStore 蒐集「已做過 / 已上傳」的 source.path 集合
+    done_paths: set[str] = set()
+    uploaded_paths: set[str] = set()
+    for rec in store.list():
+        src_path = (rec.source.path or "").strip()
+        if not src_path:
+            continue
+        normalized = _normalize_path(src_path)
+        # state=DONE 視為「已做過」
+        if rec.state.value == "done":
+            done_paths.add(normalized)
+        # 任一 YouTube upload 有 video_id 視為「已上傳」
+        if rec.youtube_uploads:
+            for upload in rec.youtube_uploads.values():
+                if getattr(upload, "video_id", None):
+                    uploaded_paths.add(normalized)
+                    break
+
+    # 3. 上次已 APPROVED / IGNORED 的 source_file
+    decided_paths: set[str] = set()
+    for prev in previous_proposals or []:
+        if prev.get("status") in ("approved", "ignored"):
+            decided_paths.add(_normalize_path(prev.get("source_file", "")))
+
+    # 過濾
+    out: list[Proposal] = []
+    for p in proposals:
+        path_norm = _normalize_path(p["source_file"])
+        if path_norm in done_paths:
+            continue
+        if path_norm in uploaded_paths:
+            continue
+        if path_norm in decided_paths:
+            continue
+        out.append(p)
+    return out
+
+
+def _normalize_path(p: str) -> str:
+    """跨平台 path 正規化 — Windows 大小寫不敏感, 統一 lower + / 分隔."""
+    if not p:
+        return ""
+    return str(Path(p).resolve()).replace("\\", "/").lower() if Path(p).is_absolute() else p.replace("\\", "/").lower()
 
 
 def load_proposals(path: Path) -> list[Proposal]:

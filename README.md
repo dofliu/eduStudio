@@ -15,10 +15,11 @@
 - **5 種輸入** (`source_type`):`exam_pdf` / `slides_pdf` / `repo` / `document` / `url`
 - **3 種渲染風格**:深綠黑板 / 投影片原圖 letterbox / pptx 主題 (Forest 教學/Navy 科技,Pillow 純畫,無 LibreOffice 依賴)
 - **2 種 TTS 後端**:edge-tts (預設, 雲端免費, 6 種聲音可切) / F5-TTS (本機聲音複製, 中文預切句修 mid-word 切錯)
-- **完整 React UI** (`port 8000`):上傳 / 編輯 / Library / YouTube 上傳審查 / 即時 log / 主題切換 / 燒字幕選項 / 單章重 render
+- **完整 React UI** (`port 8000`):上傳 / 編輯 / Library / Proposals / YouTube 上傳審查 / 即時 log / 主題切換 / 燒字幕選項 / 單章重 render
 - **REST API**:非同步 job + 磁碟持久化 + per-job 結構化 log,排程器 / Webhook 友善
+- **自動內容企劃 (v4 階段 2 B)**:`ideate.py` 掃資料夾 → Gemini Vision → 提案影片片單 → UI 核准建 job
 - **YouTube 上傳通道**:OAuth 2.0 + resumable upload + SRT 字幕同步上傳 + 章節時間軸自動算
-- **148 tests + GitHub Actions CI**:Python 3.10/3.12 × Linux/Win 4 組 matrix
+- **257 tests + GitHub Actions CI**:Python 3.10/3.12 × Linux/Win 4 組 matrix
 
 ---
 
@@ -84,6 +85,28 @@ docker compose down                  # 保留 volume
 docker compose down -v               # 連 jobs/ volume 一起砍
 ```
 F5 GPU passthrough、production reverse proxy、YouTube OAuth 安全 mount 待 iter 10+ 處理。
+
+### 自動內容企劃 (`ideate.py`, v4 階段 2 B)
+
+掃資料夾 → Gemini Vision 看 PDF 提案影片企劃 → React UI 逐一核准 → 自動建 job + review:
+
+```bash
+# Dry-run: 只掃資料夾不打 Gemini, 看會抓到哪些 PDF
+python scripts/run_ideate.py exam_pdf D:/Teaching/Exams --dry-run --window-days 30
+
+# 真實跑 (打 Gemini, 約 10~30 秒/檔)
+python scripts/run_ideate.py exam_pdf D:/Teaching/Exams
+python scripts/run_ideate.py slides_pdf D:/Lectures
+python scripts/run_ideate.py document D:/Articles
+
+# 完成後開瀏覽器:
+#   http://localhost:8000/ui/proposals
+#   點「✓ 核准」建 job + 跳 review 頁; 點「✗ 忽略」標記不再提案
+```
+
+設計重點:**approve 流程不繞 `require_review=True`**(學術誠信底線),exam_pdf 預設仍要逐題 review。流程設計見 [docs/ideate-design.md](docs/ideate-design.md)。
+
+⚠ **source_type 要跟實際 PDF 內容對齊** — 把講義當考題跑會在 ingest 階段 JSON parse 失敗(`solve.py` 用考題 prompt 解析非考題會炸)。
 
 ---
 

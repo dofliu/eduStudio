@@ -81,14 +81,25 @@
   - `PATCH /proposals/{id}/ignore` 標 IGNORED 不建 job
   - server/main.py 掛 proposals_routes.router
   - 12 個新 tests (TestList 4 + TestApprove 5 + TestIgnore 3)
-- [x] **iter 14 第二半: React UI ProposalsList** (2026-05-13, commit pending)
+- [x] **iter 14 第二半: React UI ProposalsList** (2026-05-13, commit 25c2044)
   - web/src/pages/ProposalsList.tsx — 卡片 list, 每張: title / source / reason / 預估時長
   - 兩個 button: ✓ 核准 (跳 JobEditor 進 review) / ✗ 忽略 (confirm)
   - api.ts 加 listProposals / approveProposal / ignoreProposal 三方法
   - types.ts 加 Proposal / ProposalStatus / ProposalListResponse / ProposalApproveResponse
   - main.tsx 掛 /proposals route, App.tsx header nav 加連結
   - vite build 通過 (51 modules)
-- [ ] **iter 23**: CLI run_ideate trigger (scripts/run_ideate.py)
+- [x] **iter 23: CLI scripts/run_ideate.py + run_ideate 整合** (2026-05-13, commit d55809f)
+  - run_ideate(): scan → propose → dedupe → save 完整 pipeline
+  - --dry-run 模式預覽不打 Gemini, --window-days / --max-proposals 可調
+  - 進度 callback (CLI 用 print) — 每個候選一行
+  - 合併前次已 APPROVED/IGNORED 的決策 history
+  - 本機實測 ideate 端到端: PDF → Gemini Vision → proposals.json → UI 卡片 ✅
+- [x] **iter 24: 修 approve retry 在 ingest fail 時走錯階段** (2026-05-13 commit pending)
+  - 之前: state=FAILED 一律走 schedule_render → ingest 沒成功時 deck.json 不存在
+    → render 再死一次
+  - 修: state=FAILED 但 deck.json 不存在 → schedule_job 從 ingest 重跑
+  - 用 case: ideate 提案的 source_type 跟實際 PDF 不符 (例 article 標 exam_pdf)
+    → ingest 死, 用戶按重試應該重跑整條, 不該只跑 render
 - 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩
 

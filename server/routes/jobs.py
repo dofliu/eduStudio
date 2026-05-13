@@ -147,12 +147,13 @@ async def update_draft(
 
 @router.post("/{job_id}/approve", response_model=JobRecord)
 async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobRecord:
-    """進入 rendering 階段。可在兩種狀態觸發:
+    """進入 rendering 階段。可在三種狀態觸發:
 
     - awaiting_review: 主路徑, 第一次 review 通過開始渲染
-    - failed:          重試 render (PR-3j 加入)。deck.json 視為已 review,
-                       新一輪 _run_render_phase 會把 state=FAILED 翻 RENDERING,
-                       error 清掉, 加新的 "render" stage。
+    - failed (有 deck.json):  重試 render (PR-3j 加入)
+    - failed (無 deck.json):  ingest 階段就死了, 重跑整條 pipeline (從 ingest 開始)
+                              這條 2026-05-13 加, 修「重試只走 render 找不到
+                              deck.json」的洞 (ideate approve 進來踩到)
 
     擋住 rendering / done / pending / ingesting (避免覆寫進行中或既有成果)。
     """
@@ -164,7 +165,13 @@ async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobReco
             status.HTTP_409_CONFLICT,
             f"approve 僅在 awaiting_review / failed 可用 (目前 {rec.state.value})",
         )
-    schedule_render(store, job_id)
+
+    # FAILED 但沒 deck.json → ingest 沒跑完, 該從頭重跑整條 pipeline
+    # (走 schedule_job 經 run_job 從 ingest 開始, 而非 schedule_render 直接跳 render)
+    if rec.state == JobState.FAILED and not JobStore.deck_path(job_id).exists():
+        schedule_job(store, job_id)
+    else:
+        schedule_render(store, job_id)
     return store.get(job_id)
 
 

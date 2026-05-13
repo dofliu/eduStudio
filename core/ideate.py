@@ -324,7 +324,8 @@ def _parse_proposals_response(
         if not isinstance(chapters, list):
             chapters = []
         out.append({
-            "id": f"prop_{int(time.time())}_{i:02d}",
+            # 用 ns 級時間戳避免同秒內多次呼叫撞 id (review iter 22 抓出的 P0 bug)
+            "id": f"prop_{time.time_ns()}_{i:02d}",
             "generated_at": now_iso,
             "source_file": candidate["path"],
             "source_type": candidate["source_type"],

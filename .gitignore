@@ -18,6 +18,13 @@ slides
 
 # Gemini 錯誤調試輸出
 gemini_error_*.txt
+# Gemini raw output / debug 暫存 — 寫出來看 prompt 結構用, 不該 commit
+gemini_raw_output.txt
+# UI 截圖 / 一次性 cairosvg test — 放 docs/ 內才該 commit
+exams_temp.html
+test_svg.png
+test_svg.py
+ui_*.png
 
 # OAuth 憑證 (publish.py 會用到)
 client_secret*.json

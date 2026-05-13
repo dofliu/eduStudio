@@ -282,3 +282,21 @@ export interface ScanResponse {
   new: number;
   error?: string | null;
 }
+
+// iter 33-34: async scan + status polling
+export interface ScanAsyncResponse {
+  scan_id: string;
+}
+
+export type ScanState = 'running' | 'done' | 'failed';
+
+export interface ScanStatusResponse {
+  state: ScanState;
+  scanned: number;
+  proposed: number;
+  new: number;
+  error?: string | null;
+  message: string;            // 最近一條 progress 訊息
+  started_at?: string | null;
+  ended_at?: string | null;
+}

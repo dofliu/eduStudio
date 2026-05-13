@@ -12,8 +12,10 @@ import type {
   Proposal,
   ProposalApproveResponse,
   ProposalListResponse,
+  ScanAsyncResponse,
   ScanFolderRequest,
   ScanResponse,
+  ScanStatusResponse,
   PublishRequest,
   SourceType,
   VoiceListResponse,
@@ -185,6 +187,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(req),
     }),
+
+  /** iter 34: 非同步版 — 立刻回 scan_id, UI poll status 看進度. */
+  scanFolderAsync: (req: ScanFolderRequest) =>
+    call<ScanAsyncResponse>(`/proposals/scan-folder/async`, {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  getScanStatus: (scanId: string) =>
+    call<ScanStatusResponse>(
+      `/proposals/scan-status/${encodeURIComponent(scanId)}`,
+    ),
 };
 
 export { ApiError };

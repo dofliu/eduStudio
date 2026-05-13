@@ -6,11 +6,11 @@
 // 不繞 require_review=True (P0 #4 學術誠信): approve 走跟 /upload 一樣的
 // store.create + schedule_job, exam_pdf 還是會進 awaiting_review。
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useToast } from '../components/Toast';
-import type { Proposal, SourceType } from '../types';
+import type { Proposal, ScanStatusResponse, SourceType } from '../types';
 
 
 const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
@@ -35,6 +35,9 @@ export default function ProposalsList() {
   const [scanType, setScanType] = useState<'auto' | 'exam_pdf' | 'slides_pdf' | 'document'>('auto');
   const [scanWindowDays, setScanWindowDays] = useState(30);
   const [scanMaxPerFile, setScanMaxPerFile] = useState(3);
+  // iter 34: async polling — modal 跑 scan 時顯示即時進度
+  const [scanStatus, setScanStatus] = useState<ScanStatusResponse | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,6 +74,55 @@ export default function ProposalsList() {
     setScanModal(true);
   };
 
+  // iter 34: poll scan status 直到 done/failed
+  const pollScanStatus = useCallback(
+    (scanId: string) => {
+      // 清舊 timer (防多次按)
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
+      pollTimerRef.current = window.setInterval(async () => {
+        try {
+          const status = await api.getScanStatus(scanId);
+          setScanStatus(status);
+          if (status.state === 'done' || status.state === 'failed') {
+            // 停止 polling
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            setScanning(false);
+            if (status.state === 'done') {
+              show(`掃描完成: 候選 ${status.scanned} / 新提案 ${status.new}`, 'info');
+              setScanModal(false);
+              await load();
+            } else {
+              show(`掃描失敗: ${status.error ?? '未知錯誤'}`, 'error');
+            }
+          }
+        } catch (e) {
+          const msg = e instanceof ApiError ? e.message : String(e);
+          show(`查詢狀態失敗: ${msg}`, 'error');
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          setScanning(false);
+        }
+      }, 3000); // 3 秒 poll 一次
+    },
+    [load, show],
+  );
+
+  // 元件卸載時清 timer (避免 memory leak / setState on unmounted)
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleScan = async () => {
     if (scanning) return;
     const folder = scanFolder.trim();
@@ -79,24 +131,19 @@ export default function ProposalsList() {
       return;
     }
     setScanning(true);
+    setScanStatus(null);
     try {
-      const r = await api.scanFolder({
+      // iter 34: 走 async 路徑, 立刻拿 scan_id 後 poll status
+      const r = await api.scanFolderAsync({
         folder,
         source_type: scanType,
         scan_window_days: scanWindowDays,
         max_proposals_per_file: scanMaxPerFile,
       });
-      if (!r.ok) {
-        show(`掃描失敗: ${r.error ?? '未知錯誤'}`, 'error');
-      } else {
-        show(`掃描完成: 候選 ${r.scanned} / 新提案 ${r.new}`, 'info');
-        setScanModal(false);
-        await load();    // 重抓清單看新提案
-      }
+      pollScanStatus(r.scan_id);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
       show(`掃描失敗: ${msg}`, 'error');
-    } finally {
       setScanning(false);
     }
   };
@@ -203,6 +250,32 @@ export default function ProposalsList() {
               disabled={scanning}
             />
           </div>
+
+          {/* iter 34: 掃描中即時進度 */}
+          {scanning && scanStatus && (
+            <div className="mt-3 p-3 bg-stone-50 border border-border rounded">
+              <div className="text-xs font-medium mb-2 text-ink-muted">即時進度</div>
+              <div className="grid grid-cols-3 gap-2 text-center text-sm mb-2">
+                <div>
+                  <div className="text-lg font-semibold">{scanStatus.scanned}</div>
+                  <div className="text-xs text-ink-muted">候選</div>
+                </div>
+                <div>
+                  <div className="text-lg font-semibold">{scanStatus.proposed}</div>
+                  <div className="text-xs text-ink-muted">產出提案</div>
+                </div>
+                <div>
+                  <div className="text-lg font-semibold">{scanStatus.new}</div>
+                  <div className="text-xs text-ink-muted">新 (dedupe 後)</div>
+                </div>
+              </div>
+              {scanStatus.message && (
+                <div className="text-xs text-ink-muted font-mono truncate">
+                  {scanStatus.message}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex gap-2 justify-end">
@@ -218,7 +291,7 @@ export default function ProposalsList() {
             disabled={scanning || !scanFolder.trim()}
             className="btn btn-primary text-sm"
           >
-            {scanning ? '⏳ 掃描中… (Gemini 跑 10+ 分)' : '開始掃'}
+            {scanning ? '⏳ 掃描中… (~10 分)' : '開始掃'}
           </button>
         </div>
       </div>

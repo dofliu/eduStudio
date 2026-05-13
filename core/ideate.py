@@ -36,6 +36,10 @@ _SOURCE_TYPE_EXTENSIONS: dict[str, frozenset[str]] = {
     "exam_pdf": frozenset({".pdf"}),
     "slides_pdf": frozenset({".pdf"}),
     "document": frozenset({".pdf", ".md", ".txt"}),
+    # auto: 跟 document 一樣最寬鬆, 真正 source_type 留給 detect_source_type 在
+    # propose_from_file 階段判斷. md / txt 沒法走 Gemini Vision detect, 但仍可
+    # 直接當 document 處理 (propose_from_file 內部對非 PDF 已 return [])
+    "auto": frozenset({".pdf", ".md", ".txt"}),
 }
 
 # 跳過的檔案 (暫存 / hidden / 系統)
@@ -132,7 +136,8 @@ def scan_changed_files(config: IdeateConfig) -> list[FileCandidate]:
             # 設定有誤路徑不存在不該擋整批, 跳過即可
             continue
 
-        source_type = folder["source_type"]
+        # iter 25: source_type 沒設預設 "auto" (自動判斷, 走最寬副檔名)
+        source_type = folder.get("source_type") or "auto"
         valid_exts = _SOURCE_TYPE_EXTENSIONS.get(source_type)
         if not valid_exts:
             # 未知 source_type 跳過 (跟 SourceType enum 對齊)
@@ -198,14 +203,29 @@ def propose_from_file(
     if not thumbs:
         return []
 
+    # 1.5 (iter 25) 自動判斷 source_type:
+    #   candidate["source_type"] == "auto" → 跑 detect, 失敗 fallback "document"
+    #   其他值 (exam_pdf / slides_pdf / document) → 強制不變 (向後相容)
+    model_name = config.get("llm_model", "gemini-2.5-flash")
+    hint_st = candidate.get("source_type", "document")
+    if hint_st == "auto":
+        detected = detect_source_type(path, model_name=model_name)
+        # detect 失敗 → fallback. 但 "auto" 沒有「真實」watched folder 預設,
+        # 退到全域保險值 "document" (純文字導讀, 對所有 PDF 都不會炸)
+        effective_st = detected or "document"
+        # 把判斷結果寫回 candidate, 讓後續 Proposal.source_type 對齊
+        candidate = {**candidate, "source_type": effective_st}
+    else:
+        effective_st = hint_st
+
     # 2. 呼叫 Gemini Vision (容錯一切失敗)
     try:
         raw_json = _call_gemini_vision(
             thumbs=thumbs,
             filename=path.name,
-            source_type=candidate["source_type"],
+            source_type=effective_st,
             max_proposals=config.get("max_proposals_per_file", 3),
-            model_name=config.get("llm_model", "gemini-2.5-flash"),
+            model_name=model_name,
         )
     except Exception:
         return []
@@ -219,6 +239,127 @@ def propose_from_file(
         )
     except Exception:
         return []
+
+
+# ============================================================
+# Auto-detect source_type (iter 25, 2026-05-13)
+# ============================================================
+
+# detect 認的合法 source_type, 跟 SourceType.value 對齊
+_DETECTABLE_SOURCE_TYPES: frozenset[str] = frozenset({
+    "exam_pdf", "slides_pdf", "document",
+})
+
+
+def detect_source_type(
+    pdf_path: Path,
+    model_name: str = "gemini-2.5-flash",
+) -> str | None:
+    """看 PDF 前 2 頁判斷 source_type。
+
+    用 Gemini Vision call ideate_detect_type prompt, 回 source_type 字串
+    ("exam_pdf" / "slides_pdf" / "document") 或 None (失敗時 caller fallback)。
+
+    參數:
+        pdf_path: 要分類的 PDF
+        model_name: Gemini 模型 (預設 gemini-2.5-flash)
+
+    回傳:
+        合法 source_type 字串 (高 / 中信心度), 或 None (低信心度 / 失敗)。
+        caller 拿到 None 應該 fallback 到 watched_folder 預設值。
+
+    錯誤處理 (一律不 raise, 回 None):
+        - PDF 開不起來 / 渲染失敗
+        - Gemini API 限流 / parse 失敗
+        - 回的 source_type 不在 _DETECTABLE_SOURCE_TYPES 中
+    """
+    pdf_path = Path(pdf_path)
+    if not pdf_path.exists() or pdf_path.suffix.lower() != ".pdf":
+        return None
+
+    # 1. 前 2 頁縮圖
+    try:
+        thumbs = _render_pdf_thumbs(pdf_path, max_pages=2)
+    except Exception:
+        return None
+    if not thumbs:
+        return None
+
+    # 2. Gemini call
+    try:
+        raw = _call_gemini_detect(
+            thumbs=thumbs,
+            model_name=model_name,
+        )
+    except Exception:
+        return None
+
+    # 3. Parse
+    try:
+        return _parse_detect_response(raw)
+    except Exception:
+        return None
+
+
+def _call_gemini_detect(
+    *,
+    thumbs: list[bytes],
+    model_name: str,
+) -> str:
+    """組 prompt + 前 2 頁圖, 呼叫 Gemini, 回 raw text。失敗 raise (caller 接住)。"""
+    from google import genai
+    from google.genai import types
+
+    from core.prompts_loader import load_prompt
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("缺 GEMINI_API_KEY")
+
+    prompt = load_prompt("ideate_detect_type")
+    client = genai.Client(api_key=api_key)
+    parts = [types.Part.from_bytes(data=b, mime_type="image/png") for b in thumbs]
+    resp = client.models.generate_content(
+        model=model_name,
+        contents=parts + [prompt],
+        config=types.GenerateContentConfig(
+            temperature=0.1,           # 分類任務要穩定不隨機
+            max_output_tokens=512,     # 回應很短不必開大
+        ),
+    )
+    return (resp.text or "").strip()
+
+
+def _parse_detect_response(raw: str) -> str | None:
+    """解析 Gemini 分類回應, 抽 source_type 欄位。
+
+    失敗回 None (而不是 raise) — confidence=low 或 source_type 不認也回 None,
+    讓 caller fallback 到 watched_folder 預設值。
+    """
+    # 跟 propose 一樣處理 markdown fence
+    text = raw.strip()
+    if text.startswith("```"):
+        import re as _re
+        m = _re.search(r"```(?:json)?\s*\n?(.*?)```", text, _re.DOTALL)
+        if m:
+            text = m.group(1).strip()
+    if not text.startswith("{"):
+        first = text.find("{")
+        last = text.rfind("}")
+        if first == -1 or last == -1 or last <= first:
+            return None
+        text = text[first:last + 1]
+
+    data = json.loads(text)
+    if not isinstance(data, dict):
+        return None
+    st = data.get("source_type")
+    if st not in _DETECTABLE_SOURCE_TYPES:
+        return None
+    # confidence=low 視為「沒把握」, 走 fallback
+    if data.get("confidence") == "low":
+        return None
+    return st
 
 
 def _render_pdf_thumbs(pdf_path: Path, max_pages: int = 5) -> list[bytes]:

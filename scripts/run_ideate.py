@@ -40,7 +40,7 @@ from core.ideate import IdeateConfig, run_ideate  # noqa: E402
 from server.jobs import JobStore  # noqa: E402
 
 
-VALID_SOURCE_TYPES = ("exam_pdf", "slides_pdf", "document")
+VALID_SOURCE_TYPES = ("auto", "exam_pdf", "slides_pdf", "document")
 
 
 def main() -> int:
@@ -60,7 +60,8 @@ def main() -> int:
     ap.add_argument(
         "source_type",
         choices=VALID_SOURCE_TYPES,
-        help="想當作哪種輸入: exam_pdf (考題) / slides_pdf (簡報) / document (文件)",
+        help="想當作哪種輸入: auto (建議, Gemini Vision 自動判斷每份 PDF) / "
+             "exam_pdf (考題) / slides_pdf (簡報) / document (文件)",
     )
     ap.add_argument(
         "folder",

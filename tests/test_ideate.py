@@ -34,6 +34,235 @@ class TestProposalStatusEnum:
         assert all_values == {"pending", "approved", "ignored", "expired"}
 
 
+class TestDetectSourceType:
+    """detect_source_type — Gemini Vision 看前 2 頁判斷類別 (iter 25)."""
+
+    @pytest.fixture
+    def fake_pdf(self, tmp_path):
+        p = tmp_path / "x.pdf"
+        p.write_bytes(b"%PDF-1.4\n")
+        return p
+
+    @pytest.fixture
+    def mock_io(self, monkeypatch):
+        from core import ideate
+        monkeypatch.setattr(
+            ideate, "_render_pdf_thumbs",
+            lambda path, max_pages=5: [b"\x89PNG fake"],
+        )
+        state = {"raw": ""}
+        def set_response(s: str):
+            state["raw"] = s
+        def fake_gemini(**kwargs):
+            return state["raw"]
+        monkeypatch.setattr(ideate, "_call_gemini_detect", fake_gemini)
+        return set_response
+
+    def test_missing_file_returns_none(self):
+        from core.ideate import detect_source_type
+        assert detect_source_type(Path("/does/not/exist.pdf")) is None
+
+    def test_non_pdf_returns_none(self, tmp_path):
+        from core.ideate import detect_source_type
+        md = tmp_path / "x.md"
+        md.write_text("# hi")
+        assert detect_source_type(md) is None
+
+    def test_thumb_render_fail_returns_none(self, fake_pdf, monkeypatch):
+        from core import ideate
+        from core.ideate import detect_source_type
+        monkeypatch.setattr(ideate, "_render_pdf_thumbs",
+                            lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        assert detect_source_type(fake_pdf) is None
+
+    def test_gemini_raise_returns_none(self, fake_pdf, monkeypatch):
+        from core import ideate
+        from core.ideate import detect_source_type
+        monkeypatch.setattr(ideate, "_render_pdf_thumbs",
+                            lambda *a, **kw: [b"\x89PNG"])
+        monkeypatch.setattr(ideate, "_call_gemini_detect",
+                            lambda **kw: (_ for _ in ()).throw(RuntimeError("api")))
+        assert detect_source_type(fake_pdf) is None
+
+    def test_happy_path_exam(self, fake_pdf, mock_io):
+        from core.ideate import detect_source_type
+        mock_io('{"source_type": "exam_pdf", "confidence": "high", "reason": "題號"}')
+        assert detect_source_type(fake_pdf) == "exam_pdf"
+
+    def test_happy_path_slides(self, fake_pdf, mock_io):
+        from core.ideate import detect_source_type
+        mock_io('{"source_type": "slides_pdf", "confidence": "medium", "reason": "投影片"}')
+        assert detect_source_type(fake_pdf) == "slides_pdf"
+
+    def test_happy_path_document(self, fake_pdf, mock_io):
+        from core.ideate import detect_source_type
+        mock_io('{"source_type": "document", "confidence": "high", "reason": "文字"}')
+        assert detect_source_type(fake_pdf) == "document"
+
+    def test_low_confidence_returns_none(self, fake_pdf, mock_io):
+        """confidence=low 視為「沒把握」, 走 fallback (caller 用 watched folder 預設)."""
+        from core.ideate import detect_source_type
+        mock_io('{"source_type": "document", "confidence": "low", "reason": "全圖"}')
+        assert detect_source_type(fake_pdf) is None
+
+    def test_invalid_source_type_returns_none(self, fake_pdf, mock_io):
+        """Gemini 回了不認的 source_type → 安全 fallback."""
+        from core.ideate import detect_source_type
+        mock_io('{"source_type": "homework", "confidence": "high"}')
+        assert detect_source_type(fake_pdf) is None
+
+    def test_markdown_fence_stripped(self, fake_pdf, mock_io):
+        from core.ideate import detect_source_type
+        mock_io('```json\n{"source_type": "exam_pdf", "confidence": "high"}\n```')
+        assert detect_source_type(fake_pdf) == "exam_pdf"
+
+    def test_invalid_json_returns_none(self, fake_pdf, mock_io):
+        from core.ideate import detect_source_type
+        mock_io("not json")
+        assert detect_source_type(fake_pdf) is None
+
+
+class TestProposeAutoDetect:
+    """propose_from_file 整合 detect_source_type 行為 (iter 25)."""
+
+    @pytest.fixture
+    def fake_pdf(self, tmp_path):
+        p = tmp_path / "exam.pdf"
+        p.write_bytes(b"%PDF-1.4\n")
+        return {
+            "path": str(p),
+            "source_type": "auto",   # 走自動判斷
+            "mtime": 0.0,
+            "size_bytes": 10,
+        }
+
+    @pytest.fixture
+    def base_config(self):
+        from core.ideate import IdeateConfig
+        cfg: IdeateConfig = {
+            "watched_folders": [],
+            "llm_model": "gemini-2.5-flash",
+            "max_proposals_per_file": 3,
+            "enabled": True,
+        }
+        return cfg
+
+    @pytest.fixture
+    def mocks(self, monkeypatch):
+        """mock thumbs + propose Gemini call + detect Gemini call 三者。"""
+        from core import ideate
+        monkeypatch.setattr(ideate, "_render_pdf_thumbs",
+                            lambda path, max_pages=5: [b"\x89PNG"])
+        state = {"detect": None, "propose": ""}
+
+        def set_detect(s):
+            state["detect"] = s
+
+        def set_propose(s):
+            state["propose"] = s
+
+        monkeypatch.setattr(ideate, "detect_source_type",
+                            lambda path, model_name="gemini-2.5-flash": state["detect"])
+        monkeypatch.setattr(ideate, "_call_gemini_vision",
+                            lambda **kw: state["propose"])
+        return set_detect, set_propose
+
+    def test_auto_with_detect_success_uses_detected_type(self, fake_pdf, base_config, mocks):
+        from core.ideate import propose_from_file
+
+        set_detect, set_propose = mocks
+        set_detect("slides_pdf")
+        set_propose('{"proposals": [{"suggested_title": "T1", "reason": "r", "estimated_duration_min": 5}]}')
+
+        result = propose_from_file(fake_pdf, base_config)
+        assert len(result) == 1
+        # detect 判 slides_pdf, Proposal 應該帶這個 type 不是 candidate 原本的 "auto"
+        assert result[0]["source_type"] == "slides_pdf"
+
+    def test_auto_with_detect_fail_fallback_document(self, fake_pdf, base_config, mocks):
+        from core.ideate import propose_from_file
+
+        set_detect, set_propose = mocks
+        set_detect(None)   # detect 失敗
+        set_propose('{"proposals": [{"suggested_title": "T1", "reason": "r", "estimated_duration_min": 5}]}')
+
+        result = propose_from_file(fake_pdf, base_config)
+        assert len(result) == 1
+        # detect 失敗 → fallback "document"
+        assert result[0]["source_type"] == "document"
+
+    def test_explicit_type_skips_detect(self, tmp_path, base_config, monkeypatch):
+        from core import ideate
+        from core.ideate import propose_from_file
+
+        monkeypatch.setattr(ideate, "_render_pdf_thumbs",
+                            lambda path, max_pages=5: [b"\x89PNG"])
+        called = {"detect": 0}
+        def fake_detect(*a, **kw):
+            called["detect"] += 1
+            return "exam_pdf"
+        monkeypatch.setattr(ideate, "detect_source_type", fake_detect)
+        monkeypatch.setattr(ideate, "_call_gemini_vision",
+                            lambda **kw: '{"proposals": [{"suggested_title": "T", "reason": "r", "estimated_duration_min": 5}]}')
+
+        pdf = tmp_path / "x.pdf"
+        pdf.write_bytes(b"%PDF-1.4")
+        explicit = {
+            "path": str(pdf),
+            "source_type": "exam_pdf",   # 明確指定, 不走 auto
+            "mtime": 0.0,
+            "size_bytes": 10,
+        }
+        result = propose_from_file(explicit, base_config)
+        assert len(result) == 1
+        assert result[0]["source_type"] == "exam_pdf"
+        # 關鍵: detect 不該被呼叫 (saving API quota)
+        assert called["detect"] == 0
+
+
+class TestScanAutoSourceType:
+    """scan_changed_files 支援 auto + 預設 (iter 25)."""
+
+    def test_auto_source_type_accepts_pdf_md_txt(self, tmp_path):
+        from core.ideate import IdeateConfig, scan_changed_files
+
+        (tmp_path / "a.pdf").write_bytes(b"%PDF")
+        (tmp_path / "b.md").write_text("# x")
+        (tmp_path / "c.txt").write_text("x")
+        (tmp_path / "d.docx").write_bytes(b"PK")  # 應排除
+
+        cfg: IdeateConfig = {
+            "watched_folders": [
+                {"path": str(tmp_path), "source_type": "auto", "scan_window_days": 14}
+            ],
+            "llm_model": "gemini-2.5-flash",
+            "max_proposals_per_file": 3,
+            "enabled": True,
+        }
+        result = scan_changed_files(cfg)
+        exts = {Path(c["path"]).suffix.lower() for c in result}
+        assert exts == {".pdf", ".md", ".txt"}
+        # 候選 source_type 仍是 "auto" (留給 propose_from_file 階段判斷)
+        assert all(c["source_type"] == "auto" for c in result)
+
+    def test_no_source_type_defaults_to_auto(self, tmp_path):
+        """folder 沒設 source_type → 預設 auto."""
+        from core.ideate import scan_changed_files
+
+        (tmp_path / "a.pdf").write_bytes(b"%PDF")
+        cfg = {
+            "watched_folders": [
+                {"path": str(tmp_path), "scan_window_days": 14}   # 沒 source_type
+            ],
+            "llm_model": "gemini-2.5-flash",
+            "max_proposals_per_file": 3,
+            "enabled": True,
+        }
+        result = scan_changed_files(cfg)
+        assert len(result) == 1
+        assert result[0]["source_type"] == "auto"
+
+
 class TestDedupeAgainstJobs:
     """dedupe_against_jobs — JobStore + 前次 proposals 三層去重。"""
 

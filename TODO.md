@@ -94,12 +94,22 @@
   - 進度 callback (CLI 用 print) — 每個候選一行
   - 合併前次已 APPROVED/IGNORED 的決策 history
   - 本機實測 ideate 端到端: PDF → Gemini Vision → proposals.json → UI 卡片 ✅
-- [x] **iter 24: 修 approve retry 在 ingest fail 時走錯階段** (2026-05-13 commit pending)
+- [x] **iter 24: 修 approve retry 在 ingest fail 時走錯階段** (2026-05-13, commit 4fe1802)
   - 之前: state=FAILED 一律走 schedule_render → ingest 沒成功時 deck.json 不存在
     → render 再死一次
   - 修: state=FAILED 但 deck.json 不存在 → schedule_job 從 ingest 重跑
   - 用 case: ideate 提案的 source_type 跟實際 PDF 不符 (例 article 標 exam_pdf)
     → ingest 死, 用戶按重試應該重跑整條, 不該只跑 render
+- [x] **iter 25: ideate 自動判斷 source_type** (2026-05-13 commit pending)
+  - 解 user 踩的雷根因: watched_folder 整個 folder 假設同類型, 混雜檔案會錯標
+  - 新 detect_source_type(pdf_path) → Gemini Vision 看前 2 頁分類
+    (exam_pdf / slides_pdf / document, confidence=low 視為 fallback)
+  - prompts/ideate_detect_type.txt — 分類規則 + 嚴格 JSON 輸出
+  - propose_from_file 整合: source_type="auto" 走 detect, 失敗 fallback "document"
+  - scan_changed_files 加 auto 副檔名集合 + 預設值
+  - CLI 加 "auto" choice, 變預設用法 (向後相容: 仍接 exam_pdf / slides_pdf / document)
+  - 16 新 mock tests (TestDetectSourceType 11 + TestProposeAutoDetect 3 + TestScanAutoSourceType 2)
+  - 257 → 273 tests 全綠
 - 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩
 

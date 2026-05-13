@@ -20,7 +20,7 @@ import time
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Callable, TypedDict
 
 if TYPE_CHECKING:
     from server.jobs import JobStore
@@ -465,14 +465,74 @@ def save_proposals(path: Path, proposals: list[Proposal]) -> None:
 # ============================================================
 
 
-def run_ideate(config: IdeateConfig, store: "JobStore", out_path: Path) -> int:
+def run_ideate(
+    config: IdeateConfig,
+    store: "JobStore",
+    out_path: Path,
+    *,
+    dry_run: bool = False,
+    progress: Callable[[str], None] | None = None,
+) -> list[Proposal]:
     """執行一次完整流程: scan → propose → dedupe → save。
 
-    給 CLI / server route / 排程器呼叫。
+    參數:
+        config: IdeateConfig (watched_folders / llm_model / max_proposals_per_file)
+        store: JobStore (給 dedupe 用)
+        out_path: proposals.json 寫到哪裡 (通常 PROPOSALS_PATH)
+        dry_run: True → 只跑 scan, 不打 Gemini, 不寫檔
+                 用來預覽會掃到哪些 PDF, 不消耗 API quota
+        progress: 可選 callback (msg: str) -> None — CLI 印進度用
 
     回傳:
-        int — 寫進 out_path 的 proposal 數量
+        list[Proposal] — 最終寫進 out_path 的 proposals (dedupe 後)
+
+    流程:
+        1. scan_changed_files(config) → 候選檔
+        2. (dry_run=False 時) 對每個候選跑 propose_from_file → 多 proposals
+        3. dedupe_against_jobs(proposals, store, previous_proposals)
+        4. save_proposals(out_path, deduped)
     """
-    raise NotImplementedError(
-        "iter 14+ 串完整流程 (這時 scan/propose/dedupe 都該實作完)"
-    )
+    def _log(msg: str):
+        if progress:
+            progress(msg)
+
+    # 1. Scan
+    _log("[1/4] 掃 watched_folders ...")
+    candidates = scan_changed_files(config)
+    _log(f"      找到 {len(candidates)} 個候選 PDF / md / txt")
+
+    if dry_run:
+        _log("[dry-run] 跳過 Gemini call + dedupe + save")
+        for c in candidates:
+            _log(f"      → {c['path']}  ({c['source_type']}, {c['size_bytes']} bytes)")
+        return []
+
+    if not candidates:
+        _log("[2/4] 沒候選, 跳過 propose")
+        save_proposals(out_path, [])
+        return []
+
+    # 2. Propose for each candidate
+    _log(f"[2/4] 對 {len(candidates)} 個候選跑 Gemini Vision (每個約 10-30 秒) ...")
+    all_proposals: list[Proposal] = []
+    for i, c in enumerate(candidates, start=1):
+        _log(f"      [{i}/{len(candidates)}] {Path(c['path']).name}")
+        proposals = propose_from_file(c, config)
+        _log(f"             → {len(proposals)} 個提案")
+        all_proposals.extend(proposals)
+
+    _log(f"      共產生 {len(all_proposals)} 個提案 (dedupe 前)")
+
+    # 3. Dedupe
+    _log("[3/4] dedupe 對既有 JobStore + 前次 proposals ...")
+    previous = load_proposals(out_path)
+    deduped = dedupe_against_jobs(all_proposals, store, previous_proposals=previous)
+    _log(f"      dedupe 後剩 {len(deduped)} 個新提案 (filtered {len(all_proposals) - len(deduped)} 個)")
+
+    # 4. Save (合併前次仍 pending 的, 但 approved/ignored 保留)
+    decided = [p for p in previous if p.get("status") in ("approved", "ignored")]
+    final = decided + deduped
+    _log(f"[4/4] 寫 proposals.json (新 {len(deduped)} + 保留決策過 {len(decided)} = {len(final)} 筆)")
+    save_proposals(out_path, final)
+
+    return deduped

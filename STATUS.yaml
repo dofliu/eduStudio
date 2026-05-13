@@ -1,10 +1,10 @@
 name: autoSolverVideo
 name_zh: 教學影片自動生成平台
 category: edtech
-progress: 97
+progress: 98
 status: active
-last_updated: "2026-05-13"
-next_milestone: "v4 階段 1 A Docker 等 user 本機實測; 階段 1 C skill scaffold 完成等實測; 階段 2 B ideate iter 12 propose_from_file 是下個主要工作"
+last_updated: "2026-05-14"
+next_milestone: "v4 四大 feature track server-side 全完成 (Docker / pdf-to-video skill / ideate / diagram). 剩 user 本機實測 (Docker / skill / diagram 真實圖); 下一個主菜可能是 ideate UI 進度 streaming, pipeline.py 拆檔, 或 階段 3 D 持久化 worker (要先 RFC)"
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -59,10 +59,13 @@ key_metrics: |
   - core.deck.deck_to_exam_schema_slides 透傳 title + bullets (full 不讀, 保 schema 一致)
   - SlideEditor 加 layout <select>, split-left 才顯示 bullets 編輯器
 
-  測試覆蓋: 198 tests / 12 modules (text_utils 22 / deck 27 / youtube 17 /
-  jobs_store 32 / voices 13 / pptx_themes 13 / f5_split 13 / hardsub 10 (+4) /
-  slide_renderer 5 / visuals 7 / upload 7 (新) / ideate 21 (新) /
-  prompts_loader 11 (新)) + GitHub Actions CI 4 組 matrix。
+  測試覆蓋: 309 tests / 13 modules (text_utils 22 / deck 27 / youtube 17 /
+  jobs_store 32 / voices 13 / pptx_themes 20 / f5_split 13 / hardsub 10 /
+  slide_renderer 5 / visuals 7 / upload 7 / ideate 57 (含 detect/propose/
+  dedupe auto-detect) / prompts_loader 16 (含 cache invalidation) /
+  ideate_runner 3 / proposals_route 17 / diagram_gen 42 (含 AST allowlist +
+  dunder + render sandbox + generate_diagram 整合)) + GitHub Actions CI
+  4 組 matrix 全綠。
 
   Code review Round 1 (2026-05-09): P0 4 + P1 3 條全數修完 (2026-05-10):
   P0: logging lock / utc_now tz-aware / /upload size limit / sys.exit → raise
@@ -93,21 +96,42 @@ key_metrics: |
   - #4 無 review gate 強制機制 (require_review flag 可繞)
 
   v4 規劃 (按投報率排序, 詳見 ROADMAP.md / TODO.md):
-  - 階段 1: C Claude Code skill 包裝 → A Docker (1~2 週)
-  - 階段 2: B ideate.py 自動企劃 + E 工程圖 AI (2~3 週)
-  - 階段 3: D 持久化 worker (雲端化前置, 等真需要才做)
+  - 階段 1: C Claude Code skill 包裝 → A Docker (1~2 週) ✅ server-side 全完成
+  - 階段 2: B ideate.py 自動企劃 + E 工程圖 AI (2~3 週) ✅ server-side 全完成
+  - 階段 3: D 持久化 worker (雲端化前置, 等真需要才做) 📋 RFC 階段
 
-  2026-05-12~13 /advance 自動化迭代進度 (14 commits, 全部綠燈):
-  - 階段 1 A Docker: Dockerfile v1 draft + docker-compose.yml v1 +
-    .env.example (commit d4b3b04 + 3fe99e3) — 等 user 本機實測
-  - 階段 1 C skill: pdf-to-video SKILL.md scaffold (commit 0e6cddb) — 等實測
-  - 階段 2 B ideate: scaffold + design RFC (commit f894b74) +
-    scan_changed_files / load/save_proposals (commit f533995) — propose_from_file
-    iter 12 是下個主要工作
-  - 技術債清理: tts_config gitignored / requirements 分層 + 修漏列 google-genai
-    / 死碼 deps 移除 / scriptor + outliner prompt 抽到 prompts/*.txt
-    (scriptor 555 → 434, outliner 432 → 343, 合計 -210 行)
-  - 測試補完 CR 已知盲點: test_upload +7 / test_hardsub +4
-  - CI 紅修兩條 (python-multipart / mutagen 缺裝)
-  - core/prompts_loader.py 新建 — load_prompt(lru_cache) + prompt_version(sha256)
-  - core/ideate.py 新建 — scan/save 實作, Gemini call 留 iter 12 補
+  2026-05-12~14 /advance 自動化迭代進度 (32 個 iter, 全部 CI 綠):
+
+  iter 1~22 基礎 + 第一波收尾 (見 commit history db1a732 之前):
+  - Docker (Dockerfile / docker-compose / .env.example)
+  - ideate 完整 server-side (scan / propose / dedupe / save / route / UI / CLI)
+  - 工程圖 AI scaffold + AST sandbox + subprocess render
+  - 技術債大量清理 (deps / prompts / 死碼)
+  - 補完 CR 已知測試盲點 + 修 CI 紅 2 條
+
+  iter 23~31 真實踩雷修補 + UX 翻轉:
+  - iter 23: CLI scripts/run_ideate.py
+  - iter 24: 修 retry path (state=FAILED + 無 deck.json 走 schedule_job)
+  - iter 25: ideate 自動判斷 source_type (Gemini Vision 看前 2 頁分類)
+    + hotfix {{ }} 雙花括號 bug (commit db1a732)
+  - iter 26 → 27: yaml 設定 + 自動排程 (user 反饋 UX 太繁瑣) → 砍掉,
+    全 ad-hoc UI modal 取代 (commit 4577675)
+  - iter 28: pptx 主題 + 3 (Frieren / Naruto / Journal,
+    從 pptx-jliu-style 移植, commit 894ae78)
+  - iter 29: AST allowlist 補 dunder attribute (review 抓的 🟡, commit 403ffc4)
+  - iter 30: prompts_loader cache invalidation (commit 439e540)
+  - iter 31: 工程圖 AI 收尾 — generate_diagram + _propose_matplotlib_code
+    + prompts/diagram_matplotlib.txt 完整鏈 (commit 5c4d899)
+
+  P0 結構性弱點 (review iter 22 抓的) 全修:
+  - #1 proposal id collision (秒級→納秒級)
+  - #2 prompt {{ }} 雙花括號
+  - #3 retry 路徑 (ingest fail 時走錯)
+  - #4 AST dunder attribute 繞道
+
+  剩下的 (低優先, 等 user 互動再做):
+  - F5 中國腔治本 (需實機跑樣本)
+  - Gemini narration 截斷率 22% (需實跑驗證)
+  - Pronunciation map 缺漏 (需實聽錄音)
+  - pipeline.py 拆檔 (中大型 refactor)
+  - 階段 3 D 持久化 worker (要先 RFC 對齊技術選型)

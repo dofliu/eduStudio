@@ -95,6 +95,27 @@ curl http://localhost:8000/jobs/<job_id>
 # Artifact 在 output/<exam_stem>/qN.mp4
 ```
 
+### 3a. 自動企劃 ideate(可選)
+
+如果你有一資料夾教材想 AI 預先看過提案影片片單:
+
+```bash
+# CLI:
+python scripts/run_ideate.py auto D:/Teaching/Materials --window-days 30
+
+# 或開 http://localhost:8000/ui/proposals 點「📂 掃資料夾」modal
+```
+
+跑完 `/ui/proposals` 看 AI 建議的影片片單,點「✓ 核准」自動建 job + 進 review。
+
+source_type 走 `auto` Gemini Vision 看 PDF 自動判斷是考題/簡報/文件,不必你手選類型。
+
+### 3b. 工程圖 AI(可選)
+
+`core/diagram_gen.py` 的 `generate_diagram(spec)` 可從文字描述產 matplotlib 圖
+(自由體圖 / 彎矩圖 / 方塊圖等)。目前是 module-level API,未來會接 pipeline.py
+step image 欄位讓影片內動態切圖。
+
 ---
 
 ## 4. 開發架構
@@ -114,10 +135,14 @@ autoSolverVideo/
 │   ├── outliner.py      # outline 階段 (Gemini)
 │   ├── scriptor.py      # scripting 階段 (Gemini, repo/document/url)
 │   ├── deck.py          # deck schema 轉 v1 exam schema 的橋
-│   ├── ideate.py        # v4 階段 2 B: 自動內容企劃 (進行中)
-│   ├── diagram_gen.py   # v4 階段 2 E: 工程圖 AI (scaffold)
+│   ├── ideate.py        # v4 階段 2 B: 自動內容企劃 (完整可運作)
+│   │                    #   scan + propose (Gemini Vision) + dedupe + save
+│   │                    #   + detect_source_type 自動分類
+│   ├── diagram_gen.py   # v4 階段 2 E: 工程圖 AI (完整可運作)
+│   │                    #   generate_diagram → propose (Gemini) → AST validate
+│   │                    #   → subprocess sandbox render → PNG
 │   └── render/
-│       └── pptx_style.py # Forest / Navy 主題 renderer
+│       └── pptx_style.py # 5 主題 renderer (Forest / Navy / Frieren / Naruto / Journal)
 │
 ├── server/              # Track B FastAPI (主推流程)
 │   ├── main.py          # app factory + uvicorn entry

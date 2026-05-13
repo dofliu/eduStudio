@@ -29,7 +29,7 @@ from core.ideate import (
     save_proposals,
 )
 
-from ..ideate_runner import run_ideate_async
+from ..ideate_runner import get_scan_state, run_ideate_async, start_async_scan
 from ..jobs import JobStore, get_default_store
 from ..runner import schedule_job
 from ..schemas import (
@@ -99,6 +99,25 @@ class ScanResponse(BaseModel):
     proposed: int = 0
     new: int = 0
     error: str | None = None
+
+
+class ScanAsyncResponse(BaseModel):
+    """POST /proposals/scan-folder/async 回應 — 立刻回 scan_id, 不等完成."""
+
+    scan_id: str
+
+
+class ScanStatusResponse(BaseModel):
+    """GET /proposals/scan-status/{scan_id} 回應 — 進度查詢."""
+
+    state: str            # "running" | "done" | "failed"
+    scanned: int = 0
+    proposed: int = 0
+    new: int = 0
+    error: str | None = None
+    message: str = ""     # 最近一條 progress 訊息
+    started_at: str | None = None
+    ended_at: str | None = None
 
 
 # ============================================================
@@ -205,6 +224,68 @@ async def approve_proposal(
     )
 
 
+def _build_scan_config(req: "ScanFolderRequest", folder: Path) -> dict:
+    """req → IdeateConfig dict 共用 helper (sync + async 兩條 endpoint 都用)."""
+    return {
+        "watched_folders": [
+            {
+                "path": str(folder.resolve()),
+                "source_type": req.source_type,
+                "scan_window_days": req.scan_window_days,
+            }
+        ],
+        "llm_model": "gemini-2.5-flash",
+        "max_proposals_per_file": req.max_proposals_per_file,
+        "enabled": True,
+    }
+
+
+@router.post("/scan-folder/async", response_model=ScanAsyncResponse, status_code=status.HTTP_202_ACCEPTED)
+async def scan_folder_async(
+    req: ScanFolderRequest,
+    store: JobStore = Depends(_store),
+) -> ScanAsyncResponse:
+    """非同步觸發 ideate 掃描. 立刻回 scan_id, 不等完成。
+
+    UI 拿 scan_id 後 poll GET /proposals/scan-status/{scan_id} 看進度。
+    解決同步版 (POST /scan-folder) 等 10 分鐘 modal 卡住的 UX 問題。
+
+    錯誤:
+        folder 不存在 / 不是資料夾 → 400 (early validation, 不浪費 scan_id)
+    """
+    folder = Path(req.folder)
+    if not folder.exists():
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"資料夾不存在: {req.folder}",
+        )
+    if not folder.is_dir():
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"不是資料夾: {req.folder}",
+        )
+
+    config = _build_scan_config(req, folder)
+    scan_id = start_async_scan(config, store=store)
+    return ScanAsyncResponse(scan_id=scan_id)
+
+
+@router.get("/scan-status/{scan_id}", response_model=ScanStatusResponse)
+async def get_scan_status(scan_id: str) -> ScanStatusResponse:
+    """查 async scan 進度.
+
+    回 ScanStatusResponse: state ("running"/"done"/"failed") + metrics + message。
+    過 1 小時的 scan id (狀態 ended 後) 會被 GC, 拿不到時 404。
+    """
+    state = get_scan_state(scan_id)
+    if state is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"scan_id={scan_id} 不存在 (可能過期 1 小時或從未產生)",
+        )
+    return ScanStatusResponse(**state)
+
+
 @router.post("/scan-folder", response_model=ScanResponse)
 async def scan_folder(
     req: ScanFolderRequest,
@@ -228,18 +309,7 @@ async def scan_folder(
         return ScanResponse(ok=False, error=f"不是資料夾: {req.folder}")
 
     # 組 ad-hoc IdeateConfig — UI 模式只掃單一資料夾
-    config: dict = {
-        "watched_folders": [
-            {
-                "path": str(folder.resolve()),
-                "source_type": req.source_type,
-                "scan_window_days": req.scan_window_days,
-            }
-        ],
-        "llm_model": "gemini-2.5-flash",
-        "max_proposals_per_file": req.max_proposals_per_file,
-        "enabled": True,
-    }
+    config = _build_scan_config(req, folder)
     result = await run_ideate_async(config, store=store)
     return ScanResponse(**result)
 

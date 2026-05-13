@@ -254,3 +254,104 @@ class TestScanFolder:
         assert data["ok"] is True
         assert data["scanned"] == 3
         assert data["new"] == 4
+
+
+class TestScanFolderAsync:
+    """POST /proposals/scan-folder/async — fire-and-forget (iter 33)."""
+
+    def test_missing_folder_returns_400(self, client):
+        resp = client.post(
+            "/proposals/scan-folder/async",
+            json={"folder": "/does/not/exist"},
+        )
+        assert resp.status_code == 400
+
+    def test_folder_is_file_returns_400(self, client, tmp_path):
+        f = tmp_path / "x.pdf"
+        f.write_bytes(b"%PDF")
+        resp = client.post(
+            "/proposals/scan-folder/async",
+            json={"folder": str(f)},
+        )
+        assert resp.status_code == 400
+
+    def test_happy_path_returns_scan_id(self, client, tmp_path, monkeypatch):
+        from server.routes import proposals as proposals_mod
+
+        def fake_start(config, store=None, out_path=None):
+            return "fakehex123456"
+        monkeypatch.setattr(proposals_mod, "start_async_scan", fake_start)
+
+        resp = client.post(
+            "/proposals/scan-folder/async",
+            json={"folder": str(tmp_path), "source_type": "auto"},
+        )
+        assert resp.status_code == 202
+        assert resp.json() == {"scan_id": "fakehex123456"}
+
+
+class TestScanStatus:
+    """GET /proposals/scan-status/{scan_id} (iter 33)."""
+
+    def test_unknown_scan_id_returns_404(self, client):
+        resp = client.get("/proposals/scan-status/nope_unknown")
+        assert resp.status_code == 404
+
+    def test_running_state(self, client, monkeypatch):
+        from server.routes import proposals as proposals_mod
+
+        def fake_get(scan_id):
+            return {
+                "state": "running",
+                "scanned": 2,
+                "proposed": 0,
+                "new": 0,
+                "error": None,
+                "message": "running gemini",
+                "started_at": "2026-05-14T01:00:00+00:00",
+                "ended_at": None,
+            }
+        monkeypatch.setattr(proposals_mod, "get_scan_state", fake_get)
+
+        resp = client.get("/proposals/scan-status/abc")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["state"] == "running"
+        assert data["scanned"] == 2
+        assert data["message"] == "running gemini"
+
+    def test_done_state(self, client, monkeypatch):
+        from server.routes import proposals as proposals_mod
+
+        def fake_get(scan_id):
+            return {
+                "state": "done",
+                "scanned": 5, "proposed": 8, "new": 3,
+                "error": None, "message": "",
+                "started_at": "2026-05-14T01:00:00+00:00",
+                "ended_at": "2026-05-14T01:05:00+00:00",
+            }
+        monkeypatch.setattr(proposals_mod, "get_scan_state", fake_get)
+
+        resp = client.get("/proposals/scan-status/abc")
+        assert resp.status_code == 200
+        assert resp.json()["state"] == "done"
+
+    def test_failed_state_with_error(self, client, monkeypatch):
+        from server.routes import proposals as proposals_mod
+
+        def fake_get(scan_id):
+            return {
+                "state": "failed",
+                "scanned": 1, "proposed": 0, "new": 0,
+                "error": "Gemini quota", "message": "",
+                "started_at": "2026-05-14T01:00:00+00:00",
+                "ended_at": "2026-05-14T01:00:30+00:00",
+            }
+        monkeypatch.setattr(proposals_mod, "get_scan_state", fake_get)
+
+        resp = client.get("/proposals/scan-status/abc")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["state"] == "failed"
+        assert data["error"] == "Gemini quota"

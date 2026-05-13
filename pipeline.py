@@ -151,25 +151,19 @@ def _build_avatar_concat(audio_p, out_txt, dur, cfg, q_work):
     wav_p.unlink(missing_ok=True)
 
 def _overlay_teacher_photo(img):
-    cfg = _get_pipeline_config()
-    if cfg.get("dynamic_avatar", {}).get("enabled"): return
-    tp = cfg.get("teacher_photo", {})
-    if not tp.get("enabled"): return
-    path = Path(tp.get("path",""))
-    if not path.exists(): return
-    try:
-        size, margin, shape, bw = int(tp.get("size", 220)), int(tp.get("margin", 40)), tp.get("shape", "circle"), int(tp.get("border_width", 3))
-        photo = Image.open(path).convert("RGBA").resize((size, size), Image.LANCZOS)
-        mask = Image.new("L", (size, size), 0); md = ImageDraw.Draw(mask)
-        if shape == "circle": md.ellipse([0, 0, size, size], fill=255)
-        else: md.rectangle([0, 0, size, size], fill=255)
-        px, py = WIDTH - size - margin, HEIGHT - size - margin
-        img.paste(photo, (px, py), mask=mask)
-        if bw > 0:
-            bd = ImageDraw.Draw(img); box = [px-bw, py-bw, px+size+bw, py+size+bw]
-            if shape == "circle": bd.ellipse(box, outline=CHALK_WHITE, width=bw)
-            else: bd.rectangle(box, outline=CHALK_WHITE, width=bw)
-    except: pass
+    """Thin wrapper — 真正邏輯在 core.photo_overlay (iter 35 拆出)。
+
+    保留底線 prefix 是為了 pipeline.py 內部其他地方繼續用既有 import path,
+    BlackboardRenderer / SlideRenderer / PptxStyleRenderer 都會呼叫。
+    """
+    from core.photo_overlay import overlay_teacher_photo
+    overlay_teacher_photo(
+        img,
+        config=_get_pipeline_config(),
+        canvas_width=WIDTH,
+        canvas_height=HEIGHT,
+        border_color=CHALK_WHITE,
+    )
 
 # ---------- 渲染與合成 ----------
 # Renderer 基類:Phase 1 引入,為了 v1.7 簡報講解模式鋪路。

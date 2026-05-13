@@ -520,17 +520,10 @@ async def main(json_path, out_name, start_step=None):
     list_f.write_text("\n".join(f"file '{path}'" for path in posix_clips), encoding="utf-8")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_f), "-c", "copy", str(OUTPUT_DIR / f"{out_name}.mp4")], check=True)
 
-    srt, cue, t = [], 1, 0.0
-    for s, d in zip(data["steps"], durs):
-        sent = [p.strip() for p in re.split(r"(?<=[。！？!?])\s*", s.get("narration", "")) if p.strip()]
-        if not sent: t += d + PAUSE_AFTER_EACH; continue
-        tot, sub_s = sum(len(x) for x in sent), t
-        for j, x in enumerate(sent):
-            sub_e = t+d if j==len(sent)-1 else sub_s + d*(len(x)/tot)
-            srt += [str(cue), f"{int(sub_s//3600):02d}:{int((sub_s%3600)//60):02d}:{int(sub_s%60):02d},{int((sub_s-int(sub_s))*1000):03d} --> {int(sub_e//3600):02d}:{int((sub_e%3600)//60):02d}:{int(sub_e%60):02d},{int((sub_e-int(sub_e))*1000):03d}", x, ""]
-            cue += 1; sub_s = sub_e
-        t += d + PAUSE_AFTER_EACH
-    (OUTPUT_DIR / f"{out_name}.srt").write_text("\n".join(srt), encoding="utf-8")
+    # iter 37: SRT 生成邏輯抽到 core.srt, 純函式好測 (10 行 dense → import 一條)
+    from core.srt import build_srt
+    srt_text = build_srt(data["steps"], durs, pause_after_each=PAUSE_AFTER_EACH)
+    (OUTPUT_DIR / f"{out_name}.srt").write_text(srt_text, encoding="utf-8")
 
     # PR-5c: 燒字幕 — 把外掛 SRT 直接畫進畫面, 取代原 mp4。
     # data["hardsub"] 由 runner.py 從 JobOptions.hardsub 帶過來; 預設 False。

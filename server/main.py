@@ -16,7 +16,7 @@ import argparse
 import mimetypes
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -113,11 +113,38 @@ def create_app() -> FastAPI:
             return FileResponse(WEB_DIST / "index.html")
 
     @app.get("/health", tags=["meta"])
-    async def health() -> dict:
+    async def health(store=Depends(get_default_store)) -> dict:
+        """server 健康狀態 + setup 診斷 (iter 36 加強).
+
+        給 monitoring (Docker healthcheck / nagios) + 新用戶 onboarding sanity
+        check (確認 GEMINI_API_KEY 設了 / proposals.json 存在 / 字型 OK)。
+        """
+        import os
+
+        from core.config import (
+            PIPELINE_CONFIG_PATH,
+            PROPOSALS_PATH,
+            TTS_CONFIG_PATH,
+            get_fallback_font_path,
+            get_font_path,
+            get_gemini_api_key,
+            get_mono_font_path,
+        )
+
         return {
             "status": "ok",
             "service": "autoSolverVideo",
             "ui_built": WEB_DIST.exists(),
+            # setup diagnostics — 給 onboarding / monitoring
+            "gemini_api_key_set": bool(get_gemini_api_key()),
+            "tts_config_exists": TTS_CONFIG_PATH.exists(),
+            "pipeline_config_exists": PIPELINE_CONFIG_PATH.exists(),
+            "proposals_json_exists": PROPOSALS_PATH.exists(),
+            "jobs_count": len(store.list()),
+            # 字型可達性 (檔案實際存在) — Linux Docker 環境若 Noto 沒裝這會 False
+            "font_main_exists": os.path.exists(get_font_path()),
+            "font_fallback_exists": os.path.exists(get_fallback_font_path()),
+            "font_mono_exists": os.path.exists(get_mono_font_path()),
         }
 
     # 根路徑優先導 React UI, 沒 build 就退到 vanilla editor

@@ -9,6 +9,9 @@ import type {
   JobOptions,
   JobRecord,
   LibraryResponse,
+  Proposal,
+  ProposalApproveResponse,
+  ProposalListResponse,
   PublishRequest,
   SourceType,
   VoiceListResponse,
@@ -154,6 +157,25 @@ export const api = {
   /** 拉 jobs/<id>/log.jsonl 末尾 N 行 (預設 200). */
   getJobLog: (jobId: string, tail = 200) =>
     call<JobLogResponse>(`/jobs/${jobId}/log?tail=${tail}`),
+
+  // ---------- Proposals (v4 階段 2 B ideate) ----------
+
+  listProposals: (onlyPending = true) =>
+    call<ProposalListResponse>(
+      `/proposals?only_pending=${onlyPending ? 'true' : 'false'}`,
+    ),
+
+  approveProposal: (proposalId: string) =>
+    call<ProposalApproveResponse>(
+      `/proposals/${encodeURIComponent(proposalId)}/approve`,
+      { method: 'POST' },
+    ),
+
+  ignoreProposal: (proposalId: string) =>
+    call<Proposal>(
+      `/proposals/${encodeURIComponent(proposalId)}/ignore`,
+      { method: 'PATCH' },
+    ),
 };
 
 export { ApiError };

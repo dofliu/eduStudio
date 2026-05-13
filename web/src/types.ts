@@ -240,3 +240,29 @@ export interface LogEntry {
 export interface JobLogResponse {
   entries: LogEntry[];
 }
+
+// ---------- Proposals (v4 階段 2 B ideate.py) ----------
+
+export type ProposalStatus = 'pending' | 'approved' | 'ignored' | 'expired';
+
+export interface Proposal {
+  id: string;
+  generated_at: string;
+  source_file: string;
+  source_type: SourceType;
+  suggested_title: string;
+  suggested_chapters: string[];
+  reason: string;
+  estimated_duration_min: number;
+  status: ProposalStatus;
+  job_id?: string | null;
+}
+
+export interface ProposalListResponse {
+  proposals: Proposal[];
+}
+
+export interface ProposalApproveResponse {
+  proposal: Proposal;
+  job: CreateJobResponse;
+}

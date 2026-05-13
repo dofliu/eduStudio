@@ -75,13 +75,20 @@
   - 加 `_normalize_path` helper — Windows 大小寫不敏感 + 跨平台 / 統一
   - 10 個新 mock tests (FakeStore / FakeRecord / FakeUpload pattern)
   - 209 → 218 tests 全綠
-- [x] **iter 14 第一半: server route /proposals** (2026-05-13 commit pending)
+- [x] **iter 14 第一半: server route /proposals** (2026-05-13, commit 8285432)
   - `GET /proposals?only_pending=true` 列出待決策提案
   - `POST /proposals/{id}/approve` 核准 → 走既有 schedule_job (不繞 require_review, P0 #4)
   - `PATCH /proposals/{id}/ignore` 標 IGNORED 不建 job
   - server/main.py 掛 proposals_routes.router
-  - 12 個新 tests (TestList 4 + TestApprove 5 + TestIgnore 3), 245 → 257 tests
-  - **未做**: React UI ProposalsList 頁 (留 iter 22), CLI run_ideate trigger (iter 23)
+  - 12 個新 tests (TestList 4 + TestApprove 5 + TestIgnore 3)
+- [x] **iter 14 第二半: React UI ProposalsList** (2026-05-13, commit pending)
+  - web/src/pages/ProposalsList.tsx — 卡片 list, 每張: title / source / reason / 預估時長
+  - 兩個 button: ✓ 核准 (跳 JobEditor 進 review) / ✗ 忽略 (confirm)
+  - api.ts 加 listProposals / approveProposal / ignoreProposal 三方法
+  - types.ts 加 Proposal / ProposalStatus / ProposalListResponse / ProposalApproveResponse
+  - main.tsx 掛 /proposals route, App.tsx header nav 加連結
+  - vite build 通過 (51 modules)
+- [ ] **iter 23**: CLI run_ideate trigger (scripts/run_ideate.py)
 - 價值: 產品差異化, 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩
 

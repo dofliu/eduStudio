@@ -5,6 +5,7 @@ import App from './App';
 import JobsIndex from './pages/JobsIndex';
 import JobEditor from './pages/JobEditor';
 import Library from './pages/Library';
+import ProposalsList from './pages/ProposalsList';
 import PublishReview from './pages/PublishReview';
 import './index.css';
 
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<App />}>
           <Route index element={<JobsIndex />} />
           <Route path="library" element={<Library />} />
+          <Route path="proposals" element={<ProposalsList />} />
           <Route path="jobs/:jobId" element={<JobEditor />} />
           <Route
             path="jobs/:jobId/publish/:artifactName"

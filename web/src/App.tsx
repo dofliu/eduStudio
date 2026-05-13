@@ -18,6 +18,9 @@ export default function App() {
               <Link to="/" className="text-chalk-yellow hover:underline">
                 Jobs
               </Link>
+              <Link to="/proposals" className="text-chalk-yellow hover:underline">
+                Proposals
+              </Link>
               <Link to="/library" className="text-chalk-yellow hover:underline">
                 Library
               </Link>

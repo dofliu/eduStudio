@@ -64,6 +64,6 @@ tts_config.json
 # 範本見 .env.example
 .env
 
-# ideate 個人設定 (watched_folders 是本機路徑, 不該 commit)
-# 範本見 ideate_config.example.yaml
+# ideate 個人設定 — iter 27 已改 ad-hoc 模式 (UI 按鈕直接接 path), 不再用 yaml
+# 仍 ignore 防舊版設定誤 commit
 ideate_config.yaml

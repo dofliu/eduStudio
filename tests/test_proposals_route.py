@@ -185,3 +185,72 @@ class TestIgnore:
         ])
         resp = client.patch("/proposals/p1/ignore")
         assert resp.status_code == 409
+
+
+class TestScanFolder:
+    """POST /proposals/scan-folder — ad-hoc 掃單一資料夾 (iter 27)."""
+
+    def test_missing_folder_returns_ok_false(self, client):
+        resp = client.post(
+            "/proposals/scan-folder",
+            json={"folder": "/this/does/not/exist", "source_type": "auto"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is False
+        assert "不存在" in (data["error"] or "")
+
+    def test_folder_is_file_returns_ok_false(self, client, tmp_path):
+        f = tmp_path / "x.pdf"
+        f.write_bytes(b"%PDF")
+        resp = client.post(
+            "/proposals/scan-folder",
+            json={"folder": str(f), "source_type": "auto"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is False
+        assert "不是資料夾" in (data["error"] or "")
+
+    def test_invalid_source_type_returns_422(self, client, tmp_path):
+        resp = client.post(
+            "/proposals/scan-folder",
+            json={"folder": str(tmp_path), "source_type": "nope"},
+        )
+        assert resp.status_code == 422
+
+    def test_window_days_validation(self, client, tmp_path):
+        # scan_window_days=0 違反 ge=1
+        resp = client.post(
+            "/proposals/scan-folder",
+            json={"folder": str(tmp_path), "scan_window_days": 0},
+        )
+        assert resp.status_code == 422
+
+    def test_happy_path_dispatches_to_run_ideate_async(self, client, tmp_path, monkeypatch):
+        """正常路徑: 接 body → 組 config → run_ideate_async → 回 ScanResponse."""
+        from server.routes import proposals as proposals_mod
+
+        async def fake_run_async(config, store=None, out_path=None):
+            # 確認 config 是依 request body 組好的
+            assert config["watched_folders"][0]["scan_window_days"] == 7
+            assert config["watched_folders"][0]["source_type"] == "exam_pdf"
+            assert config["max_proposals_per_file"] == 5
+            return {"ok": True, "scanned": 3, "proposed": 6, "new": 4, "error": None}
+
+        monkeypatch.setattr(proposals_mod, "run_ideate_async", fake_run_async)
+
+        resp = client.post(
+            "/proposals/scan-folder",
+            json={
+                "folder": str(tmp_path),
+                "source_type": "exam_pdf",
+                "scan_window_days": 7,
+                "max_proposals_per_file": 5,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["scanned"] == 3
+        assert data["new"] == 4

@@ -29,6 +29,12 @@ export default function ProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  // iter 27: ad-hoc modal 取代 yaml — 用戶填 path 直接掃
+  const [scanModal, setScanModal] = useState(false);
+  const [scanFolder, setScanFolder] = useState('');
+  const [scanType, setScanType] = useState<'auto' | 'exam_pdf' | 'slides_pdf' | 'document'>('auto');
+  const [scanWindowDays, setScanWindowDays] = useState(30);
+  const [scanMaxPerFile, setScanMaxPerFile] = useState(3);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,15 +67,30 @@ export default function ProposalsList() {
     }
   };
 
+  const openScanModal = () => {
+    setScanModal(true);
+  };
+
   const handleScan = async () => {
     if (scanning) return;
+    const folder = scanFolder.trim();
+    if (!folder) {
+      show('請輸入資料夾路徑', 'error');
+      return;
+    }
     setScanning(true);
     try {
-      const r = await api.scanProposals();
+      const r = await api.scanFolder({
+        folder,
+        source_type: scanType,
+        scan_window_days: scanWindowDays,
+        max_proposals_per_file: scanMaxPerFile,
+      });
       if (!r.ok) {
         show(`掃描失敗: ${r.error ?? '未知錯誤'}`, 'error');
       } else {
         show(`掃描完成: 候選 ${r.scanned} / 新提案 ${r.new}`, 'info');
+        setScanModal(false);
         await load();    // 重抓清單看新提案
       }
     } catch (e) {
@@ -105,25 +126,117 @@ export default function ProposalsList() {
   // 共用的「掃資料夾」按鈕 — 空清單跟有資料時都用
   const scanButton = (
     <button
-      onClick={handleScan}
+      onClick={openScanModal}
       disabled={scanning}
       className="btn btn-primary text-sm"
-      title="從 ideate_config.yaml 讀 watched_folders, 跑 Gemini Vision 提案 (可能等 10+ 分)"
+      title="掃指定資料夾, 跑 Gemini Vision 自動提案 (可能等 10+ 分)"
     >
-      {scanning ? '⏳ 掃描中… (Gemini 跑 10+ 分)' : '📂 掃資料夾產提案'}
+      {scanning ? '⏳ 掃描中…' : '📂 掃資料夾產提案'}
     </button>
+  );
+
+  // iter 27: ad-hoc 掃描設定 modal — 點上面按鈕跳出, 填 path 後跑
+  const scanModalEl = scanModal && (
+    <div
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      onClick={() => !scanning && setScanModal(false)}
+    >
+      <div
+        className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-semibold mb-3">📂 掃資料夾產提案</h2>
+        <div className="space-y-3 text-sm">
+          <div>
+            <label className="block text-xs font-medium mb-1">
+              資料夾路徑 (server 本機絕對路徑)
+            </label>
+            <input
+              type="text"
+              value={scanFolder}
+              onChange={(e) => setScanFolder(e.target.value)}
+              placeholder="D:/Teaching/Materials/材料力學"
+              className="w-full px-3 py-1.5 border rounded text-sm font-mono"
+              disabled={scanning}
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1">類型判斷</label>
+              <select
+                value={scanType}
+                onChange={(e) => setScanType(e.target.value as typeof scanType)}
+                className="w-full px-2 py-1.5 border rounded text-sm"
+                disabled={scanning}
+              >
+                <option value="auto">auto (推薦, AI 自動判)</option>
+                <option value="exam_pdf">exam_pdf (考題)</option>
+                <option value="slides_pdf">slides_pdf (簡報)</option>
+                <option value="document">document (文件)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">天數 (近 N 天)</label>
+              <input
+                type="number"
+                min={1}
+                max={3650}
+                value={scanWindowDays}
+                onChange={(e) => setScanWindowDays(Number(e.target.value) || 30)}
+                className="w-full px-2 py-1.5 border rounded text-sm"
+                disabled={scanning}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium mb-1">每份 PDF 最多幾個提案</label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={scanMaxPerFile}
+              onChange={(e) => setScanMaxPerFile(Number(e.target.value) || 3)}
+              className="w-full px-2 py-1.5 border rounded text-sm"
+              disabled={scanning}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-2 justify-end">
+          <button
+            onClick={() => setScanModal(false)}
+            disabled={scanning}
+            className="btn btn-ghost text-sm"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleScan}
+            disabled={scanning || !scanFolder.trim()}
+            className="btn btn-primary text-sm"
+          >
+            {scanning ? '⏳ 掃描中… (Gemini 跑 10+ 分)' : '開始掃'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
   if (proposals.length === 0) {
     return (
-      <div className="text-center py-10">
-        <div className="text-ink-muted mb-4">沒有 pending 的企劃。</div>
-        <div className="mb-4">{scanButton}</div>
-        <div className="text-xs text-ink-muted">
-          先 <code>cp ideate_config.example.yaml ideate_config.yaml</code> 設定 watched_folders,
-          再按上面按鈕。或設 <code>IDEATE_AUTO_SCAN=1</code> 環境變數讓 server 自動定時跑。
+      <>
+        <div className="text-center py-10">
+          <div className="text-ink-muted mb-4">沒有 pending 的企劃。</div>
+          <div className="mb-4">{scanButton}</div>
+          <div className="text-xs text-ink-muted">
+            點上面按鈕填入要掃的資料夾, Gemini Vision 會自動判斷每份 PDF 類型並提案影片。
+          </div>
         </div>
-      </div>
+        {scanModalEl}
+      </>
     );
   }
 
@@ -136,6 +249,7 @@ export default function ProposalsList() {
           <button onClick={load} className="btn btn-ghost text-sm">↻ 重新載入</button>
         </div>
       </div>
+      {scanModalEl}
 
       <ul className="space-y-3">
         {proposals.map(p => (

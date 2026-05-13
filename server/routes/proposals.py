@@ -16,6 +16,7 @@ server.jobs._resolve_default_review 依 source_type 預設 (exam_pdf=True)。
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -28,7 +29,7 @@ from core.ideate import (
     save_proposals,
 )
 
-from ..ideate_runner import run_ideate_from_yaml
+from ..ideate_runner import run_ideate_async
 from ..jobs import JobStore, get_default_store
 from ..runner import schedule_job
 from ..schemas import (
@@ -78,8 +79,20 @@ class ProposalStatusUpdateRequest(BaseModel):
     status: Literal["ignored"]
 
 
+class ScanFolderRequest(BaseModel):
+    """POST /proposals/scan-folder 接的 body."""
+
+    folder: str = Field(..., description="要掃的資料夾絕對路徑 (server 本機可讀)")
+    source_type: Literal["auto", "exam_pdf", "slides_pdf", "document"] = Field(
+        default="auto",
+        description="source_type 強制值, auto = Gemini Vision 自動判斷每份 PDF",
+    )
+    scan_window_days: int = Field(default=30, ge=1, le=3650)
+    max_proposals_per_file: int = Field(default=3, ge=1, le=10)
+
+
 class ScanResponse(BaseModel):
-    """POST /proposals/scan 回應 — 跑完一輪 ideate 的 metrics."""
+    """POST /proposals/scan-folder 回應 — 跑完一輪 ideate 的 metrics."""
 
     ok: bool
     scanned: int = 0
@@ -192,20 +205,42 @@ async def approve_proposal(
     )
 
 
-@router.post("/scan", response_model=ScanResponse)
-async def scan_proposals(
+@router.post("/scan-folder", response_model=ScanResponse)
+async def scan_folder(
+    req: ScanFolderRequest,
     store: JobStore = Depends(_store),
 ) -> ScanResponse:
-    """觸發跑一輪 ideate (從 ideate_config.yaml 讀 watched_folders).
+    """掃一個指定資料夾, 跑 ideate 流程。
+
+    UI 按鈕呼叫的就是這條 (取代 iter 26 的 /scan + yaml flow). 用戶在前端
+    modal 填 folder path 跟 (進階) 參數, 後端組成 IdeateConfig 餵 run_ideate。
 
     流程: scan → propose (Gemini Vision) → dedupe → 寫 proposals.json。
-    這條走 to_thread, 不會阻 event loop, 但本 endpoint 會 await 完成才回 —
-    如果 ideate 跑 10 分鐘前端會等 10 分鐘。
+    這條走 to_thread, 不阻 event loop, 但 await 完成才回 — UI 可能等 10+ 分鐘。
 
-    未來改進: 改成 background task + WebSocket / SSE 給前端即時進度,
-    或回 task_id 給前端 poll. 現階段同步等就好 (簡單)。
+    錯誤回應 (validation 失敗): FastAPI 自動 422 + 詳情, caller 看 detail。
+    執行錯誤 (Gemini quota / 檔案讀不到): 200 + ok=False + error msg。
     """
-    result = await run_ideate_from_yaml(store=store)
+    folder = Path(req.folder)
+    if not folder.exists():
+        return ScanResponse(ok=False, error=f"資料夾不存在: {req.folder}")
+    if not folder.is_dir():
+        return ScanResponse(ok=False, error=f"不是資料夾: {req.folder}")
+
+    # 組 ad-hoc IdeateConfig — UI 模式只掃單一資料夾
+    config: dict = {
+        "watched_folders": [
+            {
+                "path": str(folder.resolve()),
+                "source_type": req.source_type,
+                "scan_window_days": req.scan_window_days,
+            }
+        ],
+        "llm_model": "gemini-2.5-flash",
+        "max_proposals_per_file": req.max_proposals_per_file,
+        "enabled": True,
+    }
+    result = await run_ideate_async(config, store=store)
     return ScanResponse(**result)
 
 

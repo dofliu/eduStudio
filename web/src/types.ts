@@ -267,7 +267,14 @@ export interface ProposalApproveResponse {
   job: CreateJobResponse;
 }
 
-// POST /proposals/scan 觸發 ideate 跑一輪
+// POST /proposals/scan-folder 觸發 ideate 跑一輪
+export interface ScanFolderRequest {
+  folder: string;
+  source_type?: 'auto' | 'exam_pdf' | 'slides_pdf' | 'document';
+  scan_window_days?: number;
+  max_proposals_per_file?: number;
+}
+
 export interface ScanResponse {
   ok: boolean;
   scanned: number;

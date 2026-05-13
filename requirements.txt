@@ -35,7 +35,6 @@ pymupdf>=1.24          # slide_ingest.py PDF → PNG (高效率, libmupdf C 庫)
 fastapi>=0.110
 uvicorn>=0.27          # ASGI server, server/main.py 啟動用
 python-multipart>=0.0.9  # FastAPI File/Form 多部分上傳 (PR-3k 用)
-PyYAML>=6.0            # ideate_config.yaml 讀寫 (v4 階段 2 B iter 26)
 
 # ============================================================
 # legacy — Track A (已退場到只剩 redirect, 過渡期保留)

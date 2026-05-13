@@ -12,6 +12,7 @@ import type {
   Proposal,
   ProposalApproveResponse,
   ProposalListResponse,
+  ScanFolderRequest,
   ScanResponse,
   PublishRequest,
   SourceType,
@@ -178,10 +179,12 @@ export const api = {
       { method: 'PATCH' },
     ),
 
-  /** 觸發 ideate 跑一輪 (從 ideate_config.yaml 讀 watched_folders).
-   * 同步等完成 — 可能要等 10+ 分鐘 (看 PDF 數量). */
-  scanProposals: () =>
-    call<ScanResponse>(`/proposals/scan`, { method: 'POST' }),
+  /** 觸發 ideate 掃單一資料夾 (UI 模式, iter 27 取代 yaml). 同步等完成. */
+  scanFolder: (req: ScanFolderRequest) =>
+    call<ScanResponse>(`/proposals/scan-folder`, {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
 };
 
 export { ApiError };

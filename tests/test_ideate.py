@@ -121,6 +121,18 @@ class TestDetectSourceType:
         mock_io("not json")
         assert detect_source_type(fake_pdf) is None
 
+    def test_double_brace_hotfix(self, fake_pdf, mock_io):
+        """iter 25 hotfix regression — Gemini 照抄 prompt 的 {{ }} 雙花括號時,
+        _parse_detect_response 該自動 strip 成單花, 而不是炸 JSON parse error.
+
+        起因: prompts/ideate_detect_type.txt 一開始誤寫 {{ }} (照 propose 那
+        份 .format() escape 風格), 但 detect 沒走 .format() → Gemini 照抄 →
+        json.loads 炸 → fallback 到 document → user 看到考題被誤判文件。
+        """
+        from core.ideate import detect_source_type
+        mock_io('{{"source_type": "exam_pdf", "confidence": "high"}}')
+        assert detect_source_type(fake_pdf) == "exam_pdf"
+
 
 class TestProposeAutoDetect:
     """propose_from_file 整合 detect_source_type 行為 (iter 25)."""

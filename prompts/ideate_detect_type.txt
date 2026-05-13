@@ -39,13 +39,13 @@
 
 ==== 輸出格式 (嚴格) ====
 
-直接回 JSON object, 從 {{ 開頭到 }} 結尾, 不要 Markdown fence、不要前後說明文字:
+直接回 JSON object, 從 { 開頭到 } 結尾, 不要 Markdown fence、不要前後說明文字:
 
-{{
+{
   "source_type": "exam_pdf",
   "confidence": "high",
   "reason": "首頁有「期中考」字樣 + 題號 1-7"
-}}
+}
 
 source_type 只能是 "exam_pdf" / "slides_pdf" / "document" 三選一。
 confidence 只能是 "high" / "medium" / "low" 三選一。

@@ -349,6 +349,9 @@ def _parse_detect_response(raw: str) -> str | None:
         if first == -1 or last == -1 or last <= first:
             return None
         text = text[first:last + 1]
+    # iter 25 hotfix: 防 prompt 寫 {{ }} 雙花括號讓 Gemini 照抄
+    # (本來 .format() 用 {{ escape, 但 detect prompt 沒過 format)
+    text = text.replace("{{", "{").replace("}}", "}")
 
     data = json.loads(text)
     if not isinstance(data, dict):

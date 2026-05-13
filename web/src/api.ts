@@ -12,6 +12,7 @@ import type {
   Proposal,
   ProposalApproveResponse,
   ProposalListResponse,
+  ScanResponse,
   PublishRequest,
   SourceType,
   VoiceListResponse,
@@ -176,6 +177,11 @@ export const api = {
       `/proposals/${encodeURIComponent(proposalId)}/ignore`,
       { method: 'PATCH' },
     ),
+
+  /** 觸發 ideate 跑一輪 (從 ideate_config.yaml 讀 watched_folders).
+   * 同步等完成 — 可能要等 10+ 分鐘 (看 PDF 數量). */
+  scanProposals: () =>
+    call<ScanResponse>(`/proposals/scan`, { method: 'POST' }),
 };
 
 export { ApiError };

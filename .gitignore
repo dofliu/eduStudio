@@ -63,3 +63,7 @@ tts_config.json
 # 環境變數 — 含 GEMINI_API_KEY 等 secrets, 絕不 commit
 # 範本見 .env.example
 .env
+
+# ideate 個人設定 (watched_folders 是本機路徑, 不該 commit)
+# 範本見 ideate_config.example.yaml
+ideate_config.yaml

@@ -266,3 +266,12 @@ export interface ProposalApproveResponse {
   proposal: Proposal;
   job: CreateJobResponse;
 }
+
+// POST /proposals/scan 觸發 ideate 跑一輪
+export interface ScanResponse {
+  ok: boolean;
+  scanned: number;
+  proposed: number;
+  new: number;
+  error?: string | null;
+}

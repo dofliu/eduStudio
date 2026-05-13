@@ -25,6 +25,10 @@ from core.config import PROJECT_ROOT
 from core.logging_setup import setup_logging
 from core.runtime import setup_utf8_stdout
 
+from .ideate_runner import (  # v4 階段 2 B iter 26
+    start_background_scheduler,
+    stop_background_scheduler,
+)
 from .jobs import get_default_store
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
@@ -111,6 +115,16 @@ def create_app() -> FastAPI:
             if target.is_file():
                 return FileResponse(target)
             return FileResponse(WEB_DIST / "index.html")
+
+    # v4 階段 2 B iter 26: ideate 自動排程
+    # 預設不起 — 用戶需明確 IDEATE_AUTO_SCAN=1 才開, 避免不知情燒 Gemini quota
+    @app.on_event("startup")
+    async def _start_ideate_scheduler() -> None:
+        start_background_scheduler()
+
+    @app.on_event("shutdown")
+    async def _stop_ideate_scheduler() -> None:
+        stop_background_scheduler()
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

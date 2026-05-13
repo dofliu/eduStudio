@@ -28,6 +28,7 @@ export default function ProposalsList() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +61,25 @@ export default function ProposalsList() {
     }
   };
 
+  const handleScan = async () => {
+    if (scanning) return;
+    setScanning(true);
+    try {
+      const r = await api.scanProposals();
+      if (!r.ok) {
+        show(`掃描失敗: ${r.error ?? '未知錯誤'}`, 'error');
+      } else {
+        show(`掃描完成: 候選 ${r.scanned} / 新提案 ${r.new}`, 'info');
+        await load();    // 重抓清單看新提案
+      }
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      show(`掃描失敗: ${msg}`, 'error');
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const handleIgnore = async (p: Proposal) => {
     if (!confirm(`確定要忽略「${p.suggested_title}」?之後 ideate 不會再提這份檔。`)) {
       return;
@@ -82,13 +102,26 @@ export default function ProposalsList() {
     return <div className="text-center py-10 text-ink-muted">Loading proposals…</div>;
   }
 
+  // 共用的「掃資料夾」按鈕 — 空清單跟有資料時都用
+  const scanButton = (
+    <button
+      onClick={handleScan}
+      disabled={scanning}
+      className="btn btn-primary text-sm"
+      title="從 ideate_config.yaml 讀 watched_folders, 跑 Gemini Vision 提案 (可能等 10+ 分)"
+    >
+      {scanning ? '⏳ 掃描中… (Gemini 跑 10+ 分)' : '📂 掃資料夾產提案'}
+    </button>
+  );
+
   if (proposals.length === 0) {
     return (
       <div className="text-center py-10">
-        <div className="text-ink-muted mb-3">沒有 pending 的企劃。</div>
+        <div className="text-ink-muted mb-4">沒有 pending 的企劃。</div>
+        <div className="mb-4">{scanButton}</div>
         <div className="text-xs text-ink-muted">
-          (跑 <code>scripts/run_ideate.py</code> 才會產生新的 proposals。
-          iter 23 尚未實作 CLI wrapper。)
+          先 <code>cp ideate_config.example.yaml ideate_config.yaml</code> 設定 watched_folders,
+          再按上面按鈕。或設 <code>IDEATE_AUTO_SCAN=1</code> 環境變數讓 server 自動定時跑。
         </div>
       </div>
     );
@@ -98,7 +131,10 @@ export default function ProposalsList() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">📋 自動企劃 (待決策 {proposals.length} 件)</h1>
-        <button onClick={load} className="btn btn-ghost text-sm">↻ 重新載入</button>
+        <div className="flex gap-2">
+          {scanButton}
+          <button onClick={load} className="btn btn-ghost text-sm">↻ 重新載入</button>
+        </div>
       </div>
 
       <ul className="space-y-3">

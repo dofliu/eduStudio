@@ -28,6 +28,7 @@ from core.ideate import (
     save_proposals,
 )
 
+from ..ideate_runner import run_ideate_from_yaml
 from ..jobs import JobStore, get_default_store
 from ..runner import schedule_job
 from ..schemas import (
@@ -75,6 +76,16 @@ class ProposalStatusUpdateRequest(BaseModel):
     """PATCH 用 — 目前只接受 ignored (approve 走專用 endpoint)."""
 
     status: Literal["ignored"]
+
+
+class ScanResponse(BaseModel):
+    """POST /proposals/scan 回應 — 跑完一輪 ideate 的 metrics."""
+
+    ok: bool
+    scanned: int = 0
+    proposed: int = 0
+    new: int = 0
+    error: str | None = None
 
 
 # ============================================================
@@ -179,6 +190,23 @@ async def approve_proposal(
         proposal=ProposalResponse(**target),
         job=job_resp,
     )
+
+
+@router.post("/scan", response_model=ScanResponse)
+async def scan_proposals(
+    store: JobStore = Depends(_store),
+) -> ScanResponse:
+    """觸發跑一輪 ideate (從 ideate_config.yaml 讀 watched_folders).
+
+    流程: scan → propose (Gemini Vision) → dedupe → 寫 proposals.json。
+    這條走 to_thread, 不會阻 event loop, 但本 endpoint 會 await 完成才回 —
+    如果 ideate 跑 10 分鐘前端會等 10 分鐘。
+
+    未來改進: 改成 background task + WebSocket / SSE 給前端即時進度,
+    或回 task_id 給前端 poll. 現階段同步等就好 (簡單)。
+    """
+    result = await run_ideate_from_yaml(store=store)
+    return ScanResponse(**result)
 
 
 @router.patch("/{proposal_id}/ignore", response_model=ProposalResponse)

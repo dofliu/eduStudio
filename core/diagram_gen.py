@@ -133,11 +133,15 @@ def _validate_code_ast(code: str) -> bool:
 
     回傳:
         True: code 安全, 可以 subprocess exec
-        False: 偵測到惡意 import / call → caller 應拒絕
+        False: 偵測到惡意 import / call / dunder 繞道 → caller 應拒絕
 
     檢查內容:
         - Import / ImportFrom: 頂層 module 必須在 _ALLOWED_IMPORT_ROOTS
         - Call: 函式名稱不能是 _BLOCKED_BUILTINS (eval / exec / __import__ etc)
+        - **Attribute access (iter 29 加)**: 任何 dunder attribute (例:
+          obj.__dict__ / cls.__class__ / mod.__builtins__) 一律 reject. 這
+          擋住「藉 dunder 拿到 globals / builtins 繞 allowlist」的攻擊面.
+          副作用: matplotlib code 用 dunder 的機率近 0, 安全 trade-off 划算.
         - 不檢查語法正確性 (那是 ast.parse 自己丟 SyntaxError 的事, caller try)
     """
     try:
@@ -171,6 +175,13 @@ def _validate_code_ast(code: str) -> bool:
             # `getattr(builtins, "eval")(...)` 之類繞過用 Attribute 形式 — 拒絕 getattr 整批
             # (簡單嚴格: 直接擋 getattr / setattr / delattr)
             if isinstance(func, ast.Name) and func.id in ("getattr", "setattr", "delattr"):
+                return False
+
+        # 4. dunder attribute access — iter 29 加, 擋 obj.__dict__ / cls.__class__
+        #    / mod.__builtins__ 等繞道. matplotlib / numpy / scipy 正常用法都
+        #    不會碰 dunder, 整批 reject 是合理 trade-off.
+        elif isinstance(node, ast.Attribute):
+            if node.attr.startswith("__") and node.attr.endswith("__"):
                 return False
 
     return True

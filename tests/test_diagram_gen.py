@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 
@@ -48,30 +50,125 @@ class TestDefaults:
         assert DEFAULT_DPI == 100
 
 
-class TestStillStubbed:
-    """iter 20+ 才實作的 stub, 鎖簽名."""
+class TestStripCodeFence:
+    """_strip_code_fence — Gemini 偶爾包 markdown fence, 抓出純 code."""
 
-    def test_generate_diagram_still_stub(self):
+    def test_no_fence_passthrough(self):
+        from core.diagram_gen import _strip_code_fence
+        raw = "import matplotlib\nplt.savefig('x.png')\n"
+        assert _strip_code_fence(raw) == raw.strip()
+
+    def test_python_fence_stripped(self):
+        from core.diagram_gen import _strip_code_fence
+        raw = "```python\nimport matplotlib\n```"
+        assert _strip_code_fence(raw) == "import matplotlib"
+
+    def test_bare_fence_stripped(self):
+        from core.diagram_gen import _strip_code_fence
+        raw = "```\nimport numpy as np\n```"
+        assert _strip_code_fence(raw) == "import numpy as np"
+
+
+class TestGenerateDiagram:
+    """generate_diagram — 整合 propose → validate → render. 完整 mock 鏈."""
+
+    @pytest.fixture
+    def base_spec(self, tmp_path):
+        from core.diagram_gen import DiagramSpec
+        spec: DiagramSpec = {
+            "kind": "free_body",
+            "description": "簡支梁中點受 10 kN 集中力",
+            "out_path": str(tmp_path / "diagram.png"),
+        }
+        return spec
+
+    def test_missing_out_path_returns_none(self):
         from core.diagram_gen import DiagramSpec, generate_diagram
-
         spec: DiagramSpec = {
             "kind": "free_body",
             "description": "test",
-            "out_path": "/tmp/x.png",
+            # out_path 缺
         }
-        with pytest.raises(NotImplementedError):
-            generate_diagram(spec)
+        assert generate_diagram(spec) is None
 
-    def test_propose_matplotlib_code_still_stub(self):
-        from core.diagram_gen import DiagramSpec, _propose_matplotlib_code
-
+    def test_missing_description_returns_none(self, tmp_path):
+        from core.diagram_gen import DiagramSpec, generate_diagram
         spec: DiagramSpec = {
             "kind": "free_body",
-            "description": "test",
-            "out_path": "/tmp/x.png",
+            "description": "",
+            "out_path": str(tmp_path / "x.png"),
         }
-        with pytest.raises(NotImplementedError):
-            _propose_matplotlib_code(spec)
+        assert generate_diagram(spec) is None
+
+    def test_propose_raises_returns_none(self, base_spec, monkeypatch):
+        from core import diagram_gen
+        from core.diagram_gen import generate_diagram
+
+        def boom(spec):
+            raise RuntimeError("API limit")
+        monkeypatch.setattr(diagram_gen, "_propose_matplotlib_code", boom)
+        assert generate_diagram(base_spec) is None
+
+    def test_propose_empty_returns_none(self, base_spec, monkeypatch):
+        from core import diagram_gen
+        from core.diagram_gen import generate_diagram
+
+        monkeypatch.setattr(diagram_gen, "_propose_matplotlib_code",
+                            lambda spec: "")
+        assert generate_diagram(base_spec) is None
+
+    def test_validate_fail_returns_none(self, base_spec, monkeypatch):
+        """propose 回了惡意 code (有 import os), AST validate 擋 → None."""
+        from core import diagram_gen
+        from core.diagram_gen import generate_diagram
+
+        monkeypatch.setattr(
+            diagram_gen, "_propose_matplotlib_code",
+            lambda spec: "import os\nos.system('rm -rf /')",
+        )
+        assert generate_diagram(base_spec) is None
+
+    def test_validate_pass_render_called(self, base_spec, monkeypatch):
+        """propose → validate 過 → render 被叫到. mock render 回 path 不真跑 subprocess."""
+        from core import diagram_gen
+        from core.diagram_gen import generate_diagram
+
+        safe_code = (
+            "import matplotlib\n"
+            "matplotlib.use('Agg')\n"
+            "import matplotlib.pyplot as plt\n"
+            "fig, ax = plt.subplots()\n"
+            "ax.plot([0, 1], [0, 1])\n"
+            "plt.savefig('x.png')\n"
+        )
+        monkeypatch.setattr(diagram_gen, "_propose_matplotlib_code",
+                            lambda spec: safe_code)
+
+        # mock render: 不真跑 subprocess, 直接回 out_path
+        called = {"render": False, "code": None}
+        def fake_render(code, out_path, timeout=30):
+            called["render"] = True
+            called["code"] = code
+            return Path(out_path)
+        monkeypatch.setattr(diagram_gen, "_render_matplotlib_diagram", fake_render)
+
+        result = generate_diagram(base_spec)
+        assert called["render"] is True
+        assert called["code"] == safe_code
+        assert result == Path(base_spec["out_path"])
+
+    def test_render_fail_returns_none(self, base_spec, monkeypatch):
+        """render 失敗 (subprocess timeout / 0-byte 等) → None."""
+        from core import diagram_gen
+        from core.diagram_gen import generate_diagram
+
+        monkeypatch.setattr(
+            diagram_gen, "_propose_matplotlib_code",
+            lambda spec: "import matplotlib.pyplot as plt\nplt.savefig('x.png')",
+        )
+        monkeypatch.setattr(diagram_gen, "_render_matplotlib_diagram",
+                            lambda code, out_path, timeout=30: None)
+        assert generate_diagram(base_spec) is None
 
 
 class TestValidateCodeAst:

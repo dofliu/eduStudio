@@ -13,6 +13,8 @@ scaffold 階段 (iter 18): schema + function 簽名, 還沒實作。
 from __future__ import annotations
 
 import ast
+import os
+import re
 import subprocess
 import sys
 from enum import Enum
@@ -96,7 +98,7 @@ DEFAULT_DPI = 100
 def generate_diagram(spec: DiagramSpec) -> Path | None:
     """產一張工程圖, 回 PNG 路徑。
 
-    流程 (iter 19/20 後):
+    流程 (iter 31 整合完):
         1. _propose_matplotlib_code(spec) → Gemini 產 .py code
         2. _validate_code_ast(code) → AST allowlist 檢查 (擋 import os 等)
         3. _render_matplotlib_diagram(code, out_path) → subprocess exec → PNG
@@ -109,23 +111,92 @@ def generate_diagram(spec: DiagramSpec) -> Path | None:
         None: 任何階段失敗 (圖產不出來不該擋 pipeline, 寧可 step 沒圖)
 
     錯誤處理 (一律不 raise, 回 None):
-        - Gemini API 失敗 / 限流
-        - AST 檢查不過 (惡意 code)
+        - 必填欄位缺 / out_path 不能 resolve
+        - Gemini API 失敗 / 限流 / 空回應
+        - AST 檢查不過 (惡意 code / 違反 allowlist)
         - subprocess timeout / 失敗
         - 輸出檔不存在 (matplotlib 沒成功寫檔)
     """
-    raise NotImplementedError("iter 19+ 補實作")
+    # 必填欄位檢查 — 容錯到底, 不 raise
+    out_path_raw = spec.get("out_path")
+    if not out_path_raw:
+        return None
+    kind = spec.get("kind") or DiagramKind.GENERIC.value
+    description = spec.get("description") or ""
+    if not description:
+        return None
+
+    out_path = Path(out_path_raw)
+
+    # 1. Gemini 提案 code
+    try:
+        code = _propose_matplotlib_code(spec)
+    except Exception:
+        return None
+    if not code or not code.strip():
+        return None
+
+    # 2. AST allowlist 安全檢查
+    if not _validate_code_ast(code):
+        return None
+
+    # 3. subprocess sandbox 跑出 PNG
+    return _render_matplotlib_diagram(code, out_path)
 
 
 def _propose_matplotlib_code(spec: DiagramSpec) -> str:
     """Gemini call → 回 matplotlib python code (純字串)。
 
-    iter 20 實作。
+    讀 prompts/diagram_matplotlib.txt 樣板, 套 spec 參數, 餵 Gemini 純文字
+    generation. 拿回的 raw text 還要過 AST allowlist 檢查 (generate_diagram
+    第 2 步).
 
-    回傳: 完整可 exec 的 python script, 含 `plt.savefig(out_path)` 句。
-    錯誤: raise (caller 在 generate_diagram 接住回 None)。
+    回傳: 完整可 exec 的 python script, 含 `plt.savefig(out_path)` 句
+    錯誤: raise (caller 在 generate_diagram 接住回 None)
     """
-    raise NotImplementedError("iter 20 補實作 (Gemini + prompts/diagram_matplotlib.txt)")
+    # lazy import — google-genai 是核心 dep 但 import 慢
+    from google import genai
+    from google.genai import types
+
+    from core.prompts_loader import load_prompt
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("缺 GEMINI_API_KEY")
+
+    prompt = load_prompt("diagram_matplotlib").format(
+        kind=spec.get("kind") or DiagramKind.GENERIC.value,
+        description=spec.get("description", ""),
+        width=spec.get("width", DEFAULT_WIDTH),
+        height=spec.get("height", DEFAULT_HEIGHT),
+        dpi=spec.get("dpi", DEFAULT_DPI),
+        out_path=spec["out_path"],   # caller 必填, generate_diagram 已驗
+    )
+
+    client = genai.Client(api_key=api_key)
+    resp = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[prompt],
+        config=types.GenerateContentConfig(
+            temperature=0.3,           # 偏保守, 別亂編幾何
+            max_output_tokens=2048,    # matplotlib code 不會太長
+        ),
+    )
+    raw = (resp.text or "").strip()
+    return _strip_code_fence(raw)
+
+
+def _strip_code_fence(text: str) -> str:
+    """Gemini 偶爾還是包 ```python ... ```, 抓出中間 code 主體。
+
+    跟 prompts/diagram_matplotlib.txt 內「不要 Markdown fence」對照, 但 LLM
+    抗指令偶有失靈, 這層 fallback 比 strict reject 友善 (UX)。
+    """
+    text = text.strip()
+    m = re.search(r"```(?:python|py)?\s*\n?(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    return text
 
 
 def _validate_code_ast(code: str) -> bool:

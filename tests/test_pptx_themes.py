@@ -21,6 +21,12 @@ class TestThemes:
         assert "forest" in THEMES
         assert "navy" in THEMES
 
+    def test_has_jliu_extra_three_themes(self):
+        """iter 28: 從 pptx-jliu-style 移植 Frieren / Naruto / Journal."""
+        assert "frieren" in THEMES
+        assert "naruto" in THEMES
+        assert "journal" in THEMES
+
     def test_each_theme_has_required_keys(self):
         for name, palette in THEMES.items():
             missing = REQUIRED_KEYS - set(palette.keys())
@@ -62,9 +68,13 @@ class TestPaletteContrast:
         return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
 
     @pytest.mark.parametrize("theme", list(THEMES.keys()))
-    def test_primary_is_lighter_than_bg(self, theme: str):
+    def test_primary_contrasts_with_bg(self, theme: str):
+        """主色跟背景至少有顯著亮度差 — 雙向 (深底亮字 / 淺底深字 都接受).
+
+        Journal 主題 (iter 28) 是淺底深字, 需用絕對亮度差。
+        """
         p = THEMES[theme]
-        assert self._luma(p["primary"]) > self._luma(p["bg"]) + 100, (
+        assert abs(self._luma(p["primary"]) - self._luma(p["bg"])) > 100, (
             f"{theme} primary 跟 bg 對比不足"
         )
 

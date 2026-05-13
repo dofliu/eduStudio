@@ -39,8 +39,11 @@ export function CreateJobForm({ onCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [requireReview, setRequireReview] = useState(false);
   const [mock, setMock] = useState(false);
-  // PR-5a: theme 只對 repo / document / url 有意義 (走 PptxStyleRenderer)
-  const [theme, setTheme] = useState<'forest' | 'navy'>('forest');
+  // PR-5a + iter 28: theme 只對 repo / document / url 有意義 (走 PptxStyleRenderer)
+  // iter 28 從 pptx-jliu-style 移植 Frieren / Naruto / Journal 三主題
+  const [theme, setTheme] = useState<
+    'forest' | 'navy' | 'frieren' | 'naruto' | 'journal'
+  >('forest');
   // PR-5c: 燒字幕選項, 對所有 source_type 都適用
   const [hardsub, setHardsub] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -227,10 +230,13 @@ export function CreateJobForm({ onCreated }: Props) {
           <select
             className="field-input"
             value={theme}
-            onChange={(e) => setTheme(e.target.value as 'forest' | 'navy')}
+            onChange={(e) => setTheme(e.target.value as typeof theme)}
           >
             <option value="forest">🌲 Forest — 深綠 + 黃 (教學類)</option>
             <option value="navy">🌐 Navy — 深藍 + 青 (科技類)</option>
+            <option value="frieren">❄ Frieren — 藏青 + 銀白紫 (學術 / 文學)</option>
+            <option value="naruto">🔥 Naruto — 焦糖 + 火影橘 (實作 / 競賽)</option>
+            <option value="journal">📜 Journal — 米白 + 墨綠紅 (期刊 / 書冊)</option>
           </select>
         </div>
       )}

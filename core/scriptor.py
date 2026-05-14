@@ -52,24 +52,26 @@ LONGFORM_SECTION_PROMPT = _get_longform_section_prompt()
 
 # ---------- Public API ----------
 
-def script(outline: dict, raw_content: dict) -> dict:
+def script(outline: dict, raw_content: dict, *, length_mode: str | None = None) -> dict:
     """Source-agnostic scriptor — 依 source_kind dispatch。
 
     PR-3b: source_kind in {"repo", "document", "url"}。
+    iter 43: 接 length_mode kwarg (lecture / quick), 透傳.
     """
     kind = raw_content.get("source_kind")
     if kind == "repo":
-        return script_repo(outline, raw_content)
+        return script_repo(outline, raw_content, length_mode=length_mode)
     if kind in ("document", "url"):
-        return script_long_form(outline, raw_content)
+        return script_long_form(outline, raw_content, length_mode=length_mode)
     raise ValueError(f"未支援的 source_kind: {kind!r}")
 
 
-def script_repo(outline: dict, raw_content: dict) -> dict:
+def script_repo(outline: dict, raw_content: dict, *, length_mode: str | None = None) -> dict:
     """outline + raw_content (repo) → 完整 deck.json。
 
     每個 section 各自呼叫一次 Gemini, 失敗的 section 會留下佔位 slide
     (避免整份 deck 廢掉, 與 solve.py 的 partial-failure 哲學一致)。
+    iter 43: length_mode 控 narration / slides 數量規模.
     """
     if raw_content.get("source_kind") != "repo":
         raise ValueError(f"script_repo 只吃 repo, 收到 {raw_content.get('source_kind')}")
@@ -82,6 +84,8 @@ def script_repo(outline: dict, raw_content: dict) -> dict:
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
+    from .length_mode import preset as _length_preset
+    p = _length_preset(length_mode)
 
     # 把 raw_content 的 key_files index 起來, 給 _format_section_files 用
     file_index = {kf["path"]: kf for kf in raw_content.get("key_files", [])}
@@ -104,6 +108,10 @@ def script_repo(outline: dict, raw_content: dict) -> dict:
             section_files_section=_format_section_files(
                 sec_outline.get("key_files", []), file_index,
             ),
+            length_directive=p["length_directive"],
+            slides_per_section_range=p["slides_per_section_range"],
+            narration_chars_range=p["narration_chars_range"],
+            narration_seconds_range=p["narration_seconds_range"],
         )
 
         section_dict = _call_with_retry(client, types, prompt, section_id, sec_outline)
@@ -122,11 +130,14 @@ def script_repo(outline: dict, raw_content: dict) -> dict:
     return normalize_deck(deck)
 
 
-def script_long_form(outline: dict, raw_content: dict) -> dict:
+def script_long_form(
+    outline: dict, raw_content: dict, *, length_mode: str | None = None,
+) -> dict:
     """outline + raw_content (document / url) → 完整 deck.json。
 
     跟 script_repo 結構一致 (逐 section call Gemini + 共用 retry / placeholder),
     差別在 prompt 餵的是 long-form text 而不是 key_files。
+    iter 43: length_mode 控 narration 長度跟 slides 數量.
     """
     kind = raw_content.get("source_kind")
     if kind not in ("document", "url"):
@@ -140,6 +151,8 @@ def script_long_form(outline: dict, raw_content: dict) -> dict:
     from google.genai import types
 
     client = genai.Client(api_key=api_key)
+    from .length_mode import preset as _length_preset
+    p = _length_preset(length_mode)
 
     document_content = raw_content.get("content", "")
     sections_out = []
@@ -158,6 +171,10 @@ def script_long_form(outline: dict, raw_content: dict) -> dict:
             section_intent=sec_outline.get("intent", ""),
             section_topics=", ".join(sec_outline.get("topics", [])),
             document_content=document_content,
+            length_directive=p["length_directive"],
+            slides_per_section_range=p["slides_per_section_range"],
+            narration_chars_range=p["narration_chars_range"],
+            narration_seconds_range=p["narration_seconds_range"],
         )
 
         section_dict = _call_with_retry(client, types, prompt, section_id, sec_outline)

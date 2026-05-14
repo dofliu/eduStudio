@@ -169,10 +169,15 @@ export const api = {
       `/proposals?only_pending=${onlyPending ? 'true' : 'false'}`,
     ),
 
-  // iter 40/41: optional body — 讓 UI 在核准前選主題 / 串 intro
+  // iter 40/41/43: optional body — 讓 UI 在核准前選主題 / 串 intro / 長度模式
   approveProposal: (
     proposalId: string,
-    options?: { theme?: string; hardsub?: boolean; prepend_intro?: boolean },
+    options?: {
+      theme?: string;
+      hardsub?: boolean;
+      prepend_intro?: boolean;
+      length_mode?: string;
+    },
   ) =>
     call<ProposalApproveResponse>(
       `/proposals/${encodeURIComponent(proposalId)}/approve`,

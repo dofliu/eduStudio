@@ -48,6 +48,8 @@ export function CreateJobForm({ onCreated }: Props) {
   const [hardsub, setHardsub] = useState(false);
   // iter 41: intro 串接 (個人開場), 對所有 source_type 都適用
   const [prependIntro, setPrependIntro] = useState(false);
+  // iter 43: 影片長度模式 — 只對 repo / document / url 有意義
+  const [lengthMode, setLengthMode] = useState<'quick' | 'lecture'>('quick');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -65,6 +67,9 @@ export function CreateJobForm({ onCreated }: Props) {
   // theme 只對走 pptx renderer 的 source 有效 (repo / document / url)
   const themeApplicable: SourceType[] = ['repo', 'document', 'url'];
   const showTheme = themeApplicable.includes(sourceType);
+  // iter 43: length_mode 同樣只對 repo / document / url 有意義
+  // exam_pdf 由題數決定影片數, slides_pdf 由頁數決定, 不適用
+  const showLengthMode = themeApplicable.includes(sourceType);
 
   const buildOptions = () => ({
     mock,
@@ -72,6 +77,7 @@ export function CreateJobForm({ onCreated }: Props) {
     hardsub,
     prepend_intro: prependIntro,
     ...(showTheme ? { theme } : {}),    // 不適用就不送, 後端用預設
+    ...(showLengthMode ? { length_mode: lengthMode } : {}),
   });
 
   const submit = async () => {
@@ -240,6 +246,22 @@ export function CreateJobForm({ onCreated }: Props) {
             <option value="frieren">❄ Frieren — 藏青 + 銀白紫 (學術 / 文學)</option>
             <option value="naruto">🔥 Naruto — 焦糖 + 火影橘 (實作 / 競賽)</option>
             <option value="journal">📜 Journal — 米白 + 墨綠紅 (期刊 / 書冊)</option>
+          </select>
+        </div>
+      )}
+
+      {/* iter 43: 影片長度模式 — 只對 repo / document / url 顯示
+          (exam_pdf 由題數決定影片數, slides_pdf 由頁數決定) */}
+      {showLengthMode && (
+        <div className="mt-3">
+          <label className="field-label">影片長度</label>
+          <select
+            className="field-input"
+            value={lengthMode}
+            onChange={(e) => setLengthMode(e.target.value as 'quick' | 'lecture')}
+          >
+            <option value="quick">⚡ 快速講解 — 8~15 分鐘 (YT 影片)</option>
+            <option value="lecture">📚 詳細授課 — 60~180 分鐘 (上課用)</option>
           </select>
         </div>
       )}

@@ -60,7 +60,10 @@ def test_load_missing_raises_with_clear_message():
 
 
 def test_format_compat_with_scriptor_keys():
-    """既有 caller 用 SECTION_PROMPT.format(deck_title=..., ...) 不該炸."""
+    """既有 caller 用 SECTION_PROMPT.format(deck_title=..., ...) 不該炸.
+
+    iter 43 加 length_mode placeholder 後, 完整 kwargs 集合.
+    """
     from core.prompts_loader import load_prompt
 
     prompt = load_prompt("scriptor_repo_section")
@@ -74,6 +77,11 @@ def test_format_compat_with_scriptor_keys():
         section_topics="topics",
         section_files_section="files",
         section_id="ch1",
+        # iter 43: length_mode 注入欄位
+        length_directive="請設計快速講解",
+        slides_per_section_range="5~10",
+        narration_chars_range="100~200",
+        narration_seconds_range="30~60",
     )
     assert "測試 deck" in filled
     assert "{deck_title}" not in filled  # 已替換

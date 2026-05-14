@@ -239,6 +239,40 @@ class TestApprove:
         assert resp.status_code == 201, resp.text
         assert captured["prepend_intro"] is True
 
+    def test_approve_with_length_mode_sets_option(
+        self, client, proposals_file, monkeypatch,
+    ):
+        """iter 43: 核准時帶 length_mode=lecture → 寫進 JobOptions.length_mode."""
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+
+        captured: dict = {}
+        from server.routes import proposals as proposals_mod
+        real_create = proposals_mod.get_default_store().__class__.create
+
+        def spy_create(self, req):
+            captured["length_mode"] = req.options.length_mode
+            return real_create(self, req)
+
+        monkeypatch.setattr(
+            proposals_mod.JobStore, "create", spy_create,
+        )
+
+        resp = client.post(
+            "/proposals/p1/approve",
+            json={"length_mode": "lecture"},
+        )
+        assert resp.status_code == 201, resp.text
+        assert captured["length_mode"] == "lecture"
+
+    def test_approve_with_invalid_length_mode_returns_422(self, client, proposals_file):
+        """iter 43: length_mode 不在白名單應 422."""
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+        resp = client.post(
+            "/proposals/p1/approve",
+            json={"length_mode": "epic"},
+        )
+        assert resp.status_code == 422
+
 
 class TestIgnore:
     def test_ignore_marks_status(self, client, proposals_file):

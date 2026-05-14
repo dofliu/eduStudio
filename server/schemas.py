@@ -106,6 +106,14 @@ class JobOptions(BaseModel):
                     "(env CLAUDE_INTRO_VIDEO_PATH 可覆寫). SRT 時間戳會自動 "
                     "往後推 intro 長度, 字幕跟畫面對齊.",
     )
+    length_mode: str | None = Field(
+        default=None,
+        description="影片長度模式 (iter 43): quick = 8~15 分鐘 YT 快速講解 (預設, "
+                    "保現有行為), lecture = 60~180 分鐘授課影片 (10~15 章 / "
+                    "每章 6~12 張投影片 / narration 180~280 字). 只影響 "
+                    "repo / document / url 三類; exam_pdf / slides_pdf 由 PDF "
+                    "題數或頁數決定影片數, 不適用.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

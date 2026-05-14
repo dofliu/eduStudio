@@ -45,6 +45,8 @@ export default function ProposalsList() {
   const [themeByProposal, setThemeByProposal] = useState<Record<string, ThemeName>>({});
   // iter 41: per-card intro 串接旗標 (預設 off). 同樣只活當前 UI render.
   const [prependIntroByProposal, setPrependIntroByProposal] = useState<Record<string, boolean>>({});
+  // iter 43: per-card length_mode (quick / lecture), 只對 document / repo / url 適用
+  const [lengthModeByProposal, setLengthModeByProposal] = useState<Record<string, 'quick' | 'lecture'>>({});
   // iter 27: ad-hoc modal 取代 yaml — 用戶填 path 直接掃
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -78,10 +80,12 @@ export default function ProposalsList() {
       const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
       const theme = themeApplicable ? (themeByProposal[p.id] ?? 'forest') : undefined;
       const prependIntro = prependIntroByProposal[p.id] ?? false;
+      const lengthMode = themeApplicable ? lengthModeByProposal[p.id] : undefined;
       // 任一旗標有設就送 body, 都沒設就空 body 走後端預設
-      const body: { theme?: string; prepend_intro?: boolean } = {};
+      const body: { theme?: string; prepend_intro?: boolean; length_mode?: string } = {};
       if (theme) body.theme = theme;
       if (prependIntro) body.prepend_intro = true;
+      if (lengthMode && lengthMode !== 'quick') body.length_mode = lengthMode;
       const r = await api.approveProposal(
         p.id,
         Object.keys(body).length > 0 ? body : undefined,
@@ -383,7 +387,7 @@ export default function ProposalsList() {
             {/* iter 40: theme 選擇 — 只對 document / repo / url 顯示
                 (走 PptxStyleRenderer 的 source 才吃色票; 考卷 / 簡報用固定黑板 / 投影片底圖) */}
             {THEME_APPLICABLE.includes(p.source_type) && (
-              <div className="mb-3 flex items-center gap-2 text-xs">
+              <div className="mb-3 flex items-center gap-2 text-xs flex-wrap">
                 <label className="text-ink-muted">pptx 主題:</label>
                 <select
                   className="border border-border rounded px-2 py-1 bg-white text-xs"
@@ -399,6 +403,22 @@ export default function ProposalsList() {
                   {THEME_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
+                </select>
+                {/* iter 43: 影片長度模式, 跟 theme 共用顯示條件 */}
+                <label className="text-ink-muted ml-2">長度:</label>
+                <select
+                  className="border border-border rounded px-2 py-1 bg-white text-xs"
+                  value={lengthModeByProposal[p.id] ?? 'quick'}
+                  onChange={(e) =>
+                    setLengthModeByProposal(prev => ({
+                      ...prev,
+                      [p.id]: e.target.value as 'quick' | 'lecture',
+                    }))
+                  }
+                  disabled={busyId === p.id}
+                >
+                  <option value="quick">⚡ 快速 8~15 分</option>
+                  <option value="lecture">📚 授課 60~180 分</option>
                 </select>
               </div>
             )}

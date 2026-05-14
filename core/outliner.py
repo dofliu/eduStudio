@@ -60,24 +60,34 @@ def outline(raw_content: dict, **kwargs) -> dict:
 
     PR-3b: source_kind in {"repo", "document", "url"}。
     Caller 不必判斷類型, 直接給 raw_content 即可。
+    iter 43: 接 length_mode kwarg (lecture / quick), 透傳到 outline_* 內.
     """
     kind = raw_content.get("source_kind")
     if kind == "repo":
         return outline_repo(raw_content, **kwargs)
     if kind in ("document", "url"):
-        return outline_long_form(raw_content)
+        return outline_long_form(raw_content, **kwargs)
     raise ValueError(f"未支援的 source_kind: {kind!r}")
 
 
-def outline_repo(raw_content: dict, *, max_files_in_prompt: int = 25) -> dict:
+def outline_repo(
+    raw_content: dict, *,
+    max_files_in_prompt: int = 25,
+    length_mode: str | None = None,
+) -> dict:
     """raw_content (repo adapter 輸出) → outline dict。
 
     max_files_in_prompt: 餵進 prompt 的檔案數上限, 避免 token 爆。
     通常 README + STATUS + ROADMAP + 主要 source 25 個就夠 outline 用,
     完整 50 個檔留給 scriptor 階段精讀。
+    length_mode (iter 43): "lecture" (1-3 hr 授課) / "quick" (≤15 min YT).
+    None 或不認識的值 → 走 quick 預設, 保現有行為.
     """
     if raw_content.get("source_kind") != "repo":
         raise ValueError(f"outline_repo 只吃 source_kind=repo, 收到 {raw_content.get('source_kind')}")
+
+    from .length_mode import preset
+    p = preset(length_mode)
 
     prompt = OUTLINE_PROMPT_REPO.format(
         root_name=raw_content.get("root_name", "(unknown)"),
@@ -88,15 +98,21 @@ def outline_repo(raw_content: dict, *, max_files_in_prompt: int = 25) -> dict:
             raw_content.get("key_files", []),
             max_files=max_files_in_prompt,
         ),
+        length_directive=p["length_directive"],
+        sections_range=p["sections_range"],
+        slides_per_section_range=p["slides_per_section_range"],
     )
     return _call_outline_gemini(prompt)
 
 
-def outline_long_form(raw_content: dict) -> dict:
+def outline_long_form(
+    raw_content: dict, *, length_mode: str | None = None,
+) -> dict:
     """raw_content (document / url adapter 輸出) → outline dict。
 
     跟 outline_repo 共用 retry / parse / normalize 邏輯, 只差 prompt template
     與 source 描述的格式。
+    iter 43: length_mode 跟 outline_repo 同義.
     """
     kind = raw_content.get("source_kind")
     if kind not in ("document", "url"):
@@ -112,12 +128,18 @@ def outline_long_form(raw_content: dict) -> dict:
     content = raw_content.get("content", "")
     char_count = raw_content.get("stats", {}).get("chars", len(content))
 
+    from .length_mode import preset
+    p = preset(length_mode)
+
     prompt = OUTLINE_PROMPT_LONGFORM.format(
         title=raw_content.get("title", "(unknown)"),
         source_label=source_label,
         source_extra=source_extra,
         char_count=char_count,
         content=content,
+        length_directive=p["length_directive"],
+        sections_range=p["sections_range"],
+        slides_per_section_range=p["slides_per_section_range"],
     )
     return _call_outline_gemini(prompt)
 

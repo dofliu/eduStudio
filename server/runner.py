@@ -108,7 +108,10 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
 
 
 async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, mock: bool) -> dict:
-    """repo 路徑: adapter → outliner → scriptor → deck.json (新 schema)。"""
+    """repo 路徑: adapter → outliner → scriptor → deck.json (新 schema)。
+
+    iter 43: rec.options.length_mode 透傳到 outliner / scriptor.
+    """
     from core.adapters.repo import scan_repo
     from core.outliner import mock_outline, outline_repo
     from core.scriptor import mock_deck_from_outline, script_repo
@@ -118,6 +121,7 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         raise NotADirectoryError(f"source.path 必須是資料夾 (source_type=repo): {src_path}")
 
     max_files = rec.options.max_files or 50
+    length_mode = rec.options.length_mode
 
     # adapter 是純磁碟讀取, scriptor / outliner 是 Gemini 同步呼叫, 都丟 thread
     raw = await asyncio.to_thread(scan_repo, src_path, max_files=max_files)
@@ -133,8 +137,12 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         outline = mock_outline(raw)
         deck = mock_deck_from_outline(outline, raw)
     else:
-        outline = await asyncio.to_thread(outline_repo, raw)
-        deck = await asyncio.to_thread(script_repo, outline, raw)
+        outline = await asyncio.to_thread(
+            outline_repo, raw, length_mode=length_mode,
+        )
+        deck = await asyncio.to_thread(
+            script_repo, outline, raw, length_mode=length_mode,
+        )
 
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),
@@ -171,12 +179,18 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
         encoding="utf-8",
     )
 
+    length_mode = rec.options.length_mode
+
     if mock:
         outline = mock_outline(raw)
         deck = mock_deck_from_outline(outline, raw)
     else:
-        outline = await asyncio.to_thread(outline_long_form, raw)
-        deck = await asyncio.to_thread(script_long_form, outline, raw)
+        outline = await asyncio.to_thread(
+            outline_long_form, raw, length_mode=length_mode,
+        )
+        deck = await asyncio.to_thread(
+            script_long_form, outline, raw, length_mode=length_mode,
+        )
 
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),

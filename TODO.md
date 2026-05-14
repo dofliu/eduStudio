@@ -263,6 +263,20 @@
 
 ## ✅ 最近完成(由新到舊)
 
+### 2026-05-14 ~ 05-15 · Session 2 影片成品打磨 (iter 39 ~ 49)
+- [x] **iter 39**: 修 test job leak 三層根因 (routes `_store` 中介 / `_persist` self.root / staticmethod → instance method); 從此 pytest 不再污染真實 jobs/
+- [x] **iter 40**: Proposals 卡片主題下拉; `POST /proposals/{id}/approve` 接 optional body
+- [x] **iter 41**: 個人 intro 串接 — `core/video_concat.py` (audio normalize cache + concat + SRT offset, 22 tests)
+- [x] **iter 42**: 開場白多樣化 — `core/intro_rewriter.py` (exam/slides → 同學變體, doc/repo/url → 大家好變體, stable md5 seed, 30 tests)
+- [x] **iter 43**: 影片長度模式 — `core/length_mode.py` quick / lecture 兩 preset + 4 份 prompts 加 placeholder + UI 雙下拉
+- [x] **iter 44**: DofLab 10 套主題 (v1 沉穩 5 + v2 衝擊 5) → 總計 15 套; intro mp4 改用相對路徑 `docs/intro_journal.mp4`
+- [x] **iter 45**: 多章自動合 `final.mp4` + `final.srt` (修「選 quick 出 5 支獨立 mp4」設計 bug); intro 改接 final 避免每章重複; 各章 mp4 保留供 section re-render
+- [x] **iter 46**: 收緊 quick mode 預算 (sec 4-6→3-4 / slides 5-10→4-5 / chars 100-200→80-120 / 加 total_narration_budget_chars 2500); prompts 4 份加「取下限優先」+「強制步驟先估總字數」
+- [x] **iter 47**: `final.mp4` UI prominence — JobEditor emerald 區塊「🎬 完整影片」, Library 多章 job 只列 final, JobCard preview 優先 final
+- [x] **iter 48**: deck 時長 estimator — `estimate_deck_duration()` 純函式 + runner 在 ingest 完 log 結果 over-budget warning
+- [x] **iter 49**: CHANGELOG sync session 2 + 寫實測效果表
+- **session 2 量化結果**: 354 → 467 tests (+113), 11 commits 全 CI 綠燈, 用戶實測 quick mode 字數降到老 prompt 28% (8594→2374), final.mp4 落在預算內 11.0 分鐘 (vs 預估 11.9, 誤差 8%)
+
 ### 2026-05-11
 - [x] **`core/visuals.py` 集中 layout 常數** (commit 8abfb2e) — v4 暖身, 解 Round 2 lessons-learned #3 根因
   - `SUBTITLE_BAND_HEIGHT` / `CONTENT_BOTTOM` / `SUBTITLE_STRIP_COLOR` 集中

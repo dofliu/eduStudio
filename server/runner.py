@@ -289,6 +289,30 @@ async def _run_render(
                 src.replace(dst)
 
 
+def _rewrite_deck_intros_inplace(
+    store: JobStore, job_id: str, source_type_value: str,
+) -> None:
+    """iter 42: 讀 deck.json → rewrite_deck_intros → 寫回.
+
+    純 IO wrapper, 業務邏輯在 core.intro_rewriter (純函式 + 30 tests cover).
+    """
+    from core.intro_rewriter import rewrite_deck_intros
+
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        return
+
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+    rewritten = rewrite_deck_intros(deck, source_type_value)
+    deck_path.write_text(
+        json.dumps(rewritten, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    logger.info(
+        "intro 多樣化套用完成 (source_type=%s)", source_type_value,
+    )
+
+
 def _prepare_intro_for_problems(
     problems: list[dict], artifacts_dir: Path,
 ) -> tuple[Path | None, float]:
@@ -414,6 +438,15 @@ async def run_job(store: JobStore, job_id: str) -> None:
             return
         _end_stage_ok(store, job_id)
         logger.info("ingest 完成 → deck.json", extra={"stage": "ingest"})
+
+        # iter 42: ingest 完之後改寫 deck.json 各影片開頭旁白 — 避免同一份考卷
+        # 10 道題都「各位同學好」開頭. 對象 (student / general) 由 source_type
+        # 決定, 沒抓到問候語就 noop. 失敗只 warning, 不擋 awaiting_review.
+        try:
+            _rewrite_deck_intros_inplace(store, job_id, rec.source_type.value)
+        except Exception as e:
+            logger.exception("intro 多樣化失敗 (deck.json 保留 ingest 原版): %s", e)
+
         store.update(
             job_id,
             deck_path=str(store.deck_path(job_id).relative_to(store.root.parent)).replace("\\", "/"),

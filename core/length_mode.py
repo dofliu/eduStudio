@@ -26,14 +26,21 @@ LengthMode = Literal["lecture", "quick"]
 # 各模式參數 — 把硬寫的數字抽出來, prompt template 用 {} 拉
 LENGTH_PRESETS: dict[str, dict[str, str | int]] = {
     "quick": {
-        # YT 快速講解, 對應現有 prompt 行為 (保 backwards compat)
+        # YT 快速講解, ≤15 分鐘.
+        # iter 46: 收緊範圍 — 實測用戶選 quick 拿到 5 章 × 7-9 slides × 200 字
+        # narration = 34-43 分鐘. LLM 看到「4-6」「5-10」會取中上限.
+        # 改成更窄的下限範圍逼 LLM 取小.
         "target_minutes": "8~15",
-        "sections_range": "4~6",
-        "slides_per_section_range": "5~10",
-        "narration_chars_range": "100~200",
-        "narration_seconds_range": "30~60",
-        # 給 prompt 上方一段提示文字, 加強 Gemini 對「快速」的理解
-        "length_directive": "請設計一份 8~15 分鐘的快速講解, 以扼要傳達核心資訊為主.",
+        "sections_range": "3~4",
+        "slides_per_section_range": "4~5",
+        "narration_chars_range": "80~120",
+        "narration_seconds_range": "20~35",
+        # narration 字數硬上限 (整份), 給 prompt 算總預算用
+        "total_narration_budget_chars": 2500,
+        "length_directive": (
+            "★ 硬上限: 整份影片 ≤ 15 分鐘. 全部 narration 加總 ≤ 2500 字. "
+            "請先估算總字數預算後再分章, 寧可短不可長. 不要為了補章節數而灌水."
+        ),
     },
     "lecture": {
         # 詳細授課版, 1-3 hr 教學影片
@@ -42,9 +49,11 @@ LENGTH_PRESETS: dict[str, dict[str, str | int]] = {
         "slides_per_section_range": "6~12",
         "narration_chars_range": "180~280",
         "narration_seconds_range": "60~120",
+        "total_narration_budget_chars": 20000,
         "length_directive": (
             "請設計一份 60~180 分鐘的詳細授課影片, 適合上課使用. "
-            "需要充分展開每個概念, 給範例 / 推導過程 / 對照, 讓學生跟得上."
+            "需要充分展開每個概念, 給範例 / 推導過程 / 對照, 讓學生跟得上. "
+            "整份 narration 字數預算約 20000 字."
         ),
     },
 }

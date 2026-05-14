@@ -150,6 +150,46 @@ def get_video_duration(video_path: Path) -> float:
     return float(proc.stdout.strip())
 
 
+def merge_srts(parts: list[tuple[str, float]]) -> str:
+    """合併多章 SRT 成單一 SRT, 各章按累積時間偏移 + cue 編號重排.
+
+    parts: [(srt_text, segment_duration_seconds), ...]
+           segment_duration 用前一段的影片秒數做累積 offset, 不是 SRT 自身長度
+           (SRT 結尾可能比影片短, 偏移要用實際影片時長, 避免下一章 cue 提早跳).
+
+    回傳: 合併後的 SRT (cue 編號 1, 2, 3, ... 連續).
+
+    iter 45: 多章合 final.mp4 用. 純字串處理, 不開 ffmpeg.
+    """
+    if not parts:
+        return ""
+
+    cumulative_offset = 0.0
+    output_lines: list[str] = []
+    cue_counter = 1
+
+    import re
+    cue_block_pattern = re.compile(
+        r"^\s*\d+\s*$\s*(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})\s*$\s*(.+?)(?=\n\s*\n|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+
+    for srt_text, segment_dur in parts:
+        if srt_text.strip():
+            shifted = offset_srt(srt_text, cumulative_offset)
+            # 重編號 cue id: 每章從 1 開始, 合併後要全程連續
+            for m in cue_block_pattern.finditer(shifted):
+                start, end, body = m.group(1), m.group(2), m.group(3).strip()
+                output_lines.append(str(cue_counter))
+                output_lines.append(f"{start} --> {end}")
+                output_lines.append(body)
+                output_lines.append("")
+                cue_counter += 1
+        cumulative_offset += segment_dur
+
+    return "\n".join(output_lines).rstrip() + "\n" if output_lines else ""
+
+
 def offset_srt(srt_text: str, offset_seconds: float) -> str:
     """把 SRT 全部 cue 的時間戳往後推 offset 秒.
 

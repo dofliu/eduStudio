@@ -17,6 +17,7 @@ from core.video_concat import (
     _fmt,
     concat_videos,
     get_video_duration,
+    merge_srts,
     normalize_intro_audio,
     offset_srt,
     probe_audio_spec,
@@ -215,3 +216,62 @@ class TestGetVideoDuration:
         v, _ = make_test_video("dur_test", dur=2.5)
         d = get_video_duration(v)
         assert 2.3 <= d <= 2.7
+
+
+class TestMergeSrts:
+    """iter 45: 多章 SRT 合併成單一 SRT (cue 重編號 + 累積時間偏移)."""
+
+    def test_empty_returns_empty(self):
+        assert merge_srts([]) == ""
+
+    def test_single_part_renumbers_from_1(self):
+        srt = (
+            "5\n00:00:00,000 --> 00:00:02,000\nfirst\n\n"
+            "7\n00:00:02,000 --> 00:00:04,000\nsecond\n"
+        )
+        merged = merge_srts([(srt, 4.0)])
+        # cue 編號應從 1 開始
+        lines = merged.split("\n")
+        cue_nums = [l for l in lines if l.strip().isdigit()]
+        assert cue_nums[0] == "1"
+        assert cue_nums[1] == "2"
+
+    def test_two_parts_offset_and_renumber(self):
+        srt1 = "1\n00:00:00,000 --> 00:00:02,000\n甲\n"
+        srt2 = "1\n00:00:00,000 --> 00:00:03,000\n乙\n"
+        merged = merge_srts([(srt1, 5.0), (srt2, 4.0)])
+        # 第二章的第一 cue 應該 offset 到 5.0 秒
+        assert "00:00:05,000 --> 00:00:08,000" in merged
+        # cue 編號連續 1, 2
+        lines = merged.split("\n")
+        cue_nums = [l for l in lines if l.strip().isdigit()]
+        assert cue_nums == ["1", "2"]
+        # 兩章內容都在
+        assert "甲" in merged
+        assert "乙" in merged
+
+    def test_empty_srt_part_with_offset(self):
+        """空 srt 仍能帶 offset 影響後續 (intro 場景: intro 沒 SRT 但佔 8 秒)."""
+        srt2 = "1\n00:00:00,000 --> 00:00:02,000\nlater\n"
+        merged = merge_srts([("", 8.0), (srt2, 2.0)])
+        # 第二段該偏移 8 秒
+        assert "00:00:08,000 --> 00:00:10,000" in merged
+        # cue id 1 (重新計數)
+        lines = merged.split("\n")
+        cue_nums = [l for l in lines if l.strip().isdigit()]
+        assert cue_nums == ["1"]
+
+    def test_three_parts_cumulative_offset(self):
+        srt1 = "1\n00:00:00,000 --> 00:00:01,000\na\n"
+        srt2 = "1\n00:00:00,000 --> 00:00:01,000\nb\n"
+        srt3 = "1\n00:00:00,000 --> 00:00:01,000\nc\n"
+        merged = merge_srts([(srt1, 10.0), (srt2, 20.0), (srt3, 30.0)])
+        # 三段 cue 起始: 0, 10, 30
+        assert "00:00:00,000 --> 00:00:01,000" in merged
+        assert "00:00:10,000 --> 00:00:11,000" in merged
+        assert "00:00:30,000 --> 00:00:31,000" in merged
+
+    def test_returns_trailing_newline(self):
+        srt = "1\n00:00:00,000 --> 00:00:01,000\ntxt\n"
+        merged = merge_srts([(srt, 1.0)])
+        assert merged.endswith("\n")

@@ -265,7 +265,7 @@ async def _run_render(
     theme = rec.options.theme or "forest"
     # PR-5c: 燒字幕旗標, pipeline.main 看 data["hardsub"] 決定要不要跑 burn_subtitles
     hardsub = bool(rec.options.hardsub)
-    # iter 41: intro 前置. 主迴圈外算一次 normalized intro, 避免每題重 probe.
+    # iter 41: intro 前置. iter 45 改: intro 只接到 final.mp4, 不再每章重複.
     prepend_intro = bool(rec.options.prepend_intro)
     normalized_intro: Path | None = None
     intro_duration: float = 0.0
@@ -273,6 +273,23 @@ async def _run_render(
         normalized_intro, intro_duration = await asyncio.to_thread(
             _prepare_intro_for_problems, problems, artifacts_dir,
         )
+
+    # iter 45: 多章合 final.mp4 (用戶選 quick 8-15 分時想要單支影片, 不是 5 支
+    # 各 6-7 分). 各章獨立 mp4 仍保留, 給 section re-render 用. 只在 source_type
+    # ∈ {repo, document, url, slides_pdf} 且 section_id is None (整份 render)
+    # 時觸發. exam_pdf 走逐題影片這條工作流, 每題本來就該獨立 mp4.
+    should_merge = (
+        section_id is None
+        and len(problems) > 1
+        and rec.source_type in (
+            SourceType.SLIDES_PDF, SourceType.REPO,
+            SourceType.DOCUMENT, SourceType.URL,
+        )
+    )
+
+    # 各章 render 完後, 記下 mp4 路徑跟 SRT 內容供 merge 用
+    section_mp4s: list[Path] = []
+    section_srts: list[tuple[str, float]] = []  # (srt_text, segment_dur_seconds)
 
     # 逐題渲染 → MP4 / SRT 從 OUTPUT_DIR 搬到 artifacts/
     for prob in problems:
@@ -289,8 +306,9 @@ async def _run_render(
         unique_name = f"job_{rec.id}__{pid}"
         await render_video(str(v0_path), unique_name, start_step=None)
 
-        # iter 41: 串 intro + 偏移 SRT (prepend_intro=True 時)
-        if prepend_intro and normalized_intro is not None:
+        # iter 45: 多章 mode 下 intro 不接到每章, 留到 final.mp4 統一接.
+        # 單章 mode (exam_pdf 或只有一章) 仍照 iter 41 接到該章.
+        if prepend_intro and normalized_intro is not None and not should_merge:
             await asyncio.to_thread(
                 _apply_intro_postprocess,
                 unique_name, normalized_intro, intro_duration,
@@ -301,6 +319,83 @@ async def _run_render(
             dst = artifacts_dir / f"{pid}.{ext}"
             if src.exists():
                 src.replace(dst)
+
+        # 多章 merge 模式: 記下這章 artifact 給後續 concat 用
+        if should_merge:
+            ch_mp4 = artifacts_dir / f"{pid}.mp4"
+            ch_srt = artifacts_dir / f"{pid}.srt"
+            if ch_mp4.exists():
+                section_mp4s.append(ch_mp4)
+                srt_text = ch_srt.read_text(encoding="utf-8") if ch_srt.exists() else ""
+                # 用實際影片時長當 SRT offset (不是 SRT 自身結束時間)
+                try:
+                    from core import video_concat as _vc
+                    seg_dur = _vc.get_video_duration(ch_mp4)
+                except Exception:
+                    seg_dur = 0.0
+                section_srts.append((srt_text, seg_dur))
+
+    # iter 45: 多章合 final.mp4 + final.srt
+    if should_merge and section_mp4s:
+        await asyncio.to_thread(
+            _merge_sections_to_final,
+            section_mp4s, section_srts, artifacts_dir,
+            normalized_intro, intro_duration,
+        )
+
+
+def _merge_sections_to_final(
+    section_mp4s: list[Path],
+    section_srts: list[tuple[str, float]],
+    artifacts_dir: Path,
+    intro_path: Path | None,
+    intro_duration: float,
+) -> None:
+    """iter 45: 把各章 mp4 + intro 合成單一 final.mp4 / final.srt.
+
+    用戶選 quick mode 期待 1 支 8-15 分鐘影片, 但 outliner 產 4-6 章 → 5 支
+    各 6-7 分鐘. 這函式在所有章節 render 完後 concat 起來, 變成單一交付.
+    各章 mp4 保留, 仍可用於 section re-render.
+
+    intro 也統一接到 final.mp4 最前, 避免每章重複 intro (iter 41 舊行為).
+
+    失敗時 logger.warning 不 raise — 各章 mp4 仍是有效成品, 合成失敗不該整 job 死.
+    """
+    from core import video_concat
+
+    try:
+        # 組要 concat 的 parts: [intro?, ch1, ch2, ...]
+        parts = []
+        if intro_path is not None:
+            parts.append(intro_path)
+        parts.extend(section_mp4s)
+
+        final_mp4 = artifacts_dir / "final.mp4"
+        video_concat.concat_videos(parts, final_mp4)
+        logger.info(
+            "final.mp4 合成完成: %d 章 + %s = %s",
+            len(section_mp4s),
+            "intro" if intro_path else "no intro",
+            final_mp4.name,
+        )
+    except Exception as e:
+        logger.exception("final.mp4 合成失敗 (各章 mp4 仍可用): %s", e)
+        return
+
+    # SRT 合併: 各章 SRT 按累積時間偏移 + cue 重編號
+    # intro 不產 SRT, 但要佔 intro_duration 秒讓第一章 SRT 從 intro 後開始
+    try:
+        srt_parts: list[tuple[str, float]] = []
+        if intro_path is not None and intro_duration > 0:
+            srt_parts.append(("", intro_duration))   # 空 srt + intro 長度當 offset
+        srt_parts.extend(section_srts)
+
+        merged_srt = video_concat.merge_srts(srt_parts)
+        if merged_srt:
+            (artifacts_dir / "final.srt").write_text(merged_srt, encoding="utf-8")
+            logger.info("final.srt 合併完成 (%d 章 cue)", len(section_srts))
+    except Exception as e:
+        logger.exception("final.srt 合併失敗 (final.mp4 已存在, 各章 SRT 仍可用): %s", e)
 
 
 def _rewrite_deck_intros_inplace(

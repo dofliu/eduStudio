@@ -62,7 +62,12 @@ def _read_deck_title(store: JobStore, job_id: str) -> str:
 
 @router.get("", response_model=LibraryResponse)
 async def list_library(store: JobStore = Depends(get_default_store)) -> LibraryResponse:
-    """跨所有 job 列出 mp4。新到舊 (job created_at desc)。"""
+    """跨所有 job 列出 mp4。新到舊 (job created_at desc)。
+
+    iter 47: 若 job 有 final.mp4 (iter 45 多章合成), library 只列 final.mp4 —
+    那是主交付, 各章獨立 mp4 是除錯 / re-render 用, 不該佔 library 版面.
+    沒 final.mp4 (考卷單題影片 / 單章 deck) 走原 logic 全列.
+    """
     items: list[LibraryItem] = []
     for job in store.list():    # 已經 created_at desc
         # 只關心已渲染完成或進行中的, ingesting / failed 不在這頁出現
@@ -70,9 +75,14 @@ async def list_library(store: JobStore = Depends(get_default_store)) -> LibraryR
         mp4s = [a for a in job.artifacts if a.kind == "mp4"]
         if not mp4s:
             continue
+
+        # iter 47: 有 final.mp4 就只列它, 各章 mp4 隱去
+        final_mp4 = next((a for a in mp4s if a.name == "final.mp4"), None)
+        listed_mp4s = [final_mp4] if final_mp4 else mp4s
+
         deck_title = _read_deck_title(store, job.id)
         artifacts_dir = store.artifacts_dir(job.id)
-        for a in mp4s:
+        for a in listed_mp4s:
             srt_path = artifacts_dir / Path(a.name).with_suffix(".srt").name
             yt = job.youtube_uploads.get(a.name) if job.youtube_uploads else None
             items.append(LibraryItem(

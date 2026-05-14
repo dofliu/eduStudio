@@ -225,7 +225,10 @@ export default function JobEditor() {
         return `${d.sections.length} sections · ${totalSlides} slides`;
       })();
 
+  // iter 47: final.mp4 排頂 + 視覺強調. 其他章 mp4 列在下方 collapsible
   const mp4s = job.artifacts.filter((a) => a.kind === 'mp4');
+  const finalMp4 = mp4s.find((a) => a.name === 'final.mp4');
+  const sectionMp4s = mp4s.filter((a) => a.name !== 'final.mp4');
 
   return (
     <div>
@@ -238,38 +241,42 @@ export default function JobEditor() {
       {/* PR-4c: per-job log tail — 摺疊式, 進行中 auto-poll */}
       <LogPanel jobId={job.id} jobState={job.state} />
 
-      {/* PR-3f: render 完成後顯示 artifact 列 + YouTube 上傳入口 */}
+      {/* PR-3f: render 完成後顯示 artifact 列 + YouTube 上傳入口
+          iter 47: final.mp4 (多章合成) 排頂並用 highlight 區塊;
+          各章 mp4 列在下方 (重 render 用, 視覺次要) */}
       {job.state === 'done' && mp4s.length > 0 && (
-        <div className="bg-white border border-border rounded-md p-4 mb-4">
-          <div className="font-semibold text-forest mb-2">📦 Artifacts ({mp4s.length})</div>
-          <div className="space-y-2">
-            {mp4s.map((a) => {
-              const yt = job.youtube_uploads?.[a.name];
-              return (
-                <div
-                  key={a.name}
-                  className="flex items-center gap-2 text-sm border-t border-border pt-2 first:border-t-0 first:pt-0 flex-wrap"
-                >
-                  <span className="font-mono">{a.name}</span>
+        <div className="space-y-3 mb-4">
+          {/* 主交付: final.mp4 — 醒目區塊 */}
+          {finalMp4 && (() => {
+            const yt = job.youtube_uploads?.[finalMp4.name];
+            return (
+              <div className="bg-emerald-50 border-2 border-emerald-500 rounded-md p-4">
+                <div className="font-semibold text-emerald-800 mb-2">
+                  🎬 完整影片 (含全部章節 + intro)
+                </div>
+                <div className="flex items-center gap-2 text-sm flex-wrap">
+                  <span className="font-mono">{finalMp4.name}</span>
                   <span className="text-ink-muted text-xs">
-                    {(a.size_bytes / 1024 / 1024).toFixed(1)} MB
+                    {(finalMp4.size_bytes / 1024 / 1024).toFixed(1)} MB
                   </span>
                   <a
-                    href={api.artifactUrl(job.id, a.name)}
-                    className="text-forest underline"
+                    href={api.artifactUrl(job.id, finalMp4.name)}
+                    className="btn btn-primary text-sm"
                   >
-                    ▶ 預覽
+                    ▶ 預覽完整影片
                   </a>
                   <Link
-                    to={`/jobs/${job.id}/publish/${encodeURIComponent(a.name)}`}
+                    to={`/jobs/${job.id}/publish/${encodeURIComponent(finalMp4.name)}`}
                     className={
-                      'btn btn-ghost text-xs ' +
-                      (yt?.state === 'done' ? 'text-green-700' : '')
+                      'btn text-sm ' +
+                      (yt?.state === 'done'
+                        ? 'btn-ghost text-green-700'
+                        : 'btn-secondary')
                     }
                   >
                     📺{' '}
                     {yt?.state === 'done'
-                      ? '已上傳 (查看)'
+                      ? '已上傳到 YouTube (查看)'
                       : yt?.state === 'uploading'
                       ? `上傳中 ${yt.progress_percent}%`
                       : yt?.state === 'failed'
@@ -287,9 +294,71 @@ export default function JobEditor() {
                     </a>
                   )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })()}
+
+          {/* 各章 mp4: 視覺次要 (給 section re-render 用) */}
+          {sectionMp4s.length > 0 && (
+            <div className="bg-white border border-border rounded-md p-4">
+              <div className="font-semibold text-forest mb-2">
+                {finalMp4 ? '📦 各章獨立影片' : '📦 Artifacts'} ({sectionMp4s.length})
+                {finalMp4 && (
+                  <span className="text-ink-muted text-xs font-normal ml-2">
+                    重 render 單章 / 分段播放用; 主要上傳 YT 用上方完整影片
+                  </span>
+                )}
+              </div>
+              <div className="space-y-2">
+                {sectionMp4s.map((a) => {
+                  const yt = job.youtube_uploads?.[a.name];
+                  return (
+                    <div
+                      key={a.name}
+                      className="flex items-center gap-2 text-sm border-t border-border pt-2 first:border-t-0 first:pt-0 flex-wrap"
+                    >
+                      <span className="font-mono">{a.name}</span>
+                      <span className="text-ink-muted text-xs">
+                        {(a.size_bytes / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                      <a
+                        href={api.artifactUrl(job.id, a.name)}
+                        className="text-forest underline"
+                      >
+                        ▶ 預覽
+                      </a>
+                      <Link
+                        to={`/jobs/${job.id}/publish/${encodeURIComponent(a.name)}`}
+                        className={
+                          'btn btn-ghost text-xs ' +
+                          (yt?.state === 'done' ? 'text-green-700' : '')
+                        }
+                      >
+                        📺{' '}
+                        {yt?.state === 'done'
+                          ? '已上傳 (查看)'
+                          : yt?.state === 'uploading'
+                          ? `上傳中 ${yt.progress_percent}%`
+                          : yt?.state === 'failed'
+                          ? '上傳失敗 (重試)'
+                          : '上傳到 YouTube'}
+                      </Link>
+                      {yt?.url && (
+                        <a
+                          href={yt.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-forest underline break-all"
+                        >
+                          {yt.url}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

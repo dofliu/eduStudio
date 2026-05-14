@@ -104,17 +104,29 @@ export function JobCard({ job, onChanged }: Props) {
             🔄 重試
           </button>
         )}
-        {job.state === 'done' && mp4s.length > 0 && (
-          <a
-            href={api.artifactUrl(job.id, mp4s[0].name)}
-            className="btn btn-secondary"
-          >
-            ▶ {mp4s[0].name}
-          </a>
-        )}
-        {job.state === 'done' && mp4s.length > 1 && (
-          <span className="text-sm text-ink-muted">+{mp4s.length - 1} more</span>
-        )}
+        {/* iter 47: 有 final.mp4 (iter 45 多章合成) 就優先當 preview 入口,
+            各章 mp4 在 JobEditor 才看得到 */}
+        {job.state === 'done' && mp4s.length > 0 && (() => {
+          const finalMp4 = mp4s.find(a => a.name === 'final.mp4');
+          const primary = finalMp4 ?? mp4s[0];
+          const others = finalMp4 ? mp4s.length : mp4s.length - 1;
+          return (
+            <>
+              <a
+                href={api.artifactUrl(job.id, primary.name)}
+                className="btn btn-secondary"
+                title={finalMp4 ? '完整影片 (含全部章節)' : primary.name}
+              >
+                {finalMp4 ? '▶ 🎬 完整影片' : `▶ ${primary.name}`}
+              </a>
+              {others > 0 && (
+                <span className="text-sm text-ink-muted">
+                  {finalMp4 ? `+${others - 1} 章獨立` : `+${others} more`}
+                </span>
+              )}
+            </>
+          );
+        })()}
         <button onClick={onDelete} className="btn btn-ghost text-red-700" title="刪除 job">
           ✕
         </button>

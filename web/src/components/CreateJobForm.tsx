@@ -46,6 +46,8 @@ export function CreateJobForm({ onCreated }: Props) {
   >('forest');
   // PR-5c: 燒字幕選項, 對所有 source_type 都適用
   const [hardsub, setHardsub] = useState(false);
+  // iter 41: intro 串接 (個人開場), 對所有 source_type 都適用
+  const [prependIntro, setPrependIntro] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -68,6 +70,7 @@ export function CreateJobForm({ onCreated }: Props) {
     mock,
     require_review: requireReview,
     hardsub,
+    prepend_intro: prependIntro,
     ...(showTheme ? { theme } : {}),    // 不適用就不送, 後端用預設
   });
 
@@ -258,6 +261,15 @@ export function CreateJobForm({ onCreated }: Props) {
             onChange={(e) => setHardsub(e.target.checked)}
           />
           燒字幕進 MP4 (離線播放看得到; YouTube 不必勾)
+        </label>
+        {/* iter 41: intro 串接 */}
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={prependIntro}
+            onChange={(e) => setPrependIntro(e.target.checked)}
+          />
+          串個人 intro (~8 秒開場接到主影片前)
         </label>
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input

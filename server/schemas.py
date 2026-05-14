@@ -99,6 +99,13 @@ class JobOptions(BaseModel):
         description="是否把 SRT 字幕直接燒進 MP4 (PR-5c). 預設 False — YouTube "
                     "上傳吃分離 SRT 比較好, 燒字幕主要給離線播放用。",
     )
+    prepend_intro: bool = Field(
+        default=False,
+        description="是否把個人 intro 影片接到主影片前 (iter 41). "
+                    "Intro 路徑取自 core.config.get_intro_video_path() "
+                    "(env CLAUDE_INTRO_VIDEO_PATH 可覆寫). SRT 時間戳會自動 "
+                    "往後推 intro 長度, 字幕跟畫面對齊.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

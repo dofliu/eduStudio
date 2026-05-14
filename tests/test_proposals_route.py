@@ -214,6 +214,31 @@ class TestApprove:
         )
         assert resp.status_code == 422
 
+    def test_approve_with_prepend_intro_sets_option(
+        self, client, proposals_file, monkeypatch,
+    ):
+        """iter 41: 核准時帶 prepend_intro → 寫進 JobOptions.prepend_intro."""
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+
+        captured: dict = {}
+        from server.routes import proposals as proposals_mod
+        real_create = proposals_mod.get_default_store().__class__.create
+
+        def spy_create(self, req):
+            captured["prepend_intro"] = req.options.prepend_intro
+            return real_create(self, req)
+
+        monkeypatch.setattr(
+            proposals_mod.JobStore, "create", spy_create,
+        )
+
+        resp = client.post(
+            "/proposals/p1/approve",
+            json={"prepend_intro": True},
+        )
+        assert resp.status_code == 201, resp.text
+        assert captured["prepend_intro"] is True
+
 
 class TestIgnore:
     def test_ignore_marks_status(self, client, proposals_file):

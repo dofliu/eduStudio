@@ -251,6 +251,14 @@ async def _run_render(
     theme = rec.options.theme or "forest"
     # PR-5c: 燒字幕旗標, pipeline.main 看 data["hardsub"] 決定要不要跑 burn_subtitles
     hardsub = bool(rec.options.hardsub)
+    # iter 41: intro 前置. 主迴圈外算一次 normalized intro, 避免每題重 probe.
+    prepend_intro = bool(rec.options.prepend_intro)
+    normalized_intro: Path | None = None
+    intro_duration: float = 0.0
+    if prepend_intro:
+        normalized_intro, intro_duration = await asyncio.to_thread(
+            _prepare_intro_for_problems, problems, artifacts_dir,
+        )
 
     # 逐題渲染 → MP4 / SRT 從 OUTPUT_DIR 搬到 artifacts/
     for prob in problems:
@@ -267,11 +275,104 @@ async def _run_render(
         unique_name = f"job_{rec.id}__{pid}"
         await render_video(str(v0_path), unique_name, start_step=None)
 
+        # iter 41: 串 intro + 偏移 SRT (prepend_intro=True 時)
+        if prepend_intro and normalized_intro is not None:
+            await asyncio.to_thread(
+                _apply_intro_postprocess,
+                unique_name, normalized_intro, intro_duration,
+            )
+
         for ext in ("mp4", "srt"):
             src = OUTPUT_DIR / f"{unique_name}.{ext}"
             dst = artifacts_dir / f"{pid}.{ext}"
             if src.exists():
                 src.replace(dst)
+
+
+def _prepare_intro_for_problems(
+    problems: list[dict], artifacts_dir: Path,
+) -> tuple[Path | None, float]:
+    """iter 41: 算 normalized intro + 抓 intro 秒數.
+
+    回傳 (normalized_intro_path, intro_duration). 失敗時回 (None, 0) 並
+    logger.warning, 讓 render 流程繼續跑 (intro 串接失敗不該整個 job 死).
+
+    放 module level 不放 _run_render 內: 兩條共用 (整份 render + section
+    re-render), 抽出來測試也直接 (純 IO 函式, mock ffmpeg 即可).
+    """
+    from core import video_concat
+    from core.config import ASSETS_DIR, get_intro_video_path
+
+    try:
+        intro_path = Path(get_intro_video_path())
+        if not intro_path.exists():
+            logger.warning(
+                "prepend_intro=True 但 intro 檔不存在 (%s), 跳過 intro 串接",
+                intro_path,
+            )
+            return None, 0.0
+
+        # 探測主影片 audio spec 當 normalize target.
+        # 找剛 render 完的第一支主影片 — 它的 audio 規格代表整批.
+        # 但這時候還沒 render, 拿不到. 退一步: 用 pipeline 預設 spec
+        # (TTS 出來通常是 96000 Hz mono AAC). 第一題 render 完之後也可以
+        # 重 probe, 但對齊整批用第一支即可.
+        # 簡化: 直接 hard-code TTS pipeline 的目標 spec.
+        target = video_concat.AudioSpec(
+            sample_rate=96000, channels=1, codec="aac",
+        )
+        normalized = video_concat.normalize_intro_audio(
+            intro_path, target, ASSETS_DIR,
+        )
+        duration = video_concat.get_video_duration(normalized)
+        logger.info(
+            "intro 已 normalize: %s (%.2fs), 將串接到 %d 支主影片前",
+            normalized.name, duration, len(problems),
+        )
+        return normalized, duration
+    except Exception as e:
+        logger.exception("intro 準備失敗, 跳過 intro 串接: %s", e)
+        return None, 0.0
+
+
+def _apply_intro_postprocess(
+    unique_name: str, normalized_intro: Path, intro_duration: float,
+) -> None:
+    """iter 41: 把 intro 接到主影片前 + 偏移 SRT.
+
+    輸入 OUTPUT_DIR / {unique_name}.{mp4,srt} (剛 render 完的位置),
+    處理完原地覆蓋. caller (_run_render) 接著 move 到 artifacts/.
+
+    失敗時 logger.warning 但不 raise — intro 串接是 nice-to-have, 主影片
+    成品已存在, 不該整支 job 因為這個炸掉.
+    """
+    from core import video_concat
+    from core.config import OUTPUT_DIR
+
+    main_mp4 = OUTPUT_DIR / f"{unique_name}.mp4"
+    main_srt = OUTPUT_DIR / f"{unique_name}.srt"
+    if not main_mp4.exists():
+        logger.warning("intro 串接跳過: 主影片不存在 %s", main_mp4)
+        return
+
+    try:
+        # 把 intro + main concat 成 _with_intro.mp4, 再覆蓋原檔
+        merged = OUTPUT_DIR / f"{unique_name}.with_intro.mp4"
+        video_concat.concat_videos([normalized_intro, main_mp4], merged)
+        merged.replace(main_mp4)
+        logger.info("intro 串接完成: %s", main_mp4.name)
+    except Exception as e:
+        logger.exception("intro 串接失敗, 保留無 intro 版本: %s", e)
+        return
+
+    # SRT 時間戳往後推 intro 秒數, 字幕跟畫面才對得上
+    if main_srt.exists() and intro_duration > 0:
+        try:
+            srt_text = main_srt.read_text(encoding="utf-8")
+            shifted = video_concat.offset_srt(srt_text, intro_duration)
+            main_srt.write_text(shifted, encoding="utf-8")
+        except Exception as e:
+            logger.exception("SRT 偏移失敗 (主影片已串好 intro): %s", e)
 
 
 # ---------- Top-level runner ----------

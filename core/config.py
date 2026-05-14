@@ -83,3 +83,22 @@ VIDEO_WIDTH = 1920
 VIDEO_HEIGHT = 1080
 VIDEO_FPS = 30
 PAUSE_AFTER_EACH = 0.6
+
+
+# ---------- Intro 影片串接 (iter 41) ----------
+# 用戶個人 ~8 秒的開場投影片影片. 啟用 JobOptions.prepend_intro=True 時,
+# 渲染完成的主影片前面會接這支 intro, 統一 YT 上傳的品牌開場.
+#
+# 規格要求: H.264 1920x1080 30fps yuv420p — 跟主影片渲染輸出對齊.
+# Audio 不一致由 video_concat.normalize_intro_audio 自動轉檔處理 (一次性快取).
+DEFAULT_INTRO_VIDEO_PATH = "D:/Dropbox/intro_journal.mp4"
+
+
+def get_intro_video_path() -> str:
+    """Intro mp4 路徑. 環境變數 CLAUDE_INTRO_VIDEO_PATH 可覆寫."""
+    return os.environ.get("CLAUDE_INTRO_VIDEO_PATH", DEFAULT_INTRO_VIDEO_PATH)
+
+
+# Intro normalize cache 放 PROJECT_ROOT/assets/, 不是 PROJECT_ROOT 根
+# (跟既有 photos/ voices/ 等 asset 目錄並列)
+ASSETS_DIR = PROJECT_ROOT / "assets"

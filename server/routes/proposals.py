@@ -92,6 +92,7 @@ class ProposalApproveRequest(BaseModel):
 
     theme: Literal["forest", "navy", "frieren", "naruto", "journal"] | None = None
     hardsub: bool | None = None
+    prepend_intro: bool | None = None     # iter 41: 串個人 intro 開場
 
 
 class ScanFolderRequest(BaseModel):
@@ -216,13 +217,15 @@ async def approve_proposal(
             f"source_type={target['source_type']} 不是合法 SourceType",
         )
 
-    # 把 body 上的選項 (theme / hardsub) 套進 JobOptions, 沒給就走 default
+    # 把 body 上的選項 (theme / hardsub / prepend_intro) 套進 JobOptions
     opts_kwargs: dict = {}
     if body is not None:
         if body.theme is not None:
             opts_kwargs["theme"] = body.theme
         if body.hardsub is not None:
             opts_kwargs["hardsub"] = body.hardsub
+        if body.prepend_intro is not None:
+            opts_kwargs["prepend_intro"] = body.prepend_intro
 
     req = CreateJobRequest(
         source_type=source_type,

@@ -43,6 +43,8 @@ export default function ProposalsList() {
   // iter 40: 各卡片獨立的 theme 選擇 (key = proposal_id). 不存進 proposals.json,
   // 只活在這次 UI render — 核准後就送出去, 沒核准就丟. 預設 forest.
   const [themeByProposal, setThemeByProposal] = useState<Record<string, ThemeName>>({});
+  // iter 41: per-card intro 串接旗標 (預設 off). 同樣只活當前 UI render.
+  const [prependIntroByProposal, setPrependIntroByProposal] = useState<Record<string, boolean>>({});
   // iter 27: ad-hoc modal 取代 yaml — 用戶填 path 直接掃
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -75,9 +77,14 @@ export default function ProposalsList() {
       // theme 只對 document / repo / url 有效, 其他 source_type 不送 (後端走預設)
       const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
       const theme = themeApplicable ? (themeByProposal[p.id] ?? 'forest') : undefined;
+      const prependIntro = prependIntroByProposal[p.id] ?? false;
+      // 任一旗標有設就送 body, 都沒設就空 body 走後端預設
+      const body: { theme?: string; prepend_intro?: boolean } = {};
+      if (theme) body.theme = theme;
+      if (prependIntro) body.prepend_intro = true;
       const r = await api.approveProposal(
         p.id,
-        theme ? { theme } : undefined,
+        Object.keys(body).length > 0 ? body : undefined,
       );
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
       // 直接跳到 JobEditor 進 review
@@ -395,6 +402,25 @@ export default function ProposalsList() {
                 </select>
               </div>
             )}
+
+            {/* iter 41: 串個人 intro 開場 — 所有 source_type 都可用 */}
+            <div className="mb-3 flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                id={`intro-${p.id}`}
+                checked={prependIntroByProposal[p.id] ?? false}
+                onChange={(e) =>
+                  setPrependIntroByProposal(prev => ({
+                    ...prev,
+                    [p.id]: e.target.checked,
+                  }))
+                }
+                disabled={busyId === p.id}
+              />
+              <label htmlFor={`intro-${p.id}`} className="text-ink-muted cursor-pointer">
+                串個人 intro 開場 (~8 秒接到主影片前)
+              </label>
+            </div>
 
             <div className="flex gap-2">
               <button

@@ -1,8 +1,33 @@
 # CHANGELOG — v4 階段累積進度
 
-> 一頁掃完 v4 階段(2026-05-12 ~ 2026-05-14)做了什麼。對接手助理 / 自己日後查考很有用。
+> 一頁掃完 v4 階段(2026-05-12 ~ 2026-05-15)做了什麼。對接手助理 / 自己日後查考很有用。
 >
 > 詳細 PR 級內容看 git log;詳細設計看 `docs/*.md`;當前 active 工作看 `TODO.md` 🌟 段落。
+
+---
+
+## Session 2 — 影片成品打磨(2026-05-14 ~ 2026-05-15, iter 39 ~ 44)
+
+| iter | commit | 內容 |
+|---|---|---|
+| 39 | `73b07a1` | **修 test job leak** — 三層根因(routes `_store` 中介, `_persist` self.root, staticmethod → instance method);清 5 個 leak dir;從此 pytest 不再污染真實 jobs/ |
+| 40 | `f5b8db4` | **Proposals 卡片主題下拉** — `POST /proposals/{id}/approve` 接 optional body, 核准前可選 pptx 主題, 不必先核准再到 review page 改 |
+| 41 | `035cb52` | **個人 intro 串接** — `core/video_concat.py`(concat + audio normalize cache + SRT offset, 22 tests);runner hook 在每支主影片前接 8 秒 intro;UI checkbox 雙處 |
+| 42 | `f4b22d9` | **開場白多樣化** — `core/intro_rewriter.py`(30 tests);exam/slides → 同學變體 8 個, document/repo/url → 大家好變體 8 個;stable md5 hash seed |
+| 43 | `e527b1f` | **影片長度模式** — `core/length_mode.py`(12 tests);quick(8-15 min)/ lecture(60-180 min)兩 preset;4 份 prompts 加 placeholder;雙 UI 下拉 |
+| 44 | `35a0307`<br>`fa32f64` | **DofLab 10 套主題 + intro 路徑重構**;v1 沉穩(editorial/podium/notebook/shinobi/elven)+ v2 衝擊(zine/arcade/risograph/supergraphic/brutalist);total 5 → **15 套主題**;intro mp4 從 `D:/Dropbox/` 移到 repo 內 `docs/intro_journal.mp4` |
+
+**測試成長(session 2)**: 354 → **447 tests**(+93 tests),全綠;無 test job leak。
+
+**用戶可見變化(React UI)**:
+- 建 job / 核准 proposal 三個新選項:
+  - pptx 主題下拉:5 既有 + 10 dof-* 分 5 組 optgroup(課程教學 / 期刊 / 漫畫 / DofLab v1 / DofLab v2)
+  - 影片長度下拉:快速(8-15 min)/ 詳細授課(60-180 min)
+  - 串個人 intro checkbox:勾起來在主影片前接 8 秒個人開場
+- 開場白會自動依 source_type 換變體(同學好 / 大家好), 同題穩定跨題會變
+
+**沒做(延後)**:
+- **Idea 2 多 voice / 多語言** — 用戶要求放到後面(Edge TTS 替代 F5、英 / 日翻譯軌)
 
 ---
 

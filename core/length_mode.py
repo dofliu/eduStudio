@@ -64,3 +64,46 @@ def preset(mode: LengthMode | str | None) -> dict:
     if mode and mode in LENGTH_PRESETS:
         return LENGTH_PRESETS[mode]
     return LENGTH_PRESETS["quick"]
+
+
+# 中文 narration TTS 朗讀速率 (字/分鐘). 實測 F5-TTS 跟 edge-tts 都落在
+# 200-220 之間, 取 200 偏保守 (估出來會比實際略長).
+CHARS_PER_MINUTE = 200
+
+
+def estimate_deck_duration(deck: dict, length_mode: str | None = None) -> dict:
+    """ingest 完掃 deck.json 統計, 估算渲染後總時長, 跟 length_mode 預算比較.
+
+    iter 48: 給 runner 用. 不修改 deck, 純算 + 回 dict, caller (runner) 決定
+    要 logger.info / logger.warning. 這函式單元測試易寫.
+
+    回傳 dict:
+        sections: int
+        total_slides: int
+        total_chars: int                 narration 字數加總
+        estimated_minutes: float         字數 / CHARS_PER_MINUTE
+        budget_chars: int                preset 的硬上限
+        over_budget: bool                total_chars > budget_chars
+        over_ratio: float                total_chars / budget_chars (1.0 = 剛好)
+    """
+    sections = deck.get("sections") or deck.get("problems") or []
+    total_slides = 0
+    total_chars = 0
+    for sec in sections:
+        slides = sec.get("slides") or sec.get("steps") or []
+        total_slides += len(slides)
+        for sl in slides:
+            n = sl.get("narration") or ""
+            total_chars += len(n)
+
+    p = preset(length_mode)
+    budget = int(p.get("total_narration_budget_chars", 2500))
+    return {
+        "sections": len(sections),
+        "total_slides": total_slides,
+        "total_chars": total_chars,
+        "estimated_minutes": round(total_chars / CHARS_PER_MINUTE, 1),
+        "budget_chars": budget,
+        "over_budget": total_chars > budget,
+        "over_ratio": round(total_chars / budget, 2) if budget > 0 else 0.0,
+    }

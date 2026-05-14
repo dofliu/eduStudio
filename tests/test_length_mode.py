@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.length_mode import LENGTH_PRESETS, preset
+from core.length_mode import LENGTH_PRESETS, estimate_deck_duration, preset
 
 
 class TestPreset:
@@ -154,3 +154,72 @@ class TestPromptIntegration:
             narration_seconds_range=p["narration_seconds_range"],
         )
         assert p["narration_chars_range"] in filled
+
+
+class TestEstimateDeckDuration:
+    """iter 48: ingest 完估算 deck 總時長 vs 預算."""
+
+    def test_empty_deck(self):
+        est = estimate_deck_duration({})
+        assert est["sections"] == 0
+        assert est["total_slides"] == 0
+        assert est["total_chars"] == 0
+        assert est["estimated_minutes"] == 0.0
+        assert est["over_budget"] is False
+
+    def test_v1_exam_schema_problems_steps(self):
+        """v1 schema (problems / steps) 也要算 (給 exam_pdf job 用)."""
+        deck = {
+            "problems": [
+                {"steps": [{"narration": "甲" * 100}, {"narration": "乙" * 100}]},
+                {"steps": [{"narration": "丙" * 200}]},
+            ],
+        }
+        est = estimate_deck_duration(deck, "quick")
+        assert est["sections"] == 2
+        assert est["total_slides"] == 3
+        assert est["total_chars"] == 400
+
+    def test_new_deck_schema_sections_slides(self):
+        deck = {
+            "sections": [
+                {"slides": [{"narration": "a" * 500}, {"narration": "b" * 500}]},
+            ],
+        }
+        est = estimate_deck_duration(deck, "quick")
+        assert est["total_chars"] == 1000
+        assert est["sections"] == 1
+        assert est["total_slides"] == 2
+
+    def test_within_quick_budget(self):
+        """quick 預算 2500 字, 11.9 分鐘對應 ~2380 字, 不該觸發 over_budget."""
+        deck = {"sections": [{"slides": [{"narration": "x" * 2380}]}]}
+        est = estimate_deck_duration(deck, "quick")
+        assert est["over_budget"] is False
+        assert est["estimated_minutes"] < 15
+
+    def test_over_quick_budget(self):
+        """模擬 iter 43 老 prompt 產的 8594 字 deck → 應 over_budget."""
+        deck = {"sections": [{"slides": [{"narration": "x" * 8594}]}]}
+        est = estimate_deck_duration(deck, "quick")
+        assert est["over_budget"] is True
+        assert est["over_ratio"] > 3.0   # 8594 / 2500 ≈ 3.44
+
+    def test_lecture_budget_allows_more_chars(self):
+        """同 8594 字在 lecture 預算 20000 內不該 over_budget."""
+        deck = {"sections": [{"slides": [{"narration": "x" * 8594}]}]}
+        est = estimate_deck_duration(deck, "lecture")
+        assert est["over_budget"] is False
+
+    def test_none_length_mode_uses_quick(self):
+        deck = {"sections": [{"slides": [{"narration": "x" * 3000}]}]}
+        est = estimate_deck_duration(deck, None)
+        # None → quick (2500), 3000 字超預算
+        assert est["over_budget"] is True
+
+    def test_estimated_minutes_rounding(self):
+        """estimated_minutes 四捨五入到一位小數."""
+        deck = {"sections": [{"slides": [{"narration": "x" * 333}]}]}
+        # 333 / 200 = 1.665 → 1.7
+        est = estimate_deck_duration(deck, "quick")
+        assert est["estimated_minutes"] == 1.7

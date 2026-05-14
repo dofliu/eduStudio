@@ -398,6 +398,34 @@ def _merge_sections_to_final(
         logger.exception("final.srt 合併失敗 (final.mp4 已存在, 各章 SRT 仍可用): %s", e)
 
 
+def _log_deck_duration_estimate(
+    store: JobStore, job_id: str, length_mode: str | None,
+) -> None:
+    """iter 48: ingest 完算 deck 估時長, 跟 length_mode 預算對比後 log.
+
+    超預算用 logger.warning (顯眼但不擋流程). 落在預算內用 info.
+    """
+    from core.length_mode import estimate_deck_duration
+
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        return
+
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+    est = estimate_deck_duration(deck, length_mode)
+
+    msg = (
+        f"deck 估算: {est['sections']} sections / {est['total_slides']} slides "
+        f"/ {est['total_chars']} chars → ~{est['estimated_minutes']} 分鐘 "
+        f"(預算 {est['budget_chars']} 字 {length_mode or 'quick'} mode, "
+        f"使用率 {est['over_ratio']:.0%})"
+    )
+    if est["over_budget"]:
+        logger.warning("⚠ %s — 超出預算 %.0f%%", msg, (est["over_ratio"] - 1) * 100)
+    else:
+        logger.info(msg)
+
+
 def _rewrite_deck_intros_inplace(
     store: JobStore, job_id: str, source_type_value: str,
 ) -> None:
@@ -555,6 +583,13 @@ async def run_job(store: JobStore, job_id: str) -> None:
             _rewrite_deck_intros_inplace(store, job_id, rec.source_type.value)
         except Exception as e:
             logger.exception("intro 多樣化失敗 (deck.json 保留 ingest 原版): %s", e)
+
+        # iter 48: 估算 deck 總時長 vs length_mode 預算, log 出來給用戶
+        # / 我除錯用. 超預算只 warning, 不擋 review.
+        try:
+            _log_deck_duration_estimate(store, job_id, rec.options.length_mode)
+        except Exception as e:
+            logger.exception("deck 時長估算失敗 (不擋 review): %s", e)
 
         store.update(
             job_id,

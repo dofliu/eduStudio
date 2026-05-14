@@ -91,7 +91,11 @@ PAUSE_AFTER_EACH = 0.6
 #
 # 規格要求: H.264 1920x1080 30fps yuv420p — 跟主影片渲染輸出對齊.
 # Audio 不一致由 video_concat.normalize_intro_audio 自動轉檔處理 (一次性快取).
-DEFAULT_INTRO_VIDEO_PATH = "D:/Dropbox/intro_journal.mp4"
+#
+# iter 44: 改用專案內相對路徑 (docs/intro_journal.mp4), 不再寫死 D:/Dropbox.
+# 好處: clone 出來不必另外改路徑; 換主機 / Docker 都跟著走.
+# 要換 intro 直接覆蓋 docs/intro_journal.mp4 (mtime 變動會讓 normalize cache 自動 invalidate).
+DEFAULT_INTRO_VIDEO_PATH = str(PROJECT_ROOT / "docs" / "intro_journal.mp4")
 
 
 def get_intro_video_path() -> str:

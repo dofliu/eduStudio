@@ -102,7 +102,9 @@ class JobStore:
         """建立 job, 寫初始 state.json, 但不啟動執行 (runner 自行接手)。"""
         with self._lock:
             job_id = _new_job_id()
-            d = _job_dir(job_id)
+            # iter 39 fix: 用 self.root 不再 fall through 到 module-level JOBS_DIR
+            # (避免 test fixture 設了 root=tmp_path 仍寫到真實 jobs/)
+            d = self.root / job_id
             d.mkdir(parents=True, exist_ok=True)
             (d / "artifacts").mkdir(exist_ok=True)
 
@@ -173,7 +175,8 @@ class JobStore:
             if job_id not in self._cache:
                 return False
             del self._cache[job_id]
-            d = _job_dir(job_id)
+            # iter 39 fix: 用 self.root
+            d = self.root / job_id
             if d.exists():
                 shutil.rmtree(d, ignore_errors=True)
             return True
@@ -186,7 +189,8 @@ class JobStore:
         放在 store 裡而不是 runner 內: 若 caller 在 done 後手動加檔,
         scan 後也能反映,跟現實狀態同步。
         """
-        d = _job_dir(job_id) / "artifacts"
+        # iter 39 fix: 用 self.root
+        d = self.root / job_id / "artifacts"
         out: list[Artifact] = []
         if not d.exists():
             return out
@@ -235,7 +239,8 @@ class JobStore:
     # ---- Disk I/O ----
 
     def _persist(self, rec: JobRecord) -> None:
-        path = _state_path(rec.id)
+        # iter 39 fix: 用 self.root 不再 fall through 到 module-level _state_path
+        path = self.root / rec.id / "state.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             rec.model_dump_json(indent=2),
@@ -243,18 +248,18 @@ class JobStore:
         )
 
     # ---- Path helpers ----
+    # iter 39 fix: 改 instance methods 用 self.root, 不再 fall through 到模組級
+    # JOBS_DIR. 之前 runner.py / routes 用 JobStore.deck_path(id) (staticmethod)
+    # 會在 test override 走 tmp_path 時仍寫到真實 jobs/, 造成 test 污染真實目錄.
 
-    @staticmethod
-    def job_dir(job_id: str) -> Path:
-        return _job_dir(job_id)
+    def job_dir(self, job_id: str) -> Path:
+        return self.root / job_id
 
-    @staticmethod
-    def deck_path(job_id: str) -> Path:
-        return _job_dir(job_id) / "deck.json"
+    def deck_path(self, job_id: str) -> Path:
+        return self.root / job_id / "deck.json"
 
-    @staticmethod
-    def artifacts_dir(job_id: str) -> Path:
-        return _job_dir(job_id) / "artifacts"
+    def artifacts_dir(self, job_id: str) -> Path:
+        return self.root / job_id / "artifacts"
 
 
 # 模組級單例 (FastAPI app 啟動時 import 即可)

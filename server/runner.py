@@ -64,7 +64,7 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
     - repo / document / url: 新 deck schema (sections / slides), 渲染前壓平
     """
     mock = bool(rec.options.mock)
-    deck_path = JobStore.deck_path(rec.id)
+    deck_path = store.deck_path(rec.id)
 
     # url 走網路, 其他都先 check path 存在
     if rec.source_type != SourceType.URL:
@@ -99,15 +99,15 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
         return json.loads(deck_path.read_text(encoding="utf-8"))
 
     if rec.source_type == SourceType.REPO:
-        return await _run_ingest_repo(rec, deck_path, mock)
+        return await _run_ingest_repo(store, rec, deck_path, mock)
 
     if rec.source_type in (SourceType.DOCUMENT, SourceType.URL):
-        return await _run_ingest_long_form(rec, deck_path, mock)
+        return await _run_ingest_long_form(store, rec, deck_path, mock)
 
     raise ValueError(f"未支援的 source_type: {rec.source_type}")
 
 
-async def _run_ingest_repo(rec: JobRecord, deck_path: Path, mock: bool) -> dict:
+async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, mock: bool) -> dict:
     """repo 路徑: adapter → outliner → scriptor → deck.json (新 schema)。"""
     from core.adapters.repo import scan_repo
     from core.outliner import mock_outline, outline_repo
@@ -147,7 +147,7 @@ async def _run_ingest_repo(rec: JobRecord, deck_path: Path, mock: bool) -> dict:
     return deck
 
 
-async def _run_ingest_long_form(rec: JobRecord, deck_path: Path, mock: bool) -> dict:
+async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path, mock: bool) -> dict:
     """document / url 路徑: adapter → outline_long_form → script_long_form → deck.json。
 
     跟 _run_ingest_repo 結構一致, 差別在 adapter 不同 + outliner / scriptor 走
@@ -210,7 +210,7 @@ async def _run_render(
         deck_to_exam_schema_slides,
     )
 
-    deck_path = JobStore.deck_path(rec.id)
+    deck_path = store.deck_path(rec.id)
     if not deck_path.exists():
         raise FileNotFoundError(f"deck.json 不存在,ingest 階段未完成?{deck_path}")
 
@@ -237,7 +237,7 @@ async def _run_render(
             raise ValueError(f"section_id={section_id} 在 deck 中找不到")
         problems = matching
 
-    artifacts_dir = JobStore.artifacts_dir(rec.id)
+    artifacts_dir = store.artifacts_dir(rec.id)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     # TTS 覆寫: options.tts_provider → 設環境變數,pipeline 內部讀取
@@ -289,7 +289,7 @@ async def run_job(store: JobStore, job_id: str) -> None:
     if rec is None:
         return
 
-    log_path = JobStore.job_dir(job_id) / "log.jsonl"
+    log_path = store.job_dir(job_id) / "log.jsonl"
     attach_job_log(job_id, log_path)
     token = current_job_id.set(job_id)
     logger.info(
@@ -315,7 +315,7 @@ async def run_job(store: JobStore, job_id: str) -> None:
         logger.info("ingest 完成 → deck.json", extra={"stage": "ingest"})
         store.update(
             job_id,
-            deck_path=str(JobStore.deck_path(job_id).relative_to(store.root.parent)).replace("\\", "/"),
+            deck_path=str(store.deck_path(job_id).relative_to(store.root.parent)).replace("\\", "/"),
         )
 
         # ---- 2. Pause for review? ----
@@ -350,7 +350,7 @@ async def _run_render_phase(
     (run_job 那層的 attach 不會跑到)。
     """
     # PR-4c: 若 caller 還沒 attach log (e.g. schedule_section_render), 自己 attach
-    log_path = JobStore.job_dir(job_id) / "log.jsonl"
+    log_path = store.job_dir(job_id) / "log.jsonl"
     own_log = current_job_id.get() != job_id
     token = None
     if own_log:
@@ -383,7 +383,7 @@ async def _run_render_phase(
             job_id,
             state=JobState.DONE,
             error=None,    # 確保清掉之前 retry 的 stale error
-            output_dir=str(JobStore.artifacts_dir(job_id).relative_to(store.root.parent)).replace("\\", "/"),
+            output_dir=str(store.artifacts_dir(job_id).relative_to(store.root.parent)).replace("\\", "/"),
         )
     finally:
         if own_log and token is not None:

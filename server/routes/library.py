@@ -22,9 +22,6 @@ from ..schemas import SourceType, YoutubeUpload, YoutubeUploadState
 router = APIRouter(prefix="/library", tags=["library"])
 
 
-def _store() -> JobStore:
-    return get_default_store()
-
 
 # ---------- Schema ----------
 
@@ -48,9 +45,9 @@ class LibraryResponse(BaseModel):
 
 # ---------- Helper ----------
 
-def _read_deck_title(job_id: str) -> str:
+def _read_deck_title(store: JobStore, job_id: str) -> str:
     """從 jobs/<id>/deck.json 抓 exam_title / deck_title, 找不到就退到 job_id。"""
-    deck_path = JobStore.deck_path(job_id)
+    deck_path = store.deck_path(job_id)
     if not deck_path.exists():
         return job_id
     try:
@@ -64,7 +61,7 @@ def _read_deck_title(job_id: str) -> str:
 # ---------- Route ----------
 
 @router.get("", response_model=LibraryResponse)
-async def list_library(store: JobStore = Depends(_store)) -> LibraryResponse:
+async def list_library(store: JobStore = Depends(get_default_store)) -> LibraryResponse:
     """跨所有 job 列出 mp4。新到舊 (job created_at desc)。"""
     items: list[LibraryItem] = []
     for job in store.list():    # 已經 created_at desc
@@ -73,8 +70,8 @@ async def list_library(store: JobStore = Depends(_store)) -> LibraryResponse:
         mp4s = [a for a in job.artifacts if a.kind == "mp4"]
         if not mp4s:
             continue
-        deck_title = _read_deck_title(job.id)
-        artifacts_dir = JobStore.artifacts_dir(job.id)
+        deck_title = _read_deck_title(store, job.id)
+        artifacts_dir = store.artifacts_dir(job.id)
         for a in mp4s:
             srt_path = artifacts_dir / Path(a.name).with_suffix(".srt").name
             yt = job.youtube_uploads.get(a.name) if job.youtube_uploads else None

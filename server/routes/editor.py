@@ -30,9 +30,6 @@ from ..schemas import JobRecord, JobState
 router = APIRouter(tags=["editor"])
 
 
-def _store() -> JobStore:
-    return get_default_store()
-
 
 # ---------- 共用 CSS ----------
 # 內聯 CSS 避免 static 檔案管理. Forest 配色呼應渲染主題, 但介面色階壓低
@@ -198,18 +195,18 @@ async function approveJob(jobId) {{
 
 # ---------- Index page ----------
 
-def _render_index(jobs: list[JobRecord]) -> str:
+def _render_index(jobs: list[JobRecord], store: JobStore) -> str:
     if not jobs:
         body = '<div class="empty">尚無 job。用 <code>POST /jobs</code> 或 <code>scripts/submit_job.py</code> 建立。</div>'
     else:
         cards = []
         for j in jobs:
-            cards.append(_render_job_card(j))
+            cards.append(_render_job_card(j, store))
         body = "<h2>Jobs</h2>" + "\n".join(cards)
     return _layout("Jobs", body)
 
 
-def _render_job_card(j: JobRecord) -> str:
+def _render_job_card(j: JobRecord, store: JobStore) -> str:
     state = j.state.value
     badge = f'<span class="badge badge-{state}">{state}</span>'
 
@@ -220,7 +217,7 @@ def _render_job_card(j: JobRecord) -> str:
         src_text = f'{j.source_type.value}: {j.source.path or "?"}'
 
     # 統計 — 從 deck.json 讀 (若存在), 否則顯示 stage 進度
-    deck_path = JobStore.deck_path(j.id)
+    deck_path = store.deck_path(j.id)
     stats = ""
     if deck_path.exists():
         try:
@@ -268,8 +265,8 @@ def _render_job_card(j: JobRecord) -> str:
 
 # ---------- Editor page ----------
 
-def _render_editor(j: JobRecord) -> str:
-    deck_path = JobStore.deck_path(j.id)
+def _render_editor(j: JobRecord, store: JobStore) -> str:
+    deck_path = store.deck_path(j.id)
     if not deck_path.exists():
         return _layout("Editor",
             f'<div class="empty">deck.json 不存在 (job 還在 ingest 中?)<br>'
@@ -465,16 +462,16 @@ def _html_escape(s: str | None) -> str:
 
 
 @router.get("/editor", response_class=HTMLResponse)
-async def editor_index(store: JobStore = Depends(_store)) -> HTMLResponse:
-    return HTMLResponse(_render_index(store.list()))
+async def editor_index(store: JobStore = Depends(get_default_store)) -> HTMLResponse:
+    return HTMLResponse(_render_index(store.list(), store))
 
 
 @router.get("/editor/{job_id}", response_class=HTMLResponse)
-async def editor_page(job_id: str, store: JobStore = Depends(_store)) -> HTMLResponse:
+async def editor_page(job_id: str, store: JobStore = Depends(get_default_store)) -> HTMLResponse:
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    return HTMLResponse(_render_editor(rec))
+    return HTMLResponse(_render_editor(rec, store))
 
 
 # 給 index page 上的 approve 按鈕呼叫的小 wrapper script (避免 inline JS 重複)

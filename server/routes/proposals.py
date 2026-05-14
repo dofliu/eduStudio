@@ -125,9 +125,6 @@ class ScanStatusResponse(BaseModel):
 # ============================================================
 
 
-def _store() -> JobStore:
-    return get_default_store()
-
 
 def _load_all() -> list[dict]:
     """讀 proposals.json 內全部 (任何 status)."""
@@ -175,7 +172,7 @@ async def list_proposals(only_pending: bool = True) -> ProposalListResponse:
 )
 async def approve_proposal(
     proposal_id: str,
-    store: JobStore = Depends(_store),
+    store: JobStore = Depends(get_default_store),
 ) -> ProposalApproveResponse:
     """核准提案 → 走 /upload 同一條 schedule_job 流程。
 
@@ -243,7 +240,7 @@ def _build_scan_config(req: "ScanFolderRequest", folder: Path) -> dict:
 @router.post("/scan-folder/async", response_model=ScanAsyncResponse, status_code=status.HTTP_202_ACCEPTED)
 async def scan_folder_async(
     req: ScanFolderRequest,
-    store: JobStore = Depends(_store),
+    store: JobStore = Depends(get_default_store),
 ) -> ScanAsyncResponse:
     """非同步觸發 ideate 掃描. 立刻回 scan_id, 不等完成。
 
@@ -289,7 +286,7 @@ async def get_scan_status(scan_id: str) -> ScanStatusResponse:
 @router.post("/scan-folder", response_model=ScanResponse)
 async def scan_folder(
     req: ScanFolderRequest,
-    store: JobStore = Depends(_store),
+    store: JobStore = Depends(get_default_store),
 ) -> ScanResponse:
     """掃一個指定資料夾, 跑 ideate 流程。
 

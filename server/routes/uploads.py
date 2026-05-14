@@ -85,9 +85,6 @@ def _unique_target_path(directory: Path, filename: str) -> Path:
     return directory / new_name
 
 
-def _store() -> JobStore:
-    return get_default_store()
-
 
 @router.post("", response_model=CreateJobResponse, status_code=status.HTTP_201_CREATED)
 async def upload_and_create_job(
@@ -98,7 +95,7 @@ async def upload_and_create_job(
         "{}",
         description="JobOptions 的 JSON 字串 (例: {\"mock\": true, \"require_review\": true})",
     ),
-    store: JobStore = Depends(_store),
+    store: JobStore = Depends(get_default_store),
 ) -> CreateJobResponse:
     """收 multipart 檔案, 存到 pdfs/, 然後建 job 並排程。
 

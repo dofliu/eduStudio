@@ -27,9 +27,6 @@ from ..schemas import JobRecord, YoutubeUpload, YoutubeUploadState, utc_now
 router = APIRouter(prefix="/jobs", tags=["youtube"])
 
 
-def _store() -> JobStore:
-    return get_default_store()
-
 
 def _require_artifact(job_id: str, name: str, store: JobStore) -> tuple[JobRecord, Path]:
     """取 (job_record, artifact 絕對路徑) 或丟 404 / 400。"""
@@ -38,7 +35,7 @@ def _require_artifact(job_id: str, name: str, store: JobStore) -> tuple[JobRecor
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
     if "/" in name or "\\" in name or ".." in name:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 artifact 檔名")
-    artifacts_dir = JobStore.artifacts_dir(job_id)
+    artifacts_dir = store.artifacts_dir(job_id)
     target = artifacts_dir / name
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"artifact 不存在: {name}")
@@ -54,7 +51,7 @@ def _require_artifact(job_id: str, name: str, store: JobStore) -> tuple[JobRecor
 
 @router.get("/{job_id}/artifacts/{name}/youtube_meta")
 async def get_youtube_meta(
-    job_id: str, name: str, store: JobStore = Depends(_store),
+    job_id: str, name: str, store: JobStore = Depends(get_default_store),
 ) -> dict:
     """根據 deck.json + artifact stem 算預填 (title / description / tags / privacy)。
 
@@ -67,7 +64,7 @@ async def get_youtube_meta(
         return existing.model_dump()
 
     # 找 deck.json
-    deck_path = JobStore.deck_path(job_id)
+    deck_path = store.deck_path(job_id)
     if not deck_path.exists():
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
@@ -166,7 +163,7 @@ async def _do_publish(store: JobStore, job_id: str, name: str,
 @router.post("/{job_id}/artifacts/{name}/publish", status_code=status.HTTP_202_ACCEPTED)
 async def publish(
     job_id: str, name: str, req: PublishRequest,
-    store: JobStore = Depends(_store),
+    store: JobStore = Depends(get_default_store),
 ) -> YoutubeUpload:
     """觸發背景上傳。
 
@@ -209,7 +206,7 @@ async def publish(
 
 @router.get("/{job_id}/artifacts/{name}/youtube_status", response_model=YoutubeUpload)
 async def youtube_status(
-    job_id: str, name: str, store: JobStore = Depends(_store),
+    job_id: str, name: str, store: JobStore = Depends(get_default_store),
 ) -> YoutubeUpload:
     rec = store.get(job_id)
     if rec is None:

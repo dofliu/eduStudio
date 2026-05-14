@@ -33,11 +33,8 @@ from ..schemas import (
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
-def _store() -> JobStore:
-    return get_default_store()
 
-
-def _require_job(job_id: str, store: JobStore = Depends(_store)) -> JobRecord:
+def _require_job(job_id: str, store: JobStore = Depends(get_default_store)) -> JobRecord:
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
@@ -47,7 +44,7 @@ def _require_job(job_id: str, store: JobStore = Depends(_store)) -> JobRecord:
 # ---------- CRUD ----------
 
 @router.post("", response_model=CreateJobResponse, status_code=status.HTTP_201_CREATED)
-async def create_job(req: CreateJobRequest, store: JobStore = Depends(_store)) -> CreateJobResponse:
+async def create_job(req: CreateJobRequest, store: JobStore = Depends(get_default_store)) -> CreateJobResponse:
     """建立 job 並立即在背景排程。回應裡的 status_url 可拿來 poll 狀態。"""
     from ..schemas import SourceType
 
@@ -81,7 +78,7 @@ async def create_job(req: CreateJobRequest, store: JobStore = Depends(_store)) -
 
 
 @router.get("", response_model=JobListResponse)
-async def list_jobs(store: JobStore = Depends(_store)) -> JobListResponse:
+async def list_jobs(store: JobStore = Depends(get_default_store)) -> JobListResponse:
     return JobListResponse(jobs=store.list())
 
 
@@ -91,7 +88,7 @@ async def get_job(rec: JobRecord = Depends(_require_job)) -> JobRecord:
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_job(job_id: str, store: JobStore = Depends(_store)) -> None:
+async def delete_job(job_id: str, store: JobStore = Depends(get_default_store)) -> None:
     if not store.delete(job_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
 
@@ -99,9 +96,9 @@ async def delete_job(job_id: str, store: JobStore = Depends(_store)) -> None:
 # ---------- Draft (deck.json) ----------
 
 @router.get("/{job_id}/draft")
-async def get_draft(job_id: str, store: JobStore = Depends(_store)) -> JSONResponse:
+async def get_draft(job_id: str, store: JobStore = Depends(get_default_store)) -> JSONResponse:
     """取 deck.json — ingest 完之後就有,直到 job 被刪除前都可讀。"""
-    deck_path = JobStore.deck_path(job_id)
+    deck_path = store.deck_path(job_id)
     if not deck_path.exists():
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
@@ -113,7 +110,7 @@ async def get_draft(job_id: str, store: JobStore = Depends(_store)) -> JSONRespo
 
 @router.put("/{job_id}/draft", response_model=JobRecord)
 async def update_draft(
-    job_id: str, body: UpdateDeckRequest, store: JobStore = Depends(_store),
+    job_id: str, body: UpdateDeckRequest, store: JobStore = Depends(get_default_store),
 ) -> JobRecord:
     """覆寫 deck.json。
 
@@ -135,7 +132,7 @@ async def update_draft(
             status.HTTP_409_CONFLICT,
             f"目前狀態 {rec.state.value}, 僅 awaiting_review / failed / done 可改 deck",
         )
-    JobStore.deck_path(job_id).write_text(
+    store.deck_path(job_id).write_text(
         json.dumps(body.deck, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -146,7 +143,7 @@ async def update_draft(
 # ---------- Approve ----------
 
 @router.post("/{job_id}/approve", response_model=JobRecord)
-async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobRecord:
+async def approve_job(job_id: str, store: JobStore = Depends(get_default_store)) -> JobRecord:
     """進入 rendering 階段。可在三種狀態觸發:
 
     - awaiting_review: 主路徑, 第一次 review 通過開始渲染
@@ -168,7 +165,7 @@ async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobReco
 
     # FAILED 但沒 deck.json → ingest 沒跑完, 該從頭重跑整條 pipeline
     # (走 schedule_job 經 run_job 從 ingest 開始, 而非 schedule_render 直接跳 render)
-    if rec.state == JobState.FAILED and not JobStore.deck_path(job_id).exists():
+    if rec.state == JobState.FAILED and not store.deck_path(job_id).exists():
         schedule_job(store, job_id)
     else:
         schedule_render(store, job_id)
@@ -179,7 +176,7 @@ async def approve_job(job_id: str, store: JobStore = Depends(_store)) -> JobReco
 
 @router.get("/{job_id}/log")
 async def get_job_log(
-    job_id: str, tail: int = 200, store: JobStore = Depends(_store),
+    job_id: str, tail: int = 200, store: JobStore = Depends(get_default_store),
 ) -> JSONResponse:
     """讀 jobs/<id>/log.jsonl 末尾 N 筆 log, 給 React UI 即時看 render 進度。
 
@@ -193,7 +190,7 @@ async def get_job_log(
             status.HTTP_400_BAD_REQUEST, "tail 必須在 1~2000 之間",
         )
     from core.logging_setup import read_job_log
-    log_path = JobStore.job_dir(job_id) / "log.jsonl"
+    log_path = store.job_dir(job_id) / "log.jsonl"
     entries = read_job_log(log_path, tail=tail)
     return JSONResponse(content={"entries": entries})
 
@@ -213,7 +210,7 @@ def _deck_has_section_id(deck: dict, section_id: str) -> bool:
 
 @router.post("/{job_id}/sections/{section_id}/render", response_model=JobRecord)
 async def render_section(
-    job_id: str, section_id: str, store: JobStore = Depends(_store),
+    job_id: str, section_id: str, store: JobStore = Depends(get_default_store),
 ) -> JobRecord:
     """重新渲染單一 section / problem (PR-4a)。
 
@@ -234,7 +231,7 @@ async def render_section(
             f"section render 僅在 done / failed 可用 (目前 {rec.state.value})",
         )
 
-    deck_path = JobStore.deck_path(job_id)
+    deck_path = store.deck_path(job_id)
     if not deck_path.exists():
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
@@ -254,14 +251,14 @@ async def render_section(
 # ---------- Artifacts ----------
 
 @router.get("/{job_id}/artifacts/{name}")
-async def download_artifact(job_id: str, name: str, store: JobStore = Depends(_store)) -> FileResponse:
+async def download_artifact(job_id: str, name: str, store: JobStore = Depends(get_default_store)) -> FileResponse:
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
     # 防 path traversal: 只接受 name 為單純檔名,不能含 / 或 ..
     if "/" in name or "\\" in name or ".." in name:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 artifact 檔名")
-    target = JobStore.artifacts_dir(job_id) / name
+    target = store.artifacts_dir(job_id) / name
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"artifact 不存在: {name}")
     return FileResponse(target, filename=name)

@@ -6,7 +6,7 @@
 
 ---
 
-## Session 2 — 影片成品打磨(2026-05-14 ~ 2026-05-15, iter 39 ~ 44)
+## Session 2 — 影片成品打磨(2026-05-14 ~ 2026-05-15, iter 39 ~ 48)
 
 | iter | commit | 內容 |
 |---|---|---|
@@ -16,8 +16,21 @@
 | 42 | `f4b22d9` | **開場白多樣化** — `core/intro_rewriter.py`(30 tests);exam/slides → 同學變體 8 個, document/repo/url → 大家好變體 8 個;stable md5 hash seed |
 | 43 | `e527b1f` | **影片長度模式** — `core/length_mode.py`(12 tests);quick(8-15 min)/ lecture(60-180 min)兩 preset;4 份 prompts 加 placeholder;雙 UI 下拉 |
 | 44 | `35a0307`<br>`fa32f64` | **DofLab 10 套主題 + intro 路徑重構**;v1 沉穩(editorial/podium/notebook/shinobi/elven)+ v2 衝擊(zine/arcade/risograph/supergraphic/brutalist);total 5 → **15 套主題**;intro mp4 從 `D:/Dropbox/` 移到 repo 內 `docs/intro_journal.mp4` |
+| 45 | `537cb93` | **多章合 final.mp4** — 修「選 quick 出了 5 支獨立 mp4」設計 bug;render 完所有章節後 ffmpeg concat 成單支 `final.mp4` + `final.srt`;intro 改接到 `final.mp4` 不再每章重複;各章 mp4 保留供 section re-render |
+| 46 | `7d43a9f` | **收緊 quick mode 預算** — sections 4-6→3-4 / slides 5-10→4-5 / chars 100-200→80-120;加 `total_narration_budget_chars` (quick=2500 / lecture=20000);4 份 prompts 加「取下限優先, 上限是極限」+「強制步驟先估總字數」 |
+| 47 | `df32583` | **`final.mp4` UI prominence** — JobEditor emerald 區塊「🎬 完整影片」排頂, 各章列下方標「重 render 用」;JobCard preview button 優先 final;Library 多章 job 只列 final.mp4(各章不污染 YT 上傳列表)+ 6 個新 test |
+| 48 | `034d6d7` | **deck 時長 estimator** — `estimate_deck_duration(deck, mode)` 純函式;runner 在 ingest 完跑一輪 log 估算結果, over-budget 用 `logger.warning ⚠`;8 個新 test |
 
-**測試成長(session 2)**: 354 → **447 tests**(+93 tests),全綠;無 test job leak。
+**iter 46 修法效果實測** (用戶實機跑 Journal_Paper PDF):
+| Job | prompt 版本 | sections | 字數 | 估時 | budget 使用率 |
+|---|---|---|---|---|---|
+| 7d93439a0793 (新) | iter 46 | 3 | 2374 | 11.9 min | **95%** ✓ |
+| 9c8e3df46ba5 (舊) | iter 43 | 5 | 8594 | 43.0 min | 344% ⚠ |
+| 764039d15546 (舊) | iter 43 | 5 | 6774 | 33.9 min | 271% ⚠ |
+
+字數降到老 prompt 28%, 落在預算內. 渲染後 final.mp4 實際 11.0 分鐘 (vs estimator 預估 11.9, 誤差 8%).
+
+**測試成長(session 2)**: 354 → **467 tests**(+113 tests),全綠;無 test job leak。
 
 **用戶可見變化(React UI)**:
 - 建 job / 核准 proposal 三個新選項:
@@ -25,6 +38,7 @@
   - 影片長度下拉:快速(8-15 min)/ 詳細授課(60-180 min)
   - 串個人 intro checkbox:勾起來在主影片前接 8 秒個人開場
 - 開場白會自動依 source_type 換變體(同學好 / 大家好), 同題穩定跨題會變
+- 多章 job 自動合成 `final.mp4`, UI emerald 區塊醒目標「🎬 完整影片」當主交付
 
 **沒做(延後)**:
 - **Idea 2 多 voice / 多語言** — 用戶要求放到後面(Edge TTS 替代 F5、英 / 日翻譯軌)

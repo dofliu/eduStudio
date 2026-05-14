@@ -67,3 +67,7 @@ tts_config.json
 # ideate 個人設定 — iter 27 已改 ad-hoc 模式 (UI 按鈕直接接 path), 不再用 yaml
 # 仍 ignore 防舊版設定誤 commit
 ideate_config.yaml
+
+# iter 41/44: intro normalize cache (audio 轉檔結果), 由 video_concat.py
+# 依 intro mtime 自動產生 / invalidate, 不該 commit (可重建 + 跨機器路徑不同)
+assets/

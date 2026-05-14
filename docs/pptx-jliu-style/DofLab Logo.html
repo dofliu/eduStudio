@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>DofLab Logo 實驗室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #14110D;
+  color: #E8E2D3;
+  font-family: "Inter", system-ui, sans-serif;
+  padding: 80px 64px 120px;
+  min-height: 100vh;
+}
+.head {
+  max-width: 1400px;
+  margin: 0 auto 64px;
+  border-bottom: 1px solid #3A332A;
+  padding-bottom: 32px;
+}
+.head .eye {
+  font-family: "EB Garamond", serif;
+  font-style: italic;
+  font-size: 22px;
+  color: #C7A86B;
+  letter-spacing: 0.04em;
+}
+.head h1 {
+  font-weight: 300;
+  font-size: 56px;
+  letter-spacing: -0.01em;
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+.head .lede {
+  font-size: 17px;
+  color: #9C9382;
+  line-height: 1.65;
+  max-width: 800px;
+}
+.head .lede em {
+  color: #E8E2D3;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.grid {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+}
+
+.card {
+  background: #1C1813;
+  border: 1px solid #3A332A;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.card .stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 40px;
+  min-height: 360px;
+  position: relative;
+}
+.card.light .stage { background: #F0EAD8; }
+.card.dark  .stage { background: #14110D; }
+.card .meta {
+  padding: 24px 28px;
+  border-top: 1px solid #3A332A;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.card .meta .name {
+  font-family: "EB Garamond", serif;
+  font-style: italic;
+  font-size: 22px;
+  color: #E8E2D3;
+}
+.card .meta .desc {
+  font-size: 13px;
+  color: #9C9382;
+  letter-spacing: 0.04em;
+}
+.card .num {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  font-family: "EB Garamond", serif;
+  font-style: italic;
+  font-size: 14px;
+  color: #9C9382;
+  letter-spacing: 0.12em;
+}
+.card.light .num { color: #8A7C65; }
+
+/* ----------------------------------------------------
+   Logo 01 · 6-DoF Constellation Mark
+   六個圓點 = 6 個自由度 (3 平移 + 3 旋轉)
+   ---------------------------------------------------- */
+.logo-01 {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.logo-01 .mark {
+  width: 96px;
+  height: 96px;
+  position: relative;
+}
+.logo-01 .mark svg {
+  width: 100%;
+  height: 100%;
+}
+.logo-01 .word {
+  font-family: "EB Garamond", serif;
+  font-size: 56px;
+  color: #1A1611;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.logo-01 .word em {
+  font-style: italic;
+  font-weight: 500;
+}
+.logo-01 .word .lab {
+  font-style: normal;
+  font-weight: 500;
+}
+.logo-01 .tag {
+  display: block;
+  font-family: "Inter", sans-serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  color: #8A7C65;
+  margin-top: 10px;
+  text-transform: uppercase;
+}
+
+/* ----------------------------------------------------
+   Logo 02 · Axis Cross 三軸座標
+   ---------------------------------------------------- */
+.logo-02 {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.logo-02 .mark { width: 96px; height: 96px; }
+.logo-02 .word {
+  font-family: "Inter", sans-serif;
+  font-weight: 700;
+  font-size: 48px;
+  letter-spacing: -0.02em;
+  color: #1A1611;
+  line-height: 1;
+}
+.logo-02 .word .dof { color: #C44A2C; }
+.logo-02 .tag {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: #8A7C65;
+  margin-top: 8px;
+}
+
+/* ----------------------------------------------------
+   Logo 03 · Pure Wordmark (襯線版，與既有風格家族相容)
+   ---------------------------------------------------- */
+.logo-03 {
+  text-align: center;
+}
+.logo-03 .word {
+  font-family: "EB Garamond", serif;
+  font-size: 96px;
+  letter-spacing: -0.02em;
+  color: #1A1611;
+  line-height: 1;
+}
+.logo-03 .word .dof {
+  font-style: italic;
+  font-weight: 500;
+}
+.logo-03 .word .dot {
+  font-style: normal;
+  color: #C44A2C;
+  margin: 0 0.05em;
+}
+.logo-03 .word .lab {
+  font-style: normal;
+  font-weight: 500;
+}
+.logo-03 .tag {
+  display: block;
+  font-family: "EB Garamond", serif;
+  font-style: italic;
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  color: #8A7C65;
+  margin-top: 18px;
+}
+
+/* ----------------------------------------------------
+   Logo 04 · Monogram D — D 內藏 6 個點
+   ---------------------------------------------------- */
+.logo-04 {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.logo-04 .mark { width: 120px; height: 120px; }
+.logo-04 .word-block {
+  font-family: "Inter", sans-serif;
+  color: #1A1611;
+}
+.logo-04 .word-block .top {
+  font-weight: 800;
+  font-size: 44px;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.logo-04 .word-block .bottom {
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  color: #8A7C65;
+  margin-top: 10px;
+  text-transform: uppercase;
+}
+
+/* ----------------------------------------------------
+   Logo 05 · Round Seal 圓章式（呼應 shinobi 風格）
+   ---------------------------------------------------- */
+.logo-05 .mark { width: 220px; height: 220px; }
+
+/* ----------------------------------------------------
+   Logo 06 · Vector Field 向量場
+   ---------------------------------------------------- */
+.logo-06 {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.logo-06 .mark { width: 120px; height: 96px; }
+.logo-06 .word {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 500;
+  font-size: 44px;
+  letter-spacing: -0.02em;
+  color: #1A1611;
+  line-height: 1;
+}
+.logo-06 .word .lab { color: #4A8B7A; }
+.logo-06 .tag {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: #8A7C65;
+  margin-top: 10px;
+}
+
+/* ----------------------------------------------------
+   Section · 應用示範
+   ---------------------------------------------------- */
+.section-head {
+  max-width: 1400px;
+  margin: 96px auto 32px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  border-bottom: 1px solid #3A332A;
+  padding-bottom: 18px;
+}
+.section-head .num {
+  font-family: "EB Garamond", serif;
+  font-style: italic;
+  font-size: 28px;
+  color: #C7A86B;
+}
+.section-head .title {
+  font-weight: 300;
+  font-size: 32px;
+  letter-spacing: 0.01em;
+}
+.section-head .sub {
+  margin-left: auto;
+  font-size: 13px;
+  color: #9C9382;
+}
+
+.apps {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.app {
+  border: 1px solid #3A332A;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+.app .ctx {
+  position: absolute;
+  bottom: 14px;
+  left: 16px;
+  font-size: 11px;
+  color: #9C9382;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.app.cream { background: #F0EAD8; }
+.app.ink   { background: #14110D; }
+.app.red   { background: #C44A2C; }
+.app.cyan  { background: #0A4C5C; }
+.app.paper { background: #FAFAF5; }
+.app.lime  { background: #DBE85F; }
+
+.app.cream .ctx, .app.lime .ctx, .app.paper .ctx { color: #8A7C65; }
+
+/* small logo lockups for apps */
+.lockup-h {
+  display: flex; align-items: center; gap: 14px;
+}
+.lockup-h svg { width: 44px; height: 44px; }
+.lockup-h .word {
+  font-family: "EB Garamond", serif;
+  font-size: 28px;
+  letter-spacing: -0.01em;
+}
+.app.cream .lockup-h .word { color: #1A1611; }
+.app.ink   .lockup-h .word { color: #E8E2D3; }
+.app.red   .lockup-h .word { color: #FAFAF5; }
+.app.cyan  .lockup-h .word { color: #FAFAF5; }
+.app.paper .lockup-h .word { color: #1A1611; }
+.app.lime  .lockup-h .word { color: #1A1611; }
+.lockup-h .word em { font-style: italic; font-weight: 500; }
+.lockup-h .word .lab { font-style: normal; font-weight: 500; }
+.lockup-h .word .dot { color: inherit; }
+.app.cream .lockup-h .word .dot { color: #C44A2C; }
+.app.ink   .lockup-h .word .dot { color: #C7A86B; }
+.app.red   .lockup-h .word .dot { color: #FFE082; }
+.app.cyan  .lockup-h .word .dot { color: #6DD3F0; }
+.app.paper .lockup-h .word .dot { color: #C44A2C; }
+.app.lime  .lockup-h .word .dot { color: #1A1611; }
+
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div class="eye">DofLab Logo Laboratory · v1</div>
+  <h1>六個 logo 方向，給你挑</h1>
+  <p class="lede">
+    <em>DoF = Degrees of Freedom（自由度）</em>。
+    這是機構與機器人領域的核心概念——一個剛體在空間中最多有 6 個自由度（3 個平移 + 3 個旋轉），
+    剛好對應「智慧自動化工程系」的學理脈絡。所有 logo 方向都圍繞這個雙關展開，
+    從具象（座標軸）到抽象（六個點的星座），從學術（襯線文字）到工程（單行碼字）。
+  </p>
+</div>
+
+<!-- ==================== LOGO GRID ==================== -->
+<div class="grid">
+
+  <!-- 01 -->
+  <div class="card light">
+    <div class="num">01</div>
+    <div class="stage">
+      <div class="logo-01">
+        <div class="mark">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <!-- 6 個圓點：3 平移軸（左半）+ 3 旋轉軸（右半） -->
+            <!-- 左：translate triangle -->
+            <circle cx="22" cy="22" r="6" fill="#1A1611"/>
+            <circle cx="22" cy="50" r="6" fill="#1A1611"/>
+            <circle cx="22" cy="78" r="6" fill="#1A1611"/>
+            <!-- 右：rotate triangle，使用空心圈表示旋轉 -->
+            <circle cx="78" cy="22" r="6" fill="none" stroke="#C44A2C" stroke-width="2"/>
+            <circle cx="78" cy="50" r="6" fill="none" stroke="#C44A2C" stroke-width="2"/>
+            <circle cx="78" cy="78" r="6" fill="none" stroke="#C44A2C" stroke-width="2"/>
+            <!-- 中間連線提示「對偶」 -->
+            <line x1="32" y1="50" x2="68" y2="50" stroke="#8A7C65" stroke-width="1" stroke-dasharray="2 3"/>
+          </svg>
+        </div>
+        <div>
+          <div class="word"><em>Dof</em><span class="lab">Lab</span></div>
+          <span class="tag">6 Degrees · 1 Lab</span>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="name">6-DoF Constellation</span>
+      <span class="desc">3 平移 · 3 旋轉，最忠於概念</span>
+    </div>
+  </div>
+
+  <!-- 02 -->
+  <div class="card light">
+    <div class="num">02</div>
+    <div class="stage">
+      <div class="logo-02">
+        <div class="mark">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <!-- 三軸座標 + 微角度旋轉 -->
+            <g transform="rotate(-12 50 50)">
+              <!-- Z 軸（垂直）-->
+              <line x1="50" y1="12" x2="50" y2="78" stroke="#1A1611" stroke-width="3"/>
+              <polygon points="50,8 46,16 54,16" fill="#1A1611"/>
+              <!-- X 軸 (右下) -->
+              <line x1="50" y1="78" x2="86" y2="92" stroke="#C44A2C" stroke-width="3"/>
+              <polygon points="92,94 80,90 84,98" fill="#C44A2C"/>
+              <!-- Y 軸 (左下) -->
+              <line x1="50" y1="78" x2="14" y2="92" stroke="#1A1611" stroke-width="3"/>
+              <polygon points="8,94 20,90 16,98" fill="#1A1611"/>
+              <!-- 原點 -->
+              <circle cx="50" cy="78" r="3.5" fill="#1A1611"/>
+            </g>
+          </svg>
+        </div>
+        <div>
+          <div class="word"><span class="dof">DoF</span>Lab</div>
+          <span class="tag">x · y · z · rx · ry · rz</span>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="name">Axis Cross</span>
+      <span class="desc">三軸座標，工程感最強</span>
+    </div>
+  </div>
+
+  <!-- 03 -->
+  <div class="card light">
+    <div class="num">03</div>
+    <div class="stage">
+      <div class="logo-03">
+        <div class="word"><span class="dof">Dof</span><span class="dot">·</span><span class="lab">Lab</span></div>
+        <span class="tag">DEGREES OF FREEDOM · NCUT</span>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="name">Pure Wordmark</span>
+      <span class="desc">與既有五套襯線風格家族相容</span>
+    </div>
+  </div>
+
+  <!-- 04 -->
+  <div class="card light">
+    <div class="num">04</div>
+    <div class="stage">
+      <div class="logo-04">
+        <div class="mark">
+          <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <!-- 粗體 D 外框 -->
+            <path d="M 20 14 L 20 106 L 64 106 Q 106 106 106 60 Q 106 14 64 14 Z"
+                  fill="none" stroke="#1A1611" stroke-width="8"/>
+            <!-- D 內 6 個點 -->
+            <circle cx="40" cy="38" r="4.5" fill="#1A1611"/>
+            <circle cx="40" cy="60" r="4.5" fill="#1A1611"/>
+            <circle cx="40" cy="82" r="4.5" fill="#1A1611"/>
+            <circle cx="68" cy="38" r="4.5" fill="#C44A2C"/>
+            <circle cx="68" cy="60" r="4.5" fill="#C44A2C"/>
+            <circle cx="68" cy="82" r="4.5" fill="#C44A2C"/>
+          </svg>
+        </div>
+        <div class="word-block">
+          <div class="top">DofLab</div>
+          <div class="bottom">Smart Automation · NCUT</div>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="name">Monogram D</span>
+      <span class="desc">大寫 D 內藏 6-DoF，名片印章皆宜</span>
+    </div>
+  </div>
+
+  <!-- 05 -->
+  <div class="card dark">
+    <div class="num">05</div>
+    <div class="stage">
+      <div class="logo-05">
+        <svg viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+          <!-- 雙圈 -->
+          <circle cx="110" cy="110" r="100" fill="none" stroke="#C7A86B" stroke-width="2.5"/>
+          <circle cx="110" cy="110" r="86" fill="none" stroke="#C7A86B" stroke-width="1"/>
+          <!-- 六個自由度小三角，圍繞圈外 -->
+          <g fill="#C7A86B">
+            <polygon points="110,4 106,14 114,14"/>
+            <polygon points="206,58 196,60 200,68"/>
+            <polygon points="206,162 200,152 196,160"/>
+            <polygon points="110,216 114,206 106,206"/>
+            <polygon points="14,162 24,160 20,152"/>
+            <polygon points="14,58 20,68 24,60"/>
+          </g>
+          <!-- 中央 wordmark -->
+          <text x="110" y="100" text-anchor="middle"
+                font-family="EB Garamond" font-style="italic" font-size="44" font-weight="500"
+                fill="#E8E2D3">Dof</text>
+          <text x="110" y="138" text-anchor="middle"
+                font-family="EB Garamond" font-size="36" font-weight="500"
+                fill="#E8E2D3">Lab</text>
+          <!-- 下方環狀文字 -->
+          <path id="ringText" d="M 110 110 m -68 0 a 68 68 0 1 0 136 0" fill="none"/>
+          <text font-family="EB Garamond" font-style="italic" font-size="11"
+                letter-spacing="6" fill="#C7A86B">
+            <textPath href="#ringText" startOffset="50%" text-anchor="middle">
+              EST · 2024 · 6 DEGREES OF FREEDOM
+            </textPath>
+          </text>
+        </svg>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="name">Round Seal</span>
+      <span class="desc">圓章式，shinobi 風格與正式場合首選</span>
+    </div>
+  </div>
+
+  <!-- 06 -->
+  <div class="card light">
+    <div class="num">06</div>
+    <div class="stage">
+      <div class="logo-06">
+        <div class="mark">
+          <svg viewBox="0 0 120 96" xmlns="http://www.w3.org/2000/svg">
+            <!-- 向量場：5×4 格的小箭頭 -->
+            <g stroke="#4A8B7A" stroke-width="1.5" fill="none">
+              <!-- row 1 -->
+              <g transform="translate(12, 16)"><line x1="0" y1="0" x2="10" y2="-3"/><polyline points="7,-4 10,-3 8,0"/></g>
+              <g transform="translate(36, 16)"><line x1="0" y1="0" x2="10" y2="-2"/><polyline points="7,-3 10,-2 8,1"/></g>
+              <g transform="translate(60, 16)"><line x1="0" y1="0" x2="10" y2="0"/><polyline points="7,-2 10,0 7,2"/></g>
+              <g transform="translate(84, 16)"><line x1="0" y1="0" x2="10" y2="2"/><polyline points="7,-1 10,2 8,3"/></g>
+              <!-- row 2 -->
+              <g transform="translate(12, 38)" stroke="#1A1611"><line x1="0" y1="0" x2="10" y2="-1"/><polyline points="7,-2 10,-1 8,1"/></g>
+              <g transform="translate(36, 38)" stroke="#1A1611"><line x1="0" y1="0" x2="11" y2="0"/><polyline points="8,-2 11,0 8,2"/></g>
+              <g transform="translate(60, 38)" stroke="#1A1611"><line x1="0" y1="0" x2="11" y2="0"/><polyline points="8,-2 11,0 8,2"/></g>
+              <g transform="translate(84, 38)" stroke="#1A1611"><line x1="0" y1="0" x2="10" y2="1"/><polyline points="7,-1 10,1 8,2"/></g>
+              <!-- row 3 (匯聚到中心) -->
+              <g transform="translate(12, 60)"><line x1="0" y1="0" x2="10" y2="2"/><polyline points="7,1 10,2 8,4"/></g>
+              <g transform="translate(36, 60)"><line x1="0" y1="0" x2="11" y2="1"/><polyline points="8,-1 11,1 8,3"/></g>
+              <g transform="translate(60, 60)"><line x1="0" y1="0" x2="10" y2="-1"/><polyline points="7,-2 10,-1 8,1"/></g>
+              <g transform="translate(84, 60)"><line x1="0" y1="0" x2="10" y2="-2"/><polyline points="7,-3 10,-2 8,0"/></g>
+              <!-- row 4 -->
+              <g transform="translate(12, 80)"><line x1="0" y1="0" x2="9" y2="3"/><polyline points="6,2 9,3 7,5"/></g>
+              <g transform="translate(36, 80)"><line x1="0" y1="0" x2="10" y2="2"/><polyline points="7,1 10,2 8,4"/></g>
+              <g transform="translate(60, 80)"><line x1="0" y1="0" x2="10" y2="0"/><polyline points="7,-2 10,0 7,2"/></g>
+              <g transform="translate(84, 80)"><line x1="0" y1="0" x2="10" y2="-2"/><polyline points="7,-3 10,-2 8,0"/></g>
+            </g>
+          </svg>
+        </div>
+        <div>
+          <div class="word">Dof<span class="lab">.lab</span></div>
+          <span class="tag">VECTOR · FIELD · CONTROL</span>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="name">Vector Field</span>
+      <span class="desc">流體向量場，控制論氣質</span>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ==================== 應用示範 ==================== -->
+<div class="section-head">
+  <span class="num">B</span>
+  <span class="title">放在簡報上是什麼樣子</span>
+  <span class="sub">以 01 號 mark + wordmark 在不同背景示範</span>
+</div>
+
+<div class="apps">
+  <div class="app cream">
+    <div class="lockup-h">
+      <svg viewBox="0 0 100 100"><circle cx="22" cy="22" r="6" fill="#1A1611"/><circle cx="22" cy="50" r="6" fill="#1A1611"/><circle cx="22" cy="78" r="6" fill="#1A1611"/><circle cx="78" cy="22" r="6" fill="none" stroke="#C44A2C" stroke-width="2"/><circle cx="78" cy="50" r="6" fill="none" stroke="#C44A2C" stroke-width="2"/><circle cx="78" cy="78" r="6" fill="none" stroke="#C44A2C" stroke-width="2"/></svg>
+      <div class="word"><em>Dof</em><span class="dot">·</span><span class="lab">Lab</span></div>
+    </div>
+    <div class="ctx">editorial · 雜誌編輯風</div>
+  </div>
+  <div class="app ink">
+    <div class="lockup-h">
+      <svg viewBox="0 0 100 100"><circle cx="22" cy="22" r="6" fill="#E8E2D3"/><circle cx="22" cy="50" r="6" fill="#E8E2D3"/><circle cx="22" cy="78" r="6" fill="#E8E2D3"/><circle cx="78" cy="22" r="6" fill="none" stroke="#C7A86B" stroke-width="2"/><circle cx="78" cy="50" r="6" fill="none" stroke="#C7A86B" stroke-width="2"/><circle cx="78" cy="78" r="6" fill="none" stroke="#C7A86B" stroke-width="2"/></svg>
+      <div class="word"><em>Dof</em><span class="dot">·</span><span class="lab">Lab</span></div>
+    </div>
+    <div class="ctx">shinobi · 忍者熱血</div>
+  </div>
+  <div class="app paper">
+    <div class="lockup-h">
+      <svg viewBox="0 0 100 100"><circle cx="22" cy="22" r="6" fill="#1A1611"/><circle cx="22" cy="50" r="6" fill="#1A1611"/><circle cx="22" cy="78" r="6" fill="#1A1611"/><circle cx="78" cy="22" r="6" fill="none" stroke="#7C6FA0" stroke-width="2"/><circle cx="78" cy="50" r="6" fill="none" stroke="#7C6FA0" stroke-width="2"/><circle cx="78" cy="78" r="6" fill="none" stroke="#7C6FA0" stroke-width="2"/></svg>
+      <div class="word"><em>Dof</em><span class="dot">·</span><span class="lab">Lab</span></div>
+    </div>
+    <div class="ctx">elven · 魔法幻境</div>
+  </div>
+  <div class="app red">
+    <div class="lockup-h">
+      <svg viewBox="0 0 100 100"><circle cx="22" cy="22" r="6" fill="#FAFAF5"/><circle cx="22" cy="50" r="6" fill="#FAFAF5"/><circle cx="22" cy="78" r="6" fill="#FAFAF5"/><circle cx="78" cy="22" r="6" fill="none" stroke="#FFE082" stroke-width="2"/><circle cx="78" cy="50" r="6" fill="none" stroke="#FFE082" stroke-width="2"/><circle cx="78" cy="78" r="6" fill="none" stroke="#FFE082" stroke-width="2"/></svg>
+      <div class="word"><em>Dof</em><span class="dot">·</span><span class="lab">Lab</span></div>
+    </div>
+    <div class="ctx">supergraphic · 大色塊</div>
+  </div>
+  <div class="app cyan">
+    <div class="lockup-h">
+      <svg viewBox="0 0 100 100"><circle cx="22" cy="22" r="6" fill="#FAFAF5"/><circle cx="22" cy="50" r="6" fill="#FAFAF5"/><circle cx="22" cy="78" r="6" fill="#FAFAF5"/><circle cx="78" cy="22" r="6" fill="none" stroke="#6DD3F0" stroke-width="2"/><circle cx="78" cy="50" r="6" fill="none" stroke="#6DD3F0" stroke-width="2"/><circle cx="78" cy="78" r="6" fill="none" stroke="#6DD3F0" stroke-width="2"/></svg>
+      <div class="word"><em>Dof</em><span class="dot">·</span><span class="lab">Lab</span></div>
+    </div>
+    <div class="ctx">arcade · 街機霓虹</div>
+  </div>
+  <div class="app lime">
+    <div class="lockup-h">
+      <svg viewBox="0 0 100 100"><circle cx="22" cy="22" r="6" fill="#1A1611"/><circle cx="22" cy="50" r="6" fill="#1A1611"/><circle cx="22" cy="78" r="6" fill="#1A1611"/><circle cx="78" cy="22" r="6" fill="none" stroke="#1A1611" stroke-width="2"/><circle cx="78" cy="50" r="6" fill="none" stroke="#1A1611" stroke-width="2"/><circle cx="78" cy="78" r="6" fill="none" stroke="#1A1611" stroke-width="2"/></svg>
+      <div class="word"><em>Dof</em><span class="dot">·</span><span class="lab">Lab</span></div>
+    </div>
+    <div class="ctx">zine · 獨立雜誌</div>
+  </div>
+</div>
+
+</body>
+</html>

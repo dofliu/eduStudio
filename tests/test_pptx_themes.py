@@ -27,6 +27,26 @@ class TestThemes:
         assert "naruto" in THEMES
         assert "journal" in THEMES
 
+    def test_has_doflab_v1_themes(self):
+        """iter 44: v1 沉穩家族 5 套 (editorial / podium / notebook / shinobi / elven)."""
+        for name in (
+            "dof-editorial", "dof-podium", "dof-notebook",
+            "dof-shinobi", "dof-elven",
+        ):
+            assert name in THEMES, f"v1 主題 {name} 缺"
+
+    def test_has_doflab_v2_themes(self):
+        """iter 44: v2 衝擊家族 5 套 (zine / arcade / risograph / supergraphic / brutalist)."""
+        for name in (
+            "dof-zine", "dof-arcade", "dof-risograph",
+            "dof-supergraphic", "dof-brutalist",
+        ):
+            assert name in THEMES, f"v2 主題 {name} 缺"
+
+    def test_total_theme_count(self):
+        """iter 44: 5 既有 + 10 dof-* = 15 套."""
+        assert len(THEMES) == 15
+
     def test_each_theme_has_required_keys(self):
         for name, palette in THEMES.items():
             missing = REQUIRED_KEYS - set(palette.keys())

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>DofLab 簡報風格 v2 · Zine / Arcade / Riso / Supergraphic / Brutalist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&family=Archivo+Black&family=JetBrains+Mono:wght@400;500;600;700&family=Press+Start+2P&family=VT323&family=Work+Sans:wght@400;500;600;700;800&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles-v2.css">
+<script src="deck-stage.js"></script>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+<!-- ============================================================
+     OVERVIEW
+     ============================================================ -->
+<section data-label="01 Overview v2" class="slide-v2 ov2">
+  <div>
+    <div class="o-eyebrow">DOFLAB · PRESENTATION SYSTEM · v2 · BOLD EDITION</div>
+    <h1>五種<span class="accent">不正經</span><br>的講法</h1>
+    <p class="o-sub">當沉穩的全襯線太溫和、TED 太冷靜——這五套是另一個極端。為動員、宣言、衝擊、玩心、跨界場合而設計，配合 v1 的五套襯線家族，DofLab 共有十種說話的方式。</p>
+  </div>
+  <div class="o-styles">
+    <div class="o-style">
+      <div class="num">01</div>
+      <div class="name">Zine</div>
+      <div class="zh">獨立雜誌</div>
+      <div class="use">YEAR REVIEW<br>MANIFESTO TALK</div>
+    </div>
+    <div class="o-style">
+      <div class="num">02</div>
+      <div class="name">Arcade</div>
+      <div class="zh">街機霓虹</div>
+      <div class="use">HACKATHON OPEN<br>TECH DEMO</div>
+    </div>
+    <div class="o-style">
+      <div class="num">03</div>
+      <div class="name">Riso</div>
+      <div class="zh">兩色疊印</div>
+      <div class="use">WORKSHOP<br>CROSS-DISCIPLINE</div>
+    </div>
+    <div class="o-style">
+      <div class="num">04</div>
+      <div class="name">Super</div>
+      <div class="zh">大色塊</div>
+      <div class="use">BRAND TALK<br>PARTNERSHIP</div>
+    </div>
+    <div class="o-style">
+      <div class="num">05</div>
+      <div class="name">Brutalist</div>
+      <div class="zh">野獸派宣言</div>
+      <div class="use">OPINION TALK<br>CALL TO ACTION</div>
+    </div>
+  </div>
+  <div class="o-foot">DOFLAB · NCUT · 劉瑞弘 · J. LIU</div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 1 · DOF-ZINE
+     ============================================================ -->
+
+<!-- Zine · Cover -->
+<section data-label="02 Zine · Cover" class="slide-v2 zn cover">
+  <div class="head-tag">
+    <span class="logo">DofLab</span>
+    <span class="issue">ISSUE 01 · SPRING 2026</span>
+  </div>
+  <div class="cover-stack">
+    <div class="issue-line">
+      <span>VOL.07 / ANNUAL REVIEW</span>
+      <span>NT$ 0 · FREE</span>
+    </div>
+    <h1 class="big-title">
+      做了一年，<br>到底<span class="punch">做了什麼</span>
+    </h1>
+    <p class="blurb">DofLab 2025 年度回顧 · 我們踩過的坑、做對的事、還沒搞懂的問題</p>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · 智慧自動化工程系 · NCUT</span>
+    <span>COVER 01 / 06</span>
+  </div>
+</section>
+
+<!-- Zine · Roadmap -->
+<section data-label="03 Zine · Roadmap" class="slide-v2 zn inner">
+  <div class="head-tag">
+    <span class="logo">DofLab</span>
+    <span class="issue">ISSUE 01 · ROADMAP</span>
+  </div>
+  <div class="eyebrow">CONTENTS</div>
+  <h2 class="big-h">今天<span class="hl-yellow">六</span>個<br>章節，你<span class="hl-blue">選</span>一個聽。</h2>
+  <div class="roadmap-zn">
+    <div class="item">
+      <div class="n">01</div>
+      <div class="t">我們以為很簡單，結果不是</div>
+      <div class="d">那些把我們捲入的「小」題目，後來都長成了論文</div>
+    </div>
+    <div class="item">
+      <div class="n">02</div>
+      <div class="t">兩個學期才搞懂的工具</div>
+      <div class="d">如果一年前就會了，我們大概會少加 200 小時班</div>
+    </div>
+    <div class="item">
+      <div class="n">03</div>
+      <div class="t">最自豪的三個 demo</div>
+      <div class="d">不是因為技術多強，是因為它們真的有人用</div>
+    </div>
+    <div class="item">
+      <div class="n">04</div>
+      <div class="t">我們吵架最兇的兩件事</div>
+      <div class="d">吵完之後實驗室才開始真的有共識</div>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · NCUT · DOFLAB</span>
+    <span>P. 03 / 31</span>
+  </div>
+</section>
+
+<!-- Zine · Content -->
+<section data-label="04 Zine · Content" class="slide-v2 zn inner">
+  <div class="head-tag">
+    <span class="logo">DofLab</span>
+    <span class="issue">CH. 01 · FEATURE</span>
+  </div>
+  <div class="eyebrow">FEATURE STORY</div>
+  <h2 class="big-h">把<span class="hl-yellow">機械手臂</span>教會<br>「不要太用力」這件事</h2>
+  <div class="grid-3">
+    <div class="card">
+      <div class="num">01</div>
+      <div class="ct">力量回饋這件事</div>
+      <div class="cd">不是裝個感測器就行。要讓它在 5ms 內決定下一步動作。</div>
+    </div>
+    <div class="card">
+      <div class="num">02</div>
+      <div class="ct">第一版差點打破雞蛋</div>
+      <div class="cd">我們真的在實驗室買了一打雞蛋來測。第一週打破了 11 顆。</div>
+    </div>
+    <div class="card">
+      <div class="num">03</div>
+      <div class="ct">最後成功的關鍵</div>
+      <div class="cd">不是模型變好，是學會了什麼時候要主動停下。</div>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · NCUT · DOFLAB</span>
+    <span>P. 04 / 31</span>
+  </div>
+</section>
+
+<!-- Zine · Quote / Summary -->
+<section data-label="05 Zine · Voice" class="slide-v2 zn inner">
+  <div class="head-tag">
+    <span class="logo">DofLab</span>
+    <span class="issue">CH. 04 · VOICES</span>
+  </div>
+  <div class="eyebrow">QUOTE OF THE YEAR</div>
+  <h2 class="big-h">我們吵架時<br>最常出現<span class="hl-yellow">的一句</span></h2>
+  <div class="quote-block">
+    <span class="mk">"</span>
+    <span class="q">「先把整條流程跑通——你想優化的那塊，可能根本不是瓶頸。」</span>
+    <span class="src">— 不知道誰先說的，但我們現在每個人都會說</span>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · NCUT · DOFLAB</span>
+    <span>P. 05 / 31</span>
+  </div>
+</section>
+
+<!-- Zine · End -->
+<section data-label="06 Zine · End" class="slide-v2 zn end">
+  <div class="head-tag">
+    <span class="logo" style="color:#FAFAF5">DofLab</span>
+    <span class="issue">FIN · SEE YOU IN 2027</span>
+  </div>
+  <div class="end-stack">
+    <div class="end-the-end">THANKS<br>FOR ALL<br>THE BUGS.</div>
+    <div class="end-sub">2025 的 DofLab 出刊到這一頁。下一期見。</div>
+  </div>
+  <div class="foot-tag">
+    <span>jhliu@ncut.edu.tw · doflab.tw</span>
+    <span>BACK COVER</span>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 2 · DOF-ARCADE
+     ============================================================ -->
+
+<!-- Arcade · Cover -->
+<section data-label="07 Arcade · Cover" class="slide-v2 ar cover">
+  <div class="hud-top">
+    <span class="logo">► DOFLAB</span>
+    <span class="ch">HACKATHON-26 / OPENING</span>
+  </div>
+  <div class="cv">
+    <div class="insert">INSERT COIN TO START</div>
+    <h1 class="big">PLAY<br>TO BUILD</h1>
+    <p class="sub">DofLab 黑客松 · 春季開賽</p>
+    <div class="meta">
+      <span class="chip">PLAYERS: 24</span>
+      <span class="chip">TIME: 36H</span>
+      <span class="chip">LEVEL: ★★★★☆</span>
+    </div>
+  </div>
+  <div class="hud-bot">
+    <span>SCORE: 0000000</span>
+    <span>P.07 / 31</span>
+    <span>HI: ∞</span>
+  </div>
+</section>
+
+<!-- Arcade · Roadmap -->
+<section data-label="08 Arcade · Roadmap" class="slide-v2 ar inner">
+  <div class="hud-top">
+    <span class="logo">► DOFLAB</span>
+    <span class="ch">QUEST · SELECT</span>
+  </div>
+  <div class="eyebrow">SELECT YOUR QUEST</div>
+  <h2 class="h-title">四道關卡，<br>你要先打哪一個？</h2>
+  <div class="quest-grid">
+    <div class="quest">
+      <div class="qhead"><span class="lvl">LV.01</span> SCOUT MISSION</div>
+      <div class="qt">四小時內找到題目</div>
+      <div class="qd">不要選最熱的，選你最想做完的。</div>
+    </div>
+    <div class="quest">
+      <div class="qhead"><span class="lvl">LV.02</span> BUILD QUEST</div>
+      <div class="qt">把骨幹打通</div>
+      <div class="qd">先求醜的可動，再求亮的可看。</div>
+    </div>
+    <div class="quest">
+      <div class="qhead"><span class="lvl">LV.03</span> BOSS BATTLE</div>
+      <div class="qt">熬過第二天黎明</div>
+      <div class="qd">這時候會懷疑題目——但不要換。</div>
+    </div>
+    <div class="quest">
+      <div class="qhead"><span class="lvl">LV.04</span> FINAL DEMO</div>
+      <div class="qt">最後八小時：演示</div>
+      <div class="qd">能講出口的，才算做出來。</div>
+    </div>
+  </div>
+  <div class="hud-bot">
+    <span>SCORE: 0000420</span>
+    <span class="pn">P.08 <span class="blink">/</span> 31</span>
+    <span>LIVES: ♥♥♥</span>
+  </div>
+</section>
+
+<!-- Arcade · Content -->
+<section data-label="09 Arcade · Content" class="slide-v2 ar inner">
+  <div class="hud-top">
+    <span class="logo">► DOFLAB</span>
+    <span class="ch">STAGE · 2 · STATS</span>
+  </div>
+  <div class="eyebrow">STAGE STATS</div>
+  <h2 class="h-title">DofLab 黑客松<br>戰績總覽</h2>
+  <div class="stat-row">
+    <div class="stat">
+      <div class="label">TEAMS</div>
+      <div class="val">24</div>
+      <div class="desc">每組三到四人，跨系混編。</div>
+    </div>
+    <div class="stat">
+      <div class="label">HOURS</div>
+      <div class="val">36</div>
+      <div class="desc">不眠不休——但建議休息。</div>
+    </div>
+    <div class="stat">
+      <div class="label">TRACKS</div>
+      <div class="val">04</div>
+      <div class="desc">自動化、AI、跨域、自由題。</div>
+    </div>
+    <div class="stat">
+      <div class="label">BUGS</div>
+      <div class="val">∞</div>
+      <div class="desc">這個數字會一直長。</div>
+    </div>
+  </div>
+  <div class="console">
+&gt; <span class="ok">system check</span>
+<span class="cm"># 24 teams ready</span>
+<span class="cm"># pipelines online</span>
+<span class="cm"># pizza queue: 6</span>
+
+&gt; <span class="ok">launch ./hackathon</span>
+<span class="ok">[OK]</span> game started
+<span class="gt">[!]</span> may the buffer be with you
+  </div>
+  <div class="hud-bot">
+    <span>SCORE: 0001337</span>
+    <span class="pn">P.09 <span class="blink">/</span> 31</span>
+    <span>STATE: LIVE</span>
+  </div>
+</section>
+
+<!-- Arcade · Power-up / Code -->
+<section data-label="10 Arcade · Power-up" class="slide-v2 ar inner">
+  <div class="hud-top">
+    <span class="logo">► DOFLAB</span>
+    <span class="ch">POWER-UP / TIPS</span>
+  </div>
+  <div class="eyebrow">POWER-UPS UNLOCKED</div>
+  <h2 class="h-title">三個關鍵道具，<br>請務必撿起來</h2>
+  <div class="quest-grid">
+    <div class="quest">
+      <div class="qhead"><span class="lvl">★</span> STAR · TIME BOOST</div>
+      <div class="qt">每三小時開一次站會</div>
+      <div class="qd">10 分鐘對齊進度，比埋頭多寫一小時有用。</div>
+    </div>
+    <div class="quest">
+      <div class="qhead"><span class="lvl">♥</span> HEART · ENERGY</div>
+      <div class="qt">凌晨三點請去睡</div>
+      <div class="qd">那時寫的 bug，明天要花兩倍時間找。</div>
+    </div>
+    <div class="quest">
+      <div class="qhead"><span class="lvl">▲</span> SHIELD · SCOPE</div>
+      <div class="qt">演示前 8 小時凍結功能</div>
+      <div class="qd">這條鐵則救過至少一半的隊伍。</div>
+    </div>
+    <div class="quest">
+      <div class="qhead"><span class="lvl">$</span> COIN · STORY</div>
+      <div class="qt">先寫 Demo 腳本</div>
+      <div class="qd">講不出口的功能 = 做白工，請接受這個事實。</div>
+    </div>
+  </div>
+  <div class="hud-bot">
+    <span>SCORE: 0002048</span>
+    <span class="pn">P.10 <span class="blink">/</span> 31</span>
+    <span>COMBO: ×4</span>
+  </div>
+</section>
+
+<!-- Arcade · End -->
+<section data-label="11 Arcade · Game Over" class="slide-v2 ar end">
+  <div class="hud-top">
+    <span class="logo">► DOFLAB</span>
+    <span class="ch">GAME · OVER</span>
+  </div>
+  <div class="end-stack">
+    <div class="ge">GAME<br>OVER</div>
+    <div class="ge-sub">「結束的不是遊戲，是這一回合。下次再來。」</div>
+    <div class="ge-cont">PRESS ANY KEY TO CONTINUE</div>
+  </div>
+  <div class="hud-bot">
+    <span>FINAL SCORE: ★★★★☆</span>
+    <span class="pn">P.11 <span class="blink">/</span> 31</span>
+    <span>THANKS FOR PLAYING</span>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 3 · DOF-RISOGRAPH
+     ============================================================ -->
+
+<!-- Riso · Cover -->
+<section data-label="12 Riso · Cover" class="slide-v2 rs cover">
+  <div class="head-tag">
+    <span>DofLab × <span class="stamp">設計 × 工程</span></span>
+    <span>WORKSHOP 04</span>
+  </div>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="cv">
+    <div class="issue">A WORKSHOP IN TWO COLOURS</div>
+    <h1 class="big-title">把<span class="lift">機器</span><br>畫進<br>感覺裡</h1>
+    <p class="sub">給設計人的演算法導論 · 給工程人的色彩感受課</p>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · DofLab · NCUT</span>
+    <span>2026.04.18 · SAT · NCUT R503</span>
+  </div>
+</section>
+
+<!-- Riso · Roadmap -->
+<section data-label="13 Riso · Roadmap" class="slide-v2 rs inner">
+  <div class="head-tag">
+    <span>DofLab WORKSHOP</span>
+    <span class="stamp">SCHEDULE</span>
+  </div>
+  <div class="eyebrow">TODAY'S MENU</div>
+  <h2 class="h-title">六小時，<br><span class="ink-pink">四段</span>探險。</h2>
+  <div class="roadmap-rs">
+    <div class="it">
+      <div class="n">i</div>
+      <div class="t">10:00 · 演算法是一種美感</div>
+      <div class="d">為什麼遞迴看起來像詩</div>
+    </div>
+    <div class="it">
+      <div class="n">ii</div>
+      <div class="t">11:30 · 色彩是一種運算</div>
+      <div class="d">HSL 到 OKLCH 的小旅行</div>
+    </div>
+    <div class="it">
+      <div class="n">iii</div>
+      <div class="t">14:00 · 動手：兩色圖譜</div>
+      <div class="d">用 30 行程式碼產生你的第一張 Riso</div>
+    </div>
+    <div class="it">
+      <div class="n">iv</div>
+      <div class="t">16:00 · 收尾 · 跨界閒聊</div>
+      <div class="d">設計師問工程，工程問設計</div>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · DofLab · NCUT</span>
+    <span>P.13 / 31</span>
+  </div>
+</section>
+
+<!-- Riso · Content -->
+<section data-label="14 Riso · Content" class="slide-v2 rs inner">
+  <div class="head-tag">
+    <span>DofLab WORKSHOP</span>
+    <span class="stamp">FEATURE</span>
+  </div>
+  <div class="eyebrow">A BRIDGE FROM CODE TO COLOUR</div>
+  <h2 class="h-title">演算法<span class="ink-pink">不冷</span>，<br><span class="ink-blue">色彩</span>不軟。</h2>
+  <div class="body-2col">
+    <div>
+      <div class="col-h">給設計人</div>
+      <p>每一個你按下「自動排版」的按鈕，背後都有一條 1960 年代被數學家寫下的演算法。它沒有要把你的工作搶走，它在等你下命令。</p>
+      <p>學會看懂程式，就像學會看懂一張色票——你不用會調，但你會知道為什麼這兩個顏色擺一起不好看。</p>
+    </div>
+    <div>
+      <div class="col-h pink">給工程人</div>
+      <p>色彩不是裝飾，是一種訊息通道。當你的 dashboard 把錯誤標成橘色而不是紅色，使用者的腦會把警報程度自動下調 30%。</p>
+      <p>學會看懂色彩，就像學會看懂變數命名——你不用會調，但你會知道為什麼這個介面用起來總是有點不對勁。</p>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · DofLab · NCUT</span>
+    <span>P.14 / 31</span>
+  </div>
+</section>
+
+<!-- Riso · Summary -->
+<section data-label="15 Riso · Summary" class="slide-v2 rs inner">
+  <div class="head-tag">
+    <span>DofLab WORKSHOP</span>
+    <span class="stamp">RECAP</span>
+  </div>
+  <div class="eyebrow">THREE TAKEAWAYS</div>
+  <h2 class="h-title">如果<span class="ink-pink">只記</span>得<br>三件事</h2>
+  <div class="summary-rs">
+    <div class="it">
+      <div class="n">i</div>
+      <h3>美感是可以拆解的</h3>
+      <p>不是天賦，是一組可以被討論的選擇。</p>
+    </div>
+    <div class="it">
+      <div class="n">ii</div>
+      <h3>程式碼也可以是手稿</h3>
+      <p>當你開始重視排版與命名，它就接近詩。</p>
+    </div>
+    <div class="it">
+      <div class="n">iii</div>
+      <h3>跨界從問問題開始</h3>
+      <p>「你們為什麼這樣做」是最強的學習咒語。</p>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>劉瑞弘 · DofLab · NCUT</span>
+    <span>P.15 / 31</span>
+  </div>
+</section>
+
+<!-- Riso · End -->
+<section data-label="16 Riso · End" class="slide-v2 rs end">
+  <div class="head-tag">
+    <span>DofLab WORKSHOP</span>
+    <span class="stamp">END</span>
+  </div>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="end-stack">
+    <div class="ge">謝謝<br>來玩.</div>
+    <div class="ge-sub">下次工作坊在 6 月，主題還沒想好。<br>你想學什麼？來信告訴我。</div>
+  </div>
+  <div class="foot-tag">
+    <span>jhliu@ncut.edu.tw</span>
+    <span>WORKSHOP 04 / FIN</span>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 4 · DOF-SUPERGRAPHIC
+     ============================================================ -->
+
+<!-- SG · Cover -->
+<section data-label="17 Super · Cover" class="slide-v2 sg cover">
+  <div class="left">
+    <div class="label">DofLab / 2026</div>
+    <div class="num">26</div>
+    <div class="meta">SMART AUTOMATION · NCUT</div>
+  </div>
+  <div class="right">
+    <div class="ttl">Smart<br>Automation,<br>Plainly Put.</div>
+    <p class="sub">DofLab 對外簡介 · 我們在做什麼、為什麼這樣做、與誰一起做。</p>
+    <div class="by">BY 劉瑞弘 · J. LIU · DOFLAB</div>
+  </div>
+</section>
+
+<!-- SG · Roadmap -->
+<section data-label="18 Super · Roadmap" class="slide-v2 sg inner">
+  <div class="head-tag">
+    <span>DOFLAB / 04 SECTIONS</span>
+    <span>P.18 / 31</span>
+  </div>
+  <div class="eyebrow">SECTIONS</div>
+  <h2 class="h-title">這份簡介，<br>分<em>四</em>段。</h2>
+  <div class="roadmap-sg">
+    <div class="it">
+      <div class="n">01</div>
+      <div class="t">我們在哪個問題上</div>
+      <div class="d">FOCUS · WHERE</div>
+    </div>
+    <div class="it">
+      <div class="n">02</div>
+      <div class="t">我們做事的方式</div>
+      <div class="d">METHOD · HOW</div>
+    </div>
+    <div class="it">
+      <div class="n">03</div>
+      <div class="t">我們已經做出的東西</div>
+      <div class="d">WORKS · WHAT</div>
+    </div>
+    <div class="it">
+      <div class="n">04</div>
+      <div class="t">我們找的合作夥伴</div>
+      <div class="d">PARTNERS · WHO</div>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>DOFLAB · NCUT</span>
+    <span>劉瑞弘 · J. LIU</span>
+  </div>
+</section>
+
+<!-- SG · Content -->
+<section data-label="19 Super · Content" class="slide-v2 sg inner">
+  <div class="head-tag">
+    <span>SECTION 01 / FOCUS</span>
+    <span>P.19 / 31</span>
+  </div>
+  <div class="eyebrow">01 · FOCUS</div>
+  <h2 class="h-title">把<em>自動化</em>，<br>留給人。</h2>
+  <div class="grid-half">
+    <div>
+      <p>DofLab 做的不是「拿掉人」的自動化，而是「把繁瑣留給機器、把判斷留給人」的自動化。</p>
+      <p>這個分界不在技術，在設計選擇。我們花最多時間在這條線該畫在哪裡。</p>
+    </div>
+    <div>
+      <p>我們不接「能不能取代 OOO」的合作；我們接「能不能讓 OOO 做更重要的事」的合作。</p>
+      <p>過去三年的所有專案，都通得過這個門檻。</p>
+    </div>
+  </div>
+  <div class="stat-bar">
+    <div class="it">
+      <div class="v">12</div>
+      <div class="l">合作專案 (2023–2025)</div>
+    </div>
+    <div class="it">
+      <div class="v">04</div>
+      <div class="l">技術領域</div>
+    </div>
+    <div class="it">
+      <div class="v">28</div>
+      <div class="l">參與成員</div>
+    </div>
+    <div class="it">
+      <div class="v">∞</div>
+      <div class="l">熱愛的事</div>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>DOFLAB · NCUT</span>
+    <span>劉瑞弘 · J. LIU</span>
+  </div>
+</section>
+
+<!-- SG · Stats -->
+<section data-label="20 Super · Stats" class="slide-v2 sg inner">
+  <div class="head-tag">
+    <span>SECTION 03 / WORKS</span>
+    <span>P.20 / 31</span>
+  </div>
+  <div class="eyebrow">03 · WORKS</div>
+  <h2 class="h-title">做完了，<br>不只「做完」。</h2>
+  <div class="grid-half">
+    <div>
+      <p>大部分產學案做完就結束。我們的指標是「做完之後第二年還有人在用」。</p>
+      <p>這個指標把我們從很多浪漫的題目裡拉出來，也把我們留在了幾個對的題目裡。</p>
+    </div>
+    <div>
+      <p>下方四個數字是 2024 年完成的專案，在 2025 年依然在被使用的比例與規模。</p>
+      <p>不是給你看大，是給你看「留」。</p>
+    </div>
+  </div>
+  <div class="stat-bar">
+    <div class="it">
+      <div class="v">83%</div>
+      <div class="l">2024 專案 仍在使用</div>
+    </div>
+    <div class="it">
+      <div class="v">9</div>
+      <div class="l">已被導入產線</div>
+    </div>
+    <div class="it">
+      <div class="v">240K</div>
+      <div class="l">節省工時 (年)</div>
+    </div>
+    <div class="it">
+      <div class="v">02</div>
+      <div class="l">獲頒國家獎</div>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>DOFLAB · NCUT</span>
+    <span>劉瑞弘 · J. LIU</span>
+  </div>
+</section>
+
+<!-- SG · End -->
+<section data-label="21 Super · End" class="slide-v2 sg end">
+  <div class="head-tag" style="color:#FFFFFF; border-color:#FFFFFF; background:transparent;">
+    <span>DOFLAB · END</span>
+    <span>P.21 / 31</span>
+  </div>
+  <div class="top-band"></div>
+  <div class="mid">
+    <div class="end-big">Let's<br>talk—<em>seriously.</em></div>
+    <div class="end-sub">jhliu@ncut.edu.tw · doflab.tw · 我們開放四個位置，給有具體題目的合作。</div>
+  </div>
+  <div class="bot-band"></div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 5 · DOF-BRUTALIST
+     ============================================================ -->
+
+<!-- BR · Cover -->
+<section data-label="22 Brutalist · Cover" class="slide-v2 br cover">
+  <div class="head-tag">
+    <span><span class="alert-pin">●</span> DOFLAB / OPINION TALK</span>
+    <span>2026.03 / NCUT</span>
+  </div>
+  <div class="num">A MANIFESTO · NO.07</div>
+  <h1 class="manifesto">
+    我們不需要<br>
+    <span class="strike">更聰明</span> 的<span class="box">機器</span>，<br>
+    我們需要<br>
+    <span class="alert">更誠實</span> 的。
+  </h1>
+  <div class="meta">
+    <span>BY 劉瑞弘 · J. LIU · DOFLAB</span>
+    <span>READING TIME · 18 MIN</span>
+  </div>
+</section>
+
+<!-- BR · Roadmap -->
+<section data-label="23 Brutalist · Roadmap" class="slide-v2 br inner">
+  <div class="head-tag">
+    <span><span class="alert-pin">●</span> DOFLAB / OPINION TALK</span>
+    <span>P.23 / 31</span>
+  </div>
+  <div class="eyebrow">▸ FOUR ARGUMENTS</div>
+  <h2 class="h-title">我會<br><span class="neg">論證</span>四件事。</h2>
+  <div class="roadmap-br">
+    <div class="it hl">
+      <div class="n">01</div>
+      <div class="body">
+        <div class="t">「準確」不是真理</div>
+        <div class="d">當系統說 92%，那 8% 不是雜訊——是它故意藏起來的東西。</div>
+      </div>
+    </div>
+    <div class="it">
+      <div class="n">02</div>
+      <div class="body">
+        <div class="t">「流暢」不是理解</div>
+        <div class="d">會說出口的，不一定知道自己說了什麼。</div>
+      </div>
+    </div>
+    <div class="it hl">
+      <div class="n">03</div>
+      <div class="body">
+        <div class="t">「方便」不是進步</div>
+        <div class="d">我們把太多選擇外包給系統，最後忘了自己會選。</div>
+      </div>
+    </div>
+    <div class="it">
+      <div class="n">04</div>
+      <div class="body">
+        <div class="t">「誠實」是新時代的精度</div>
+        <div class="d">下一代系統的競爭，會在「敢說不知道」這件事上分勝負。</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>DOFLAB / J. LIU</span>
+    <span>END OF ROADMAP</span>
+  </div>
+</section>
+
+<!-- BR · Content -->
+<section data-label="24 Brutalist · Content" class="slide-v2 br inner">
+  <div class="head-tag">
+    <span><span class="alert-pin">●</span> ARGUMENT 03 / CONVENIENCE</span>
+    <span>P.24 / 31</span>
+  </div>
+  <div class="eyebrow">▸ ARGUMENT 03</div>
+  <h2 class="h-title">「<span class="alert">方便</span>」<br>不是<br>進步。</h2>
+  <div class="grid-rules">
+    <div class="it">
+      <div class="n">RULE / 01</div>
+      <h3>每一鍵省下的決定</h3>
+      <p>都從你身上拿走了一次練習。一年下來，你少做了大約三千次判斷。</p>
+    </div>
+    <div class="it invert">
+      <div class="n">RULE / 02</div>
+      <h3>不是不該方便</h3>
+      <p>是要意識到，方便從來不是中性的——它在重新塑造你的習慣。</p>
+    </div>
+    <div class="it">
+      <div class="n">RULE / 03</div>
+      <h3>設計者的責任</h3>
+      <p>把「保留判斷」做成預設，把「自動化」做成可選；而不是反過來。</p>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>DOFLAB / J. LIU</span>
+    <span>P.24</span>
+  </div>
+</section>
+
+<!-- BR · Stats / Position -->
+<section data-label="25 Brutalist · Position" class="slide-v2 br inner">
+  <div class="head-tag">
+    <span><span class="alert-pin">●</span> POSITION / WHERE I STAND</span>
+    <span>P.25 / 31</span>
+  </div>
+  <div class="eyebrow">▸ WHERE I STAND</div>
+  <h2 class="h-title">三句<br><span class="neg">大白話</span><br>當結論。</h2>
+  <div class="grid-rules">
+    <div class="it invert">
+      <div class="n">POS / 01</div>
+      <h3>準確 ≠ 真理</h3>
+      <p>誠實的系統，會告訴你它的不確定來自哪裡，而不是把它平均掉。</p>
+    </div>
+    <div class="it">
+      <div class="n">POS / 02</div>
+      <h3>流暢 ≠ 理解</h3>
+      <p>下次當你的助手「答得很好」時，順手問一句：你怎麼知道的？</p>
+    </div>
+    <div class="it invert">
+      <div class="n">POS / 03</div>
+      <h3>方便 ≠ 進步</h3>
+      <p>進步是讓人保有「我可以選」的權利，而不是替他先選了。</p>
+    </div>
+  </div>
+  <div class="foot-tag">
+    <span>DOFLAB / J. LIU</span>
+    <span>P.25</span>
+  </div>
+</section>
+
+<!-- BR · End -->
+<section data-label="26 Brutalist · End" class="slide-v2 br end">
+  <div class="head-tag">
+    <span><span class="alert-pin">●</span> END / CALL TO ACTION</span>
+    <span>P.26 / 31</span>
+  </div>
+  <div class="end-stack">
+    <div class="ge">
+      請<br>
+      <span class="neg">不要</span><br>
+      <span class="alert">客氣</span>。
+    </div>
+    <div class="ge-sub">jhliu@ncut.edu.tw · 不同意請來信，我比你還想被反駁。</div>
+  </div>
+  <div class="foot-tag">
+    <span>DOFLAB / J. LIU</span>
+    <span>END · MANIFESTO NO.07</span>
+  </div>
+</section>
+
+</deck-stage>
+
+</body>
+</html>

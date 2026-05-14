@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>DofLab 個人簡報風格 · Editorial / Podium / Notebook / Shinobi / Elven</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="deck-stage.js"></script>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+<!-- ============================================================
+     00 · OVERVIEW
+     ============================================================ -->
+<section data-label="01 Overview" class="slide overview">
+  <div>
+    <div class="o-eyebrow">DofLab Presentation System · v2.0</div>
+    <h1>五套個人簡報風格</h1>
+    <p class="o-sub">為劉瑞弘老師量身設計的全襯線、極簡簡報模板。同一套母片骨架、五種色調與排版節奏——從沉穩權威到熱血壯麗，覆蓋業界演講、研究發表、讀書分享、實作競賽、理論探索。</p>
+  </div>
+  <div class="o-styles">
+    <div class="o-style">
+      <div class="num">01</div>
+      <div class="name">Editorial</div>
+      <div class="zh">雜誌編輯風</div>
+      <div class="use">業界演講 · 對外分享<br>暖色（赭橘 · 米金）</div>
+    </div>
+    <div class="o-style">
+      <div class="num">02</div>
+      <div class="name">Podium</div>
+      <div class="zh">講壇風</div>
+      <div class="use">研究發表 · Conference<br>莫蘭迪冷灰</div>
+    </div>
+    <div class="o-style">
+      <div class="num">03</div>
+      <div class="name">Notebook</div>
+      <div class="zh">札記風</div>
+      <div class="use">讀書會 · 思考筆記<br>霧粉霧綠</div>
+    </div>
+    <div class="o-style">
+      <div class="num">04</div>
+      <div class="name">Shinobi</div>
+      <div class="zh">忍者熱血風</div>
+      <div class="use">實作競賽 · 動員激勵<br>深夜墨 + 朱印紅</div>
+    </div>
+    <div class="o-style">
+      <div class="num">05</div>
+      <div class="name">Elven</div>
+      <div class="zh">魔法幻境風</div>
+      <div class="use">理論探索 · 文學主題<br>月光紫 + 燙金</div>
+    </div>
+  </div>
+  <div class="o-foot">劉瑞弘 · DofLab · National Chin-Yi University of Technology</div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 1 · DOF-EDITORIAL · 雜誌編輯風
+     ============================================================ -->
+
+<section data-label="02 Editorial · Style Card" class="slide ed style-divider">
+  <div class="sd-num">01</div>
+  <div class="sd-name">Editorial</div>
+  <div class="sd-zh">雜誌編輯風</div>
+  <div class="sd-rule"></div>
+  <div class="sd-tokens">
+    <div class="swatch"><span class="sw" style="background:#F4EEE3"></span>paper</div>
+    <div class="swatch"><span class="sw" style="background:#1E1A14"></span>ink</div>
+    <div class="swatch"><span class="sw" style="background:#B25530"></span>burnt</div>
+    <div class="swatch"><span class="sw" style="background:#C9A35B"></span>mustard</div>
+  </div>
+</section>
+
+<!-- Editorial · Cover -->
+<section data-label="03 Editorial · Cover" class="slide ed cover">
+  <div class="cover-top">
+    <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+    <div class="en-up" style="font-size:18px;color:var(--muted);">National Chin-Yi University of Technology</div>
+  </div>
+  <div class="cover-body">
+    <div>
+      <div class="num-block">Ch. III</div>
+      <h1 class="ch-title">卷積神經網路</h1>
+      <p class="ch-sub">從局部感受野到深度特徵 / Convolutional Neural Networks</p>
+      <div class="rule"></div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-meta">2026 春 · 深度學習導論 · 第三章</div>
+    <div class="en-up" style="font-size:18px;">劉瑞弘 · J. Liu</div>
+  </div>
+</section>
+
+<!-- Editorial · Roadmap -->
+<section data-label="04 Editorial · Roadmap" class="slide ed inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">§ III</span>卷積神經網路</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">04</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Roadmap</div>
+  <h2 class="h-title">本章學習地圖</h2>
+
+  <div class="roadmap-list">
+    <div class="roadmap-item">
+      <div class="rn">i</div>
+      <div class="rt">感受野的數學定義</div>
+      <div class="rd">局部連接、權重共享與平移等變性的形式化推導</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">ii</div>
+      <div class="rt">卷積核與特徵圖</div>
+      <div class="rd">從 Sobel 到可學習濾波器的歷史脈絡</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">iii</div>
+      <div class="rt">池化與降採樣</div>
+      <div class="rd">最大池化、平均池化、Strided convolution 的取捨</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">iv</div>
+      <div class="rt">經典架構巡禮</div>
+      <div class="rd">LeNet → AlexNet → VGG → ResNet 的演化邏輯</div>
+    </div>
+  </div>
+</section>
+
+<!-- Editorial · Content (two-col + pull quote) -->
+<section data-label="05 Editorial · Content" class="slide ed inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">§ III.i</span>感受野的數學定義</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">05</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ III.i · Receptive Field</div>
+  <h2 class="h-title">感受野的數學定義</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="col-head">Definition</div>
+      <p>對於第 <em class="en">ℓ</em> 層神經元 <em class="en">y</em><sub>i,j</sub>，其感受野是輸入空間中所有對它的數值有貢獻的像素集合。</p>
+      <p>在堆疊卷積層下，感受野隨深度呈線性擴張，但有效感受野（effective receptive field）卻是<em class="en">Gaussian</em>-shaped。</p>
+    </div>
+    <div>
+      <div class="col-head">Visualization</div>
+      <div class="placeholder">RECEPTIVE FIELD DIAGRAM</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">
+    <div class="mark">"</div>
+    <div>
+      <span class="q"></span>
+      <span class="src">— Luo et al., NeurIPS 2016</span>
+    </div>
+  </div>
+</section>
+
+<!-- Editorial · Code -->
+<section data-label="06 Editorial · Code" class="slide ed inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">§ III.ii</span>實作：可學習濾波器</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">06</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ III.ii · Implementation</div>
+  <h2 class="h-title">最小可運行的 Conv2D</h2>
+
+  <div class="code-wrap">
+    <pre class="code-block"><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="cm"># 一層卷積：3 通道輸入 → 16 個 3×3 濾波器</span>
+conv = nn.<span class="fn">Conv2d</span>(
+    in_channels=<span class="st">3</span>,
+    out_channels=<span class="st">16</span>,
+    kernel_size=<span class="st">3</span>,
+    padding=<span class="st">1</span>,
+)
+
+x = torch.<span class="fn">randn</span>(<span class="st">1</span>, <span class="st">3</span>, <span class="st">32</span>, <span class="st">32</span>)
+y = <span class="fn">conv</span>(x)
+<span class="fn">print</span>(y.shape)  <span class="cm"># [1, 16, 32, 32]</span></pre>
+
+    <div class="code-notes">
+      <h4>三個容易踩的坑</h4>
+      <div class="note-item"><span class="n">i.</span>padding=1 才能讓 3×3 卷積保持空間尺寸不變</div>
+      <div class="note-item"><span class="n">ii.</span>out_channels 是「濾波器數量」，不是輸出通道數的隨機選擇</div>
+      <div class="note-item"><span class="n">iii.</span>權重初始化預設為 Kaiming，不必手動 reset</div>
+    </div>
+  </div>
+</section>
+
+<!-- Editorial · Exercise -->
+<section data-label="07 Editorial · Exercise" class="slide ed inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">§ III</span>練習</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">07</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="exercise-mark">Exercise · 03</div>
+  <h2 class="h-title">推導 ResNet-18 的感受野</h2>
+
+  <div class="exercise-body">
+    <div class="exercise-prompt">
+      <span class="label">問題</span>給定 ResNet-18 的網路結構（含 7×7 stride-2 入口卷積、4 個 residual stage），請推導其末端神經元在輸入影像上的理論感受野尺寸，並說明為何<em class="en">effective receptive field</em>遠小於此值。
+    </div>
+    <div class="exercise-lines"></div>
+  </div>
+</section>
+
+<!-- Editorial · Summary -->
+<section data-label="08 Editorial · Summary" class="slide ed inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">§ III</span>本章小結</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">08</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Recap</div>
+  <h2 class="h-title">本章三個關鍵收穫</h2>
+
+  <div class="summary-grid">
+    <div class="summary-item">
+      <div class="sn">i</div>
+      <h3>權重共享是 CNN 的靈魂</h3>
+      <p>它讓網路具有平移等變性，並把參數量從 <em class="en">O(n²)</em> 降到 <em class="en">O(k²)</em>。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">ii</div>
+      <h3>感受野不是越大越好</h3>
+      <p>有效感受野遵循 Gaussian 分布，邊界貢獻被嚴重低估。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">iii</div>
+      <h3>架構演化有跡可循</h3>
+      <p>從 LeNet 到 ResNet 的每一步，都是在解決某個具體的訓練難題。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Editorial · End -->
+<section data-label="09 Editorial · End" class="slide ed inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">§ III</span>End of Chapter</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">09</span> / 41</div>
+    </div>
+  </div>
+  <div class="end-page-body">
+    <div class="end-mark">— End —</div>
+    <div class="end-quote">「我們不是在教機器看見世界，而是在教它定義何謂相似。」</div>
+    <div class="end-cite">End of Chapter III · Continued in Chapter IV</div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 2 · DOF-PODIUM · 講壇風 / TED 感
+     ============================================================ -->
+
+<section data-label="10 Podium · Style Card" class="slide pd style-divider">
+  <div class="sd-num">02</div>
+  <div class="sd-name">Podium</div>
+  <div class="sd-zh">講壇風 · TED 感</div>
+  <div class="sd-rule"></div>
+  <div class="sd-tokens">
+    <div class="swatch"><span class="sw" style="background:#EEEDE9"></span>fog</div>
+    <div class="swatch"><span class="sw" style="background:#18191C"></span>ink</div>
+    <div class="swatch"><span class="sw" style="background:#5A6B7A"></span>slate</div>
+    <div class="swatch"><span class="sw" style="background:#B8B0A4"></span>linen</div>
+  </div>
+</section>
+
+<!-- Podium · Cover -->
+<section data-label="11 Podium · Cover" class="slide pd cover">
+  <div class="cover-top">
+    <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+    <div class="en-up" style="font-size:18px;color:var(--muted);">CVPR 2026 · Workshop on Visual Reasoning</div>
+  </div>
+  <div class="cover-body">
+    <div>
+      <div class="eyebrow">A talk by Jui-Hung Liu</div>
+      <h1 class="ch-title">當視覺模型開始<br>學會懷疑</h1>
+      <p class="ch-sub">Vision–Language Models and the Epistemics of Seeing</p>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-meta">June 2026 · Seattle</div>
+    <div class="en-up" style="font-size:18px;">DofLab · NCUT</div>
+  </div>
+</section>
+
+<!-- Podium · Roadmap -->
+<section data-label="12 Podium · Roadmap" class="slide pd inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter">當視覺模型開始學會懷疑</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">Jui-Hung Liu · DofLab · National Chin-Yi University of Technology</div>
+      <div class="page-num"><span class="now">12</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Outline</div>
+  <h2 class="h-title">今天的四個提問</h2>
+
+  <div class="roadmap-list">
+    <div class="roadmap-item">
+      <div class="rn">01</div>
+      <div class="rt">看見，是輸入還是推論？</div>
+      <div class="rd">為什麼純前饋網路無法表達「我不確定」</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">02</div>
+      <div class="rt">語言能補上認知間隙嗎？</div>
+      <div class="rd">VLM 對 hallucination 的緩解與惡化</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">03</div>
+      <div class="rt">校準與保留判斷的權利</div>
+      <div class="rd">三種 abstention 機制的實驗對比</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">04</div>
+      <div class="rt">下一步：可問問題的模型</div>
+      <div class="rd">把懷疑變成 active perception 的設計原則</div>
+    </div>
+  </div>
+</section>
+
+<!-- Podium · Content -->
+<section data-label="13 Podium · Content" class="slide pd inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter">當視覺模型開始學會懷疑</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">Jui-Hung Liu · DofLab · National Chin-Yi University of Technology</div>
+      <div class="page-num"><span class="now">13</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ 02 · Hallucination</div>
+  <h2 class="h-title">語言並不等於理解</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="col-head">Observation</div>
+      <p>當我們把 CLIP 的視覺嵌入接到 LLM 上，模型獲得了「描述影像」的能力——但也獲得了「描述不存在事物」的能力。</p>
+      <p>在 POPE benchmark 上，主流 VLM 對「圖中是否有〇〇」的問題，hallucination rate 介於 <em class="en">15%</em> 與 <em class="en">42%</em>。</p>
+    </div>
+    <div>
+      <div class="col-head">Evidence</div>
+      <div class="placeholder">POPE BENCHMARK CHART</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">
+    <div class="mark">"</div>
+    <div>
+      <span class="q">流暢不是準確的證據。當模型沒看清楚時，它說出來的東西可以同樣優雅。</span>
+      <span class="src">— Working hypothesis, DofLab 2025</span>
+    </div>
+  </div>
+</section>
+
+<!-- Podium · Code -->
+<section data-label="14 Podium · Code" class="slide pd inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter">當視覺模型開始學會懷疑</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">Jui-Hung Liu · DofLab · National Chin-Yi University of Technology</div>
+      <div class="page-num"><span class="now">14</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ 03 · Abstention</div>
+  <h2 class="h-title">讓模型有權利說「不知道」</h2>
+
+  <div class="code-wrap">
+    <pre class="code-block"><span class="cm"># 加一個 abstention token：</span>
+<span class="cm"># 訓練時，當答案不確定就監督它輸出 [IDK]</span>
+
+logits = model(<span class="fn">image</span>, <span class="fn">prompt</span>)
+probs  = logits.<span class="fn">softmax</span>(dim=-<span class="st">1</span>)
+
+<span class="kw">if</span> probs[idk_id] &gt; tau:
+    answer = <span class="st">"我看不清楚這張圖"</span>
+<span class="kw">else</span>:
+    answer = decode(<span class="fn">argmax</span>(probs))</pre>
+
+    <div class="code-notes">
+      <h4>三個設計選擇</h4>
+      <div class="note-item"><span class="n">01</span>τ 的校準必須在 held-out 資料上做</div>
+      <div class="note-item"><span class="n">02</span>IDK 不該與「拒答」混淆，要分為「視覺不清」與「題目超綱」</div>
+      <div class="note-item"><span class="n">03</span>SFT 階段就要見過 IDK，RLHF 才修不回來</div>
+    </div>
+  </div>
+</section>
+
+<!-- Podium · Exercise -->
+<section data-label="15 Podium · Exercise" class="slide pd inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter">當視覺模型開始學會懷疑</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">Jui-Hung Liu · DofLab · National Chin-Yi University of Technology</div>
+      <div class="page-num"><span class="now">15</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="exercise-mark">Audience Question</div>
+  <h2 class="h-title">如果你是審稿人，<br>你會怎麼問？</h2>
+
+  <div class="exercise-body">
+    <div class="exercise-prompt">
+      <span class="label">思考</span>本研究在 POPE 上展示了 <em class="en">−18%</em> 的 hallucination 改善，但是否真的代表模型「更會懷疑」？請設計一個能與此結果分離的 confound 來源。
+    </div>
+    <div class="exercise-lines"></div>
+  </div>
+</section>
+
+<!-- Podium · Summary -->
+<section data-label="16 Podium · Summary" class="slide pd inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter">當視覺模型開始學會懷疑</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">Jui-Hung Liu · DofLab · National Chin-Yi University of Technology</div>
+      <div class="page-num"><span class="now">16</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Three Takeaways</div>
+  <h2 class="h-title">如果今天只帶走三件事</h2>
+
+  <div class="summary-grid">
+    <div class="summary-item">
+      <div class="sn">01</div>
+      <h3>流暢不是準確</h3>
+      <p>模型的語言能力會掩蓋它的感知缺陷，務必分離這兩者來評測。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">02</div>
+      <h3>給模型 abstention 權</h3>
+      <p>讓「不知道」成為一個合法輸出，是降低 hallucination 最簡單的工程手段。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">03</div>
+      <h3>下一代是 active 的</h3>
+      <p>未來的視覺系統會主動發問，而不是被動描述。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Podium · End -->
+<section data-label="17 Podium · End" class="slide pd inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter">Thank You</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">Jui-Hung Liu · DofLab · National Chin-Yi University of Technology</div>
+      <div class="page-num"><span class="now">17</span> / 41</div>
+    </div>
+  </div>
+  <div class="end-page-body">
+    <div class="end-mark">Thank you.</div>
+    <div class="end-quote">"The cure for hallucination is not more confidence — it is the courage to ask."</div>
+    <div class="end-cite">jhliu@ncut.edu.tw · doflab.tw</div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 3 · DOF-NOTEBOOK · 札記 / 讀書會
+     ============================================================ -->
+
+<section data-label="18 Notebook · Style Card" class="slide nb style-divider">
+  <div class="sd-num">03</div>
+  <div class="sd-name">Notebook</div>
+  <div class="sd-zh">札記風 · 讀書會</div>
+  <div class="sd-rule"></div>
+  <div class="sd-tokens">
+    <div class="swatch"><span class="sw" style="background:#F1ECE3"></span>cream</div>
+    <div class="swatch"><span class="sw" style="background:#2A2520"></span>ink</div>
+    <div class="swatch"><span class="sw" style="background:#6E7E62"></span>moss</div>
+    <div class="swatch"><span class="sw" style="background:#B89A92"></span>rose</div>
+  </div>
+</section>
+
+<!-- Notebook · Cover -->
+<section data-label="19 Notebook · Cover" class="slide nb cover">
+  <div class="cover-top">
+    <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+    <div class="en-up" style="font-size:18px;color:var(--muted);">DofLab Reading Club · Spring Volume</div>
+  </div>
+  <div class="cover-body">
+    <div>
+      <div class="date-mark"><span class="pin"></span>2026 · 03 · 14 · Saturday Afternoon</div>
+      <div class="ch-num">Notebook No. 07</div>
+      <h1 class="ch-title">關於「理解」的<br>幾種版本</h1>
+      <p class="ch-sub">— 讀 Marr《Vision》之後的隨筆</p>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-meta">與會：DofLab 全員 · 北棟 R503</div>
+    <div class="en-up" style="font-size:18px;">瑞弘 記</div>
+  </div>
+</section>
+
+<!-- Notebook · Roadmap -->
+<section data-label="20 Notebook · Roadmap" class="slide nb inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">No. 07</span>關於「理解」的幾種版本</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">20</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Today's Notes</div>
+  <h2 class="h-title">今天想聊的四件事</h2>
+
+  <div class="roadmap-list">
+    <div class="roadmap-item">
+      <div class="rn">·一</div>
+      <div class="rt">Marr 的三個層次</div>
+      <div class="rd">計算、演算法、實作——為什麼這個分法到今天還有用</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">·二</div>
+      <div class="rt">什麼是 2½D sketch</div>
+      <div class="rd">介於影像與物體之間的那層，今天我們叫它「特徵圖」</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">·三</div>
+      <div class="rt">為什麼這本書還沒過時</div>
+      <div class="rd">即使在深度學習時代，問題仍然在它劃出的座標系裡</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">·四</div>
+      <div class="rt">我們可以接哪些坑</div>
+      <div class="rd">DofLab 接下來可以做的三個小研究方向</div>
+    </div>
+  </div>
+</section>
+
+<!-- Notebook · Content -->
+<section data-label="21 Notebook · Content" class="slide nb inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">No. 07 · ii</span>2½D sketch 是什麼</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">21</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">A reading note</div>
+  <h2 class="h-title">所謂「2½D sketch」</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="col-head">Marr 怎麼說</div>
+      <p>它不是 3D 模型，也不是純粹的 2D 影像——是一個以觀察者為中心、編碼了深度與表面朝向、但還沒有物體身分的中間表徵。</p>
+      <p>用今天的話翻譯：那是一張<em class="en">depth + normal</em>的特徵圖，恰好是 self-supervised 視覺學習想自動長出來的東西。</p>
+    </div>
+    <div>
+      <div class="col-head">我的眉批</div>
+      <div class="placeholder">SKETCH OF SURFACE NORMAL FIELD</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">
+    <div class="mark">"</div>
+    <div>
+      <span class="q">Marr 提出 2½D sketch 不是為了完工，而是為了承認：理解一個場景，必須先承認自己站在哪裡看它。</span>
+      <span class="src">— 我的讀書筆記，2026.03.14</span>
+    </div>
+  </div>
+</section>
+
+<!-- Notebook · Code -->
+<section data-label="22 Notebook · Code" class="slide nb inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">No. 07 · 試試看</span>把 depth + normal 印出來</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">22</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Hands-on</div>
+  <h2 class="h-title">十行程式碼，看看 2½D 是什麼樣子</h2>
+
+  <div class="code-wrap">
+    <pre class="code-block"><span class="kw">from</span> transformers <span class="kw">import</span> pipeline
+
+depth = <span class="fn">pipeline</span>(<span class="st">"depth-estimation"</span>,
+                 model=<span class="st">"depth-anything-v2"</span>)
+
+img    = <span class="fn">Image</span>.<span class="fn">open</span>(<span class="st">"r503.jpg"</span>)
+result = <span class="fn">depth</span>(img)
+
+<span class="cm"># 這張 depth map 就是 Marr 在 1982 說的</span>
+<span class="cm"># observer-centered 表徵——只是他等了 40 年</span>
+result[<span class="st">"depth"</span>].<span class="fn">save</span>(<span class="st">"sketch.png"</span>)</pre>
+
+    <div class="code-notes">
+      <h4>讀書會討論問題</h4>
+      <div class="note-item"><span class="n">·</span>這個 depth map 是「中間表徵」，還是「終局表徵」？</div>
+      <div class="note-item"><span class="n">·</span>如果是中間的，那「上面那層」現在是誰？</div>
+      <div class="note-item"><span class="n">·</span>有沒有 Marr 沒預期到的東西長出來了？</div>
+    </div>
+  </div>
+</section>
+
+<!-- Notebook · Exercise -->
+<section data-label="23 Notebook · Exercise" class="slide nb inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">No. 07</span>留給大家</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">23</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="exercise-mark">Open Question</div>
+  <h2 class="h-title">下次聚會前的小作業</h2>
+
+  <div class="exercise-body">
+    <div class="exercise-prompt">
+      <span class="label">想想看</span>找一篇你最近讀的 self-supervised vision 論文，試著用 Marr 的三層架構去描述它——它解的是「什麼問題」、用了「什麼演算法」、跑在「什麼基底」上？把你的對應寫成一頁筆記，下週帶來。
+    </div>
+    <div class="exercise-lines"></div>
+  </div>
+</section>
+
+<!-- Notebook · Summary -->
+<section data-label="24 Notebook · Summary" class="slide nb inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">No. 07</span>今天的回頭看</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">24</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Closing Notes</div>
+  <h2 class="h-title">如果只記得三句話</h2>
+
+  <div class="summary-grid">
+    <div class="summary-item">
+      <div class="sn">·一</div>
+      <h3>分層先於模型</h3>
+      <p>在問「用哪個模型」之前，先問自己在哪一層問題。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">·二</div>
+      <h3>觀察者中心是基底</h3>
+      <p>2½D 不是過渡品，是任何 vision 系統都繞不開的視角。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">·三</div>
+      <h3>老書值得重讀</h3>
+      <p>當技術快速變動，反而是慢的書最能幫我們站穩。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Notebook · End -->
+<section data-label="25 Notebook · End" class="slide nb inner">
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">No. 07</span>—— 完 ——</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">25</span> / 41</div>
+    </div>
+  </div>
+  <div class="end-page-body">
+    <div class="end-mark">— fin —</div>
+    <div class="end-quote">「最深的理解，往往發生在我們承認自己看得還不夠久的時候。」</div>
+    <div class="end-cite">Next Notebook · No. 08 · 2026.04.18</div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STYLE 4 · DOF-SHINOBI · 忍者熱血風
+     ============================================================ -->
+
+<section data-label="26 Shinobi · Style Card" class="slide sh style-divider">
+  <div class="sd-num">04</div>
+  <div class="sd-name">Shinobi</div>
+  <div class="sd-zh">忍者熱血風</div>
+  <div class="sd-rule"></div>
+  <div class="sd-tokens">
+    <div class="swatch"><span class="sw" style="background:#16110A"></span>sumi</div>
+    <div class="swatch"><span class="sw" style="background:#F2E5C8"></span>parchment</div>
+    <div class="swatch"><span class="sw" style="background:#C73A1D"></span>vermillion</div>
+    <div class="swatch"><span class="sw" style="background:#E89030"></span>ember</div>
+  </div>
+</section>
+
+<!-- Shinobi · Cover -->
+<section data-label="27 Shinobi · Cover" class="slide sh cover">
+  <div class="cover-top">
+    <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+    <div class="en-up" style="font-size:18px;color:var(--muted);">DofLab Hackathon · Spring Camp 2026</div>
+  </div>
+  <div class="cover-body">
+    <div>
+      <div class="stamp">
+        <div class="stamp-num">壹</div>
+        <div class="stamp-label">啟 程</div>
+      </div>
+      <h1 class="ch-title">三十六小時，<br>從一個念頭到一場 demo</h1>
+      <p class="ch-sub">DofLab 黑客松 · 戰前動員</p>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-meta">2026 春 · 黑客松開幕 · 北棟 R503</div>
+    <div class="en-up" style="font-size:18px;color:var(--accent-2);">劉瑞弘 · J. Liu</div>
+  </div>
+</section>
+
+<!-- Shinobi · Roadmap -->
+<section data-label="28 Shinobi · Roadmap" class="slide sh inner">
+  <div class="scroll-paper"></div>
+  <div class="brush-rule"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">壹</span>啟程 · 戰前動員</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">28</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Mission Map</div>
+  <h2 class="h-title">三十六小時，分四段衝刺</h2>
+
+  <div class="roadmap-list">
+    <div class="roadmap-item">
+      <div class="rn">壹</div>
+      <div class="rt">前 4 小時：找到值得拚的題目</div>
+      <div class="rd">寧可花時間想清楚要打什麼，也不要急著動手</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">貳</div>
+      <div class="rt">第 4–16 小時：粗稿與最小路徑</div>
+      <div class="rd">先把整條鏈打通，再去琢磨任何一節</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">參</div>
+      <div class="rt">第 16–28 小時：迭代與抗壓</div>
+      <div class="rd">這是團隊真正開始拉開差距的時段</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">肆</div>
+      <div class="rt">最後 8 小時：演示與收尾</div>
+      <div class="rd">能講出口的，才是真的做出來的</div>
+    </div>
+  </div>
+</section>
+
+<!-- Shinobi · Content -->
+<section data-label="29 Shinobi · Content" class="slide sh inner">
+  <div class="scroll-paper"></div>
+  <div class="brush-rule"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">壹 · 貳</span>粗稿與最小路徑</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">29</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ 貳 · The Spine First</div>
+  <h2 class="h-title">先把骨幹打通，<br>再去打磨任何一節</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="col-head">為什麼</div>
+      <p>三十六小時最大的敵人不是技術難度，是「以為自己還有時間」。先把整條 pipeline 串通，後面才有迭代的本錢。</p>
+      <p>每多一小時沒串通整條流程，最後一小時就少一小時可以演示。</p>
+    </div>
+    <div>
+      <div class="col-head">怎麼做</div>
+      <div class="placeholder">PIPELINE DIAGRAM</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">
+    <div class="mark">"</div>
+    <div>
+      <span class="q">在黑客松裡，半成品打贏完美的單點，因為評審看的是整個體驗。</span>
+      <span class="src">— DofLab 戰前訓示</span>
+    </div>
+  </div>
+</section>
+
+<!-- Shinobi · Code -->
+<section data-label="30 Shinobi · Code" class="slide sh inner">
+  <div class="scroll-paper"></div>
+  <div class="brush-rule"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">壹 · 貳</span>骨幹模板</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">30</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ Boilerplate</div>
+  <h2 class="h-title">第一小時，請先跑得起這個</h2>
+
+  <div class="code-wrap">
+    <pre class="code-block"><span class="cm"># 不論題目是什麼，先有：</span>
+<span class="cm"># 1) 一個輸入  2) 一個模型  3) 一個輸出  4) 一個 UI</span>
+
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
+<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel
+
+app = <span class="fn">FastAPI</span>()
+
+<span class="kw">class</span> <span class="fn">In</span>(BaseModel):
+    text: str
+
+<span class="cm"># 黑盒，可以是任何模型</span>
+<span class="kw">def</span> <span class="fn">solve</span>(x: str) -&gt; str:
+    <span class="kw">return</span> x[::-<span class="st">1</span>]
+
+<span class="kw">@app.post</span>(<span class="st">"/run"</span>)
+<span class="kw">def</span> <span class="fn">run</span>(body: In):
+    <span class="kw">return</span> {<span class="st">"out"</span>: <span class="fn">solve</span>(body.text)}</pre>
+
+    <div class="code-notes">
+      <h4>三條鐵則</h4>
+      <div class="note-item"><span class="n">壹</span>先有一條能跑的鏈，再考慮替換每一塊</div>
+      <div class="note-item"><span class="n">貳</span>輸入輸出的格式比模型本身更早 freeze</div>
+      <div class="note-item"><span class="n">參</span>UI 即使醜，也要在 demo 前 12 小時可用</div>
+    </div>
+  </div>
+</section>
+
+<!-- Shinobi · Exercise -->
+<section data-label="31 Shinobi · Exercise" class="slide sh inner">
+  <div class="scroll-paper"></div>
+  <div class="brush-rule"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">壹</span>戰術選擇</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">31</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="exercise-mark">Tactical Drill · 01</div>
+  <h2 class="h-title">如果只剩 8 小時，<br>你會砍掉什麼？</h2>
+
+  <div class="exercise-body">
+    <div class="exercise-prompt">
+      <span class="label">情境</span>剩 8 小時、Demo 還有三個破口：模型準確度、UI 美感、現場故事。各組必須選擇砍掉一個、聚焦兩個。請推導你的選擇，並寫下放棄的代價。
+    </div>
+    <div class="exercise-lines"></div>
+  </div>
+</section>
+
+<!-- Shinobi · Summary -->
+<section data-label="32 Shinobi · Summary" class="slide sh inner">
+  <div class="scroll-paper"></div>
+  <div class="brush-rule"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">壹</span>動員結語</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">32</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Three Vows</div>
+  <h2 class="h-title">出發前，請把這三句記住</h2>
+
+  <div class="summary-grid">
+    <div class="summary-item">
+      <div class="sn">壹</div>
+      <h3>骨幹優先於漂亮</h3>
+      <p>有一條跑得通的爛 pipeline，比一個漂亮的單點強十倍。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">貳</div>
+      <h3>溝通比寫程式重要</h3>
+      <p>大部分團隊輸在沒對齊，而不是輸在寫不出來。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">參</div>
+      <h3>能講才算做到</h3>
+      <p>把演示腳本寫進 Day-1，而不是 Day-2 才開始想。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Shinobi · End -->
+<section data-label="33 Shinobi · End" class="slide sh inner">
+  <div class="scroll-paper"></div>
+  <div class="brush-rule"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">壹</span>—— 出 陣 ——</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">33</span> / 41</div>
+    </div>
+  </div>
+  <div class="end-page-body">
+    <div class="end-mark">— 出 陣 —</div>
+    <div class="end-quote">「不是因為你能贏才上場，是因為你上場了，才有資格談輸贏。」</div>
+    <div class="end-cite">DofLab · Hackathon Spring 2026 · Begins Now</div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     STYLE 5 · DOF-ELVEN · 魔法幻境風
+     ============================================================ -->
+
+<section data-label="34 Elven · Style Card" class="slide el style-divider">
+  <div class="sd-num">05</div>
+  <div class="sd-name">Elven</div>
+  <div class="sd-zh">魔法幻境風</div>
+  <div class="sd-rule"></div>
+  <div class="sd-tokens">
+    <div class="swatch"><span class="sw" style="background:#F2EEF5"></span>moonlight</div>
+    <div class="swatch"><span class="sw" style="background:#1F1B2E"></span>ink</div>
+    <div class="swatch"><span class="sw" style="background:#7C6FA0"></span>amethyst</div>
+    <div class="swatch"><span class="sw" style="background:#B89A5C"></span>old gold</div>
+  </div>
+</section>
+
+<!-- Elven · Cover -->
+<section data-label="35 Elven · Cover" class="slide el cover">
+  <div class="cover-top">
+    <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+    <div class="en-up" style="font-size:18px;color:var(--muted);">A Lecture on Tacit Representations</div>
+  </div>
+  <div class="cover-body">
+    <div>
+      <div class="num-halo-wrap"><span class="num-halo">V</span></div>
+      <h1 class="ch-title">在符號之前</h1>
+      <p class="ch-sub">— 談人類學習中那些說不出口的事</p>
+      <div class="stars">✦ &nbsp; ◇ &nbsp; ✦ &nbsp; ◇ &nbsp; ✦</div>
+    </div>
+  </div>
+  <div class="cover-bottom">
+    <div class="cover-meta">2026 春 · 認知科學系列講座 · 第五講</div>
+    <div class="en-up" style="font-size:18px;color:var(--accent);">劉瑞弘 · J. Liu</div>
+  </div>
+</section>
+
+<!-- Elven · Roadmap -->
+<section data-label="36 Elven · Roadmap" class="slide el inner">
+  <div class="moon-halo"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">V</span>在符號之前</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">36</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Roadmap of Questions</div>
+  <h2 class="h-title">今晚的四個提問</h2>
+
+  <div class="roadmap-list">
+    <div class="roadmap-item">
+      <div class="rn">i</div>
+      <div class="rt">什麼是隱性知識</div>
+      <div class="rd">Polanyi 為什麼說「我們知道的比能說的多」</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">ii</div>
+      <div class="rt">直覺是壓縮的經驗嗎</div>
+      <div class="rd">從棋手到醫師，專家為何看一眼就知道</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">iii</div>
+      <div class="rt">機器能擁有它嗎</div>
+      <div class="rd">當代 self-supervised learning 給出的線索</div>
+    </div>
+    <div class="roadmap-item">
+      <div class="rn">iv</div>
+      <div class="rt">教育能傳遞它嗎</div>
+      <div class="rd">如果不能言說，我們還能教會學生什麼</div>
+    </div>
+  </div>
+</section>
+
+<!-- Elven · Content -->
+<section data-label="37 Elven · Content" class="slide el inner">
+  <div class="moon-halo"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">V · i</span>隱性知識</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">37</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ V · i · Tacit Knowledge</div>
+  <h2 class="h-title">那些說不出口的，<br>未必是不知道的</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="col-head">Polanyi 的主張</div>
+      <p>我們認得一張臉，卻無法用語言描述它的每個特徵。我們會騎腳踏車，卻無法用方程式告訴別人怎麼平衡。</p>
+      <p>這不是知識不完整——這是知識的另一種完整。</p>
+    </div>
+    <div>
+      <div class="col-head">當代回響</div>
+      <div class="placeholder">EMBEDDING SPACE ILLUSTRATION</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">
+    <div class="mark">"</div>
+    <div>
+      <span class="q">深度學習偶然碰到了哲學家百年前就提醒過的事——可學的，不一定可說。</span>
+      <span class="src">— Working notes, DofLab 2026</span>
+    </div>
+  </div>
+</section>
+
+<!-- Elven · Code -->
+<section data-label="38 Elven · Code" class="slide el inner">
+  <div class="moon-halo"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">V · iii</span>機器的隱性</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">38</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">§ V · iii · Implicit Representation</div>
+  <h2 class="h-title">當模型「知道」一張臉</h2>
+
+  <div class="code-wrap">
+    <pre class="code-block"><span class="cm"># 同一張臉的兩個不同角度</span>
+<span class="cm"># 模型沒有被告訴它們是同一個人</span>
+<span class="cm"># 但 embedding 的距離卻很近</span>
+
+a = model.<span class="fn">encode</span>(face_left)
+b = model.<span class="fn">encode</span>(face_right)
+
+<span class="fn">print</span>(cosine(a, b))
+<span class="cm"># 0.91 — 它知道，但說不出原因</span></pre>
+
+    <div class="code-notes">
+      <h4>幾個值得發呆的問題</h4>
+      <div class="note-item"><span class="n">i</span>那 0.91 是怎麼長出來的，沒人能解釋整條因果</div>
+      <div class="note-item"><span class="n">ii</span>但這不妨礙它表現得「彷彿懂了」</div>
+      <div class="note-item"><span class="n">iii</span>這恰好是 Polanyi 講的那種知識</div>
+    </div>
+  </div>
+</section>
+
+<!-- Elven · Exercise -->
+<section data-label="39 Elven · Exercise" class="slide el inner">
+  <div class="moon-halo"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">V</span>留給今晚</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">39</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="exercise-mark">A Question to Take Home</div>
+  <h2 class="h-title">如果某種知識<br>注定不能言說</h2>
+
+  <div class="exercise-body">
+    <div class="exercise-prompt">
+      <span class="label">想想</span>請舉一個你「會做但說不清楚」的技能，試著拆解：你是如何學會它的？什麼樣的條件可以讓它被別人「學到」，但不一定被「教到」？
+    </div>
+    <div class="exercise-lines"></div>
+  </div>
+</section>
+
+<!-- Elven · Summary -->
+<section data-label="40 Elven · Summary" class="slide el inner">
+  <div class="moon-halo"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">V</span>今晚的回望</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">40</span> / 41</div>
+    </div>
+  </div>
+
+  <div class="h-eyebrow">Three Echoes</div>
+  <h2 class="h-title">如果今晚只記得三件事</h2>
+
+  <div class="summary-grid">
+    <div class="summary-item">
+      <div class="sn">i</div>
+      <h3>知識有兩種完整</h3>
+      <p>可說的完整，與可做卻不可說的完整——兩者都是真實的。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">ii</div>
+      <h3>機器也在抵達那裡</h3>
+      <p>不是因為它在模仿我們，而是因為那或許是知識本身的形狀。</p>
+    </div>
+    <div class="summary-item">
+      <div class="sn">iii</div>
+      <h3>教育要保留間隙</h3>
+      <p>有些東西不是教會的，是讓出空間，學生自己長出來的。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Elven · End -->
+<section data-label="41 Elven · End" class="slide el inner">
+  <div class="moon-halo"></div>
+  <div class="master">
+    <div class="m-top">
+      <div class="logo"><em>Dof</em><span class="dot">·</span>Lab</div>
+      <div class="chapter"><span class="sec">V</span>—— 終 章 ——</div>
+    </div>
+    <div class="m-bottom">
+      <div class="footer-info">劉瑞弘 · 智慧自動化工程系 · 國立勤益科技大學 DofLab</div>
+      <div class="page-num"><span class="now">41</span> / 41</div>
+    </div>
+  </div>
+  <div class="end-page-body">
+    <div class="end-mark">✦ fin ✦</div>
+    <div class="end-quote">「我們知道的，遠比我們能說出口的多——這既是知識的限制，也是它最美的部分。」</div>
+    <div class="end-cite">— After Michael Polanyi · 1958</div>
+  </div>
+</section>
+
+</deck-stage>
+
+</body>
+</html>

@@ -39,11 +39,14 @@ export function CreateJobForm({ onCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [requireReview, setRequireReview] = useState(false);
   const [mock, setMock] = useState(false);
-  // PR-5a + iter 28: theme 只對 repo / document / url 有意義 (走 PptxStyleRenderer)
-  // iter 28 從 pptx-jliu-style 移植 Frieren / Naruto / Journal 三主題
-  const [theme, setTheme] = useState<
-    'forest' | 'navy' | 'frieren' | 'naruto' | 'journal'
-  >('forest');
+  // PR-5a + iter 28 + iter 44: theme 只對 repo / document / url 有意義
+  // iter 28 移 Frieren / Naruto / Journal 三主題
+  // iter 44 加 10 套 dof-* (5 v1 沉穩 + 5 v2 衝擊)
+  type ThemeName =
+    | 'forest' | 'navy' | 'frieren' | 'naruto' | 'journal'
+    | 'dof-editorial' | 'dof-podium' | 'dof-notebook' | 'dof-shinobi' | 'dof-elven'
+    | 'dof-zine' | 'dof-arcade' | 'dof-risograph' | 'dof-supergraphic' | 'dof-brutalist';
+  const [theme, setTheme] = useState<ThemeName>('forest');
   // PR-5c: 燒字幕選項, 對所有 source_type 都適用
   const [hardsub, setHardsub] = useState(false);
   // iter 41: intro 串接 (個人開場), 對所有 source_type 都適用
@@ -232,20 +235,41 @@ export function CreateJobForm({ onCreated }: Props) {
         </div>
       )}
 
-      {/* PR-5a: pptx 主題下拉, 只對 repo / document / url 顯示 */}
+      {/* PR-5a: pptx 主題下拉, 只對 repo / document / url 顯示
+          iter 44: 加 10 套 dof-* — v1 沉穩 / v2 衝擊兩家族 */}
       {showTheme && (
         <div className="mt-3">
           <label className="field-label">pptx 主題</label>
           <select
             className="field-input"
             value={theme}
-            onChange={(e) => setTheme(e.target.value as typeof theme)}
+            onChange={(e) => setTheme(e.target.value as ThemeName)}
           >
-            <option value="forest">🌲 Forest — 深綠 + 黃 (教學類)</option>
-            <option value="navy">🌐 Navy — 深藍 + 青 (科技類)</option>
-            <option value="frieren">❄ Frieren — 藏青 + 銀白紫 (學術 / 文學)</option>
-            <option value="naruto">🔥 Naruto — 焦糖 + 火影橘 (實作 / 競賽)</option>
-            <option value="journal">📜 Journal — 米白 + 墨綠紅 (期刊 / 書冊)</option>
+            <optgroup label="課程教學 (深底)">
+              <option value="forest">🌲 Forest — 深綠 + 黃 (程式設計教學)</option>
+              <option value="navy">🌐 Navy — 深藍 + 青 (AI / 工程)</option>
+            </optgroup>
+            <optgroup label="期刊 / 學術">
+              <option value="journal">📜 Journal — 米白 + 墨綠紅 (期刊 / 書冊)</option>
+            </optgroup>
+            <optgroup label="漫畫風格">
+              <option value="frieren">❄ Frieren — 藏青 + 銀白紫 (芙莉蓮)</option>
+              <option value="naruto">🔥 Naruto — 焦糖 + 火影橘 (火影)</option>
+            </optgroup>
+            <optgroup label="DofLab v1 · 沉穩家族">
+              <option value="dof-editorial">📰 Editorial — 雜誌編輯風 (對外演講 / Demo Day)</option>
+              <option value="dof-podium">🎙 Podium — 講壇 / TED 感 (Conference / Keynote)</option>
+              <option value="dof-notebook">📒 Notebook — 札記風 (Journal Club / 讀書會)</option>
+              <option value="dof-shinobi">🥷 Shinobi — 忍者熱血 (黑客松 / 動員會)</option>
+              <option value="dof-elven">🔮 Elven — 魔法幻境 (哲學 / 認知科學)</option>
+            </optgroup>
+            <optgroup label="DofLab v2 · 衝擊家族">
+              <option value="dof-zine">📣 Zine — 雜誌海報 (年度回顧 / 宣言式)</option>
+              <option value="dof-arcade">🕹 Arcade — 街機霓虹 (Hackathon / Tech demo)</option>
+              <option value="dof-risograph">🎨 Risograph — 油墨疊印 (工作坊 / 跨界)</option>
+              <option value="dof-supergraphic">🟥 Supergraphic — Pentagram 大色塊 (品牌簡介)</option>
+              <option value="dof-brutalist">⚠ Brutalist — 野獸派宣言 (觀點 talk / 批判)</option>
+            </optgroup>
           </select>
         </div>
       )}

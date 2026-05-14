@@ -126,6 +126,127 @@ THEMES: dict[str, Palette] = {
         "secondary": (46, 74, 53),          # 墨綠
         "file_header": (139, 58, 46),       # 暗紅
     },
+
+    # ---------- iter 44: dof-* 系列 (10 套, 從 docs/pptx-jliu-style 移植) ----------
+    # 完整 design spec 在 docs/pptx-jliu-style/dof-*.md (有頁型 / 字體 / 母片).
+    # 這裡只取色票 (本 renderer 用 Palette 8 token), pptx-jliu-style skill
+    # 才會用到完整 layout spec.
+
+    # === v1 沉穩家族 (全襯線 / 極簡 / 學者氣質) ===
+
+    "dof-editorial": {
+        # 雜誌編輯風 · 暖色全襯線 · 業界演講 / Demo Day / 對外分享
+        "bg": (244, 238, 227),              # 紙底 F4EEE3
+        "banner": (232, 225, 210),          # 略深紙
+        "code_bg": (236, 230, 214),         # 老紙
+        "code_border": (201, 188, 163),     # 髮絲線 C9BCA3
+        "primary": (30, 26, 20),            # 墨 1E1A14
+        "highlight": (178, 85, 48),         # 赭橘 B25530
+        "secondary": (138, 124, 101),       # 灰調 8A7C65
+        "file_header": (201, 163, 91),      # 米金 C9A35B
+    },
+    "dof-podium": {
+        # 講壇風 / TED 感 · 冷灰 · Conference / Keynote / 研究發表
+        "bg": (238, 237, 233),              # 紙底 EEEDE9
+        "banner": (220, 219, 213),          # 略深紙
+        "code_bg": (216, 215, 208),
+        "code_border": (207, 207, 201),     # 髮絲線 CFCFC9
+        "primary": (24, 25, 28),            # 墨 18191C
+        "highlight": (90, 107, 122),        # 霧藍石板 5A6B7A
+        "secondary": (139, 143, 149),       # 次文灰 8B8F95
+        "file_header": (184, 176, 164),     # 麻灰 B8B0A4
+    },
+    "dof-notebook": {
+        # 札記風 / 讀書會 · 霧暖 · Journal Club / 思考筆記
+        "bg": (241, 236, 227),              # 米黃紙底 F1ECE3
+        "banner": (224, 218, 205),
+        "code_bg": (220, 213, 199),
+        "code_border": (214, 207, 193),     # 髮絲 D6CFC1
+        "primary": (42, 37, 32),            # 墨 2A2520
+        "highlight": (110, 126, 98),        # 苔綠 6E7E62 (眉批色)
+        "secondary": (156, 148, 138),       # 次文灰褐 9C948A
+        "file_header": (184, 154, 146),     # 粉藕 B89A92
+    },
+    "dof-shinobi": {
+        # 忍者熱血 · 深夜墨 + 朱印紅 · 黑客松 / 動員會
+        "bg": (22, 17, 10),                 # 墨夜 16110A (深底淺字, 跟其他 v1 反相)
+        "banner": (10, 7, 4),               # 更深夜
+        "code_bg": (16, 12, 8),
+        "code_border": (58, 48, 36),        # 髮絲 3A3024
+        "primary": (242, 229, 200),         # 紙黃前景 F2E5C8
+        "highlight": (199, 58, 29),         # 朱印紅 C73A1D
+        "secondary": (138, 125, 94),        # 暗黃褐 8A7D5E
+        "file_header": (232, 144, 48),      # 焰橘 E89030
+    },
+    "dof-elven": {
+        # 魔法幻境 · 月光紫 + 燙金 · 哲學 / 認知科學 / 文學主題
+        "bg": (242, 238, 245),              # 月光紙底 F2EEF5 (極淡紫, 不純白)
+        "banner": (226, 222, 230),
+        "code_bg": (222, 217, 226),
+        "code_border": (216, 210, 222),     # 髮絲 D8D2DE
+        "primary": (31, 27, 46),            # 墨紫 1F1B2E
+        "highlight": (124, 111, 160),       # 月光紫 7C6FA0
+        "secondary": (144, 137, 164),       # 淡紫灰 9089A4
+        "file_header": (184, 154, 92),      # 燙金 B89A5C
+    },
+
+    # === v2 衝擊家族 (粗 sans / 撞色 / 玩心或立場) ===
+
+    "dof-zine": {
+        # 獨立雜誌海報 · 螢光黃 + 撞色紅 · 年度回顧 / 宣言式 talk
+        "bg": (250, 250, 245),              # 紙白 FAFAF5
+        "banner": (240, 240, 232),
+        "code_bg": (235, 235, 225),
+        "code_border": (218, 218, 210),
+        "primary": (10, 10, 10),            # 黑墨 0A0A0A
+        "highlight": (230, 57, 70),         # 撞色紅 E63946
+        "secondary": (119, 112, 103),       # 灰調 777067
+        "file_header": (29, 78, 216),       # 撞色藍 1D4ED8 (跟紅互補)
+    },
+    "dof-arcade": {
+        # 街機霓虹 8-bit · 深夜底 + 霓虹 · 黑客松開幕 / Tech demo
+        "bg": (10, 14, 39),                 # 深夜底 0A0E27
+        "banner": (22, 27, 64),             # 深夜底-2 161B40
+        "code_bg": (8, 12, 32),
+        "code_border": (0, 240, 255),       # 霓虹青 00F0FF (做亮邊框)
+        "primary": (245, 245, 240),         # 紙白前景 F5F5F0
+        "highlight": (0, 240, 255),         # 霓虹青 (主標題 / 玩家友善)
+        "secondary": (255, 184, 0),         # 警報橘黃 FFB800 (HUD / 數值)
+        "file_header": (255, 0, 110),       # 霓虹洋紅 FF006E (系統訊息)
+    },
+    "dof-risograph": {
+        # Riso 兩色疊印 · 油墨藍 + 螢光粉 · 工作坊 / 跨界活動
+        "bg": (247, 242, 229),              # 米紙 F7F2E5
+        "banner": (236, 231, 218),
+        "code_bg": (230, 225, 212),
+        "code_border": (14, 91, 168),       # Federal Blue 0E5BA8
+        "primary": (26, 24, 18),            # 油墨黑 1A1812
+        "highlight": (255, 72, 176),        # 螢光粉 FF48B0
+        "secondary": (131, 120, 101),       # 灰調 837865
+        "file_header": (14, 91, 168),       # Federal Blue
+    },
+    "dof-supergraphic": {
+        # Pentagram 大色塊瑞士幾何 · 三原色 + 黑白 · 品牌簡介 / 企業合作
+        "bg": (255, 255, 255),              # 純白
+        "banner": (230, 57, 70),            # 撞色紅當大色塊 banner
+        "code_bg": (10, 10, 10),            # 純黑 code 區塊 (反白文字)
+        "code_border": (0, 0, 0),           # 純黑 4pt 分隔線
+        "primary": (0, 0, 0),               # 純黑大字
+        "highlight": (230, 57, 70),         # 撞色紅 E63946 (單一強調)
+        "secondary": (255, 255, 255),       # 白 (banner 上的標題文字)
+        "file_header": (255, 214, 10),      # 撞色黃 FFD60A
+    },
+    "dof-brutalist": {
+        # 野獸派宣言 · 黑白 + 警示橘紅 · 觀點 talk / 批判演講
+        "bg": (244, 244, 240),              # 紙白 F4F4F0
+        "banner": (10, 10, 10),             # 純黑 banner (極端對比)
+        "code_bg": (10, 10, 10),            # 純黑 code 區
+        "code_border": (255, 61, 0),        # 警示橘紅 FF3D00
+        "primary": (10, 10, 10),            # 純黑大字
+        "highlight": (255, 61, 0),          # 警示橘紅 (call to action)
+        "secondary": (196, 255, 0),         # 螢光綠 C4FF00 (banner 上的章節名)
+        "file_header": (196, 255, 0),       # 螢光綠
+    },
 }
 
 DEFAULT_THEME = "forest"

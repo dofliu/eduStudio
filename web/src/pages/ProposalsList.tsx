@@ -22,14 +22,33 @@ const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
 };
 
 // iter 40: theme 只對走 PptxStyleRenderer 的 source 適用, 跟 CreateJobForm 同一份規則.
+// iter 44: 加 10 套 dof-* — v1 沉穩 / v2 衝擊兩家族
 const THEME_APPLICABLE: SourceType[] = ['repo', 'document', 'url'];
-type ThemeName = 'forest' | 'navy' | 'frieren' | 'naruto' | 'journal';
+type ThemeName =
+  | 'forest' | 'navy' | 'frieren' | 'naruto' | 'journal'
+  | 'dof-editorial' | 'dof-podium' | 'dof-notebook' | 'dof-shinobi' | 'dof-elven'
+  | 'dof-zine' | 'dof-arcade' | 'dof-risograph' | 'dof-supergraphic' | 'dof-brutalist';
 const THEME_OPTIONS: { value: ThemeName; label: string }[] = [
-  { value: 'forest', label: '🌲 Forest — 深綠 (教學)' },
-  { value: 'navy', label: '🌐 Navy — 深藍 (科技)' },
-  { value: 'frieren', label: '❄ Frieren — 藏青銀白紫 (學術)' },
-  { value: 'naruto', label: '🔥 Naruto — 焦糖橘 (實作)' },
+  // 課程教學
+  { value: 'forest', label: '🌲 Forest — 深綠 (程式教學)' },
+  { value: 'navy', label: '🌐 Navy — 深藍 (AI / 工程)' },
+  // 期刊
   { value: 'journal', label: '📜 Journal — 米白墨綠 (期刊)' },
+  // 漫畫
+  { value: 'frieren', label: '❄ Frieren — 藏青銀紫 (芙莉蓮)' },
+  { value: 'naruto', label: '🔥 Naruto — 焦糖橘 (火影)' },
+  // v1 沉穩家族
+  { value: 'dof-editorial', label: '📰 Editorial — 雜誌風 (對外演講)' },
+  { value: 'dof-podium', label: '🎙 Podium — TED 感 (Conference)' },
+  { value: 'dof-notebook', label: '📒 Notebook — 札記 (讀書會)' },
+  { value: 'dof-shinobi', label: '🥷 Shinobi — 忍者熱血 (Hackathon)' },
+  { value: 'dof-elven', label: '🔮 Elven — 魔法幻境 (哲學)' },
+  // v2 衝擊家族
+  { value: 'dof-zine', label: '📣 Zine — 雜誌海報 (年度回顧)' },
+  { value: 'dof-arcade', label: '🕹 Arcade — 街機霓虹 (Tech demo)' },
+  { value: 'dof-risograph', label: '🎨 Risograph — 油墨疊印 (工作坊)' },
+  { value: 'dof-supergraphic', label: '🟥 Supergraphic — 大色塊 (品牌)' },
+  { value: 'dof-brutalist', label: '⚠ Brutalist — 野獸派 (批判)' },
 ];
 
 

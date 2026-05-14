@@ -1,0 +1,1072 @@
+/* =========================================================
+   DofLab 個人簡報風格系統 · 共通基底 + 三種風格
+   ========================================================= */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+@font-face { font-display: swap; }
+
+/* ---------- 共通 token ---------- */
+:root {
+  /* 基準字級 (1920×1080) */
+  --type-display: 120px;
+  --type-title: 72px;
+  --type-subtitle: 44px;
+  --type-body: 30px;
+  --type-small: 22px;
+  --type-micro: 16px;
+
+  /* 母片版心 */
+  --pad-x: 120px;
+  --pad-top: 130px;
+  --pad-bottom: 130px;
+
+  /* 母片邊界（hairline 位置） */
+  --frame-top: 48px;
+  --frame-bottom: 1004px;
+  --frame-left: 72px;
+  --frame-right: 1848px;
+  --frame-text-y-top: 26px;
+  --frame-text-y-bottom: 1024px;
+
+  /* 字體棧 */
+  --font-serif-tc: "Noto Serif TC", "Songti TC", "PingFang TC", serif;
+  --font-serif-en: "EB Garamond", "Cormorant Garamond", "Georgia", serif;
+  --font-mono: "JetBrains Mono", "Consolas", "SF Mono", monospace;
+}
+
+deck-stage { background: #1a1a1a; }
+
+.slide {
+  font-family: var(--font-serif-tc);
+  font-feature-settings: "palt" 1;
+  color: var(--fg);
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* English serif uses EB Garamond automatically via font-stack inheritance is not enough;
+   we add a utility class for English-only runs */
+.en {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-weight: 400;
+}
+.en-up {
+  font-family: var(--font-serif-en);
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   風格 1 · dof-editorial · 雜誌編輯風（暖色系）
+   ========================================================= */
+.ed {
+  --bg: #F4EEE3;
+  --fg: #1E1A14;
+  --muted: #8A7C65;
+  --hairline: #C9BCA3;
+  --accent: #B25530;
+  --accent-2: #C9A35B;
+  --paper-tint: rgba(178, 85, 48, 0.04);
+}
+
+/* =========================================================
+   風格 2 · dof-podium · 講壇 / 學術 / TED 感（莫蘭迪冷灰）
+   ========================================================= */
+.pd {
+  --bg: #EEEDE9;
+  --fg: #18191C;
+  --muted: #8B8F95;
+  --hairline: #CFCFC9;
+  --accent: #5A6B7A;
+  --accent-2: #B8B0A4;
+  --paper-tint: rgba(90, 107, 122, 0.03);
+}
+
+/* =========================================================
+   風格 3 · dof-notebook · 札記 / 讀書會（霧粉霧綠）
+   ========================================================= */
+.nb {
+  --bg: #F1ECE3;
+  --fg: #2A2520;
+  --muted: #9C948A;
+  --hairline: #D6CFC1;
+  --accent: #6E7E62;
+  --accent-2: #B89A92;
+  --paper-tint: rgba(110, 126, 98, 0.035);
+}
+
+/* =========================================================
+   母片框架（inner pages）
+   ========================================================= */
+.master::before,
+.master::after {
+  content: "";
+  position: absolute;
+  left: var(--frame-left);
+  right: calc(1920px - var(--frame-right));
+  height: 1px;
+  background: var(--hairline);
+}
+.master::before { top: var(--frame-top); }
+.master::after  { top: var(--frame-bottom); }
+
+.m-top, .m-bottom {
+  position: absolute;
+  left: var(--frame-left);
+  right: calc(1920px - var(--frame-right));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--type-micro);
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.m-top    { top: var(--frame-text-y-top); }
+.m-bottom { top: var(--frame-text-y-bottom); }
+
+.logo {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: 0;
+  color: var(--fg);
+}
+.logo .dot { color: var(--accent); font-style: normal; }
+
+.chapter {
+  font-family: var(--font-serif-tc);
+  font-size: 18px;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+.chapter .sec {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  margin-right: 0.5em;
+  color: var(--fg);
+}
+
+.footer-info {
+  font-family: var(--font-serif-tc);
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.page-num {
+  font-family: var(--font-serif-en);
+  font-style: normal;
+  font-size: 16px;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+.page-num .now { color: var(--fg); }
+
+/* =========================================================
+   COVER 共通結構（封面豐富，三種風格各自延伸）
+   ========================================================= */
+.cover {
+  padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.cover .cover-top,
+.cover .cover-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+}
+.cover .cover-top .logo { font-size: 28px; }
+.cover .cover-bottom {
+  font-size: 18px;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+.cover .cover-meta {
+  font-family: var(--font-serif-tc);
+}
+.cover .cover-bottom .page-num { font-size: 18px; }
+
+/* Cover middle stack */
+.cover-body { flex: 1; display: flex; align-items: center; }
+
+/* =========================================================
+   INNER 共通結構
+   ========================================================= */
+.inner {
+  padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+  display: flex;
+  flex-direction: column;
+}
+.inner .h-eyebrow {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 26px;
+  color: var(--accent);
+  margin-bottom: 18px;
+  letter-spacing: 0.02em;
+}
+.inner .h-title {
+  font-family: var(--font-serif-tc);
+  font-weight: 500;
+  font-size: var(--type-title);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+.inner .h-sub {
+  font-family: var(--font-serif-tc);
+  font-weight: 400;
+  font-size: var(--type-subtitle);
+  line-height: 1.3;
+  color: var(--muted);
+  margin-top: 24px;
+  letter-spacing: 0.02em;
+}
+.inner .body-text {
+  font-size: var(--type-body);
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  text-wrap: pretty;
+}
+
+/* =========================================================
+   風格 1 · COVER · Editorial
+   ========================================================= */
+.ed.cover .num-block {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 280px;
+  line-height: 1;
+  color: var(--accent);
+  margin-bottom: 30px;
+}
+.ed.cover .ch-title {
+  font-family: var(--font-serif-tc);
+  font-weight: 500;
+  font-size: 132px;
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+  color: var(--fg);
+}
+.ed.cover .ch-sub {
+  font-family: var(--font-serif-tc);
+  font-weight: 400;
+  font-size: 38px;
+  color: var(--muted);
+  margin-top: 36px;
+  letter-spacing: 0.06em;
+}
+.ed.cover .rule {
+  width: 280px;
+  height: 1px;
+  background: var(--fg);
+  margin-top: 56px;
+}
+
+/* =========================================================
+   風格 2 · COVER · Podium（極簡居中）
+   ========================================================= */
+.pd.cover .cover-body { justify-content: center; flex-direction: column; align-items: flex-start; }
+.pd.cover .eyebrow {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 32px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  margin-bottom: 80px;
+}
+.pd.cover .ch-title {
+  font-family: var(--font-serif-tc);
+  font-weight: 400;
+  font-size: 112px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+.pd.cover .ch-sub {
+  font-family: var(--font-serif-tc);
+  font-weight: 300;
+  font-size: 32px;
+  color: var(--muted);
+  margin-top: 48px;
+  letter-spacing: 0.08em;
+}
+
+/* =========================================================
+   風格 3 · COVER · Notebook（手記感）
+   ========================================================= */
+.nb.cover .cover-body { flex-direction: column; align-items: flex-start; justify-content: center; }
+.nb.cover .date-mark {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 28px;
+  color: var(--muted);
+  margin-bottom: 60px;
+  letter-spacing: 0.04em;
+}
+.nb.cover .date-mark .pin {
+  display: inline-block; width: 10px; height: 10px;
+  background: var(--accent-2); border-radius: 50%;
+  margin-right: 16px; vertical-align: 2px;
+}
+.nb.cover .ch-num {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 48px;
+  color: var(--accent);
+  margin-bottom: 24px;
+}
+.nb.cover .ch-title {
+  font-family: var(--font-serif-tc);
+  font-weight: 400;
+  font-size: 116px;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+.nb.cover .ch-sub {
+  font-family: var(--font-serif-tc);
+  font-style: italic;
+  font-size: 32px;
+  color: var(--accent);
+  margin-top: 40px;
+  letter-spacing: 0.04em;
+}
+
+/* =========================================================
+   ROADMAP
+   ========================================================= */
+.roadmap-list {
+  margin-top: 80px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 100px;
+  row-gap: 44px;
+}
+.roadmap-item {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: baseline;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--hairline);
+}
+.roadmap-item .rn {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 36px;
+  color: var(--accent);
+}
+.roadmap-item .rt {
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+}
+.roadmap-item .rd {
+  grid-column: 2;
+  margin-top: 8px;
+  font-size: 20px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* =========================================================
+   CONTENT · 兩欄
+   ========================================================= */
+.two-col {
+  margin-top: 80px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 120px;
+}
+.two-col .col-head {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+.two-col p {
+  font-size: 28px;
+  line-height: 1.75;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+  margin-bottom: 22px;
+  text-wrap: pretty;
+}
+.two-col .placeholder {
+  margin-top: 8px;
+  width: 100%;
+  height: 360px;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0, transparent 14px,
+    var(--hairline) 14px, var(--hairline) 15px
+  );
+  border: 1px solid var(--hairline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+/* Pull quote */
+.pull-quote {
+  margin-top: 60px;
+  padding: 28px 0 0;
+  border-top: 1px solid var(--hairline);
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  column-gap: 28px;
+}
+.pull-quote .mark {
+  font-family: var(--font-serif-en);
+  font-size: 80px;
+  line-height: 0.6;
+  color: var(--accent);
+}
+.pull-quote .q {
+  font-family: var(--font-serif-tc);
+  font-style: italic;
+  font-size: 28px;
+  line-height: 1.5;
+  color: var(--fg);
+  letter-spacing: 0.03em;
+}
+.pull-quote .src {
+  display: block;
+  margin-top: 18px;
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+/* =========================================================
+   CODE
+   ========================================================= */
+.code-wrap {
+  margin-top: 70px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  column-gap: 80px;
+  align-items: start;
+}
+.code-block {
+  background: var(--fg);
+  color: var(--bg);
+  padding: 36px 40px;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  line-height: 1.6;
+  letter-spacing: 0;
+  white-space: pre;
+}
+.code-block .kw { color: var(--accent-2); }
+.code-block .cm { color: rgba(255,255,255,0.45); font-style: italic; }
+.code-block .st { color: #b8d4a8; }
+.code-block .fn { color: #d4c8a8; }
+
+.code-notes h4 {
+  font-family: var(--font-serif-tc);
+  font-weight: 500;
+  font-size: 30px;
+  margin-bottom: 18px;
+  color: var(--fg);
+}
+.code-notes .note-item {
+  font-size: 22px;
+  line-height: 1.65;
+  color: var(--fg);
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hairline);
+  letter-spacing: 0.02em;
+}
+.code-notes .note-item .n {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  color: var(--accent);
+  margin-right: 12px;
+}
+
+/* =========================================================
+   EXERCISE
+   ========================================================= */
+.exercise-mark {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 28px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
+}
+.exercise-body {
+  margin-top: 60px;
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 36px;
+}
+.exercise-prompt {
+  font-family: var(--font-serif-tc);
+  font-size: 32px;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  max-width: 1400px;
+  text-wrap: pretty;
+}
+.exercise-prompt .label {
+  display: inline-block;
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 24px;
+  color: var(--muted);
+  margin-right: 14px;
+}
+.exercise-lines {
+  margin-top: 20px;
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0, transparent 58px,
+    var(--hairline) 58px, var(--hairline) 59px
+  );
+  background-size: 100% 60px;
+  height: 360px;
+  width: 1400px;
+}
+
+/* =========================================================
+   SUMMARY
+   ========================================================= */
+.summary-grid {
+  margin-top: 80px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: 80px;
+}
+.summary-item {
+  padding-top: 28px;
+  border-top: 1px solid var(--fg);
+}
+.summary-item .sn {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 56px;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 28px;
+}
+.summary-item h3 {
+  font-family: var(--font-serif-tc);
+  font-weight: 500;
+  font-size: 36px;
+  color: var(--fg);
+  line-height: 1.3;
+  margin-bottom: 18px;
+  letter-spacing: 0.02em;
+}
+.summary-item p {
+  font-family: var(--font-serif-tc);
+  font-size: 22px;
+  line-height: 1.65;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  text-wrap: pretty;
+}
+
+/* =========================================================
+   END PAGE
+   ========================================================= */
+.end-page-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+.end-mark {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 144px;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 60px;
+  letter-spacing: 0.02em;
+}
+.end-quote {
+  font-family: var(--font-serif-tc);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 1.6;
+  color: var(--fg);
+  letter-spacing: 0.04em;
+  max-width: 1100px;
+  text-wrap: balance;
+}
+.end-cite {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--muted);
+  margin-top: 50px;
+  letter-spacing: 0.14em;
+}
+
+/* =========================================================
+   OVERVIEW · 首頁 + 風格分隔
+   ========================================================= */
+.overview {
+  background: #0F0E0C;
+  color: #EFE7D8;
+  padding: 130px 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: var(--font-serif-tc);
+}
+.overview .o-eyebrow {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 30px;
+  color: #B89A78;
+  letter-spacing: 0.04em;
+}
+.overview h1 {
+  font-family: var(--font-serif-tc);
+  font-weight: 400;
+  font-size: 132px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  margin-top: 30px;
+}
+.overview .o-sub {
+  font-size: 32px;
+  line-height: 1.6;
+  color: #B5AC9A;
+  max-width: 900px;
+  margin-top: 40px;
+  letter-spacing: 0.05em;
+}
+.overview .o-styles {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  column-gap: 40px;
+}
+.overview .o-style {
+  padding-top: 28px;
+  border-top: 1px solid #4A453C;
+}
+.overview .o-style .num {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 36px;
+  color: #B89A78;
+}
+.overview .o-style .name {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 44px;
+  color: #EFE7D8;
+  margin-top: 12px;
+}
+.overview .o-style .zh {
+  font-family: var(--font-serif-tc);
+  font-size: 26px;
+  color: #EFE7D8;
+  margin-top: 8px;
+  letter-spacing: 0.06em;
+}
+.overview .o-style .use {
+  font-size: 18px;
+  color: #8A8170;
+  margin-top: 18px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+}
+.overview .o-foot {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 22px;
+  color: #6C6557;
+  letter-spacing: 0.14em;
+}
+
+/* =========================================================
+   風格分隔頁（夾在三組之間）
+   ========================================================= */
+.style-divider {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 130px 120px;
+}
+.style-divider .sd-num {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 240px;
+  line-height: 1;
+  color: var(--accent);
+  margin-bottom: 40px;
+}
+.style-divider .sd-name {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 96px;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+}
+.style-divider .sd-zh {
+  font-family: var(--font-serif-tc);
+  font-size: 52px;
+  color: var(--fg);
+  margin-top: 24px;
+  letter-spacing: 0.1em;
+}
+.style-divider .sd-rule {
+  width: 200px;
+  height: 1px;
+  background: var(--fg);
+  margin: 60px 0 36px;
+}
+.style-divider .sd-tokens {
+  display: flex;
+  gap: 60px;
+  margin-top: 30px;
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  color: var(--muted);
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+.style-divider .sd-tokens .swatch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.style-divider .sd-tokens .sw {
+  width: 32px; height: 32px;
+  border: 1px solid var(--hairline);
+}
+
+/* =========================================================
+   風格 3 (notebook) 的微弱橫線（札記感）— 僅 inner
+   ========================================================= */
+.nb.inner::before {
+  content: "";
+  position: absolute;
+  inset: 100px 0 100px 0;
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0, transparent 71px,
+    rgba(110, 126, 98, 0.07) 71px, rgba(110, 126, 98, 0.07) 72px
+  );
+  background-size: 100% 72px;
+  pointer-events: none;
+  z-index: 0;
+}
+.nb.inner > *:not(.master) { position: relative; z-index: 1; }
+
+/* =========================================================
+   風格 1 (editorial) 細節 — 標題旁的數字
+   ========================================================= */
+.ed.inner .h-title .num-side {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 0.5em;
+  color: var(--accent);
+  margin-right: 0.4em;
+  vertical-align: 0.18em;
+}
+
+/* =========================================================
+   風格 4 · dof-shinobi · 忍者熱血風（深夜墨底 + 朱印紅）
+   ========================================================= */
+.sh {
+  --bg: #16110A;
+  --fg: #F2E5C8;
+  --muted: #8A7D5E;
+  --hairline: #3A3024;
+  --accent: #C73A1D;
+  --accent-2: #E89030;
+  --paper-tint: rgba(199, 58, 29, 0.06);
+}
+
+/* 內頁紙紋（微弱橫向紋理）+ 左側朱筆垂直線 */
+.sh.inner > .scroll-paper {
+  position: absolute;
+  inset: 60px 0 60px 0;
+  background-image: repeating-linear-gradient(
+    0deg, transparent 0, transparent 4px,
+    rgba(242, 229, 200, 0.018) 4px, rgba(242, 229, 200, 0.018) 5px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+.sh.inner > .brush-rule {
+  position: absolute;
+  left: 60px;
+  top: 130px;
+  bottom: 130px;
+  width: 4px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--accent) 12%,
+    var(--accent) 88%,
+    transparent 100%
+  );
+  z-index: 0;
+}
+.sh.inner > *:not(.scroll-paper):not(.brush-rule):not(.master) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Cover · 朱印 stamp */
+.sh.cover {
+  background:
+    radial-gradient(ellipse at 80% 90%, rgba(232, 144, 48, 0.08) 0%, transparent 60%),
+    var(--bg);
+}
+.sh.cover .stamp {
+  width: 220px;
+  height: 220px;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 50px;
+  background: rgba(199, 58, 29, 0.06);
+  position: relative;
+}
+.sh.cover .stamp::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+.sh.cover .stamp .stamp-num {
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-size: 88px;
+  color: var(--accent);
+  line-height: 1;
+}
+.sh.cover .stamp .stamp-label {
+  font-family: var(--font-serif-tc);
+  font-size: 18px;
+  color: var(--accent);
+  letter-spacing: 0.3em;
+  margin-top: 6px;
+}
+.sh.cover .ch-title {
+  font-family: var(--font-serif-tc);
+  font-weight: 700;
+  font-size: 124px;
+  line-height: 1.12;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+}
+.sh.cover .ch-sub {
+  font-family: var(--font-serif-tc);
+  font-weight: 400;
+  font-size: 36px;
+  color: var(--accent-2);
+  margin-top: 32px;
+  letter-spacing: 0.08em;
+}
+
+/* 內頁標題加重 + eyebrow 改用暖橘 */
+.sh.inner .h-eyebrow { color: var(--accent-2); }
+.sh.inner .h-title {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Code · 更深底 */
+.sh .code-block {
+  background: #0A0805;
+  color: var(--fg);
+  border: 1px solid var(--hairline);
+}
+
+/* placeholder 在深底上 */
+.sh .placeholder {
+  color: var(--muted);
+  border-color: var(--hairline);
+}
+
+/* Roadmap 序號用朱紅 */
+.sh .roadmap-item .rn { color: var(--accent); font-weight: 600; }
+
+/* Summary 頂線改朱紅 */
+.sh .summary-item { border-top-color: var(--accent); }
+.sh .summary-item .sn { color: var(--accent); }
+
+/* End-page 大字朱紅 */
+.sh .end-mark { color: var(--accent); }
+
+/* style-divider 暗底 */
+.sh.style-divider { background: var(--bg); color: var(--fg); }
+.sh.style-divider .sd-name { color: var(--fg); }
+.sh.style-divider .sd-zh { color: var(--fg); }
+.sh.style-divider .sd-rule { background: var(--fg); }
+
+/* =========================================================
+   風格 5 · dof-elven · 魔法幻境風（月光紫 + 燙金）
+   ========================================================= */
+.el {
+  --bg: #F2EEF5;
+  --fg: #1F1B2E;
+  --muted: #9089A4;
+  --hairline: #D8D2DE;
+  --accent: #7C6FA0;
+  --accent-2: #B89A5C;
+  --paper-tint: rgba(124, 111, 160, 0.04);
+}
+
+/* 內頁右上月光暈 */
+.el.inner > .moon-halo {
+  position: absolute;
+  top: -200px;
+  right: -200px;
+  width: 700px;
+  height: 700px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(184, 154, 92, 0.10) 0%, rgba(184, 154, 92, 0) 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+.el.inner > *:not(.moon-halo):not(.master) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Cover · 大號 + halo */
+.el.cover {
+  background:
+    radial-gradient(ellipse at 25% 35%, rgba(184, 154, 92, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(124, 111, 160, 0.10) 0%, transparent 55%),
+    var(--bg);
+}
+.el.cover .num-halo-wrap {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 20px;
+}
+.el.cover .num-halo-wrap::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(184, 154, 92, 0.22) 0%, transparent 60%);
+  transform: translate(-50%, -50%);
+  z-index: 0;
+}
+.el.cover .num-halo {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-serif-en);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 220px;
+  line-height: 1;
+  color: var(--accent);
+}
+.el.cover .ch-title {
+  font-family: var(--font-serif-tc);
+  font-weight: 300;
+  font-size: 116px;
+  line-height: 1.15;
+  letter-spacing: 0.10em;
+  color: var(--fg);
+  margin-top: 24px;
+}
+.el.cover .ch-sub {
+  font-family: var(--font-serif-tc);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 32px;
+  color: var(--accent);
+  margin-top: 36px;
+  letter-spacing: 0.08em;
+}
+.el.cover .stars {
+  margin-top: 40px;
+  font-family: var(--font-serif-en);
+  font-size: 22px;
+  color: var(--accent-2);
+  letter-spacing: 0.6em;
+}
+
+/* 內頁標題：輕量 */
+.el.inner .h-title {
+  font-weight: 300;
+  letter-spacing: 0.08em;
+}
+.el.inner .h-eyebrow {
+  color: var(--accent-2);
+  letter-spacing: 0.06em;
+}
+
+/* Roadmap 序號 + 菱形 */
+.el .roadmap-item {
+  position: relative;
+}
+.el .roadmap-item .rn {
+  color: var(--accent);
+  font-weight: 400;
+}
+.el .roadmap-item .rn::after {
+  content: " ◇";
+  color: var(--accent-2);
+  font-style: normal;
+  margin-left: 6px;
+  font-size: 0.6em;
+}
+
+/* Summary 序號改月光紫 */
+.el .summary-item .sn { color: var(--accent); }
+.el .summary-item { border-top-color: var(--accent); }
+
+/* 引號改月光紫 */
+.el .pull-quote .mark { color: var(--accent); }
+
+/* End-page */
+.el .end-mark {
+  color: var(--accent);
+  font-weight: 300;
+}
+
+/* style-divider tokens 用燙金邊 */
+.el.style-divider .sd-tokens .sw {
+  border: 1px solid var(--accent-2);
+}

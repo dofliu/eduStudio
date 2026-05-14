@@ -90,7 +90,14 @@ class ProposalApproveRequest(BaseModel):
     所以這裡只開放真的「主題 / 字幕」這類無風險選項.
     """
 
-    theme: Literal["forest", "navy", "frieren", "naruto", "journal"] | None = None
+    # iter 44: 5 既有 + 10 dof-* (5 v1 沉穩 + 5 v2 衝擊) = 15 主題
+    theme: Literal[
+        "forest", "navy", "frieren", "naruto", "journal",
+        # v1 沉穩家族
+        "dof-editorial", "dof-podium", "dof-notebook", "dof-shinobi", "dof-elven",
+        # v2 衝擊家族
+        "dof-zine", "dof-arcade", "dof-risograph", "dof-supergraphic", "dof-brutalist",
+    ] | None = None
     hardsub: bool | None = None
     prepend_intro: bool | None = None     # iter 41: 串個人 intro 開場
     length_mode: Literal["quick", "lecture"] | None = None   # iter 43: 影片長度模式

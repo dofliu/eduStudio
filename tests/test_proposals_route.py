@@ -162,6 +162,58 @@ class TestApprove:
         resp = client.post("/proposals/p1/approve")
         assert resp.status_code == 400
 
+    def test_approve_with_theme_body_sets_job_options(
+        self, client, proposals_file, monkeypatch,
+    ):
+        """iter 40: 核准時帶 theme → 寫進 JobOptions.theme.
+
+        document source_type 才適用主題, 用它測.
+        """
+        _write_proposals(proposals_file, [
+            _sample_proposal(id_="p1", source_file="/tmp/a.pdf"),
+        ])
+        # 把第一張 proposal 的 source_type 改成 document (適用 theme)
+        raw = json.loads(proposals_file.read_text(encoding="utf-8"))
+        raw["proposals"][0]["source_type"] = "document"
+        proposals_file.write_text(json.dumps(raw), encoding="utf-8")
+
+        # 攔 store.create 看實際送進去的 options
+        captured: dict = {}
+        from server.routes import proposals as proposals_mod
+        real_create = proposals_mod.get_default_store().__class__.create
+
+        def spy_create(self, req):
+            captured["theme"] = req.options.theme
+            captured["hardsub"] = req.options.hardsub
+            return real_create(self, req)
+
+        monkeypatch.setattr(
+            proposals_mod.JobStore, "create", spy_create,
+        )
+
+        resp = client.post(
+            "/proposals/p1/approve",
+            json={"theme": "frieren", "hardsub": True},
+        )
+        assert resp.status_code == 201, resp.text
+        assert captured["theme"] == "frieren"
+        assert captured["hardsub"] is True
+
+    def test_approve_without_body_uses_defaults(self, client, proposals_file):
+        """沒帶 body 仍走預設 (forest / hardsub=False), 保 backwards compat."""
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+        resp = client.post("/proposals/p1/approve")
+        assert resp.status_code == 201
+
+    def test_approve_with_invalid_theme_returns_422(self, client, proposals_file):
+        """theme 不在白名單應 422 (pydantic Literal validation)."""
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+        resp = client.post(
+            "/proposals/p1/approve",
+            json={"theme": "nope_not_a_theme"},
+        )
+        assert resp.status_code == 422
+
 
 class TestIgnore:
     def test_ignore_marks_status(self, client, proposals_file):

@@ -79,6 +79,21 @@ class ProposalStatusUpdateRequest(BaseModel):
     status: Literal["ignored"]
 
 
+class ProposalApproveRequest(BaseModel):
+    """POST /proposals/{id}/approve 的 optional body (iter 40).
+
+    讓 UI 在核准前選 pptx 主題 / 燒字幕等選項, 不必先核准再去 review page 改.
+    全欄位 optional, 不傳就走 JobOptions() 預設 (forest / no hardsub).
+
+    為什麼不直接吃整顆 JobOptions: 核准 endpoint 不該讓 caller 改 require_review,
+    那是學術誠信底線 (硬規則 #1), 由 source_type 決定 (exam_pdf → True).
+    所以這裡只開放真的「主題 / 字幕」這類無風險選項.
+    """
+
+    theme: Literal["forest", "navy", "frieren", "naruto", "journal"] | None = None
+    hardsub: bool | None = None
+
+
 class ScanFolderRequest(BaseModel):
     """POST /proposals/scan-folder 接的 body."""
 
@@ -172,12 +187,16 @@ async def list_proposals(only_pending: bool = True) -> ProposalListResponse:
 )
 async def approve_proposal(
     proposal_id: str,
+    body: ProposalApproveRequest | None = None,
     store: JobStore = Depends(get_default_store),
 ) -> ProposalApproveResponse:
     """核准提案 → 走 /upload 同一條 schedule_job 流程。
 
+    iter 40: 加 optional body (theme / hardsub) — UI 可在卡片上選主題後核准,
+    不必走「先核准 → review page 改 → 重 render」這條繞路.
+
     require_review 不在這層動 (依 source_type 預設, exam=True / 其他=False),
-    UI 上若 user 想跳 review 要在 review page 改, 這條 endpoint 一律走預設。
+    UI 上若 user 想跳 review 要在 review page 改, 這條 endpoint 一律走預設.
     """
     proposals = _load_all()
     target = _find_proposal(proposals, proposal_id)
@@ -197,10 +216,18 @@ async def approve_proposal(
             f"source_type={target['source_type']} 不是合法 SourceType",
         )
 
+    # 把 body 上的選項 (theme / hardsub) 套進 JobOptions, 沒給就走 default
+    opts_kwargs: dict = {}
+    if body is not None:
+        if body.theme is not None:
+            opts_kwargs["theme"] = body.theme
+        if body.hardsub is not None:
+            opts_kwargs["hardsub"] = body.hardsub
+
     req = CreateJobRequest(
         source_type=source_type,
         source=JobSource(path=target["source_file"]),
-        options=JobOptions(),  # 預設, 不繞 require_review
+        options=JobOptions(**opts_kwargs),  # 預設, 不繞 require_review
     )
     rec = store.create(req)
     schedule_job(store, rec.id)

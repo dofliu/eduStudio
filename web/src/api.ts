@@ -169,10 +169,18 @@ export const api = {
       `/proposals?only_pending=${onlyPending ? 'true' : 'false'}`,
     ),
 
-  approveProposal: (proposalId: string) =>
+  // iter 40: 加 optional body (theme / hardsub) — 讓 UI 在核准前選主題
+  approveProposal: (
+    proposalId: string,
+    options?: { theme?: string; hardsub?: boolean },
+  ) =>
     call<ProposalApproveResponse>(
       `/proposals/${encodeURIComponent(proposalId)}/approve`,
-      { method: 'POST' },
+      {
+        method: 'POST',
+        headers: options ? { 'Content-Type': 'application/json' } : undefined,
+        body: options ? JSON.stringify(options) : undefined,
+      },
     ),
 
   ignoreProposal: (proposalId: string) =>

@@ -21,6 +21,17 @@ const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
   url: '網頁',
 };
 
+// iter 40: theme 只對走 PptxStyleRenderer 的 source 適用, 跟 CreateJobForm 同一份規則.
+const THEME_APPLICABLE: SourceType[] = ['repo', 'document', 'url'];
+type ThemeName = 'forest' | 'navy' | 'frieren' | 'naruto' | 'journal';
+const THEME_OPTIONS: { value: ThemeName; label: string }[] = [
+  { value: 'forest', label: '🌲 Forest — 深綠 (教學)' },
+  { value: 'navy', label: '🌐 Navy — 深藍 (科技)' },
+  { value: 'frieren', label: '❄ Frieren — 藏青銀白紫 (學術)' },
+  { value: 'naruto', label: '🔥 Naruto — 焦糖橘 (實作)' },
+  { value: 'journal', label: '📜 Journal — 米白墨綠 (期刊)' },
+];
+
 
 export default function ProposalsList() {
   const { show } = useToast();
@@ -29,6 +40,9 @@ export default function ProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  // iter 40: 各卡片獨立的 theme 選擇 (key = proposal_id). 不存進 proposals.json,
+  // 只活在這次 UI render — 核准後就送出去, 沒核准就丟. 預設 forest.
+  const [themeByProposal, setThemeByProposal] = useState<Record<string, ThemeName>>({});
   // iter 27: ad-hoc modal 取代 yaml — 用戶填 path 直接掃
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -58,7 +72,13 @@ export default function ProposalsList() {
   const handleApprove = async (p: Proposal) => {
     setBusyId(p.id);
     try {
-      const r = await api.approveProposal(p.id);
+      // theme 只對 document / repo / url 有效, 其他 source_type 不送 (後端走預設)
+      const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
+      const theme = themeApplicable ? (themeByProposal[p.id] ?? 'forest') : undefined;
+      const r = await api.approveProposal(
+        p.id,
+        theme ? { theme } : undefined,
+      );
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
       // 直接跳到 JobEditor 進 review
       navigate(`/jobs/${r.job.job_id}`);
@@ -350,6 +370,29 @@ export default function ProposalsList() {
               <div className="mb-3 text-xs text-ink-muted">
                 <span className="font-medium">建議章節:</span>{' '}
                 {p.suggested_chapters.join(' / ')}
+              </div>
+            )}
+
+            {/* iter 40: theme 選擇 — 只對 document / repo / url 顯示
+                (走 PptxStyleRenderer 的 source 才吃色票; 考卷 / 簡報用固定黑板 / 投影片底圖) */}
+            {THEME_APPLICABLE.includes(p.source_type) && (
+              <div className="mb-3 flex items-center gap-2 text-xs">
+                <label className="text-ink-muted">pptx 主題:</label>
+                <select
+                  className="border border-border rounded px-2 py-1 bg-white text-xs"
+                  value={themeByProposal[p.id] ?? 'forest'}
+                  onChange={(e) =>
+                    setThemeByProposal(prev => ({
+                      ...prev,
+                      [p.id]: e.target.value as ThemeName,
+                    }))
+                  }
+                  disabled={busyId === p.id}
+                >
+                  {THEME_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
             )}
 

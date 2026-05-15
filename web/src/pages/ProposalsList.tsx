@@ -49,7 +49,7 @@ export default function ProposalsList() {
   const [themeByProposal, setThemeByProposal] = useState<Record<string, ThemeName>>({});
   const [prependIntroByProposal, setPrependIntroByProposal] = useState<Record<string, boolean>>({});
   const [lengthModeByProposal, setLengthModeByProposal] = useState<Record<string, 'quick' | 'lecture'>>({});
-  // iter 56: AI 生圖 opt-in per-card
+  // iter 56: AI 生圖 opt-in per-card (Gemini Flash Image, 會計費)
   const [aiGenByProposal, setAiGenByProposal] = useState<Record<string, boolean>>({});
   // scan modal state
   const [scanModal, setScanModal] = useState(false);
@@ -278,7 +278,7 @@ interface CardProps {
   themeValue: ThemeName;
   lengthValue: 'quick' | 'lecture';
   introValue: boolean;
-  aiGenValue: boolean;   // iter 56: AI 生圖 opt-in
+  aiGenValue: boolean;       // iter 56: AI 生圖 opt-in
   onToggle: () => void;
   onApprove: () => void;
   onIgnore: () => void;

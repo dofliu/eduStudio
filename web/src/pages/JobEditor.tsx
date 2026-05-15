@@ -252,152 +252,137 @@ export default function JobEditor() {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* ── Header (取代原本的 sticky toolbar) ─────────────────────────── */}
-      <header className="border-b border-paper-line bg-paper">
-        <div className="px-10 pt-6 pb-2">
-          <Link to="/" className="text-[12px] font-mono text-forest-600 hover:underline">← Back to Jobs</Link>
-        </div>
-        <div className="px-10 pb-5 flex items-end justify-between gap-6">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-ink-muted">
-                04 · Edit · {subtitle}
-              </span>
-              <span className="ml-2"><SourceBadge type={job.source_type} size="sm" /></span>
-              <StatusPill state={job.state} size="sm" />
-              {dirty && (
-                <span className="text-[11px] font-mono text-accent-coral inline-flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-coral"></span>未存檔
-                </span>
-              )}
-            </div>
-            <h1 className="font-display text-[34px] leading-[1.1] text-forest-700 break-all">
-              {isExam ? '📝 ' : '🎬 '}{title}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Btn kind="ghost" size="md" onClick={onSave} disabled={!canEdit || saving || !dirty}>
-              {saving ? '...' : '💾 Save'}
+      {/* ── Compact header (一橫排, 不再堆 3 行) ─────────────────────── */}
+      <header className="border-b border-paper-line bg-paper px-7 py-2.5 flex items-center gap-3">
+        <Link to="/" className="text-[11px] font-mono text-forest-600 hover:underline shrink-0" title="Back to Jobs">←</Link>
+
+        <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-muted shrink-0">04 · EDIT</span>
+
+        <h1 className="font-display text-[20px] leading-[1.15] text-forest-700 truncate flex-1 min-w-0">
+          {isExam ? '📝 ' : '🎬 '}{title}
+        </h1>
+
+        <span className="text-[10.5px] text-ink-muted font-mono shrink-0 hidden md:inline">{subtitle}</span>
+        <SourceBadge type={job.source_type} size="sm" />
+        <StatusPill state={job.state} size="sm" />
+        {dirty && (
+          <span className="text-[10.5px] font-mono text-accent-coral inline-flex items-center gap-1 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-coral"></span>未存檔
+          </span>
+        )}
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Btn kind="ghost" size="sm" onClick={onSave} disabled={!canEdit || saving || !dirty}>
+            {saving ? '...' : '💾 Save'}
+          </Btn>
+          {/* iter 55: done 狀態加「重新渲染整支」按鈕, 覆蓋所有既有 mp4 + final.
+              awaiting_review / failed 用既有 Approve / 重試 按鈕. */}
+          {(job.state === 'awaiting_review' || job.state === 'failed') && (
+            <Btn
+              kind="primary"
+              size="sm"
+              onClick={onApprove}
+              disabled={!canEdit || saving}
+              title={isRetry ? '用目前 deck.json 重新跑 render' : undefined}
+            >
+              {isRetry ? '🔄 重試' : '✓ Approve & Render'}
             </Btn>
-            {/* iter 55: done 狀態加「重新渲染整支」按鈕 — 覆蓋所有既有 mp4 + final.
-                跟 section render 並存 — section render 只動單章, 這個動全部. */}
-            {(job.state === 'awaiting_review' || job.state === 'failed') && (
-              <Btn
-                kind="primary"
-                size="md"
-                onClick={onApprove}
-                disabled={!canEdit || saving}
-                title={isRetry ? '清掉之前的錯誤, 用目前 deck.json 重新跑 render' : undefined}
-              >
-                {isRetry ? '🔄 重試 render' : '✓ Approve & Render'}
-              </Btn>
-            )}
-            {job.state === 'done' && (
-              <Btn
-                kind="primary"
-                size="md"
-                onClick={onApprove}
-                disabled={!canEdit || saving}
-                title="用目前 deck.json 重 render 全部章節, 覆蓋既有所有 mp4 + final.mp4"
-              >
-                🔁 重新渲染整支
-              </Btn>
-            )}
-          </div>
+          )}
+          {job.state === 'done' && (
+            <Btn
+              kind="primary"
+              size="sm"
+              onClick={onApprove}
+              disabled={!canEdit || saving}
+              title="用目前 deck.json 重 render 全部章節, 覆蓋既有所有 mp4 + final.mp4"
+            >
+              🔁 重新渲染整支
+            </Btn>
+          )}
         </div>
       </header>
 
-      {/* ── Banners & artifacts (置於 toolbar 下, 主編輯區之上) ──────── */}
-      <div className="px-10 pt-4 pb-2 space-y-3">
+      {/* ── Banners + artifacts — 一橫排策略, banner 限高 ────────────── */}
+      <div className="px-7 py-2 space-y-1.5 border-b border-paper-line">
         <LogPanel jobId={job.id} jobState={job.state} />
 
         {isRetry && job.error && (
-          <div className="border-l-2 border-accent-coral pl-4 py-2 bg-paper-warm">
-            <div className="text-[12px] font-mono uppercase tracking-[0.18em] text-accent-coral mb-1">render error</div>
-            <div className="text-[13px] text-ink font-mono break-all">{job.error}</div>
-            <div className="text-[12px] text-ink-muted mt-1.5">
-              可直接編輯 deck 後按「🔄 重試 render」重跑, 不會重新做 ingest。
-            </div>
+          <div className="border-l-2 border-accent-coral pl-3 py-1 bg-paper-warm flex items-center gap-2 text-[11.5px]">
+            <span className="font-mono uppercase tracking-[0.18em] text-accent-coral shrink-0">err</span>
+            <span className="text-ink font-mono break-all truncate">{job.error}</span>
+            <span className="text-ink-muted shrink-0 ml-auto">可直接按「🔄 重試」</span>
           </div>
         )}
 
         {showStaleArtifactWarning && (
-          <div className="border-l-2 border-chalk-yellowDark pl-4 py-2 bg-chalk-yellow/15">
-            <div className="text-[12px] font-mono uppercase tracking-[0.18em] text-forest-700 mb-1">deck 已改, mp4 仍是舊版</div>
-            <div className="text-[12px] text-ink">
-              修改不會自動重 render。先按 💾 Save 存 deck, 然後到下方對應章節點「🎬 重 render 本章」。
-            </div>
+          <div className="border-l-2 border-chalk-yellowDark pl-3 py-1 bg-chalk-yellow/15 text-[11.5px] text-ink">
+            ⚠ deck 已改, mp4 仍是舊版。先 💾 Save, 再到下方對應章節「🎬 重 render 本章」。
           </div>
         )}
 
         {!canEdit && (
-          <div className="bg-paper-warm border border-paper-line rounded-sm p-3 text-[12.5px] text-ink-muted">
-            目前 state=<code className="font-mono text-ink">{job.state}</code>, 為唯讀模式。
-            僅 <code className="font-mono text-ink">awaiting_review</code> / <code className="font-mono text-ink">failed</code> / <code className="font-mono text-ink">done</code> 可儲存 / 重新 render。
+          <div className="bg-paper-warm border border-paper-line rounded-sm px-2.5 py-1 text-[11.5px] text-ink-muted">
+            state=<code className="font-mono text-ink">{job.state}</code> · 唯讀模式
           </div>
         )}
 
-        {/* Artifacts (only done & has mp4) */}
+        {/* Artifacts — 改成一個 details, 預設摺疊, 不再吃掉版面 */}
         {job.state === 'done' && mp4s.length > 0 && (
-          <div className="space-y-2">
-            {finalMp4 && (() => {
-              const yt = job.youtube_uploads?.[finalMp4.name];
-              return (
-                <div className="border border-forest-500 bg-forest-100 rounded-sm p-3.5 flex items-center gap-3 flex-wrap">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-forest-700">🎬 完整影片</div>
-                  <span className="font-mono text-[12.5px]">{finalMp4.name}</span>
-                  <span className="text-[11px] text-ink-muted font-mono">{(finalMp4.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
-                  <a href={api.artifactUrl(job.id, finalMp4.name)} className="btn btn-primary !text-[12px] !h-7">▶ 預覽完整影片</a>
+          <details className="border border-paper-line rounded-sm bg-paper-card" open>
+            <summary className="cursor-pointer px-3 py-1.5 flex items-center gap-2 text-[12px] select-none">
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted shrink-0">artifacts</span>
+              {finalMp4 && (
+                <>
+                  <span className="font-mono">🎬 {finalMp4.name}</span>
+                  <span className="text-[10.5px] text-ink-muted font-mono">{(finalMp4.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                  <a
+                    href={api.artifactUrl(job.id, finalMp4.name)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-forest-600 underline decoration-dotted"
+                  >▶ 預覽</a>
                   <Link
                     to={`/jobs/${job.id}/publish/${encodeURIComponent(finalMp4.name)}`}
-                    className={'btn !text-[12px] !h-7 ' + (yt?.state === 'done' ? 'btn-ghost !text-forest-700' : 'btn-secondary')}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-forest-600 underline decoration-dotted"
                   >
-                    📺 {yt?.state === 'done' ? '已上傳 (查看)'
-                      : yt?.state === 'uploading' ? `上傳中 ${yt.progress_percent}%`
-                      : yt?.state === 'failed' ? '上傳失敗 (重試)'
-                      : '上傳到 YouTube'}
+                    📺 {(() => {
+                      const yt = job.youtube_uploads?.[finalMp4.name];
+                      return yt?.state === 'done' ? '已上傳'
+                        : yt?.state === 'uploading' ? `${yt.progress_percent}%`
+                        : yt?.state === 'failed' ? '上傳失敗'
+                        : '上傳 YT';
+                    })()}
                   </Link>
-                  {yt?.url && (
-                    <a href={yt.url} target="_blank" rel="noreferrer" className="text-[11px] text-forest-600 underline decoration-dotted break-all">{yt.url}</a>
-                  )}
-                </div>
-              );
-            })()}
-
+                </>
+              )}
+              {sectionMp4s.length > 0 && (
+                <span className="text-[10.5px] text-ink-muted ml-auto shrink-0">+{sectionMp4s.length} 章獨立 ▾</span>
+              )}
+            </summary>
             {sectionMp4s.length > 0 && (
-              <details className="border border-paper-line bg-paper-card rounded-sm">
-                <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] text-forest-700 select-none flex items-center gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">artifacts</span>
-                  <span>{finalMp4 ? '📦 各章獨立影片' : '📦 Artifacts'} · {sectionMp4s.length}</span>
-                  {finalMp4 && <span className="text-[11px] text-ink-muted font-normal">重 render 單章 / 分段播放用</span>}
-                </summary>
-                <div className="px-3.5 pb-3.5 pt-1 space-y-2">
-                  {sectionMp4s.map((a) => {
-                    const yt = job.youtube_uploads?.[a.name];
-                    return (
-                      <div key={a.name} className="flex items-center gap-2 text-[12.5px] flex-wrap border-t border-paper-line pt-2 first:border-t-0 first:pt-0">
-                        <span className="font-mono">{a.name}</span>
-                        <span className="text-[11px] text-ink-muted font-mono">{(a.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
-                        <a href={api.artifactUrl(job.id, a.name)} className="text-forest-600 underline decoration-dotted">▶ 預覽</a>
-                        <Link
-                          to={`/jobs/${job.id}/publish/${encodeURIComponent(a.name)}`}
-                          className={'btn btn-ghost !text-[11px] !h-6 ' + (yt?.state === 'done' ? '!text-forest-700' : '')}
-                        >
-                          📺 {yt?.state === 'done' ? '已上傳 (查看)'
-                            : yt?.state === 'uploading' ? `上傳中 ${yt.progress_percent}%`
-                            : yt?.state === 'failed' ? '上傳失敗 (重試)'
-                            : '上傳到 YouTube'}
-                        </Link>
-                        {yt?.url && (
-                          <a href={yt.url} target="_blank" rel="noreferrer" className="text-[11px] text-ink-muted underline break-all">{yt.url}</a>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </details>
+              <div className="px-3 pb-2 pt-0.5 space-y-1">
+                {sectionMp4s.map((a) => {
+                  const yt = job.youtube_uploads?.[a.name];
+                  return (
+                    <div key={a.name} className="flex items-center gap-2 text-[11.5px] flex-wrap border-t border-paper-line pt-1.5">
+                      <span className="font-mono">{a.name}</span>
+                      <span className="text-[10.5px] text-ink-muted font-mono">{(a.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                      <a href={api.artifactUrl(job.id, a.name)} className="text-forest-600 underline decoration-dotted">▶</a>
+                      <Link
+                        to={`/jobs/${job.id}/publish/${encodeURIComponent(a.name)}`}
+                        className={'underline decoration-dotted ' + (yt?.state === 'done' ? 'text-forest-700' : 'text-forest-600')}
+                      >
+                        📺 {yt?.state === 'done' ? '已上傳'
+                          : yt?.state === 'uploading' ? `${yt.progress_percent}%`
+                          : yt?.state === 'failed' ? '失敗'
+                          : '上傳'}
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
             )}
-          </div>
+          </details>
         )}
       </div>
 
@@ -447,7 +432,7 @@ interface ThreePaneProps {
   updateSlide: (sectionIdx: number, slideIdx: number, next: Slide) => void;
   updateSectionTitle: (sectionIdx: number, title: string) => void;
   onRenderSection: (sectionId: string, sectionLabel: string) => void;
-  jobId?: string;   // iter 54: 透傳給 SlideEditor 讓它 fetch figures
+  jobId?: string;   // iter 54: 透傳給 SlideEditor 讓 figure picker 拉 list
 }
 
 function DeckThreePane({

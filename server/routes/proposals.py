@@ -101,6 +101,7 @@ class ProposalApproveRequest(BaseModel):
     hardsub: bool | None = None
     prepend_intro: bool | None = None     # iter 41: 串個人 intro 開場
     length_mode: Literal["quick", "lecture"] | None = None   # iter 43: 影片長度模式
+    ai_generate_diagrams: bool | None = None     # iter 56: AI 生圖 (Gemini Flash Image)
 
 
 class ScanFolderRequest(BaseModel):
@@ -236,6 +237,8 @@ async def approve_proposal(
             opts_kwargs["prepend_intro"] = body.prepend_intro
         if body.length_mode is not None:
             opts_kwargs["length_mode"] = body.length_mode
+        if body.ai_generate_diagrams is not None:
+            opts_kwargs["ai_generate_diagrams"] = body.ai_generate_diagrams
 
     req = CreateJobRequest(
         source_type=source_type,

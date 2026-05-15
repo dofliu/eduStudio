@@ -114,6 +114,14 @@ class JobOptions(BaseModel):
                     "repo / document / url 三類; exam_pdf / slides_pdf 由 PDF "
                     "題數或頁數決定影片數, 不適用.",
     )
+    ai_generate_diagrams: bool = Field(
+        default=False,
+        description="iter 56: 對每 section 跑 Gemini 2.5 Flash Image 產一張 AI "
+                    "架構圖, 寫進 figures/ai_<section_id>.png 給 scriptor 配圖. "
+                    "成本考量預設 False — 用戶 opt-in. 只影響 document / repo / "
+                    "url (走 scriptor figure-aware 流程). 失敗的 section 跳過, "
+                    "不擋 ingest.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

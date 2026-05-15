@@ -140,6 +140,11 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         outline = await asyncio.to_thread(
             outline_repo, raw, length_mode=length_mode,
         )
+        # iter 56: AI 生圖 (opt-in via options.ai_generate_diagrams)
+        # outline 完之後 / scriptor 前跑, 把 ai_<section_id>.png 塞進 raw.figures,
+        # scriptor 就能跟 PDF figures 一起選 (repo 沒 PDF figures, 全是 AI 圖)
+        if rec.options.ai_generate_diagrams:
+            await _generate_ai_diagrams_for_outline(outline, raw, job_dir)
         deck = await asyncio.to_thread(
             script_repo, outline, raw, length_mode=length_mode,
         )
@@ -153,6 +158,34 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         encoding="utf-8",
     )
     return deck
+
+
+async def _generate_ai_diagrams_for_outline(
+    outline: dict, raw: dict, job_dir: Path,
+) -> None:
+    """iter 56: AI 生圖共用 helper, repo + document/url 兩條 ingest 都呼叫.
+
+    回 None — 直接 in-place 改 raw["figures"] (append AI 圖 metadata).
+    失敗只 logger, 不 raise (AI 圖是 bonus 不該擋 ingest).
+    """
+    from core.diagram_image_gen import generate_diagrams_for_outline
+
+    figures_dir = job_dir / "figures"
+    try:
+        ai_figs = await asyncio.to_thread(
+            generate_diagrams_for_outline, outline, figures_dir,
+        )
+        if ai_figs:
+            existing = raw.get("figures") or []
+            raw["figures"] = existing + ai_figs
+            logger.info("AI 生圖完成: %d 張", len(ai_figs))
+            # 更新 raw_content.json 寫回, 讓 scriptor 看得到
+            (job_dir / "raw_content.json").write_text(
+                json.dumps(raw, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+    except Exception as e:
+        logger.exception("AI 生圖失敗 (不擋 ingest): %s", e)
 
 
 async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path, mock: bool) -> dict:
@@ -205,6 +238,10 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
         outline = await asyncio.to_thread(
             outline_long_form, raw, length_mode=length_mode,
         )
+        # iter 56: AI 生圖 (opt-in). 跟 PDF figures 並存 — caller 可以兩種都
+        # 開, scriptor 看 figures list 自行挑.
+        if rec.options.ai_generate_diagrams:
+            await _generate_ai_diagrams_for_outline(outline, raw, job_dir)
         deck = await asyncio.to_thread(
             script_long_form, outline, raw, length_mode=length_mode,
         )

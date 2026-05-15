@@ -53,6 +53,8 @@ export function CreateJobForm({ onCreated }: Props) {
   const [prependIntro, setPrependIntro] = useState(false);
   // iter 43: 影片長度模式 — 只對 repo / document / url 有意義
   const [lengthMode, setLengthMode] = useState<'quick' | 'lecture'>('quick');
+  // iter 56: AI 生圖, 只對 document / repo / url 有意義
+  const [aiGenerateDiagrams, setAiGenerateDiagrams] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -81,6 +83,8 @@ export function CreateJobForm({ onCreated }: Props) {
     prepend_intro: prependIntro,
     ...(showTheme ? { theme } : {}),    // 不適用就不送, 後端用預設
     ...(showLengthMode ? { length_mode: lengthMode } : {}),
+    // iter 56: AI 生圖 (Gemini Flash Image) — opt-in, 跟 length_mode 同條件
+    ...(showLengthMode ? { ai_generate_diagrams: aiGenerateDiagrams } : {}),
   });
 
   const submit = async () => {
@@ -317,6 +321,17 @@ export function CreateJobForm({ onCreated }: Props) {
           />
           串個人 intro (~8 秒開場接到主影片前)
         </label>
+        {/* iter 56: AI 生圖 (Gemini Flash Image) — 只對 document/repo/url 顯示 */}
+        {showLengthMode && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={aiGenerateDiagrams}
+              onChange={(e) => setAiGenerateDiagrams(e.target.checked)}
+            />
+            🎨 AI 生架構圖 (每章 1 張, Gemini Flash Image, 會計費)
+          </label>
+        )}
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
             type="checkbox"

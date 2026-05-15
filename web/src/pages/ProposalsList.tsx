@@ -1,56 +1,41 @@
-// v4 階段 2 B iter 14: 自動企劃 (Proposals) 列表頁
-//
-// ideate.py 跑出來的 proposals.json → UI 卡片 → 用戶按「核准」就建 job 進 review,
-// 按「忽略」就 mark IGNORED 不再提案。設計見 docs/ideate-design.md。
-//
-// 不繞 require_review=True (P0 #4 學術誠信): approve 走跟 /upload 一樣的
-// store.create + schedule_job, exam_pdf 還是會進 awaiting_review。
+// ProposalsList — UI redesign 套用後的版本
+// 邏輯完全保留: 所有 state (themeByProposal / prependIntroByProposal / lengthModeByProposal /
+//                          scanModal / scanFolder / scanType / scanWindowDays / scanMaxPerFile /
+//                          scanStatus / pollTimerRef)、所有 handler (load / handleApprove /
+//                          handleIgnore / handleScan / pollScanStatus)、polling effect 全部沿用
+// 只改 return 的 JSX 與 className
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useToast } from '../components/Toast';
+import { Btn, Topbar, SourceBadge, Field, Input, Select, Meter, VideoThumb } from '../components/ui';
+import { SOURCE_META } from '../components/ui/SourceBadge';
 import type { Proposal, ScanStatusResponse, SourceType } from '../types';
 
-
-const SOURCE_TYPE_LABEL: Record<SourceType, string> = {
-  exam_pdf: '考卷',
-  slides_pdf: '簡報',
-  repo: 'Repo',
-  document: '文件',
-  url: '網頁',
-};
-
-// iter 40: theme 只對走 PptxStyleRenderer 的 source 適用, 跟 CreateJobForm 同一份規則.
-// iter 44: 加 10 套 dof-* — v1 沉穩 / v2 衝擊兩家族
+// iter 40: theme 只對走 PptxStyleRenderer 的 source 適用
 const THEME_APPLICABLE: SourceType[] = ['repo', 'document', 'url'];
 type ThemeName =
   | 'forest' | 'navy' | 'frieren' | 'naruto' | 'journal'
   | 'dof-editorial' | 'dof-podium' | 'dof-notebook' | 'dof-shinobi' | 'dof-elven'
   | 'dof-zine' | 'dof-arcade' | 'dof-risograph' | 'dof-supergraphic' | 'dof-brutalist';
-const THEME_OPTIONS: { value: ThemeName; label: string }[] = [
-  // 課程教學
-  { value: 'forest', label: '🌲 Forest — 深綠 (程式教學)' },
-  { value: 'navy', label: '🌐 Navy — 深藍 (AI / 工程)' },
-  // 期刊
-  { value: 'journal', label: '📜 Journal — 米白墨綠 (期刊)' },
-  // 漫畫
-  { value: 'frieren', label: '❄ Frieren — 藏青銀紫 (芙莉蓮)' },
-  { value: 'naruto', label: '🔥 Naruto — 焦糖橘 (火影)' },
-  // v1 沉穩家族
-  { value: 'dof-editorial', label: '📰 Editorial — 雜誌風 (對外演講)' },
-  { value: 'dof-podium', label: '🎙 Podium — TED 感 (Conference)' },
-  { value: 'dof-notebook', label: '📒 Notebook — 札記 (讀書會)' },
-  { value: 'dof-shinobi', label: '🥷 Shinobi — 忍者熱血 (Hackathon)' },
-  { value: 'dof-elven', label: '🔮 Elven — 魔法幻境 (哲學)' },
-  // v2 衝擊家族
-  { value: 'dof-zine', label: '📣 Zine — 雜誌海報 (年度回顧)' },
-  { value: 'dof-arcade', label: '🕹 Arcade — 街機霓虹 (Tech demo)' },
-  { value: 'dof-risograph', label: '🎨 Risograph — 油墨疊印 (工作坊)' },
-  { value: 'dof-supergraphic', label: '🟥 Supergraphic — 大色塊 (品牌)' },
-  { value: 'dof-brutalist', label: '⚠ Brutalist — 野獸派 (批判)' },
+const THEME_OPTIONS: { value: ThemeName; label: string; sub: string }[] = [
+  { value: 'forest',           label: 'Forest',     sub: '深綠 · 程式教學' },
+  { value: 'navy',             label: 'Navy',       sub: '深藍 · AI / 工程' },
+  { value: 'journal',          label: 'Journal',    sub: '米白 · 期刊' },
+  { value: 'frieren',          label: 'Frieren',    sub: '藏青 · 芙莉蓮' },
+  { value: 'naruto',           label: 'Naruto',     sub: '焦糖 · 火影' },
+  { value: 'dof-editorial',    label: 'Editorial',  sub: '雜誌 · 演講' },
+  { value: 'dof-podium',       label: 'Podium',     sub: 'TED · 講壇' },
+  { value: 'dof-notebook',     label: 'Notebook',   sub: '札記 · 讀書會' },
+  { value: 'dof-shinobi',      label: 'Shinobi',    sub: '忍者 · 熱血' },
+  { value: 'dof-elven',        label: 'Elven',      sub: '幻境 · 哲學' },
+  { value: 'dof-zine',         label: 'Zine',       sub: '海報 · 宣言' },
+  { value: 'dof-arcade',       label: 'Arcade',     sub: '霓虹 · Demo' },
+  { value: 'dof-risograph',    label: 'Risograph',  sub: '油墨 · 工作坊' },
+  { value: 'dof-supergraphic', label: 'Super-G',    sub: '色塊 · 品牌' },
+  { value: 'dof-brutalist',    label: 'Brutalist',  sub: '野獸派 · 批判' },
 ];
-
 
 export default function ProposalsList() {
   const { show } = useToast();
@@ -59,20 +44,19 @@ export default function ProposalsList() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  // iter 40: 各卡片獨立的 theme 選擇 (key = proposal_id). 不存進 proposals.json,
-  // 只活在這次 UI render — 核准後就送出去, 沒核准就丟. 預設 forest.
+  const [openCfg, setOpenCfg] = useState<string | null>(null);
+  // 各卡片獨立狀態 (沿用原 code 的命名)
   const [themeByProposal, setThemeByProposal] = useState<Record<string, ThemeName>>({});
-  // iter 41: per-card intro 串接旗標 (預設 off). 同樣只活當前 UI render.
   const [prependIntroByProposal, setPrependIntroByProposal] = useState<Record<string, boolean>>({});
-  // iter 43: per-card length_mode (quick / lecture), 只對 document / repo / url 適用
   const [lengthModeByProposal, setLengthModeByProposal] = useState<Record<string, 'quick' | 'lecture'>>({});
-  // iter 27: ad-hoc modal 取代 yaml — 用戶填 path 直接掃
+  // iter 56: AI 生圖 opt-in per-card
+  const [aiGenByProposal, setAiGenByProposal] = useState<Record<string, boolean>>({});
+  // scan modal state
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
   const [scanType, setScanType] = useState<'auto' | 'exam_pdf' | 'slides_pdf' | 'document'>('auto');
   const [scanWindowDays, setScanWindowDays] = useState(30);
   const [scanMaxPerFile, setScanMaxPerFile] = useState(3);
-  // iter 34: async polling — modal 跑 scan 時顯示即時進度
   const [scanStatus, setScanStatus] = useState<ScanStatusResponse | null>(null);
   const pollTimerRef = useRef<number | null>(null);
 
@@ -95,22 +79,23 @@ export default function ProposalsList() {
   const handleApprove = async (p: Proposal) => {
     setBusyId(p.id);
     try {
-      // theme 只對 document / repo / url 有效, 其他 source_type 不送 (後端走預設)
       const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
       const theme = themeApplicable ? (themeByProposal[p.id] ?? 'forest') : undefined;
       const prependIntro = prependIntroByProposal[p.id] ?? false;
       const lengthMode = themeApplicable ? lengthModeByProposal[p.id] : undefined;
-      // 任一旗標有設就送 body, 都沒設就空 body 走後端預設
-      const body: { theme?: string; prepend_intro?: boolean; length_mode?: string } = {};
+      const aiGen = themeApplicable ? (aiGenByProposal[p.id] ?? false) : false;
+      const body: {
+        theme?: string;
+        prepend_intro?: boolean;
+        length_mode?: string;
+        ai_generate_diagrams?: boolean;
+      } = {};
       if (theme) body.theme = theme;
       if (prependIntro) body.prepend_intro = true;
       if (lengthMode && lengthMode !== 'quick') body.length_mode = lengthMode;
-      const r = await api.approveProposal(
-        p.id,
-        Object.keys(body).length > 0 ? body : undefined,
-      );
+      if (aiGen) body.ai_generate_diagrams = true;
+      const r = await api.approveProposal(p.id, Object.keys(body).length > 0 ? body : undefined);
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
-      // 直接跳到 JobEditor 進 review
       navigate(`/jobs/${r.job.job_id}`);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
@@ -120,56 +105,41 @@ export default function ProposalsList() {
     }
   };
 
-  const openScanModal = () => {
-    setScanModal(true);
-  };
-
-  // iter 34: poll scan status 直到 done/failed
-  const pollScanStatus = useCallback(
-    (scanId: string) => {
-      // 清舊 timer (防多次按)
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-      }
-      pollTimerRef.current = window.setInterval(async () => {
-        try {
-          const status = await api.getScanStatus(scanId);
-          setScanStatus(status);
-          if (status.state === 'done' || status.state === 'failed') {
-            // 停止 polling
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-            }
-            setScanning(false);
-            if (status.state === 'done') {
-              show(`掃描完成: 候選 ${status.scanned} / 新提案 ${status.new}`, 'info');
-              setScanModal(false);
-              await load();
-            } else {
-              show(`掃描失敗: ${status.error ?? '未知錯誤'}`, 'error');
-            }
-          }
-        } catch (e) {
-          const msg = e instanceof ApiError ? e.message : String(e);
-          show(`查詢狀態失敗: ${msg}`, 'error');
+  const pollScanStatus = useCallback((scanId: string) => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    pollTimerRef.current = window.setInterval(async () => {
+      try {
+        const status = await api.getScanStatus(scanId);
+        setScanStatus(status);
+        if (status.state === 'done' || status.state === 'failed') {
           if (pollTimerRef.current) {
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
           }
           setScanning(false);
+          if (status.state === 'done') {
+            show(`掃描完成: 候選 ${status.scanned} / 新提案 ${status.new}`, 'info');
+            setScanModal(false);
+            await load();
+          } else {
+            show(`掃描失敗: ${status.error ?? '未知錯誤'}`, 'error');
+          }
         }
-      }, 3000); // 3 秒 poll 一次
-    },
-    [load, show],
-  );
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : String(e);
+        show(`查詢狀態失敗: ${msg}`, 'error');
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        setScanning(false);
+      }
+    }, 3000);
+  }, [load, show]);
 
-  // 元件卸載時清 timer (避免 memory leak / setState on unmounted)
   useEffect(() => {
     return () => {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-      }
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, []);
 
@@ -183,7 +153,6 @@ export default function ProposalsList() {
     setScanning(true);
     setScanStatus(null);
     try {
-      // iter 34: 走 async 路徑, 立刻拿 scan_id 後 poll status
       const r = await api.scanFolderAsync({
         folder,
         source_type: scanType,
@@ -199,14 +168,11 @@ export default function ProposalsList() {
   };
 
   const handleIgnore = async (p: Proposal) => {
-    if (!confirm(`確定要忽略「${p.suggested_title}」?之後 ideate 不會再提這份檔。`)) {
-      return;
-    }
+    if (!confirm(`確定要忽略「${p.suggested_title}」?之後 ideate 不會再提這份檔。`)) return;
     setBusyId(p.id);
     try {
       await api.ignoreProposal(p.id);
       show('已忽略', 'info');
-      // 從清單移除
       setProposals(prev => prev.filter(x => x.id !== p.id));
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
@@ -216,270 +182,394 @@ export default function ProposalsList() {
     }
   };
 
-  if (loading) {
-    return <div className="text-center py-10 text-ink-muted">Loading proposals…</div>;
-  }
+  return (
+    <div className="flex flex-col h-screen">
+      <Topbar
+        eyebrow="02 · Proposals"
+        title="自動企劃"
+        subtitle="Gemini Vision 掃過你資料夾裡的新檔案,挑出值得拍的題材排好排程。你的工作只剩下 yes / no。"
+        right={
+          <>
+            <Btn kind="ghost" size="md" onClick={load}>↻ 重新載入</Btn>
+            <Btn kind="secondary" size="md" onClick={() => setScanModal(true)}>⌕ 掃資料夾</Btn>
+          </>
+        }
+      />
 
-  // 共用的「掃資料夾」按鈕 — 空清單跟有資料時都用
-  const scanButton = (
-    <button
-      onClick={openScanModal}
-      disabled={scanning}
-      className="btn btn-primary text-sm"
-      title="掃指定資料夾, 跑 Gemini Vision 自動提案 (可能等 10+ 分)"
-    >
-      {scanning ? '⏳ 掃描中…' : '📂 掃資料夾產提案'}
-    </button>
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div className="px-10 py-7 max-w-[1200px]">
+          <div className="grid grid-cols-3 gap-3 mb-7">
+            <ProposalStat n={proposals.length} l="待決策" tone="forest" />
+            <ProposalStat n="—" l="近 7 天新檔" />
+            <ProposalStat n="—" l="本月已核准" />
+          </div>
+
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="font-display text-[26px] text-forest-700">
+              待決策 · <span className="text-ink-muted">{proposals.length} 件</span>
+            </h2>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-10 text-ink-muted">Loading proposals…</div>
+          ) : proposals.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-paper-edge rounded-sm">
+              <div className="text-ink-muted mb-4">沒有 pending 的企劃。</div>
+              <Btn kind="secondary" size="md" onClick={() => setScanModal(true)}>⌕ 掃資料夾產提案</Btn>
+              <div className="text-[11px] text-ink-faint mt-3">Gemini Vision 會自動判斷每份 PDF 類型並提案影片</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {proposals.map(p => (
+                <ProposalCard
+                  key={p.id}
+                  p={p}
+                  open={openCfg === p.id}
+                  busy={busyId === p.id}
+                  themeValue={themeByProposal[p.id] ?? 'forest'}
+                  lengthValue={lengthModeByProposal[p.id] ?? 'quick'}
+                  introValue={prependIntroByProposal[p.id] ?? false}
+                  aiGenValue={aiGenByProposal[p.id] ?? false}
+                  onToggle={() => setOpenCfg(openCfg === p.id ? null : p.id)}
+                  onApprove={() => handleApprove(p)}
+                  onIgnore={() => handleIgnore(p)}
+                  onThemeChange={(v) => setThemeByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onLengthChange={(v) => setLengthModeByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onIntroChange={(v) => setPrependIntroByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onAiGenChange={(v) => setAiGenByProposal(prev => ({ ...prev, [p.id]: v }))}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {scanModal && (
+        <ScanModal
+          folder={scanFolder} onFolderChange={setScanFolder}
+          type={scanType} onTypeChange={setScanType}
+          windowDays={scanWindowDays} onWindowDaysChange={setScanWindowDays}
+          maxPerFile={scanMaxPerFile} onMaxPerFileChange={setScanMaxPerFile}
+          scanning={scanning}
+          status={scanStatus}
+          onClose={() => !scanning && setScanModal(false)}
+          onScan={handleScan}
+        />
+      )}
+    </div>
   );
+}
 
-  // iter 27: ad-hoc 掃描設定 modal — 點上面按鈕跳出, 填 path 後跑
-  const scanModalEl = scanModal && (
-    <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-      onClick={() => !scanning && setScanModal(false)}
-    >
-      <div
-        className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-semibold mb-3">📂 掃資料夾產提案</h2>
-        <div className="space-y-3 text-sm">
-          <div>
-            <label className="block text-xs font-medium mb-1">
-              資料夾路徑 (server 本機絕對路徑)
-            </label>
-            <input
-              type="text"
-              value={scanFolder}
-              onChange={(e) => setScanFolder(e.target.value)}
-              placeholder="D:/Teaching/Materials/材料力學"
-              className="w-full px-3 py-1.5 border rounded text-sm font-mono"
-              disabled={scanning}
-              autoFocus
-            />
+// ── Sub-components (all presentational) ────────────────────────────────────
+
+function ProposalStat({ n, l, tone }: { n: number | string; l: string; tone?: 'forest' }) {
+  return (
+    <div className={'border rounded-sm px-4 py-3 ' + (tone === 'forest' ? 'bg-forest-600 text-chalk-yellow border-forest-700' : 'bg-paper-card border-paper-line')}>
+      <div className={'font-display text-[40px] leading-none ' + (tone === 'forest' ? 'text-chalk-yellow' : 'text-forest-700')}>{n}</div>
+      <div className={'mt-1 text-[11px] font-mono uppercase tracking-[0.16em] ' + (tone === 'forest' ? 'text-chalk-white/70' : 'text-ink-muted')}>{l}</div>
+    </div>
+  );
+}
+
+interface CardProps {
+  p: Proposal;
+  open: boolean;
+  busy: boolean;
+  themeValue: ThemeName;
+  lengthValue: 'quick' | 'lecture';
+  introValue: boolean;
+  aiGenValue: boolean;   // iter 56: AI 生圖 opt-in
+  onToggle: () => void;
+  onApprove: () => void;
+  onIgnore: () => void;
+  onThemeChange: (v: ThemeName) => void;
+  onLengthChange: (v: 'quick' | 'lecture') => void;
+  onIntroChange: (v: boolean) => void;
+  onAiGenChange: (v: boolean) => void;
+}
+
+function ProposalCard({
+  p, open, busy, themeValue, lengthValue, introValue, aiGenValue,
+  onToggle, onApprove, onIgnore,
+  onThemeChange, onLengthChange, onIntroChange, onAiGenChange,
+}: CardProps) {
+  const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
+
+  return (
+    <article className={'border rounded-sm bg-paper-card transition-all ' + (open ? 'border-forest-500 shadow-lift' : 'border-paper-line shadow-card')}>
+      <div className="px-5 py-4 flex items-start gap-5">
+        <div className="w-[140px] shrink-0">
+          <VideoThumb title={p.suggested_title} theme={themeApplicable ? themeValue : null} duration={`~${p.estimated_duration_min} 分`} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <SourceBadge type={p.source_type} />
+            <span className="text-[11px] text-ink-muted">
+              預估 <span className="font-mono num text-forest-700 font-medium">{p.estimated_duration_min}</span> 分
+            </span>
+            <span className="ml-auto font-mono text-[10px] text-ink-faint">{p.id}</span>
           </div>
+          <h3 className="font-display text-[22px] leading-[1.15] text-forest-700">{p.suggested_title}</h3>
+          <div className="font-mono text-[11px] text-ink-muted mt-1 break-all">{p.source_file}</div>
+          <p className="text-[13px] text-ink mt-2.5 leading-relaxed max-w-2xl">{p.reason}</p>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1">類型判斷</label>
-              <select
-                value={scanType}
-                onChange={(e) => setScanType(e.target.value as typeof scanType)}
-                className="w-full px-2 py-1.5 border rounded text-sm"
-                disabled={scanning}
-              >
-                <option value="auto">auto (推薦, AI 自動判)</option>
-                <option value="exam_pdf">exam_pdf (考題)</option>
-                <option value="slides_pdf">slides_pdf (簡報)</option>
-                <option value="document">document (文件)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1">天數 (近 N 天)</label>
-              <input
-                type="number"
-                min={1}
-                max={3650}
-                value={scanWindowDays}
-                onChange={(e) => setScanWindowDays(Number(e.target.value) || 30)}
-                className="w-full px-2 py-1.5 border rounded text-sm"
-                disabled={scanning}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium mb-1">每份 PDF 最多幾個提案</label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={scanMaxPerFile}
-              onChange={(e) => setScanMaxPerFile(Number(e.target.value) || 3)}
-              className="w-full px-2 py-1.5 border rounded text-sm"
-              disabled={scanning}
-            />
-          </div>
-
-          {/* iter 34: 掃描中即時進度 */}
-          {scanning && scanStatus && (
-            <div className="mt-3 p-3 bg-stone-50 border border-border rounded">
-              <div className="text-xs font-medium mb-2 text-ink-muted">即時進度</div>
-              <div className="grid grid-cols-3 gap-2 text-center text-sm mb-2">
-                <div>
-                  <div className="text-lg font-semibold">{scanStatus.scanned}</div>
-                  <div className="text-xs text-ink-muted">候選</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold">{scanStatus.proposed}</div>
-                  <div className="text-xs text-ink-muted">產出提案</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold">{scanStatus.new}</div>
-                  <div className="text-xs text-ink-muted">新 (dedupe 後)</div>
-                </div>
-              </div>
-              {scanStatus.message && (
-                <div className="text-xs text-ink-muted font-mono truncate">
-                  {scanStatus.message}
-                </div>
-              )}
+          {p.suggested_chapters.length > 0 && (
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted shrink-0">建議章節</span>
+              {p.suggested_chapters.map((c, i) => (
+                <span key={i} className="text-[11.5px] text-ink-muted border border-paper-edge bg-paper rounded-sm px-2 py-0.5">
+                  <span className="font-mono num text-ink-faint mr-1.5">{String(i + 1).padStart(2, '0')}</span>{c}
+                </span>
+              ))}
             </div>
           )}
         </div>
 
-        <div className="mt-5 flex gap-2 justify-end">
-          <button
-            onClick={() => setScanModal(false)}
-            disabled={scanning}
-            className="btn btn-ghost text-sm"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleScan}
-            disabled={scanning || !scanFolder.trim()}
-            className="btn btn-primary text-sm"
-          >
-            {scanning ? '⏳ 掃描中… (~10 分)' : '開始掃'}
-          </button>
+        <div className="shrink-0 flex flex-col gap-2 w-[140px]">
+          <Btn kind="primary" size="md" className="!w-full !justify-center" onClick={onApprove} disabled={busy}>
+            {busy ? '處理中…' : '✓ 核准'}
+          </Btn>
+          <Btn kind="ghost" size="md" className="!w-full !justify-center" onClick={onToggle} disabled={busy}>
+            {open ? '收合 ↑' : '⚙ 進階'}
+          </Btn>
+          <Btn kind="quiet" size="md" className="!w-full !justify-center" onClick={onIgnore} disabled={busy}>✗ 忽略</Btn>
         </div>
       </div>
-    </div>
-  );
 
-  if (proposals.length === 0) {
-    return (
-      <>
-        <div className="text-center py-10">
-          <div className="text-ink-muted mb-4">沒有 pending 的企劃。</div>
-          <div className="mb-4">{scanButton}</div>
-          <div className="text-xs text-ink-muted">
-            點上面按鈕填入要掃的資料夾, Gemini Vision 會自動判斷每份 PDF 類型並提案影片。
+      {open && (
+        <div className="px-5 pb-5 pt-3 border-t border-paper-line bg-paper">
+          <div className="grid grid-cols-3 gap-5">
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted mb-2">
+                pptx 主題 {!themeApplicable && <span className="text-ink-faint">(此類型不適用)</span>}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 max-h-[260px] overflow-y-auto scrollbar-thin pr-1">
+                {THEME_OPTIONS.map(o => {
+                  const sel = themeValue === o.value && themeApplicable;
+                  return (
+                    <button
+                      key={o.value}
+                      onClick={() => themeApplicable && onThemeChange(o.value)}
+                      disabled={!themeApplicable || busy}
+                      className={
+                        'text-left p-2 rounded-sm border text-[11.5px] transition-colors ' +
+                        (sel
+                          ? 'border-forest-600 bg-forest-600 text-chalk-white'
+                          : 'border-paper-edge bg-paper-card hover:bg-paper-warm disabled:opacity-40')
+                      }
+                    >
+                      <div className={sel ? 'font-medium' : 'font-medium text-ink'}>{o.label}</div>
+                      <div className={'text-[10px] mt-0.5 ' + (sel ? 'text-chalk-white/70' : 'text-ink-muted')}>{o.sub}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted mb-2">長度模式</div>
+              {themeApplicable ? (
+                <div className="space-y-1.5">
+                  {[
+                    ['quick',   '⚡ 快速', '8~15 分鐘 · 摘要重點'],
+                    ['lecture', '📚 授課', '60~180 分鐘 · 完整講解'],
+                  ].map(([v, l, d]) => {
+                    const sel = lengthValue === v;
+                    return (
+                      <button
+                        key={v}
+                        onClick={() => onLengthChange(v as 'quick' | 'lecture')}
+                        disabled={busy}
+                        className={
+                          'w-full text-left p-2.5 rounded-sm border transition-colors ' +
+                          (sel
+                            ? 'border-forest-600 bg-forest-600 text-chalk-white'
+                            : 'border-paper-edge bg-paper-card hover:bg-paper-warm')
+                        }
+                      >
+                        <div className={'text-[12.5px] font-medium ' + (sel ? '' : 'text-ink')}>{l}</div>
+                        <div className={'text-[11px] mt-0.5 ' + (sel ? 'text-chalk-white/70' : 'text-ink-muted')}>{d}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-[11.5px] text-ink-muted">考卷 / 簡報類型由內容決定長度,不適用此選項。</div>
+              )}
+
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted mb-2 mt-5">附加</div>
+              <label className="flex items-center gap-2 p-2.5 rounded-sm border border-paper-edge bg-paper-card cursor-pointer hover:bg-paper-warm mb-2">
+                <input
+                  type="checkbox"
+                  checked={introValue}
+                  onChange={(e) => onIntroChange(e.target.checked)}
+                  disabled={busy}
+                  className="w-3.5 h-3.5 accent-forest-600"
+                />
+                <div className="flex-1">
+                  <div className="text-[12.5px] text-ink">串個人 intro 開場</div>
+                  <div className="text-[11px] text-ink-muted">~8 秒接到主影片前</div>
+                </div>
+              </label>
+              {/* iter 56: AI 生圖 (Gemini Flash Image) — 只對適用 source_type 顯示 */}
+              {themeApplicable && (
+                <label className="flex items-center gap-2 p-2.5 rounded-sm border border-paper-edge bg-paper-card cursor-pointer hover:bg-paper-warm">
+                  <input
+                    type="checkbox"
+                    checked={aiGenValue}
+                    onChange={(e) => onAiGenChange(e.target.checked)}
+                    disabled={busy}
+                    className="w-3.5 h-3.5 accent-forest-600"
+                  />
+                  <div className="flex-1">
+                    <div className="text-[12.5px] text-ink">🎨 AI 生架構圖</div>
+                    <div className="text-[11px] text-ink-muted">每章 1 張, Gemini Flash Image, 會計費</div>
+                  </div>
+                </label>
+              )}
+            </div>
+
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted mb-2">最終配置</div>
+              <div className="rounded-sm border border-paper-edge bg-paper-card p-3 text-[12px] space-y-1.5">
+                <Row k="來源" v={SOURCE_META[p.source_type].label} />
+                <Row k="主題" v={themeApplicable ? themeValue : '— (固定底圖)'} />
+                <Row k="長度" v={themeApplicable ? (lengthValue === 'quick' ? '快速' : '授課') : '—'} />
+                <Row k="Intro" v={introValue ? '串接' : '不串'} />
+                {themeApplicable && (
+                  <Row k="AI 生圖" v={aiGenValue ? '啟用' : '關閉'} />
+                )}
+                <div className="flex justify-between border-t border-paper-line pt-1.5 mt-1.5">
+                  <span className="text-ink-muted">預估</span>
+                  <span className="font-mono num font-medium text-forest-700">{p.estimated_duration_min} 分</span>
+                </div>
+              </div>
+              <Btn kind="primary" size="md" className="!w-full !justify-center mt-3" onClick={onApprove} disabled={busy}>
+                {busy ? '處理中…' : '✓ 用此配置核准'}
+              </Btn>
+              <div className="text-[10.5px] text-ink-muted mt-2 text-center">核准後直接跳到 Edit 進 review</div>
+            </div>
           </div>
         </div>
-        {scanModalEl}
-      </>
-    );
-  }
+      )}
+    </article>
+  );
+}
 
+function Row({ k, v }: { k: string; v: string }) {
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">📋 自動企劃 (待決策 {proposals.length} 件)</h1>
-        <div className="flex gap-2">
-          {scanButton}
-          <button onClick={load} className="btn btn-ghost text-sm">↻ 重新載入</button>
+    <div className="flex justify-between gap-2">
+      <span className="text-ink-muted shrink-0">{k}</span>
+      <span className="font-medium text-right truncate">{v}</span>
+    </div>
+  );
+}
+
+// ── Scan modal ─────────────────────────────────────────────────────────────
+
+interface ScanModalProps {
+  folder: string;
+  onFolderChange: (v: string) => void;
+  type: 'auto' | 'exam_pdf' | 'slides_pdf' | 'document';
+  onTypeChange: (v: 'auto' | 'exam_pdf' | 'slides_pdf' | 'document') => void;
+  windowDays: number;
+  onWindowDaysChange: (v: number) => void;
+  maxPerFile: number;
+  onMaxPerFileChange: (v: number) => void;
+  scanning: boolean;
+  status: ScanStatusResponse | null;
+  onClose: () => void;
+  onScan: () => void;
+}
+
+function ScanModal(props: ScanModalProps) {
+  const {
+    folder, onFolderChange, type, onTypeChange,
+    windowDays, onWindowDaysChange, maxPerFile, onMaxPerFileChange,
+    scanning, status, onClose, onScan,
+  } = props;
+  return (
+    <div className="fixed inset-0 z-40 bg-forest-900/40 backdrop-blur-[2px] flex items-center justify-center p-6" onClick={onClose}>
+      <div className="bg-paper-card w-full max-w-xl border border-paper-line rounded-sm shadow-lift overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-7 pt-7 pb-5 border-b border-paper-line">
+          <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-ink-muted mb-2">scan · gemini vision</div>
+          <h3 className="font-display text-[26px] text-forest-700 leading-tight">掃資料夾產提案</h3>
+          <p className="text-[13px] text-ink-muted mt-1">指一個本機資料夾,AI 會逐檔判斷類型並建議拍攝題材,大約 5~10 分鐘。</p>
+        </div>
+
+        <div className="p-7 space-y-5">
+          <Field label="資料夾路徑" hint="server 本機絕對路徑">
+            <Input
+              value={folder}
+              onChange={(e) => onFolderChange(e.target.value)}
+              placeholder="D:/Teaching/Materials/材料力學"
+              className="font-mono"
+              disabled={scanning}
+              autoFocus
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="類型判斷">
+              <Select value={type} onChange={(e) => onTypeChange(e.target.value as ScanModalProps['type'])} disabled={scanning}>
+                <option value="auto">auto · AI 自動判 (推薦)</option>
+                <option value="exam_pdf">exam_pdf · 考題</option>
+                <option value="slides_pdf">slides_pdf · 簡報</option>
+                <option value="document">document · 文件</option>
+              </Select>
+            </Field>
+            <Field label="掃描天數">
+              <Input
+                type="number"
+                value={windowDays}
+                onChange={(e) => onWindowDaysChange(Number(e.target.value) || 30)}
+                className="font-mono"
+                disabled={scanning}
+              />
+            </Field>
+          </div>
+          <Field label="每份 PDF 最多幾個提案">
+            <Input
+              type="number"
+              value={maxPerFile}
+              onChange={(e) => onMaxPerFileChange(Number(e.target.value) || 3)}
+              className="font-mono"
+              disabled={scanning}
+            />
+          </Field>
+
+          {scanning && status && (
+            <div className="rounded-sm border border-paper-line bg-paper p-4">
+              <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-ink-muted mb-3">即時進度</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="font-display text-[26px] text-forest-700 num">{status.scanned}</div>
+                  <div className="text-[10px] text-ink-muted font-mono uppercase tracking-[0.16em]">候選</div>
+                </div>
+                <div>
+                  <div className="font-display text-[26px] text-forest-700 num">{status.proposed}</div>
+                  <div className="text-[10px] text-ink-muted font-mono uppercase tracking-[0.16em]">提案</div>
+                </div>
+                <div>
+                  <div className="font-display text-[26px] text-forest-700 num">{status.new}</div>
+                  <div className="text-[10px] text-ink-muted font-mono uppercase tracking-[0.16em]">新增</div>
+                </div>
+              </div>
+              {status.message && (
+                <div className="mt-3 font-mono text-[11px] text-ink-muted truncate">→ {status.message}</div>
+              )}
+              <div className="mt-2"><Meter value={0.5} /></div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-7 py-5 border-t border-paper-line bg-paper flex items-center justify-end gap-2">
+          <Btn kind="ghost" size="md" onClick={onClose} disabled={scanning}>取消</Btn>
+          <Btn kind="primary" size="md" onClick={onScan} disabled={scanning || !folder.trim()}>
+            {scanning ? '⏱ 掃描中…' : '⌕ 開始掃'}
+          </Btn>
         </div>
       </div>
-      {scanModalEl}
-
-      <ul className="space-y-3">
-        {proposals.map(p => (
-          <li
-            key={p.id}
-            className="bg-white border border-border rounded-md p-4 hover:shadow-sm"
-          >
-            <div className="flex items-start gap-3 mb-2">
-              <span className="px-2 py-0.5 bg-stone-100 rounded text-xs text-ink-muted shrink-0">
-                {SOURCE_TYPE_LABEL[p.source_type] ?? p.source_type}
-              </span>
-              <h2 className="text-base font-medium flex-1">{p.suggested_title}</h2>
-              <span className="text-xs text-ink-muted shrink-0">
-                ~{p.estimated_duration_min} 分
-              </span>
-            </div>
-
-            <div className="text-xs text-ink-muted mb-2 font-mono break-all">
-              {p.source_file}
-            </div>
-
-            <p className="text-sm text-ink mb-3">{p.reason}</p>
-
-            {p.suggested_chapters.length > 0 && (
-              <div className="mb-3 text-xs text-ink-muted">
-                <span className="font-medium">建議章節:</span>{' '}
-                {p.suggested_chapters.join(' / ')}
-              </div>
-            )}
-
-            {/* iter 40: theme 選擇 — 只對 document / repo / url 顯示
-                (走 PptxStyleRenderer 的 source 才吃色票; 考卷 / 簡報用固定黑板 / 投影片底圖) */}
-            {THEME_APPLICABLE.includes(p.source_type) && (
-              <div className="mb-3 flex items-center gap-2 text-xs flex-wrap">
-                <label className="text-ink-muted">pptx 主題:</label>
-                <select
-                  className="border border-border rounded px-2 py-1 bg-white text-xs"
-                  value={themeByProposal[p.id] ?? 'forest'}
-                  onChange={(e) =>
-                    setThemeByProposal(prev => ({
-                      ...prev,
-                      [p.id]: e.target.value as ThemeName,
-                    }))
-                  }
-                  disabled={busyId === p.id}
-                >
-                  {THEME_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                {/* iter 43: 影片長度模式, 跟 theme 共用顯示條件 */}
-                <label className="text-ink-muted ml-2">長度:</label>
-                <select
-                  className="border border-border rounded px-2 py-1 bg-white text-xs"
-                  value={lengthModeByProposal[p.id] ?? 'quick'}
-                  onChange={(e) =>
-                    setLengthModeByProposal(prev => ({
-                      ...prev,
-                      [p.id]: e.target.value as 'quick' | 'lecture',
-                    }))
-                  }
-                  disabled={busyId === p.id}
-                >
-                  <option value="quick">⚡ 快速 8~15 分</option>
-                  <option value="lecture">📚 授課 60~180 分</option>
-                </select>
-              </div>
-            )}
-
-            {/* iter 41: 串個人 intro 開場 — 所有 source_type 都可用 */}
-            <div className="mb-3 flex items-center gap-1.5 text-xs">
-              <input
-                type="checkbox"
-                id={`intro-${p.id}`}
-                checked={prependIntroByProposal[p.id] ?? false}
-                onChange={(e) =>
-                  setPrependIntroByProposal(prev => ({
-                    ...prev,
-                    [p.id]: e.target.checked,
-                  }))
-                }
-                disabled={busyId === p.id}
-              />
-              <label htmlFor={`intro-${p.id}`} className="text-ink-muted cursor-pointer">
-                串個人 intro 開場 (~8 秒接到主影片前)
-              </label>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleApprove(p)}
-                disabled={busyId === p.id}
-                className="btn btn-primary text-sm"
-              >
-                {busyId === p.id ? '處理中…' : '✓ 核准 (建 job + review)'}
-              </button>
-              <button
-                onClick={() => handleIgnore(p)}
-                disabled={busyId === p.id}
-                className="btn btn-ghost text-sm"
-              >
-                ✗ 忽略
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

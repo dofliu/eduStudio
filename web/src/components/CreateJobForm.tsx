@@ -55,6 +55,8 @@ export function CreateJobForm({ onCreated }: Props) {
   const [lengthMode, setLengthMode] = useState<'quick' | 'lecture'>('quick');
   // iter 56: AI 生圖, 只對 document / repo / url 有意義
   const [aiGenerateDiagrams, setAiGenerateDiagrams] = useState(false);
+  // iter 57b: AI 生 mermaid syntax (cheap text gen)
+  const [aiGenerateMermaid, setAiGenerateMermaid] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -85,6 +87,8 @@ export function CreateJobForm({ onCreated }: Props) {
     ...(showLengthMode ? { length_mode: lengthMode } : {}),
     // iter 56: AI 生圖 (Gemini Flash Image) — opt-in, 跟 length_mode 同條件
     ...(showLengthMode ? { ai_generate_diagrams: aiGenerateDiagrams } : {}),
+    // iter 57b: AI 生 mermaid syntax (Gemini text → mermaid.ink)
+    ...(showLengthMode ? { ai_generate_mermaid: aiGenerateMermaid } : {}),
   });
 
   const submit = async () => {
@@ -330,6 +334,17 @@ export function CreateJobForm({ onCreated }: Props) {
               onChange={(e) => setAiGenerateDiagrams(e.target.checked)}
             />
             🎨 AI 生架構圖 (每章 1 張, Gemini Flash Image, 會計費)
+          </label>
+        )}
+        {/* iter 57b: AI 生 mermaid syntax — text gen 便宜很多 */}
+        {showLengthMode && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={aiGenerateMermaid}
+              onChange={(e) => setAiGenerateMermaid(e.target.checked)}
+            />
+            📐 AI 生 Mermaid 流程圖 (每章 1 張, text gen 較便宜)
           </label>
         )}
         <label className="flex items-center gap-1.5 cursor-pointer">

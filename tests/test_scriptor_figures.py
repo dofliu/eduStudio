@@ -241,3 +241,34 @@ class TestAttachAiDiagramsToFirstSlide:
         assert sections[1]["slides"][0]["image_path"] is None
         # results 第一張已有圖 (PDF), 不該被覆寫
         assert sections[2]["slides"][0]["image_path"] == "fig_p5_1"
+
+    def test_mermaid_prefix_also_attached(self):
+        """iter 57b: mermaid_<sec_id> 也該被自動 attach."""
+        sections = [
+            {"id": "intro", "slides": [{"image_path": None}]},
+            {"id": "method", "slides": [{"image_path": None}]},
+        ]
+        # 只有 mermaid 圖 (沒 AI image)
+        _attach_ai_diagrams_to_first_slide(
+            sections, {"mermaid_intro", "mermaid_method"},
+        )
+        assert sections[0]["slides"][0]["image_path"] == "mermaid_intro"
+        assert sections[1]["slides"][0]["image_path"] == "mermaid_method"
+
+    def test_ai_prefix_priority_over_mermaid(self):
+        """iter 57b: 同 section 兩種圖都有時, ai_ 優先 (image gen 通常更漂亮)."""
+        sections = [{"id": "intro", "slides": [{"image_path": None}]}]
+        # ai_intro 跟 mermaid_intro 都生成了
+        _attach_ai_diagrams_to_first_slide(
+            sections, {"ai_intro", "mermaid_intro"},
+        )
+        # 應該配 ai_intro (優先)
+        assert sections[0]["slides"][0]["image_path"] == "ai_intro"
+
+    def test_falls_back_to_mermaid_when_no_ai(self):
+        """ai_<sec> 沒有但 mermaid_<sec> 有, 該配 mermaid."""
+        sections = [{"id": "intro", "slides": [{"image_path": None}]}]
+        _attach_ai_diagrams_to_first_slide(
+            sections, {"mermaid_intro"},   # 只有 mermaid
+        )
+        assert sections[0]["slides"][0]["image_path"] == "mermaid_intro"

@@ -122,6 +122,15 @@ class JobOptions(BaseModel):
                     "url (走 scriptor figure-aware 流程). 失敗的 section 跳過, "
                     "不擋 ingest.",
     )
+    ai_generate_mermaid: bool = Field(
+        default=False,
+        description="iter 57b: Gemini 2.5 Flash text 生 mermaid syntax → 透過 "
+                    "mermaid.ink 渲染成 PNG. 比 ai_generate_diagrams 便宜 (text "
+                    "比 image gen 一個 OoM), 但風格只有流程圖一種. 適合 repo / "
+                    "document. 寫進 figures/mermaid_<section_id>.png. 失敗 skip, "
+                    "不擋 ingest. 兩個 opt-in 都開時, scriptor 自動配圖優先 ai_*, "
+                    "用戶可在 UI 手動換.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

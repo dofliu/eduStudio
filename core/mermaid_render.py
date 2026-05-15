@@ -167,6 +167,162 @@ def extract_and_render_mermaid_from_text(
     return figures
 
 
+# ---------- iter 57b: AI 生 mermaid syntax (沒既有 mermaid 時用) ----------
+
+# Gemini text model — gemini-2.5-flash, text gen 比 image gen 便宜很多
+MERMAID_GEN_MODEL = "gemini-2.5-flash"
+
+# 系統 prompt for mermaid 生成 — 強調 syntax 純淨度跟 簡潔
+_MERMAID_GEN_PROMPT_TEMPLATE = """你是一位資深技術插畫師, 擅長把概念轉成 Mermaid 流程圖.
+
+請針對以下章節主題, 產出一份 mermaid syntax 圖. 內容要忠於章節描述, 不要編造.
+
+==== 章節資訊 ====
+章節: {title}
+意圖: {intent}
+關鍵詞: {topics}
+所屬內容: {deck_title}
+
+==== Mermaid 設計原則 ====
+1. 用 `graph TD` (上→下) 或 `graph LR` (左→右) 流程圖. 不用 sequenceDiagram / classDiagram 等複雜圖
+2. **節點數 4~8 個** (不要太空也不要太密)
+3. **節點 label 純英文, 限 3 詞內**. 中文字會渲染不出來
+4. 用簡單形狀 — 矩形 [Label], 菱形 {{Label}} (decision), 圓角 (Label)
+5. arrows 用 `-->` 或 `-->|condition|` 標條件
+6. 不要 emoji, 不要 LaTeX, 不要花俏 style
+7. **直接輸出 mermaid syntax, 不要 ```mermaid 包裹, 不要任何解釋文字**
+
+==== 範例 (參考結構) ====
+graph TD
+  A[Input Data] --> B[Preprocess]
+  B --> C{{Has Pattern?}}
+  C -->|Yes| D[Extract Feature]
+  C -->|No| E[Skip]
+  D --> F[Output]
+  E --> F
+
+現在請針對上方章節輸出一份類似結構的 mermaid syntax:"""
+
+
+def generate_mermaid_syntax_for_section(
+    section: dict, deck_title: str = "", *,
+    api_key: str | None = None,
+) -> str | None:
+    """單一 section → 一份 mermaid syntax 字串.
+
+    回 None 表示失敗 (沒 API key / Gemini call 拋例外 / 輸出空字串).
+    Caller (generate_mermaid_for_outline) 拿 syntax 後丟 mermaid.ink 渲染.
+
+    為什麼跟 image gen 分開:
+    - text gen 便宜很多 (Flash text 比 Flash image 一個 OoM)
+    - mermaid 結構穩定可預測 (LLM 不會「畫」歪)
+    - 但風格只有一種 (普通流程圖), 沒 image gen 的視覺多樣性
+    """
+    import os
+    api_key = api_key or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return None
+
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        return None
+
+    title = (section.get("title") or "").strip()
+    intent = (section.get("intent") or "").strip()
+    topics = section.get("topics") or []
+    if not title:
+        return None
+
+    prompt = _MERMAID_GEN_PROMPT_TEMPLATE.format(
+        title=title,
+        intent=intent or "(no specific intent)",
+        topics=", ".join(t for t in topics if t) or "(no topics)",
+        deck_title=deck_title or "(unknown)",
+    )
+
+    try:
+        client = genai.Client(api_key=api_key)
+        resp = client.models.generate_content(
+            model=MERMAID_GEN_MODEL,
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                temperature=0.3,         # 保守, 別亂發明
+                max_output_tokens=1024,  # mermaid syntax 不會太長
+            ),
+        )
+    except Exception as e:
+        logger.warning("Gemini text gen mermaid 失敗: %s", e)
+        return None
+
+    raw = (resp.text or "").strip()
+    # 防 LLM 還是包了 ```mermaid``` fence, 抓出 syntax 主體
+    if raw.startswith("```"):
+        m = re.search(r"```(?:mermaid)?\s*\n(.*?)\n```", raw, re.DOTALL)
+        if m:
+            raw = m.group(1).strip()
+        else:
+            raw = raw.strip("`").strip()
+
+    return raw if raw else None
+
+
+def generate_mermaid_for_outline(
+    outline: dict, figures_dir: Path, *,
+    api_key: str | None = None,
+    max_per_outline: int = 8,
+) -> list[dict]:
+    """整 outline 各 section 跑一份 mermaid syntax + 渲染成 PNG.
+
+    Pipeline: Gemini text → mermaid syntax → mermaid.ink → PNG → figure dict.
+    跟 generate_diagrams_for_outline (image gen) schema 一致, scriptor 自動配圖.
+
+    參數:
+        outline: outliner 輸出 (含 sections)
+        figures_dir: 圖存放目錄
+        max_per_outline: 上限 (預設 8, 防 lecture 多章燒到爆)
+
+    回 figure dict list, id = "mermaid_<section_id>".
+    Section 失敗 (生 syntax 失敗 / 渲染失敗) skip, 不擋其他 sections.
+    """
+    sections = outline.get("sections", [])[:max_per_outline]
+    deck_title = outline.get("deck_title", "")
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    out: list[dict] = []
+
+    for sec in sections:
+        sec_id = sec.get("id") or "unknown"
+        safe_id = "".join(c for c in sec_id if c.isalnum() or c == "_")[:40]
+        if not safe_id:
+            continue
+
+        syntax = generate_mermaid_syntax_for_section(
+            sec, deck_title=deck_title, api_key=api_key,
+        )
+        if not syntax:
+            logger.warning("Mermaid syntax 生成跳過: %s", sec_id)
+            continue
+
+        fname = f"mermaid_{safe_id}.png"
+        fpath = figures_dir / fname
+        ok = render_mermaid_to_png(syntax, fpath)
+        if not ok:
+            logger.warning("Mermaid render 失敗: %s", sec_id)
+            continue
+
+        out.append({
+            "id": f"mermaid_{safe_id}",
+            "page_no": 0,
+            "path": fname,
+            "width": 0,
+            "height": 0,
+            "caption_hint": (sec.get("title") or "")[:120],
+        })
+
+    return out
+
+
 def extract_and_render_mermaid_from_repo(
     raw_content: dict, figures_dir: Path, *, max_per_repo: int = 30,
 ) -> list[dict]:

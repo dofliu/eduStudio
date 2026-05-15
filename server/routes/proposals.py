@@ -102,6 +102,7 @@ class ProposalApproveRequest(BaseModel):
     prepend_intro: bool | None = None     # iter 41: 串個人 intro 開場
     length_mode: Literal["quick", "lecture"] | None = None   # iter 43: 影片長度模式
     ai_generate_diagrams: bool | None = None     # iter 56: AI 生圖 (Gemini Flash Image)
+    ai_generate_mermaid: bool | None = None       # iter 57b: AI 生 mermaid syntax
 
 
 class ScanFolderRequest(BaseModel):
@@ -239,6 +240,8 @@ async def approve_proposal(
             opts_kwargs["length_mode"] = body.length_mode
         if body.ai_generate_diagrams is not None:
             opts_kwargs["ai_generate_diagrams"] = body.ai_generate_diagrams
+        if body.ai_generate_mermaid is not None:
+            opts_kwargs["ai_generate_mermaid"] = body.ai_generate_mermaid
 
     req = CreateJobRequest(
         source_type=source_type,

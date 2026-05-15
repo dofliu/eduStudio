@@ -160,6 +160,9 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         # scriptor 就能跟 PDF figures 一起選 (repo 沒 PDF figures, 全是 AI 圖)
         if rec.options.ai_generate_diagrams:
             await _generate_ai_diagrams_for_outline(outline, raw, job_dir)
+        # iter 57b: AI 生 mermaid (opt-in, 跟 ai_generate_diagrams 並存)
+        if rec.options.ai_generate_mermaid:
+            await _generate_mermaid_for_outline(outline, raw, job_dir)
         deck = await asyncio.to_thread(
             script_repo, outline, raw, length_mode=length_mode,
         )
@@ -201,6 +204,35 @@ async def _generate_ai_diagrams_for_outline(
             )
     except Exception as e:
         logger.exception("AI 生圖失敗 (不擋 ingest): %s", e)
+
+
+async def _generate_mermaid_for_outline(
+    outline: dict, raw: dict, job_dir: Path,
+) -> None:
+    """iter 57b: AI 生 mermaid syntax → mermaid.ink 渲染. 跟 AI 圖共用 figure 介面.
+
+    Gemini text gen 一份 mermaid syntax / section → mermaid.ink HTTP → PNG.
+    比 AI image gen 便宜 (text token vs image generation).
+
+    回 None — in-place 改 raw["figures"]. 失敗 logger 不擋.
+    """
+    from core.mermaid_render import generate_mermaid_for_outline
+
+    figures_dir = job_dir / "figures"
+    try:
+        mermaid_figs = await asyncio.to_thread(
+            generate_mermaid_for_outline, outline, figures_dir,
+        )
+        if mermaid_figs:
+            existing = raw.get("figures") or []
+            raw["figures"] = existing + mermaid_figs
+            logger.info("AI mermaid 生圖完成: %d 張", len(mermaid_figs))
+            (job_dir / "raw_content.json").write_text(
+                json.dumps(raw, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+    except Exception as e:
+        logger.exception("AI mermaid 生圖失敗 (不擋 ingest): %s", e)
 
 
 async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path, mock: bool) -> dict:
@@ -273,6 +305,9 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
         # 開, scriptor 看 figures list 自行挑.
         if rec.options.ai_generate_diagrams:
             await _generate_ai_diagrams_for_outline(outline, raw, job_dir)
+        # iter 57b: AI 生 mermaid (opt-in, 跟 image gen 並存)
+        if rec.options.ai_generate_mermaid:
+            await _generate_mermaid_for_outline(outline, raw, job_dir)
         deck = await asyncio.to_thread(
             script_long_form, outline, raw, length_mode=length_mode,
         )

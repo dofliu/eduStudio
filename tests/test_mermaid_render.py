@@ -14,6 +14,8 @@ from core.mermaid_render import (
     extract_and_render_mermaid_from_repo,
     extract_and_render_mermaid_from_text,
     extract_mermaid_blocks,
+    generate_mermaid_for_outline,
+    generate_mermaid_syntax_for_section,
     render_mermaid_to_png,
 )
 
@@ -291,3 +293,152 @@ class TestExtractAndRenderFromRepo:
         assert len(figs) == 1
         # id 不該含空白
         assert " " not in figs[0]["id"]
+
+
+# ---------- iter 57b: AI 生 mermaid ----------
+
+
+class TestGenerateMermaidSyntaxForSection:
+    def test_missing_api_key_returns_none(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        out = generate_mermaid_syntax_for_section(
+            {"title": "T"}, api_key=None,
+        )
+        assert out is None
+
+    def test_no_title_returns_none(self, monkeypatch):
+        """section 沒 title → 無法生 prompt, 回 None."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake")
+        out = generate_mermaid_syntax_for_section({})
+        assert out is None
+
+    def test_gemini_call_failure(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "fake")
+
+        class FakeClient:
+            class models:
+                @staticmethod
+                def generate_content(**kw):
+                    raise RuntimeError("rate limit")
+
+        fake_genai = MagicMock()
+        fake_genai.Client = lambda api_key: FakeClient()
+        monkeypatch.setattr("google.genai", fake_genai)
+        monkeypatch.setattr("google.genai.types", MagicMock())
+
+        out = generate_mermaid_syntax_for_section({"title": "T"})
+        assert out is None
+
+    def test_strips_code_fence_if_present(self, monkeypatch):
+        """LLM 偶爾包了 ```mermaid``` fence, 該被剝掉."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake")
+
+        fake_resp = MagicMock()
+        fake_resp.text = "```mermaid\ngraph TD\n  A --> B\n```"
+
+        class FakeClient:
+            class models:
+                @staticmethod
+                def generate_content(**kw):
+                    return fake_resp
+
+        fake_genai = MagicMock()
+        fake_genai.Client = lambda api_key: FakeClient()
+        monkeypatch.setattr("google.genai", fake_genai)
+        monkeypatch.setattr("google.genai.types", MagicMock())
+
+        out = generate_mermaid_syntax_for_section({"title": "T"})
+        assert out is not None
+        # fence 該被剝掉
+        assert "```" not in out
+        assert "graph TD" in out
+
+    def test_returns_raw_syntax_no_fence(self, monkeypatch):
+        """LLM 直接給 syntax (沒包 fence), 該原樣回."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake")
+
+        fake_resp = MagicMock()
+        fake_resp.text = "graph LR\n  X --> Y"
+
+        class FakeClient:
+            class models:
+                @staticmethod
+                def generate_content(**kw):
+                    return fake_resp
+
+        fake_genai = MagicMock()
+        fake_genai.Client = lambda api_key: FakeClient()
+        monkeypatch.setattr("google.genai", fake_genai)
+        monkeypatch.setattr("google.genai.types", MagicMock())
+
+        out = generate_mermaid_syntax_for_section({"title": "T"})
+        assert out == "graph LR\n  X --> Y"
+
+
+class TestGenerateMermaidForOutline:
+    def test_empty_outline_returns_empty(self, tmp_path):
+        assert generate_mermaid_for_outline({}, tmp_path) == []
+        assert generate_mermaid_for_outline({"sections": []}, tmp_path) == []
+
+    def test_failed_syntax_gen_skipped(self, tmp_path, monkeypatch):
+        outline = {"sections": [
+            {"id": "good", "title": "good"},
+            {"id": "bad", "title": "bad"},
+        ]}
+
+        # syntax gen: good 成功, bad 失敗 (None)
+        def fake_gen(sec, deck_title="", api_key=None):
+            return "graph TD\n  A --> B" if sec["id"] == "good" else None
+        monkeypatch.setattr(
+            "core.mermaid_render.generate_mermaid_syntax_for_section", fake_gen,
+        )
+        # render 全成功
+        monkeypatch.setattr(
+            "core.mermaid_render.render_mermaid_to_png",
+            lambda syntax, path, **kw: True,
+        )
+
+        out = generate_mermaid_for_outline(outline, tmp_path)
+        assert len(out) == 1
+        assert out[0]["id"] == "mermaid_good"
+
+    def test_failed_render_skipped(self, tmp_path, monkeypatch):
+        """syntax 生成成功但 render 失敗 → skip 該 section."""
+        outline = {"sections": [{"id": "s1", "title": "T"}]}
+        monkeypatch.setattr(
+            "core.mermaid_render.generate_mermaid_syntax_for_section",
+            lambda sec, deck_title="", api_key=None: "graph TD\n  A --> B",
+        )
+        monkeypatch.setattr(
+            "core.mermaid_render.render_mermaid_to_png",
+            lambda syntax, path, **kw: False,    # 渲染失敗
+        )
+        assert generate_mermaid_for_outline(outline, tmp_path) == []
+
+    def test_max_per_outline_respected(self, tmp_path, monkeypatch):
+        outline = {"sections": [{"id": f"s{i}", "title": "T"} for i in range(5)]}
+        monkeypatch.setattr(
+            "core.mermaid_render.generate_mermaid_syntax_for_section",
+            lambda sec, deck_title="", api_key=None: "graph TD\n  A --> B",
+        )
+        monkeypatch.setattr(
+            "core.mermaid_render.render_mermaid_to_png",
+            lambda syntax, path, **kw: True,
+        )
+        out = generate_mermaid_for_outline(outline, tmp_path, max_per_outline=3)
+        assert len(out) == 3
+
+    def test_id_uses_mermaid_prefix(self, tmp_path, monkeypatch):
+        """id 命名 mermaid_<sec_id> — 跟 _attach_ai_diagrams 對得上."""
+        outline = {"sections": [{"id": "intro", "title": "Intro"}]}
+        monkeypatch.setattr(
+            "core.mermaid_render.generate_mermaid_syntax_for_section",
+            lambda sec, deck_title="", api_key=None: "graph TD\n  A --> B",
+        )
+        monkeypatch.setattr(
+            "core.mermaid_render.render_mermaid_to_png",
+            lambda syntax, path, **kw: True,
+        )
+        out = generate_mermaid_for_outline(outline, tmp_path)
+        assert out[0]["id"] == "mermaid_intro"
+        assert out[0]["path"] == "mermaid_intro.png"

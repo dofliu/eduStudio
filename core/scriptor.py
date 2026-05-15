@@ -269,43 +269,59 @@ def _sanitize_slide_image_paths(section_dict: dict, valid_ids: set[str]) -> None
 def _attach_ai_diagrams_to_first_slide(
     sections_out: list[dict], figure_ids: set[str],
 ) -> None:
-    """iter 56d: AI 生圖 (id = ai_<section_id>) 自動配給對應 section 第一張 slide.
+    """iter 56d / 57b: section-name 綁定的 figures 自動配給對應 section 第一張 slide.
 
     為什麼要 post-process: scriptor prompt 寫「看 page X 決定圖屬於哪段」, 但
-    AI 圖 page_no=0 沒這資訊, Gemini 不敢挑. 結果 AI 圖生成了但沒進影片.
-    這函式繞過 LLM 判斷 — AI 圖命名上就跟 section 綁定, 直接 deterministic
-    配給該 section 第一張 slide.
+    AI 圖 / mermaid 圖 page_no=0 沒這資訊, Gemini 不敢挑. 這函式繞過 LLM
+    判斷 — 圖名命名上就跟 section 綁定, deterministic 配給該 section 第一張.
+
+    認的 prefix:
+    - ai_<section_id>    (iter 56: Gemini Flash Image 生)
+    - mermaid_<section_id>  (iter 57b: Gemini text → mermaid → mermaid.ink 渲染)
+
+    若兩種都存在 (兩個 opt-in 都開), 優先用 ai_ (image gen 圖通常更漂亮).
+    用戶想反過來可在 UI 手動換圖.
 
     規則:
-    - section.id == "intro" → ai_fig_id = "ai_intro"
-    - 此 figure 不在 figure_ids 內 (沒生成) → skip
-    - 該 section 已有 slide 用了該 AI 圖 (Gemini 自己挑了) → skip 不重複
-    - 第一張 slide 已有 image_path (Gemini 配了別張 / 用戶手動配了) → 不覆寫
-    - 其他情況 → 第一張 slide.image_path = ai_fig_id
+    - 此 figure 不在 figure_ids 內 (沒生成) → 跳該 prefix, 試下一個
+    - 該 section 已用該圖 → skip (避免重複)
+    - 第一張 slide 已有 image_path (其他圖配上去 / 用戶手動) → 不覆寫
 
     參數:
         sections_out: 已建好的 sections list (deck["sections"])
-        figure_ids: 所有有效 figure id 集合 (含 PDF + AI 生圖)
+        figure_ids: 所有有效 figure id 集合 (含 PDF + AI 生圖 + mermaid)
     """
+    # iter 57b: 優先順序 — AI 圖 > mermaid 圖
+    candidate_prefixes = ("ai_", "mermaid_")
     for sec in sections_out:
         sec_id = sec.get("id")
         if not sec_id:
             continue
-        ai_fig_id = f"ai_{sec_id}"
-        if ai_fig_id not in figure_ids:
-            continue
         slides = sec.get("slides") or []
         if not slides:
             continue
-        # 此 section 已用該 AI 圖 (Gemini 自己挑了 / 用戶手動配了) → 不動
-        used = {sl.get("image_path") for sl in slides if sl.get("image_path")}
-        if ai_fig_id in used:
-            continue
-        # 第一張已有別張圖 → 尊重既有選擇, 不覆寫
+
+        # 第一張已有別張圖 → 整個 section 跳 (尊重既有選擇)
         first_slide = slides[0]
         if first_slide.get("image_path"):
             continue
-        first_slide["image_path"] = ai_fig_id
+
+        # section 已用過的圖 (Gemini / 用戶 / 其他 helper 配的)
+        used_in_section = {
+            sl.get("image_path") for sl in slides if sl.get("image_path")
+        }
+
+        # 依優先順序試各 prefix
+        for prefix in candidate_prefixes:
+            fig_id = f"{prefix}{sec_id}"
+            if fig_id not in figure_ids:
+                continue
+            if fig_id in used_in_section:
+                # 該圖已被該 section 其他 slide 用了 → 不重複
+                # 但既然 first 是空的, 表示用戶設這張在後面, 那 first 留空合理
+                break
+            first_slide["image_path"] = fig_id
+            break
 
 
 def _dedupe_image_paths_across_deck(sections_out: list[dict]) -> None:

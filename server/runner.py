@@ -308,12 +308,18 @@ async def _run_render(
     section_mp4s: list[Path] = []
     section_srts: list[tuple[str, float]] = []  # (srt_text, segment_dur_seconds)
 
+    # iter 53: figure id ("fig_p3_1") → 絕對路徑, render 前一次轉好.
+    # figures 目錄是 jobs/<id>/figures/, 副檔名 .png / .jpeg 都可能 (依原圖).
+    figures_dir = store.job_dir(rec.id) / "figures"
+
     # 逐題渲染 → MP4 / SRT 從 OUTPUT_DIR 搬到 artifacts/
     for prob in problems:
         pid = prob["id"]
         v0 = problem_to_v0_json(deck["exam_title"], prob)
         v0["theme"] = theme
         v0["hardsub"] = hardsub
+        # iter 53: 把 step.image_path 從 id 換成絕對路徑 (檔案 missing 時 None)
+        _resolve_step_image_paths(v0.get("steps") or [], figures_dir)
         v0_path = artifacts_dir / f"{pid}.json"
         v0_path.write_text(
             json.dumps(v0, ensure_ascii=False, indent=2),
@@ -441,6 +447,39 @@ def _log_deck_duration_estimate(
         logger.warning("⚠ %s — 超出預算 %.0f%%", msg, (est["over_ratio"] - 1) * 100)
     else:
         logger.info(msg)
+
+
+def _resolve_step_image_paths(steps: list[dict], figures_dir: Path) -> None:
+    """iter 53: step.image_path 從 figure id 轉成絕對檔案路徑 (in-place).
+
+    deck.json 階段 image_path 是 id (例 "fig_p3_1"), renderer 要的是絕對路徑.
+    figures 副檔名可能是 .png 或 .jpeg (依 PDF 原圖), 用 glob 找實際檔.
+
+    找不到對應檔 → 設 None, 退回 text-only layout, 不擋 render.
+    """
+    if not figures_dir.exists():
+        # 沒 figures/ 目錄 (e.g. URL job, .md/.txt), 全部設 None
+        for step in steps:
+            step["image_path"] = None
+        return
+
+    for step in steps:
+        img_id = step.get("image_path")
+        if not isinstance(img_id, str) or not img_id:
+            step["image_path"] = None
+            continue
+        # 防 path traversal: id 只能是 ascii / 數字 / 底線 (fig_p3_1 格式)
+        # 不該有 / \ .. 等
+        if "/" in img_id or "\\" in img_id or ".." in img_id:
+            logger.warning("非法 image_path id 跳過: %r", img_id)
+            step["image_path"] = None
+            continue
+        matches = list(figures_dir.glob(f"{img_id}.*"))
+        if not matches:
+            logger.warning("找不到 figure 檔案 %s, slide 退回純文字 layout", img_id)
+            step["image_path"] = None
+            continue
+        step["image_path"] = str(matches[0].resolve())
 
 
 def _rewrite_deck_intros_inplace(

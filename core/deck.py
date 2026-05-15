@@ -150,6 +150,9 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
                 "display": _slide_to_display(slide),  # legacy
                 "narration": (slide.get("narration") or "").strip(),
                 "bg_type": "pptx_slide",
+                # iter 53: figure id (or None). 此時還是 deck.json 的 id
+                # (例如 "fig_p3_1"), runner 會在 render 前轉成絕對路徑.
+                "image_path": slide.get("image_path"),
             })
         if not steps:
             continue

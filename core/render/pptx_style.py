@@ -384,14 +384,21 @@ def _draw_title(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
 
 
 def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
-                  y_max: int, palette: Palette) -> int:
-    """畫 bullets 列表, 強調色 ▸ marker + 主色文字, 回傳結束 y。"""
+                  y_max: int, palette: Palette,
+                  max_text_width: int | None = None) -> int:
+    """畫 bullets 列表, 強調色 ▸ marker + 主色文字, 回傳結束 y。
+
+    iter 53: max_text_width 由 caller 指定窄寬 (例: split-image layout 時
+    bullets 佔左側 55% 寬). None 走原本全寬 (預設).
+    """
     if not bullets:
         return y_start
     font = _font(get_font_path(), BULLET_FONT_SIZE)
     line_h = BULLET_FONT_SIZE + 16
     indent = 60
-    text_max_w = VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
+    text_max_w = max_text_width if max_text_width is not None else (
+        VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
+    )
     marker_font = _font(get_font_path(), BULLET_FONT_SIZE + 6)
 
     y = y_start
@@ -474,6 +481,65 @@ def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
     return block_bottom + 16
 
 
+def _draw_image_panel(
+    img: Image.Image, image_path: str, y_top: int, y_bottom: int,
+    palette: Palette,
+) -> tuple[int, int]:
+    """iter 53: split-image-right layout — 把 figure 圖貼到主圖右側區塊.
+
+    切版策略:
+    - 影像區佔內容區右側 38% 寬, 留 SIDE_MARGIN 跟左側 bullets 隔開
+    - 圖按 letterbox 縮放 (保持原比例, 留白填 banner / bg 色)
+    - 細灰邊框 (跟 banner secondary 同色), 讓圖跟背景界線清楚
+
+    回傳 (panel_x_start, panel_w_used) 讓 bullets 知道避開哪段水平範圍.
+    失敗 (檔不存在 / 壞圖 / PIL 不認得) 就回 (None, 0) 由 caller fallback.
+    """
+    try:
+        from PIL import Image as _Image
+        from pathlib import Path
+
+        if not Path(image_path).exists():
+            return (None, 0)
+
+        # 影像區尺寸
+        gap = 40
+        # 從右邊算 38% 寬
+        panel_w = int((VIDEO_WIDTH - SIDE_MARGIN * 2) * 0.38)
+        panel_x = VIDEO_WIDTH - SIDE_MARGIN - panel_w
+        panel_y = y_top
+        panel_h = y_bottom - y_top
+        if panel_h < 100 or panel_w < 100:
+            return (None, 0)
+
+        # 載圖 + letterbox
+        with _Image.open(image_path) as fig:
+            fig = fig.convert("RGB") if fig.mode != "RGB" else fig
+            fw, fh = fig.size
+            # 縮放到 panel 內 (保留比例)
+            scale = min(panel_w / fw, panel_h / fh)
+            new_w = max(1, int(fw * scale))
+            new_h = max(1, int(fh * scale))
+            fig_resized = fig.resize((new_w, new_h), _Image.LANCZOS)
+
+        # 置中
+        paste_x = panel_x + (panel_w - new_w) // 2
+        paste_y = panel_y + (panel_h - new_h) // 2
+        img.paste(fig_resized, (paste_x, paste_y))
+
+        # 細邊框 (淡色, 不搶戲)
+        draw = ImageDraw.Draw(img)
+        draw.rectangle(
+            [paste_x - 2, paste_y - 2, paste_x + new_w + 1, paste_y + new_h + 1],
+            outline=palette["secondary"], width=2,
+        )
+        return (panel_x, panel_w + gap)
+    except Exception as e:
+        # 任一步失敗 (PIL 不認 / OOM / 損毀) → fallback, 不擋 render
+        print(f"[pptx_style] image panel failed for {image_path}: {e}")
+        return (None, 0)
+
+
 def _draw_subtitle_strip(draw: ImageDraw.ImageDraw) -> None:
     """底部 180px 黑帶, 給 SRT 字幕用 (與既有 renderer 一致, 不隨主題變)。"""
     draw.rectangle(
@@ -518,10 +584,19 @@ class PptxStyleRenderer:
         bullets = step.get("bullets") or []
         code = step.get("code_snippet") or ""
         file_path = step.get("file_path")
+        # iter 53: image_path 已被 runner 解析成絕對路徑 (或 None)
+        image_path = step.get("image_path")
 
         content_y_max = CONTENT_BOTTOM - 24
 
+        # iter 53: 三種 layout 分流
+        # 1. code + image 兩者: code 優先 (程式碼是主角, image 不容易並列)
+        # 2. 只有 image: split-image-right (bullets 左, 圖右)
+        # 3. 只有 code: 既有 code layout
+        # 4. 都沒有: 既有 text-only
+
         if code:
+            # 既有 code layout (image 即使有也忽略, 避免擠壓)
             estimated_code_h = min(
                 360,
                 max(120, len(code.splitlines()) * (CODE_FONT_SIZE + 8) + 80),
@@ -530,6 +605,22 @@ class PptxStyleRenderer:
             content_y = _draw_bullets(draw, bullets, content_y, bullets_y_max, palette)
             content_y = max(content_y, content_y_max - estimated_code_h)
             _draw_code_block(draw, img, code, file_path, content_y, content_y_max, palette)
+        elif image_path:
+            # split-image-right: 圖貼右側 38%, bullets 縮窄到左側
+            panel_x, _ = _draw_image_panel(
+                img, image_path, content_y, content_y_max, palette,
+            )
+            if panel_x is None:
+                # image panel 失敗 → fallback 純文字
+                _draw_bullets(draw, bullets, content_y, content_y_max, palette)
+            else:
+                # bullets 寬度 = 左側到 panel_x 之間 (扣 indent)
+                indent = 60
+                bullet_max_w = panel_x - SIDE_MARGIN - indent - 30  # 30px gap
+                _draw_bullets(
+                    draw, bullets, content_y, content_y_max, palette,
+                    max_text_width=bullet_max_w,
+                )
         else:
             _draw_bullets(draw, bullets, content_y, content_y_max, palette)
 

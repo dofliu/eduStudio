@@ -231,6 +231,37 @@ class TestDeckToExamSchemaPptx:
         exam = deck_to_exam_schema_pptx(deck)
         assert exam["problems"][0]["steps"][0]["bullets"] == ["有內容", "另一條"]
 
+    def test_image_path_passed_through_to_step(self):
+        """iter 53: deck_to_exam_schema_pptx 該把 slide.image_path 帶到 step."""
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [
+                    {"id": "s1_1", "title": "x", "bullets": ["a"],
+                     "narration": "n", "image_path": "fig_p3_1"},
+                    {"id": "s1_2", "title": "y", "bullets": ["b"],
+                     "narration": "n", "image_path": None},
+                ],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        steps = exam["problems"][0]["steps"]
+        assert steps[0]["image_path"] == "fig_p3_1"
+        assert steps[1]["image_path"] is None
+
+    def test_image_path_missing_defaults_to_none(self):
+        """slide 沒 image_path key → step 該補 None (不該 KeyError)."""
+        deck = {
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [{"id": "s1_1", "title": "x", "bullets": ["a"],
+                            "narration": "n"}],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        assert exam["problems"][0]["steps"][0]["image_path"] is None
+
 
 # ---------- deck_to_exam_schema_slides (PR-3h, 簡報原圖) ----------
 

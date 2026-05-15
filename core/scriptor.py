@@ -188,6 +188,10 @@ def script_long_form(
         _sanitize_slide_image_paths(section_dict, valid_figure_ids)
         sections_out.append(section_dict)
 
+    # iter 52b: 跨 section image_path 去重 — scriptor 一次只看一個 section,
+    # 無法擋同張圖在不同 section 被選兩次. 全部 section 跑完再過一遍.
+    _dedupe_image_paths_across_deck(sections_out)
+
     deck = {
         "deck_title": outline.get("deck_title", "未命名"),
         "source_type": kind,
@@ -231,8 +235,8 @@ def _sanitize_slide_image_paths(section_dict: dict, valid_ids: set[str]) -> None
     規則:
     - image_path 不是字串 / 不在 valid_ids → 設 None
     - 沒 image_path key 補上 None (deck schema 一致性)
-    - 同一 section 內同一張圖重複使用, 第二次以後設 None (跨 section 也應該不重用,
-      但 scriptor 一次只看一個 section 沒辦法擋, 留 deck-level normalize 或下個 iter)
+    - 同一 section 內同一張圖重複使用, 第二次以後設 None
+    - 跨 section 重複另由 _dedupe_image_paths_across_deck 處理 (iter 52b)
     """
     slides = section_dict.get("slides") or []
     used_in_section: set[str] = set()
@@ -245,6 +249,32 @@ def _sanitize_slide_image_paths(section_dict: dict, valid_ids: set[str]) -> None
             slide["image_path"] = None
             continue
         used_in_section.add(img)
+
+
+def _dedupe_image_paths_across_deck(sections_out: list[dict]) -> None:
+    """iter 52b: 跨 section 去 image_path 重複 — 同一張圖只能被一個 slide 用一次.
+
+    scriptor 一次 call 只看一 section 的 valid_ids, 無法看到別 section 已用什麼.
+    這個 helper 在所有 section build 完後跑, 保留第一次出現, 後面遇到同 id 清掉.
+
+    例: iter 52 用戶實測 deck 出現:
+      intro_4.image_path = "fig_p6_1"
+      method_results_1.image_path = "fig_p6_1"   ← 同張圖, 應該清掉這個
+      method_results_5.image_path = "fig_p18_2"
+      implications_future_2.image_path = "fig_p18_2"  ← 同張圖, 應該清掉這個
+
+    執行後 4 個 image_path 變 2 個 (留前者), 配 6 張圖最多 6 slides 帶圖.
+    """
+    used: set[str] = set()
+    for sec in sections_out:
+        for slide in sec.get("slides") or []:
+            img = slide.get("image_path")
+            if not img:
+                continue
+            if img in used:
+                slide["image_path"] = None
+            else:
+                used.add(img)
 
 
 # ---------- Internals ----------

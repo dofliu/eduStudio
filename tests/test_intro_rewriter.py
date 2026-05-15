@@ -109,6 +109,37 @@ class TestRewriteNarrationIntro:
         # 不該變成 "xxx,," 雙逗號
         assert ",," not in out
 
+    def test_kakuei_xueyuan_not_matched(self):
+        """iter 52b regression: 「各位學員大家好」開頭不該被「各位」匹配.
+
+        Gemini 寫「各位學員大家好！...」, 舊 regex 把「各位」當問候語匹配掉,
+        留下殘骸「學員,大家好！」, 拼成「今天聊聊,學員,大家好」很怪.
+        修法: regex 後加 lookahead 要求問候語是完整詞 (後面是標點 / 結尾).
+        """
+        original = "各位學員大家好!今天我們來看 SCADA"
+        out = rewrite_narration_intro(original, "general", "q1")
+        # 「各位」不該被消掉, 也不該被替換 — 整句保留原樣
+        assert out == original
+        # 完整保留 "各位學員大家好"
+        assert "各位學員大家好" in out
+        # 確認沒有變成「今天聊聊,學員大家好」這種殘骸
+        assert not out.startswith("今天聊聊,學員")
+        assert not out.startswith("各位好,學員")
+
+    def test_dajia_xxxxx_not_matched(self):
+        """同理: 「大家當中」開頭不該被「大家」匹配."""
+        original = "大家當中可能有人想問"
+        out = rewrite_narration_intro(original, "general", "q1")
+        assert out == original
+
+    def test_kakuei_with_comma_still_matched(self):
+        """「各位,...」(後面緊接標點) 該照舊匹配, 不該被 lookahead 修法影響."""
+        original = "各位,接下來看這個"
+        out = rewrite_narration_intro(original, "general", "q1")
+        # 應該還是會被替換 (有標點 = 完整問候語)
+        assert any(out.startswith(v) for v in GENERAL_VARIANTS)
+        assert "接下來看這個" in out
+
 
 class TestRewriteDeckIntros:
     """deck 級別: 走兩種 schema."""

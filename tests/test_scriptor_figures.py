@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from core.scriptor import (
+    _dedupe_image_paths_across_deck,
     _format_figures_for_prompt,
     _sanitize_slide_image_paths,
 )
@@ -101,3 +102,50 @@ class TestSanitizeSlideImagePaths:
         sec = {"slides": [{"id": "s1", "image_path": None}]}
         _sanitize_slide_image_paths(sec, {"fig_p3_1"})
         assert sec["slides"][0]["image_path"] is None
+
+
+class TestDedupeImagePathsAcrossDeck:
+    """iter 52b: 跨 section 去 image_path 重複."""
+
+    def test_dedupe_across_sections(self):
+        """實測重現: fig_p6_1 在 intro 跟 method_results 都被選 → 留第一個."""
+        sections = [
+            {"id": "intro", "slides": [
+                {"id": "s1", "image_path": None},
+                {"id": "s2", "image_path": "fig_p6_1"},
+            ]},
+            {"id": "method", "slides": [
+                {"id": "m1", "image_path": "fig_p6_1"},   # 重複, 該清掉
+                {"id": "m2", "image_path": "fig_p18_2"},
+            ]},
+            {"id": "impl", "slides": [
+                {"id": "i1", "image_path": "fig_p18_2"},   # 重複, 該清掉
+            ]},
+        ]
+        _dedupe_image_paths_across_deck(sections)
+        assert sections[0]["slides"][1]["image_path"] == "fig_p6_1"
+        assert sections[1]["slides"][0]["image_path"] is None      # dedup
+        assert sections[1]["slides"][1]["image_path"] == "fig_p18_2"
+        assert sections[2]["slides"][0]["image_path"] is None      # dedup
+
+    def test_unique_paths_unchanged(self):
+        sections = [
+            {"slides": [{"image_path": "fig_p3_1"}, {"image_path": "fig_p4_1"}]},
+            {"slides": [{"image_path": "fig_p5_1"}]},
+        ]
+        _dedupe_image_paths_across_deck(sections)
+        assert sections[0]["slides"][0]["image_path"] == "fig_p3_1"
+        assert sections[0]["slides"][1]["image_path"] == "fig_p4_1"
+        assert sections[1]["slides"][0]["image_path"] == "fig_p5_1"
+
+    def test_empty_deck_safe(self):
+        sections = []
+        _dedupe_image_paths_across_deck(sections)
+        assert sections == []
+
+    def test_all_null_unchanged(self):
+        sections = [
+            {"slides": [{"image_path": None}, {"image_path": None}]},
+        ]
+        _dedupe_image_paths_across_deck(sections)
+        assert all(s["image_path"] is None for s in sections[0]["slides"])

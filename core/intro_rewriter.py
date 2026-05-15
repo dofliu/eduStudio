@@ -70,6 +70,8 @@ AUDIENCE_BY_SOURCE_TYPE: dict[str, str] = {
 
 # 抓現有開頭問候語 — 涵蓋 scriptor / solve.py 跟 LLM 最常見的輸出
 # 注意: 中文標點 ,，。.!！?？ 都要吃, 包含半形全形
+# iter 52b: 加 lookahead 確保問候語完整 — 不然 "各位" 會匹配到 "各位學員"
+# 變成 "今天聊聊,學員,大家好" 殘骸. lookahead 要求問候語後面必須是標點或結尾.
 _GREETING_PATTERN = re.compile(
     r"^\s*("
     r"各位同學好"
@@ -81,6 +83,7 @@ _GREETING_PATTERN = re.compile(
     r"|大家"
     r"|各位"
     r")"
+    r"(?=[,，。.!！?？\s]|$)"      # iter 52b: 必須是完整詞 (非「各位學員」開頭)
     r"[,，。.!！?？\s]*"
 )
 

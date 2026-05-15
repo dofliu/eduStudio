@@ -117,6 +117,16 @@ def script_repo(outline: dict, raw_content: dict, *, length_mode: str | None = N
         section_dict = _call_with_retry(client, types, prompt, section_id, sec_outline)
         sections_out.append(section_dict)
 
+    # iter 56d: repo 模式如果有 AI 生圖 (option B opt-in), 自動 attach 給對應
+    # section 的第一張 slide. repo prompt 沒接 figures 系統 (跟 long_form 不同),
+    # 所以這條 post-process 是唯一路徑.
+    ai_figure_ids = {
+        f["id"] for f in (raw_content.get("figures") or [])
+        if isinstance(f, dict) and f.get("id", "").startswith("ai_")
+    }
+    if ai_figure_ids:
+        _attach_ai_diagrams_to_first_slide(sections_out, ai_figure_ids)
+
     deck = {
         "deck_title": outline.get("deck_title", "未命名"),
         "source_type": "repo",
@@ -188,6 +198,11 @@ def script_long_form(
         _sanitize_slide_image_paths(section_dict, valid_figure_ids)
         sections_out.append(section_dict)
 
+    # iter 56d: AI 圖 (ai_<section_id>) 自動配給對應 section 第一張 slide.
+    # scriptor prompt 沒讓 Gemini 認 AI 圖 (page_no=0 不像 PDF 圖那樣可靠),
+    # 不靠 LLM 判斷, deterministic 配上去. 已有圖的 section 不動.
+    _attach_ai_diagrams_to_first_slide(sections_out, valid_figure_ids)
+
     # iter 52b: 跨 section image_path 去重 — scriptor 一次只看一個 section,
     # 無法擋同張圖在不同 section 被選兩次. 全部 section 跑完再過一遍.
     _dedupe_image_paths_across_deck(sections_out)
@@ -249,6 +264,48 @@ def _sanitize_slide_image_paths(section_dict: dict, valid_ids: set[str]) -> None
             slide["image_path"] = None
             continue
         used_in_section.add(img)
+
+
+def _attach_ai_diagrams_to_first_slide(
+    sections_out: list[dict], figure_ids: set[str],
+) -> None:
+    """iter 56d: AI 生圖 (id = ai_<section_id>) 自動配給對應 section 第一張 slide.
+
+    為什麼要 post-process: scriptor prompt 寫「看 page X 決定圖屬於哪段」, 但
+    AI 圖 page_no=0 沒這資訊, Gemini 不敢挑. 結果 AI 圖生成了但沒進影片.
+    這函式繞過 LLM 判斷 — AI 圖命名上就跟 section 綁定, 直接 deterministic
+    配給該 section 第一張 slide.
+
+    規則:
+    - section.id == "intro" → ai_fig_id = "ai_intro"
+    - 此 figure 不在 figure_ids 內 (沒生成) → skip
+    - 該 section 已有 slide 用了該 AI 圖 (Gemini 自己挑了) → skip 不重複
+    - 第一張 slide 已有 image_path (Gemini 配了別張 / 用戶手動配了) → 不覆寫
+    - 其他情況 → 第一張 slide.image_path = ai_fig_id
+
+    參數:
+        sections_out: 已建好的 sections list (deck["sections"])
+        figure_ids: 所有有效 figure id 集合 (含 PDF + AI 生圖)
+    """
+    for sec in sections_out:
+        sec_id = sec.get("id")
+        if not sec_id:
+            continue
+        ai_fig_id = f"ai_{sec_id}"
+        if ai_fig_id not in figure_ids:
+            continue
+        slides = sec.get("slides") or []
+        if not slides:
+            continue
+        # 此 section 已用該 AI 圖 (Gemini 自己挑了 / 用戶手動配了) → 不動
+        used = {sl.get("image_path") for sl in slides if sl.get("image_path")}
+        if ai_fig_id in used:
+            continue
+        # 第一張已有別張圖 → 尊重既有選擇, 不覆寫
+        first_slide = slides[0]
+        if first_slide.get("image_path"):
+            continue
+        first_slide["image_path"] = ai_fig_id
 
 
 def _dedupe_image_paths_across_deck(sections_out: list[dict]) -> None:

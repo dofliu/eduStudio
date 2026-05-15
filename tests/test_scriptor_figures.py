@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from core.scriptor import (
+    _attach_ai_diagrams_to_first_slide,
     _dedupe_image_paths_across_deck,
     _format_figures_for_prompt,
     _sanitize_slide_image_paths,
@@ -149,3 +150,94 @@ class TestDedupeImagePathsAcrossDeck:
         ]
         _dedupe_image_paths_across_deck(sections)
         assert all(s["image_path"] is None for s in sections[0]["slides"])
+
+
+class TestAttachAiDiagramsToFirstSlide:
+    """iter 56d: AI 生圖 (id = ai_<section_id>) 自動配給對應 section 第一張 slide."""
+
+    def test_attaches_to_first_slide_when_null(self):
+        sections = [
+            {"id": "intro", "slides": [
+                {"id": "intro_1", "image_path": None},
+                {"id": "intro_2", "image_path": None},
+            ]},
+            {"id": "method", "slides": [
+                {"id": "method_1", "image_path": None},
+            ]},
+        ]
+        figure_ids = {"ai_intro", "ai_method"}
+        _attach_ai_diagrams_to_first_slide(sections, figure_ids)
+        # 第一張 slide 該被配上 AI 圖
+        assert sections[0]["slides"][0]["image_path"] == "ai_intro"
+        # 第二張不該動
+        assert sections[0]["slides"][1]["image_path"] is None
+        # 另一 section 同樣處理
+        assert sections[1]["slides"][0]["image_path"] == "ai_method"
+
+    def test_respects_existing_image_path(self):
+        """第一張已有別張圖 (Gemini 配的 / 用戶手動配的) → 不覆寫."""
+        sections = [{
+            "id": "intro",
+            "slides": [
+                {"id": "intro_1", "image_path": "fig_p3_1"},   # 既有 PDF 圖
+                {"id": "intro_2", "image_path": None},
+            ],
+        }]
+        _attach_ai_diagrams_to_first_slide(sections, {"ai_intro", "fig_p3_1"})
+        # 不該被 ai_intro 覆蓋
+        assert sections[0]["slides"][0]["image_path"] == "fig_p3_1"
+
+    def test_skip_if_ai_fig_already_used_in_section(self):
+        """Gemini 自己已挑了 ai_<sec> 配給其他 slide → 不要再配第一張造成 section 內重複."""
+        sections = [{
+            "id": "method",
+            "slides": [
+                {"id": "method_1", "image_path": None},
+                {"id": "method_2", "image_path": "ai_method"},   # 已用
+                {"id": "method_3", "image_path": None},
+            ],
+        }]
+        _attach_ai_diagrams_to_first_slide(sections, {"ai_method"})
+        # 第一張不該再被配, 否則 section 內 ai_method 重複
+        assert sections[0]["slides"][0]["image_path"] is None
+        assert sections[0]["slides"][1]["image_path"] == "ai_method"
+
+    def test_skip_section_without_matching_ai_fig(self):
+        """figure_ids 內沒對應的 ai_<section_id> → 該 section 不動 (沒生 AI 圖)."""
+        sections = [{
+            "id": "intro",
+            "slides": [{"id": "intro_1", "image_path": None}],
+        }]
+        # figure_ids 只有 PDF 圖, 沒 ai_intro
+        _attach_ai_diagrams_to_first_slide(sections, {"fig_p3_1"})
+        assert sections[0]["slides"][0]["image_path"] is None
+
+    def test_skip_section_without_id(self):
+        sections = [{"slides": [{"image_path": None}]}]
+        _attach_ai_diagrams_to_first_slide(sections, {"ai_xxx"})
+        assert sections[0]["slides"][0]["image_path"] is None
+
+    def test_skip_section_without_slides(self):
+        sections = [{"id": "intro", "slides": []}]
+        _attach_ai_diagrams_to_first_slide(sections, {"ai_intro"})
+        # 沒 slide 不該炸
+        assert sections[0]["slides"] == []
+
+    def test_empty_sections_safe(self):
+        sections = []
+        _attach_ai_diagrams_to_first_slide(sections, {"ai_intro"})
+        assert sections == []
+
+    def test_mixed_sections(self):
+        """有些 section 有 AI 圖, 有些沒 (跨 section 各自獨立)."""
+        sections = [
+            {"id": "intro", "slides": [{"image_path": None}]},
+            {"id": "no_ai", "slides": [{"image_path": None}]},
+            {"id": "results", "slides": [{"image_path": "fig_p5_1"}]},
+        ]
+        # 只有 intro 跟 results 生了 AI 圖, no_ai section 沒
+        _attach_ai_diagrams_to_first_slide(sections, {"ai_intro", "ai_results"})
+        assert sections[0]["slides"][0]["image_path"] == "ai_intro"
+        assert sections[1]["slides"][0]["image_path"] is None
+        # results 第一張已有圖 (PDF), 不該被覆寫
+        assert sections[2]["slides"][0]["image_path"] == "fig_p5_1"

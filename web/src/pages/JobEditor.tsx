@@ -109,9 +109,16 @@ export default function JobEditor() {
   const onApprove = async () => {
     if (!jobId || !draft) return;
     const isRetryAction = job?.state === 'failed';
-    const confirmMsg = isRetryAction
-      ? '重試 render? 用目前 deck.json 跑 (上次失敗的 stage 會被覆蓋)'
-      : 'Approve 後會立刻開始渲染, 確定?';
+    // iter 55: done 狀態下重新渲染整支 (覆蓋既有所有 mp4 + final.mp4)
+    const isRerenderAll = job?.state === 'done';
+    let confirmMsg: string;
+    if (isRerenderAll) {
+      confirmMsg = '重新渲染整支? 既有所有章節 mp4 + final.mp4 都會被覆蓋, 確定?';
+    } else if (isRetryAction) {
+      confirmMsg = '重試 render? 用目前 deck.json 跑 (上次失敗的 stage 會被覆蓋)';
+    } else {
+      confirmMsg = 'Approve 後會立刻開始渲染, 確定?';
+    }
     if (!confirm(confirmMsg)) return;
     setSaving(true);
     try {
@@ -120,10 +127,14 @@ export default function JobEditor() {
         setDirty(false);
       }
       await api.approve(jobId);
-      show(isRetryAction ? '已重新觸發 render...' : '已 Approve, 渲染中...');
+      const msg = isRerenderAll
+        ? '已觸發重新渲染整支...'
+        : (isRetryAction ? '已重新觸發 render...' : '已 Approve, 渲染中...');
+      show(msg);
       setTimeout(() => navigate('/'), 1500);
     } catch (e) {
-      show(`${isRetryAction ? '重試' : 'Approve'} 失敗: ${e}`, 'error');
+      const label = isRerenderAll ? '重新渲染' : (isRetryAction ? '重試' : 'Approve');
+      show(`${label} 失敗: ${e}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -268,7 +279,9 @@ export default function JobEditor() {
             <Btn kind="ghost" size="md" onClick={onSave} disabled={!canEdit || saving || !dirty}>
               {saving ? '...' : '💾 Save'}
             </Btn>
-            {job.state !== 'done' && (
+            {/* iter 55: done 狀態加「重新渲染整支」按鈕 — 覆蓋所有既有 mp4 + final.
+                跟 section render 並存 — section render 只動單章, 這個動全部. */}
+            {(job.state === 'awaiting_review' || job.state === 'failed') && (
               <Btn
                 kind="primary"
                 size="md"
@@ -277,6 +290,17 @@ export default function JobEditor() {
                 title={isRetry ? '清掉之前的錯誤, 用目前 deck.json 重新跑 render' : undefined}
               >
                 {isRetry ? '🔄 重試 render' : '✓ Approve & Render'}
+              </Btn>
+            )}
+            {job.state === 'done' && (
+              <Btn
+                kind="primary"
+                size="md"
+                onClick={onApprove}
+                disabled={!canEdit || saving}
+                title="用目前 deck.json 重 render 全部章節, 覆蓋既有所有 mp4 + final.mp4"
+              >
+                🔁 重新渲染整支
               </Btn>
             )}
           </div>

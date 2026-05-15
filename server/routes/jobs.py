@@ -144,23 +144,26 @@ async def update_draft(
 
 @router.post("/{job_id}/approve", response_model=JobRecord)
 async def approve_job(job_id: str, store: JobStore = Depends(get_default_store)) -> JobRecord:
-    """進入 rendering 階段。可在三種狀態觸發:
+    """進入 rendering 階段。可在四種狀態觸發:
 
     - awaiting_review: 主路徑, 第一次 review 通過開始渲染
     - failed (有 deck.json):  重試 render (PR-3j 加入)
     - failed (無 deck.json):  ingest 階段就死了, 重跑整條 pipeline (從 ingest 開始)
                               這條 2026-05-13 加, 修「重試只走 render 找不到
                               deck.json」的洞 (ideate approve 進來踩到)
+    - done: iter 55 加 — 渲染完發現 deck 要大改 (例: 多個 slide 都要改 / 全
+            重配 figures), 不想逐章按 section render N 次. 直接覆蓋全部 mp4
+            + final.mp4. 既有 mp4 全部被新版蓋掉.
 
-    擋住 rendering / done / pending / ingesting (避免覆寫進行中或既有成果)。
+    擋住 rendering / pending / ingesting (避免覆寫進行中或前置階段未完成).
     """
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    if rec.state not in (JobState.AWAITING_REVIEW, JobState.FAILED):
+    if rec.state not in (JobState.AWAITING_REVIEW, JobState.FAILED, JobState.DONE):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"approve 僅在 awaiting_review / failed 可用 (目前 {rec.state.value})",
+            f"approve 僅在 awaiting_review / failed / done 可用 (目前 {rec.state.value})",
         )
 
     # FAILED 但沒 deck.json → ingest 沒跑完, 該從頭重跑整條 pipeline

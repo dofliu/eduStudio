@@ -161,19 +161,36 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
     跟 _run_ingest_repo 結構一致, 差別在 adapter 不同 + outliner / scriptor 走
     long-form prompt template。
     """
-    from core.adapters.document import scan_document
+    from core.adapters.document import extract_pdf_figures, scan_document
     from core.adapters.url import scan_url
     from core.outliner import mock_outline, outline_long_form
     from core.scriptor import mock_deck_from_outline, script_long_form
 
+    job_dir = deck_path.parent
+
     if rec.source_type == SourceType.DOCUMENT:
-        raw = await asyncio.to_thread(scan_document, Path(rec.source.path))
+        src_path = Path(rec.source.path)
+        raw = await asyncio.to_thread(scan_document, src_path)
+        # iter 51: PDF 多抽 figures 到 jobs/<id>/figures/ 給 scriptor 配圖用.
+        # 失敗只 warning, 不擋 ingest 流程; .md / .txt 跳過 (沒圖概念).
+        if raw.get("format") == "pdf":
+            try:
+                figures = await asyncio.to_thread(
+                    extract_pdf_figures, src_path, job_dir / "figures",
+                )
+                raw["figures"] = figures
+                logger.info("PDF figure 抽取: %d 張", len(figures))
+            except Exception as e:
+                logger.exception("PDF figure 抽取失敗 (不擋 ingest): %s", e)
+                raw["figures"] = []
+        else:
+            raw["figures"] = []
     else:  # URL
         if not rec.source.url:
             raise ValueError("source_type=url 時必須提供 source.url")
         raw = await asyncio.to_thread(scan_url, rec.source.url)
+        raw.setdefault("figures", [])   # iter 51: 統一 schema, URL 暫不抽圖 (iter 53+ 加)
 
-    job_dir = deck_path.parent
     (job_dir / "raw_content.json").write_text(
         json.dumps(raw, ensure_ascii=False, indent=2),
         encoding="utf-8",

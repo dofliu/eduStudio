@@ -195,6 +195,31 @@ def get_font_path_for_theme(theme_name: str | None) -> str:
     return get_font_path()
 
 
+# iter 61: 各主題獨特的簽名裝飾元素 (top-right corner). 不適用所有主題,
+# 只給 5 個視覺最具識別性的主題加 — 其他維持 banner + title 已有的差異化即可.
+#
+# signature decor 種類:
+#   "shinobi_stamp":  朱印章 (紅圓圈 + 内文)
+#   "elven_diamond":  燙金菱形 ✦
+#   "arcade_pixels":  8-bit pixel dots (3x3 小方塊)
+#   "brutalist_warn": 警示斜紋 (對角線 stripes)
+#   "editorial_sec":  雜誌 § 章節符號 + 羅馬數字
+THEME_SIGNATURE_DECORS: dict[str, str] = {
+    "dof-shinobi": "shinobi_stamp",
+    "dof-elven": "elven_diamond",
+    "dof-arcade": "arcade_pixels",
+    "dof-brutalist": "brutalist_warn",
+    "dof-editorial": "editorial_sec",
+}
+
+
+def get_signature_decor(theme_name: str | None) -> str | None:
+    """主題對應的 signature decor 名稱, 沒列回 None (不畫)."""
+    if not theme_name:
+        return None
+    return THEME_SIGNATURE_DECORS.get(theme_name)
+
+
 THEMES: dict[str, Palette] = {
     "forest": {
         # 沿用 PR-2b-ii 既有 Forest 色票, 跟黑板版同色保持風格延續
@@ -812,6 +837,179 @@ def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
     return block_bottom + 16
 
 
+def _draw_signature_decor(
+    draw: ImageDraw.ImageDraw, decor: str | None, palette: Palette,
+    step_idx: int = 1,
+) -> None:
+    """iter 61: 主題獨特的簽名裝飾元素, 畫在 slide 右上角.
+
+    位置: x ∈ [VIDEO_WIDTH - 220, VIDEO_WIDTH - 60], y ∈ [BANNER_HEIGHT + 30,
+    BANNER_HEIGHT + 150]. 不影響 title / bullets / code 區域.
+
+    decor=None 時 noop (大多數主題).
+    """
+    if not decor:
+        return
+    corner_x = VIDEO_WIDTH - 140    # 中心 x
+    corner_y = BANNER_HEIGHT + 60   # 中心 y
+
+    if decor == "shinobi_stamp":
+        _draw_shinobi_stamp(draw, corner_x, corner_y, palette)
+    elif decor == "elven_diamond":
+        _draw_elven_diamond(draw, corner_x, corner_y, palette)
+    elif decor == "arcade_pixels":
+        _draw_arcade_pixels(draw, corner_x, corner_y, palette)
+    elif decor == "brutalist_warn":
+        _draw_brutalist_warn(draw, corner_x, corner_y, palette)
+    elif decor == "editorial_sec":
+        _draw_editorial_section_mark(draw, corner_x, corner_y, palette, step_idx)
+
+
+def _draw_shinobi_stamp(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """朱印章: 紅圓 + 中央「印」字 (中文字型支援的話) 或「DOF」.
+
+    用 highlight 色 (朱印紅 C73A1D) 畫圓 + bg 色字 (深底紙黃) 反白.
+    """
+    radius = 50
+    draw.ellipse(
+        [cx - radius, cy - radius, cx + radius, cy + radius],
+        fill=palette["highlight"], outline=palette["primary"], width=2,
+    )
+    # 中央 "印" 字 — 用 default fallback font (可能含中文); 失敗就用 "DOF"
+    font_size = 32
+    try:
+        font = _font(get_font_path(), font_size)
+        text = "印"
+        # 量字寬, 居中
+        bbox = font.getbbox(text)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text(
+            (cx - tw // 2, cy - th // 2 - 4),
+            text, font=font, fill=palette["bg"],
+        )
+    except Exception:
+        # fallback ascii
+        try:
+            font = _font(get_font_path(), font_size)
+            text = "DOF"
+            bbox = font.getbbox(text)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            draw.text(
+                (cx - tw // 2, cy - th // 2),
+                text, font=font, fill=palette["bg"],
+            )
+        except Exception:
+            pass
+
+
+def _draw_elven_diamond(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """燙金菱形 ✦: highlight (file_header 燙金色) 菱形 + 細線陪襯."""
+    size = 36
+    # 主菱形 (filled)
+    diamond = [(cx, cy - size), (cx + size, cy), (cx, cy + size), (cx - size, cy)]
+    draw.polygon(diamond, fill=palette["file_header"])
+    # 外圈細線菱形 (略大)
+    outer = size + 22
+    outer_diamond = [
+        (cx, cy - outer), (cx + outer, cy), (cx, cy + outer), (cx - outer, cy),
+    ]
+    draw.line(outer_diamond + [outer_diamond[0]],
+              fill=palette["highlight"], width=1)
+    # 三條極細水平線 (月光感)
+    for dy in (-58, 0, 58):
+        draw.line(
+            [(cx - 80, cy + dy), (cx - outer - 10, cy + dy)],
+            fill=palette["secondary"], width=1,
+        )
+
+
+def _draw_arcade_pixels(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """8-bit pixel: 3x3 小方塊 grid + 一條霓虹底線.
+
+    用 highlight (霓虹青) 跟 secondary (橘黃) 交替, 像素風 HUD 圖示感.
+    """
+    px_size = 14
+    gap = 4
+    # 3x3 點陣 — 中央霓虹青, 周圍交替
+    colors = [
+        palette["secondary"], palette["highlight"], palette["secondary"],
+        palette["highlight"], palette["highlight"], palette["highlight"],
+        palette["secondary"], palette["highlight"], palette["secondary"],
+    ]
+    start_x = cx - (px_size + gap) * 1 - px_size // 2
+    start_y = cy - (px_size + gap) * 1 - px_size // 2
+    for row in range(3):
+        for col in range(3):
+            x0 = start_x + col * (px_size + gap)
+            y0 = start_y + row * (px_size + gap)
+            draw.rectangle(
+                [x0, y0, x0 + px_size, y0 + px_size],
+                fill=colors[row * 3 + col],
+            )
+    # 下方一條 highlight 霓虹線 (HUD 感)
+    line_y = cy + 50
+    draw.line(
+        [(cx - 70, line_y), (cx + 70, line_y)],
+        fill=palette["highlight"], width=2,
+    )
+
+
+def _draw_brutalist_warn(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """警示斜紋: highlight 色 (警示橘紅) 對角線 stripe 塊, 野獸派警告風."""
+    # 100x60 區塊內畫對角線 stripe
+    box_w, box_h = 110, 60
+    x0 = cx - box_w // 2
+    y0 = cy - box_h // 2
+    # 外框 (純黑)
+    draw.rectangle(
+        [x0, y0, x0 + box_w, y0 + box_h],
+        outline=palette["primary"], width=3,
+    )
+    # 內部對角斜紋
+    stripe_gap = 10
+    for offset in range(-box_h, box_w + box_h, stripe_gap):
+        # 對角線 (左上 → 右下方向)
+        line_x1 = x0 + offset
+        line_y1 = y0
+        line_x2 = line_x1 + box_h
+        line_y2 = y0 + box_h
+        # clip 到 box 內
+        if line_x2 < x0 or line_x1 > x0 + box_w:
+            continue
+        draw.line(
+            [(max(line_x1, x0), line_y1 + max(0, x0 - line_x1)),
+             (min(line_x2, x0 + box_w), line_y2 - max(0, line_x2 - x0 - box_w))],
+            fill=palette["highlight"], width=3,
+        )
+
+
+def _draw_editorial_section_mark(
+    draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette, step_idx: int,
+) -> None:
+    """§ N 章節符號: 大 § + 羅馬數字, 用赭橘色, 雜誌封面感.
+
+    step_idx (slide 序號) → 羅馬數字 I-V (超過用阿拉伯).
+    """
+    roman = ("", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X")
+    num_str = roman[step_idx] if 1 <= step_idx <= 10 else str(step_idx)
+    # § 符號 (大字)
+    try:
+        sec_font = _font(get_font_path(), 72)
+    except Exception:
+        return
+    draw.text(
+        (cx - 50, cy - 50), "§", font=sec_font, fill=palette["highlight"],
+    )
+    # 羅馬數字 (略小)
+    try:
+        num_font = _font(get_font_path(), 36)
+        draw.text(
+            (cx + 15, cy - 25), num_str, font=num_font, fill=palette["secondary"],
+        )
+    except Exception:
+        pass
+
+
 def _draw_image_panel(
     img: Image.Image, image_path: str, y_top: int, y_bottom: int,
     palette: Palette,
@@ -908,6 +1106,8 @@ class PptxStyleRenderer:
         title_decor = get_title_decor(theme_name)
         # iter 60: body 字型依主題切 — serif 主題用 serif, 其他 sans (default)
         body_font_path = get_font_path_for_theme(theme_name)
+        # iter 61: 簽名裝飾 (5 個主題: shinobi/elven/arcade/brutalist/editorial)
+        signature_decor = get_signature_decor(theme_name)
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
@@ -917,6 +1117,8 @@ class PptxStyleRenderer:
 
         title = step.get("title", "")
         title_end_y = _draw_title(draw, title, palette, decor=title_decor, font_path=body_font_path)
+        # iter 61: 在 title 完成後畫簽名 (避免被 title 文字蓋)
+        _draw_signature_decor(draw, signature_decor, palette, step_idx=step_idx)
 
         content_y = title_end_y
         bullets = step.get("bullets") or []

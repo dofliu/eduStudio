@@ -9,12 +9,14 @@ from core.render.pptx_style import (
     SERIF_FONT_CANDIDATES,
     THEME_BANNER_STYLES,
     THEME_FONT_ROLES,
+    THEME_SIGNATURE_DECORS,
     THEME_TITLE_DECORS,
     THEMES,
     _resolve_serif_font,
     get_banner_style,
     get_font_path_for_theme,
     get_palette,
+    get_signature_decor,
     get_title_decor,
 )
 
@@ -271,3 +273,58 @@ class TestFontRole:
             # 不在 THEME_FONT_ROLES 內或標 "sans"
             role = THEME_FONT_ROLES.get(theme, "sans")
             assert role == "sans", f"{theme} 該是 sans, 卻是 {role!r}"
+
+
+# ---------- iter 61: signature decor ----------
+
+
+class TestSignatureDecor:
+    """5 個主題各有獨特裝飾元素 (shinobi/elven/arcade/brutalist/editorial)."""
+
+    VALID_DECORS = {
+        "shinobi_stamp", "elven_diamond", "arcade_pixels",
+        "brutalist_warn", "editorial_sec",
+    }
+
+    def test_default_is_none(self):
+        """大多數主題沒簽名裝飾, 該回 None (renderer noop)."""
+        assert get_signature_decor(None) is None
+        assert get_signature_decor("") is None
+        assert get_signature_decor("forest") is None
+        assert get_signature_decor("navy") is None
+        assert get_signature_decor("journal") is None
+
+    def test_unknown_theme_none(self):
+        assert get_signature_decor("not_a_theme") is None
+
+    def test_shinobi_has_stamp(self):
+        assert get_signature_decor("dof-shinobi") == "shinobi_stamp"
+
+    def test_elven_has_diamond(self):
+        assert get_signature_decor("dof-elven") == "elven_diamond"
+
+    def test_arcade_has_pixels(self):
+        assert get_signature_decor("dof-arcade") == "arcade_pixels"
+
+    def test_brutalist_has_warn(self):
+        assert get_signature_decor("dof-brutalist") == "brutalist_warn"
+
+    def test_editorial_has_section_mark(self):
+        assert get_signature_decor("dof-editorial") == "editorial_sec"
+
+    def test_5_signatures_total(self):
+        """只設計給 5 個主題, 不該膨脹 (避免 maintainence cost 失控)."""
+        assert len(THEME_SIGNATURE_DECORS) == 5
+
+    def test_signature_values_in_valid_set(self):
+        for theme, decor in THEME_SIGNATURE_DECORS.items():
+            assert decor in self.VALID_DECORS, (
+                f"{theme} signature {decor!r} 不在 valid set"
+            )
+
+    def test_legacy_themes_no_signature(self):
+        """forest / navy / frieren / naruto 不該有簽名裝飾 (backwards compat)."""
+        for legacy in ("forest", "navy", "frieren", "naruto"):
+            assert get_signature_decor(legacy) is None, (
+                f"{legacy} 不該有簽名裝飾 (避免改動既有觀感)"
+            )

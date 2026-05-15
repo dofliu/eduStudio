@@ -104,6 +104,42 @@ def get_banner_style(theme_name: str | None) -> str:
     return THEME_BANNER_STYLES.get(theme_name, "rectangle")
 
 
+# iter 59 title 樣式 (四種):
+#   "underline" (default): 標題下方 highlight 色橫線, 寬 5 (現行)
+#   "block":               標題前面一個 highlight 色方塊 prefix (像章節符號)
+#   "hairline":            標題上方一條 hairline (1px), 比 underline 細, 學術感
+#   "reverse":             標題包進 highlight 色塊內 + bg 色文字 (海報式標籤)
+TitleDecor = str  # Literal["underline", "block", "hairline", "reverse"]
+
+THEME_TITLE_DECORS: dict[str, str] = {
+    # 經典 — underline
+    "forest": "underline",
+    "navy": "underline",
+    "frieren": "underline",
+    "naruto": "underline",
+    "journal": "hairline",         # 學術細線
+    # v1 沉穩家族
+    "dof-editorial": "block",      # 雜誌風: § 符號感
+    "dof-podium": "hairline",      # 講壇 TED 極簡
+    "dof-notebook": "hairline",    # 札記細線
+    "dof-shinobi": "block",        # 朱印章式色塊
+    "dof-elven": "hairline",       # 月光細緻
+    # v2 衝擊家族
+    "dof-zine": "reverse",         # 海報標籤
+    "dof-arcade": "underline",     # banner 已用 neon, title 維持經典
+    "dof-risograph": "block",      # 油墨塊感
+    "dof-supergraphic": "reverse", # 大色塊
+    "dof-brutalist": "reverse",    # 反白色塊
+}
+
+
+def get_title_decor(theme_name: str | None) -> str:
+    """容錯查 title decor style, 沒列就回 'underline' (現行預設行為)."""
+    if not theme_name:
+        return "underline"
+    return THEME_TITLE_DECORS.get(theme_name, "underline")
+
+
 THEMES: dict[str, Palette] = {
     "forest": {
         # 沿用 PR-2b-ii 既有 Forest 色票, 跟黑板版同色保持風格延續
@@ -478,8 +514,29 @@ def _draw_banner_neon(draw: ImageDraw.ImageDraw, section_title: str, palette: Pa
         )
 
 
-def _draw_title(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
-    """slide 主標題, 回傳結束 y 座標 (含底線)。"""
+def _draw_title(
+    draw: ImageDraw.ImageDraw, title: str, palette: Palette,
+    decor: str = "underline",
+) -> int:
+    """slide 主標題 dispatch — iter 59 加 4 種 decor.
+
+    decor:
+      "underline" (default): 標題下方 highlight 色橫線 (現行行為)
+      "block":               標題前 highlight 色方塊 prefix (像章節符號)
+      "hairline":            標題上方 1px 細線 (學術 / 細緻)
+      "reverse":             標題 wrapped 在 highlight 色塊 + bg 色反白文字
+    """
+    if decor == "block":
+        return _draw_title_block(draw, title, palette)
+    if decor == "hairline":
+        return _draw_title_hairline(draw, title, palette)
+    if decor == "reverse":
+        return _draw_title_reverse(draw, title, palette)
+    return _draw_title_underline(draw, title, palette)
+
+
+def _draw_title_underline(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+    """現行 default: 標題下方 highlight 橫線, 寬 5."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
@@ -497,6 +554,80 @@ def _draw_title(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
         fill=palette["highlight"], width=5,
     )
     return underline_y + 30
+
+
+def _draw_title_block(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+    """標題前 highlight 色塊 prefix — 像 § / 章節符號感.
+    給 editorial / shinobi / risograph 用 (雜誌 / 印章 / 油墨)."""
+    title = (title or "").strip()
+    if not title:
+        return CONTENT_TOP
+    font = _font(get_font_path(), TITLE_FONT_SIZE)
+    title_y = CONTENT_TOP + 30
+    # 標題前方塊 (寬 16px, 高 = 字級 70%)
+    block_w = 16
+    block_h = int(TITLE_FONT_SIZE * 0.7)
+    block_x = SIDE_MARGIN
+    block_y = title_y + int(TITLE_FONT_SIZE * 0.18)
+    draw.rectangle(
+        [block_x, block_y, block_x + block_w, block_y + block_h],
+        fill=palette["highlight"],
+    )
+    # 文字往右挪一個 gap (block + 18px 間距)
+    text_x = SIDE_MARGIN + block_w + 18
+    end_y = _draw_text_wrapped(
+        draw, (text_x, title_y), title, font, palette["primary"],
+        max_w=VIDEO_WIDTH - text_x - SIDE_MARGIN, line_h=TITLE_FONT_SIZE + 14,
+    )
+    return end_y + 30
+
+
+def _draw_title_hairline(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+    """標題上方 1px 細線 — 學術 / 月光感.
+    給 journal / podium / notebook / elven 用."""
+    title = (title or "").strip()
+    if not title:
+        return CONTENT_TOP
+    font = _font(get_font_path(), TITLE_FONT_SIZE)
+    title_y = CONTENT_TOP + 30
+    # 上方一條 hairline (寬至文字段+200px, 限制在版面內)
+    hairline_y = title_y - 14
+    hairline_w = max(300, int(font.getlength(title.split("\n")[0])) + 100)
+    hairline_w = min(hairline_w, VIDEO_WIDTH - SIDE_MARGIN * 2)
+    draw.line(
+        [(SIDE_MARGIN, hairline_y), (SIDE_MARGIN + hairline_w, hairline_y)],
+        fill=palette["highlight"], width=1,
+    )
+    end_y = _draw_text_wrapped(
+        draw, (SIDE_MARGIN, title_y), title, font, palette["primary"],
+        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2, line_h=TITLE_FONT_SIZE + 14,
+    )
+    return end_y + 30
+
+
+def _draw_title_reverse(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+    """標題包進 highlight 色塊 + bg 色反白文字 — 海報 / 反白標籤式.
+    給 zine / brutalist / supergraphic 用."""
+    title = (title or "").strip()
+    if not title:
+        return CONTENT_TOP
+    font = _font(get_font_path(), TITLE_FONT_SIZE)
+    title_y = CONTENT_TOP + 30
+    # 量第一行寬度當色塊寬 (多行的話色塊只包第一行)
+    first_line = title.split("\n")[0]
+    text_w = int(font.getlength(first_line))
+    block_w = min(text_w + 60, VIDEO_WIDTH - SIDE_MARGIN * 2)
+    block_h = TITLE_FONT_SIZE + 28
+    draw.rectangle(
+        [SIDE_MARGIN, title_y - 12,
+         SIDE_MARGIN + block_w, title_y + block_h - 12],
+        fill=palette["highlight"],
+    )
+    end_y = _draw_text_wrapped(
+        draw, (SIDE_MARGIN + 18, title_y), title, font, palette["bg"],
+        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2 - 36, line_h=TITLE_FONT_SIZE + 14,
+    )
+    return end_y + 36
 
 
 def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
@@ -689,6 +820,8 @@ class PptxStyleRenderer:
         palette = get_palette(theme_name)
         # iter 58: banner style 依主題切 — rectangle (default) / hairline / reverse / neon
         banner_style = get_banner_style(theme_name)
+        # iter 59: title decor 依主題切 — underline (default) / block / hairline / reverse
+        title_decor = get_title_decor(theme_name)
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
@@ -697,7 +830,7 @@ class PptxStyleRenderer:
         _draw_banner(draw, section_title, palette, style=banner_style)
 
         title = step.get("title", "")
-        title_end_y = _draw_title(draw, title, palette)
+        title_end_y = _draw_title(draw, title, palette, decor=title_decor)
 
         content_y = title_end_y
         bullets = step.get("bullets") or []

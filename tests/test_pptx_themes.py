@@ -7,9 +7,11 @@ import pytest
 from core.render.pptx_style import (
     DEFAULT_THEME,
     THEME_BANNER_STYLES,
+    THEME_TITLE_DECORS,
     THEMES,
     get_banner_style,
     get_palette,
+    get_title_decor,
 )
 
 
@@ -164,3 +166,48 @@ class TestBannerStyle:
             assert get_banner_style(legacy) == "rectangle", (
                 f"{legacy} 應保留原 rectangle style 不該被誤改"
             )
+
+
+# ---------- iter 59: title_decor ----------
+
+
+class TestTitleDecor:
+    VALID_DECORS = {"underline", "block", "hairline", "reverse"}
+
+    def test_default_is_underline(self):
+        assert get_title_decor(None) == "underline"
+        assert get_title_decor("") == "underline"
+
+    def test_unknown_theme_fallback(self):
+        assert get_title_decor("not_a_theme") == "underline"
+
+    @pytest.mark.parametrize("theme", list(THEMES.keys()))
+    def test_every_theme_has_valid_decor(self, theme: str):
+        decor = get_title_decor(theme)
+        assert decor in self.VALID_DECORS, (
+            f"{theme} title_decor={decor!r} 不在 {self.VALID_DECORS}"
+        )
+
+    def test_decor_diversity(self):
+        """15 主題不該全 underline. 至少 3 種在用."""
+        decors_in_use = {get_title_decor(t) for t in THEMES.keys()}
+        assert len(decors_in_use) >= 3, f"title_decor 多樣性不足: {decors_in_use}"
+
+    def test_brutalist_uses_reverse(self):
+        """野獸派該用 reverse (反白色塊招牌)."""
+        assert get_title_decor("dof-brutalist") == "reverse"
+
+    def test_legacy_themes_still_underline(self):
+        """forest / navy / frieren / naruto 維持 underline (backwards compat)."""
+        for legacy in ("forest", "navy", "frieren", "naruto"):
+            assert get_title_decor(legacy) == "underline", (
+                f"{legacy} 應保留原 underline decor"
+            )
+
+    def test_journal_uses_hairline(self):
+        """期刊風該用 hairline 學術細線."""
+        assert get_title_decor("journal") == "hairline"
+
+    def test_editorial_uses_block(self):
+        """雜誌風該用 block (§ 符號感)."""
+        assert get_title_decor("dof-editorial") == "block"

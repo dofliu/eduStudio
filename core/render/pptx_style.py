@@ -140,6 +140,61 @@ def get_title_decor(theme_name: str | None) -> str:
     return THEME_TITLE_DECORS.get(theme_name, "underline")
 
 
+# iter 60: theme font role — "serif" 走襯線, 其他 (sans / 未列) 走現行 default sans
+# 為什麼不做 mono body: CJK mono 字型罕見 (consolas 不含 CJK), code block 才用 mono
+FontRole = str  # Literal["serif", "sans"]
+
+THEME_FONT_ROLES: dict[str, str] = {
+    # 學者氣質 + 學術 + 雜誌風 走襯線
+    "journal": "serif",
+    "dof-editorial": "serif",
+    "dof-podium": "serif",
+    "dof-notebook": "serif",
+    "dof-elven": "serif",
+    # 其他主題 default "sans" (forest / navy / frieren / naruto / shinobi /
+    # zine / arcade / risograph / supergraphic / brutalist) — 不必列在這
+}
+
+# 系統 serif CJK 字型候選 (按優先順序 — 越漂亮越優先)
+# Windows 內建大多有 mingliu, 沒 Noto 也撐得住. Linux 部署到 Docker 時要另外
+# 在 Dockerfile 裝 Noto Serif CJK (現行 Dockerfile 已裝 Noto Sans CJK).
+SERIF_FONT_CANDIDATES = [
+    "C:/Windows/Fonts/NotoSerifTC-VF.ttf",        # Noto Serif TC (modern, 最漂亮)
+    "C:/Windows/Fonts/NotoSerifCJKtc-Regular.otf",
+    "C:/Windows/Fonts/mingliu.ttc",                # 細明體 (內建)
+    "C:/Windows/Fonts/simsun.ttc",                 # SimSun (簡體但能顯繁體)
+    # Linux Docker fallback
+    "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc",
+]
+
+
+@lru_cache(maxsize=1)
+def _resolve_serif_font() -> str:
+    """探系統有的 serif CJK 字型, 沒找到回 default sans 路徑 (graceful degrade).
+
+    @lru_cache(1): 跨 render 共享結果, 第一次 probe 後不必重 stat.
+    """
+    import os
+    for path in SERIF_FONT_CANDIDATES:
+        if os.path.exists(path):
+            return path
+    # 都沒找到 — fall back 到 default sans 確保畫得出字
+    print(f"[pptx_style] WARN: 找不到 serif CJK 字型, serif 主題退到 default sans")
+    return get_font_path()
+
+
+def get_font_path_for_theme(theme_name: str | None) -> str:
+    """主題對應的 body 字型路徑 — serif 主題回 serif font, 其他回 default sans.
+
+    渲染 title / banner / bullets 用. code block 仍用 mono (不影響).
+    """
+    role = THEME_FONT_ROLES.get(theme_name or "", "sans")
+    if role == "serif":
+        return _resolve_serif_font()
+    return get_font_path()
+
+
 THEMES: dict[str, Palette] = {
     "forest": {
         # 沿用 PR-2b-ii 既有 Forest 色票, 跟黑板版同色保持風格延續
@@ -423,27 +478,31 @@ def _draw_text_wrapped(draw, xy, text, font, fill, max_w, line_h, fb_font=None) 
 
 def _draw_banner(
     draw: ImageDraw.ImageDraw, section_title: str, palette: Palette,
-    style: str = "rectangle",
+    style: str = "rectangle", font_path: str | None = None,
 ) -> None:
-    """頂部章節 banner — iter 58 加 4 種 style dispatch.
+    """頂部章節 banner — iter 58 加 4 種 style dispatch. iter 60 加 font_path.
 
     style:
       "rectangle" (default): 填滿矩形 + 底線 + secondary 色文字 (現行預設)
       "hairline":            雙細線夾住 banner 區, 不填色, 文字躺 bg 上
       "reverse":             primary 色填滿 + bg 色文字 (反白衝擊)
       "neon":                填滿 + 內 highlight 細邊 (霓虹發光感)
+    font_path: iter 60 — None 則用 default sans. serif 主題 caller 帶進來.
     """
     if style == "hairline":
-        _draw_banner_hairline(draw, section_title, palette)
+        _draw_banner_hairline(draw, section_title, palette, font_path)
     elif style == "reverse":
-        _draw_banner_reverse(draw, section_title, palette)
+        _draw_banner_reverse(draw, section_title, palette, font_path)
     elif style == "neon":
-        _draw_banner_neon(draw, section_title, palette)
+        _draw_banner_neon(draw, section_title, palette, font_path)
     else:  # rectangle (default fallback)
-        _draw_banner_rectangle(draw, section_title, palette)
+        _draw_banner_rectangle(draw, section_title, palette, font_path)
 
 
-def _draw_banner_rectangle(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+def _draw_banner_rectangle(
+    draw: ImageDraw.ImageDraw, section_title: str, palette: Palette,
+    font_path: str | None = None,
+) -> None:
     """現行 default 樣式: 填滿矩形 + 底線 + secondary 色文字."""
     draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=palette["banner"])
     draw.line(
@@ -451,14 +510,17 @@ def _draw_banner_rectangle(draw: ImageDraw.ImageDraw, section_title: str, palett
         fill=palette["secondary"], width=2,
     )
     if section_title:
-        font = _font(get_font_path(), BANNER_FONT_SIZE)
+        font = _font(font_path or get_font_path(), BANNER_FONT_SIZE)
         text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
         _draw_text_mixed(
             draw, (SIDE_MARGIN, text_y), section_title, font, palette["secondary"],
         )
 
 
-def _draw_banner_hairline(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+def _draw_banner_hairline(
+    draw: ImageDraw.ImageDraw, section_title: str, palette: Palette,
+    font_path: str | None = None,
+) -> None:
     """極簡髮絲線: 不填色, 上下細線 + primary 色文字躺 bg 上.
     給 editorial / journal / notebook / podium / elven 用."""
     # 不畫填色矩形 (banner 區用 bg 色)
@@ -473,14 +535,17 @@ def _draw_banner_hairline(draw: ImageDraw.ImageDraw, section_title: str, palette
         fill=palette["secondary"], width=1,
     )
     if section_title:
-        font = _font(get_font_path(), BANNER_FONT_SIZE - 2)   # 略小, 配薄線
+        font = _font(font_path or get_font_path(), BANNER_FONT_SIZE - 2)   # 略小, 配薄線
         text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
         _draw_text_mixed(
             draw, (SIDE_MARGIN, text_y), section_title, font, palette["primary"],
         )
 
 
-def _draw_banner_reverse(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+def _draw_banner_reverse(
+    draw: ImageDraw.ImageDraw, section_title: str, palette: Palette,
+    font_path: str | None = None,
+) -> None:
     """反白衝擊: primary 色填滿 + bg 色文字 (對比強烈).
     給 zine / supergraphic / brutalist 用."""
     draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=palette["primary"])
@@ -490,14 +555,17 @@ def _draw_banner_reverse(draw: ImageDraw.ImageDraw, section_title: str, palette:
         fill=palette["highlight"],
     )
     if section_title:
-        font = _font(get_font_path(), BANNER_FONT_SIZE + 2)   # 略大, 配粗 banner
+        font = _font(font_path or get_font_path(), BANNER_FONT_SIZE + 2)   # 略大, 配粗 banner
         text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
         _draw_text_mixed(
             draw, (SIDE_MARGIN, text_y), section_title, font, palette["bg"],
         )
 
 
-def _draw_banner_neon(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+def _draw_banner_neon(
+    draw: ImageDraw.ImageDraw, section_title: str, palette: Palette,
+    font_path: str | None = None,
+) -> None:
     """霓虹: 填滿 + 內 highlight 細邊 + 高對比文字.
     給 arcade 用."""
     draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=palette["banner"])
@@ -507,7 +575,7 @@ def _draw_banner_neon(draw: ImageDraw.ImageDraw, section_title: str, palette: Pa
         outline=palette["highlight"], width=2,
     )
     if section_title:
-        font = _font(get_font_path(), BANNER_FONT_SIZE)
+        font = _font(font_path or get_font_path(), BANNER_FONT_SIZE)
         text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
         _draw_text_mixed(
             draw, (SIDE_MARGIN, text_y), section_title, font, palette["highlight"],
@@ -516,31 +584,35 @@ def _draw_banner_neon(draw: ImageDraw.ImageDraw, section_title: str, palette: Pa
 
 def _draw_title(
     draw: ImageDraw.ImageDraw, title: str, palette: Palette,
-    decor: str = "underline",
+    decor: str = "underline", font_path: str | None = None,
 ) -> int:
-    """slide 主標題 dispatch — iter 59 加 4 種 decor.
+    """slide 主標題 dispatch — iter 59 加 4 種 decor. iter 60 加 font_path.
 
     decor:
       "underline" (default): 標題下方 highlight 色橫線 (現行行為)
       "block":               標題前 highlight 色方塊 prefix (像章節符號)
       "hairline":            標題上方 1px 細線 (學術 / 細緻)
       "reverse":             標題 wrapped 在 highlight 色塊 + bg 色反白文字
+    font_path: iter 60 — serif 主題帶 serif font 進來.
     """
     if decor == "block":
-        return _draw_title_block(draw, title, palette)
+        return _draw_title_block(draw, title, palette, font_path)
     if decor == "hairline":
-        return _draw_title_hairline(draw, title, palette)
+        return _draw_title_hairline(draw, title, palette, font_path)
     if decor == "reverse":
-        return _draw_title_reverse(draw, title, palette)
-    return _draw_title_underline(draw, title, palette)
+        return _draw_title_reverse(draw, title, palette, font_path)
+    return _draw_title_underline(draw, title, palette, font_path)
 
 
-def _draw_title_underline(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+def _draw_title_underline(
+    draw: ImageDraw.ImageDraw, title: str, palette: Palette,
+    font_path: str | None = None,
+) -> int:
     """現行 default: 標題下方 highlight 橫線, 寬 5."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
     title_y = CONTENT_TOP + 30
     end_y = _draw_text_wrapped(
         draw, (SIDE_MARGIN, title_y), title, font, palette["primary"],
@@ -556,13 +628,16 @@ def _draw_title_underline(draw: ImageDraw.ImageDraw, title: str, palette: Palett
     return underline_y + 30
 
 
-def _draw_title_block(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+def _draw_title_block(
+    draw: ImageDraw.ImageDraw, title: str, palette: Palette,
+    font_path: str | None = None,
+) -> int:
     """標題前 highlight 色塊 prefix — 像 § / 章節符號感.
     給 editorial / shinobi / risograph 用 (雜誌 / 印章 / 油墨)."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
     title_y = CONTENT_TOP + 30
     # 標題前方塊 (寬 16px, 高 = 字級 70%)
     block_w = 16
@@ -582,13 +657,16 @@ def _draw_title_block(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -
     return end_y + 30
 
 
-def _draw_title_hairline(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+def _draw_title_hairline(
+    draw: ImageDraw.ImageDraw, title: str, palette: Palette,
+    font_path: str | None = None,
+) -> int:
     """標題上方 1px 細線 — 學術 / 月光感.
     給 journal / podium / notebook / elven 用."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
     title_y = CONTENT_TOP + 30
     # 上方一條 hairline (寬至文字段+200px, 限制在版面內)
     hairline_y = title_y - 14
@@ -605,13 +683,16 @@ def _draw_title_hairline(draw: ImageDraw.ImageDraw, title: str, palette: Palette
     return end_y + 30
 
 
-def _draw_title_reverse(draw: ImageDraw.ImageDraw, title: str, palette: Palette) -> int:
+def _draw_title_reverse(
+    draw: ImageDraw.ImageDraw, title: str, palette: Palette,
+    font_path: str | None = None,
+) -> int:
     """標題包進 highlight 色塊 + bg 色反白文字 — 海報 / 反白標籤式.
     給 zine / brutalist / supergraphic 用."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
     title_y = CONTENT_TOP + 30
     # 量第一行寬度當色塊寬 (多行的話色塊只包第一行)
     first_line = title.split("\n")[0]
@@ -632,21 +713,24 @@ def _draw_title_reverse(draw: ImageDraw.ImageDraw, title: str, palette: Palette)
 
 def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
                   y_max: int, palette: Palette,
-                  max_text_width: int | None = None) -> int:
+                  max_text_width: int | None = None,
+                  font_path: str | None = None) -> int:
     """畫 bullets 列表, 強調色 ▸ marker + 主色文字, 回傳結束 y。
 
     iter 53: max_text_width 由 caller 指定窄寬 (例: split-image layout 時
     bullets 佔左側 55% 寬). None 走原本全寬 (預設).
+    iter 60: font_path 由 caller 帶 (serif 主題用 serif font).
     """
     if not bullets:
         return y_start
-    font = _font(get_font_path(), BULLET_FONT_SIZE)
+    fpath = font_path or get_font_path()
+    font = _font(fpath, BULLET_FONT_SIZE)
     line_h = BULLET_FONT_SIZE + 16
     indent = 60
     text_max_w = max_text_width if max_text_width is not None else (
         VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
     )
-    marker_font = _font(get_font_path(), BULLET_FONT_SIZE + 6)
+    marker_font = _font(fpath, BULLET_FONT_SIZE + 6)
 
     y = y_start
     for i, bullet in enumerate(bullets):
@@ -822,15 +906,17 @@ class PptxStyleRenderer:
         banner_style = get_banner_style(theme_name)
         # iter 59: title decor 依主題切 — underline (default) / block / hairline / reverse
         title_decor = get_title_decor(theme_name)
+        # iter 60: body 字型依主題切 — serif 主題用 serif, 其他 sans (default)
+        body_font_path = get_font_path_for_theme(theme_name)
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
 
         section_title = step.get("section_title") or data.get("title", "")
-        _draw_banner(draw, section_title, palette, style=banner_style)
+        _draw_banner(draw, section_title, palette, style=banner_style, font_path=body_font_path)
 
         title = step.get("title", "")
-        title_end_y = _draw_title(draw, title, palette, decor=title_decor)
+        title_end_y = _draw_title(draw, title, palette, decor=title_decor, font_path=body_font_path)
 
         content_y = title_end_y
         bullets = step.get("bullets") or []
@@ -854,7 +940,10 @@ class PptxStyleRenderer:
                 max(120, len(code.splitlines()) * (CODE_FONT_SIZE + 8) + 80),
             )
             bullets_y_max = content_y_max - estimated_code_h - 20
-            content_y = _draw_bullets(draw, bullets, content_y, bullets_y_max, palette)
+            content_y = _draw_bullets(
+                draw, bullets, content_y, bullets_y_max, palette,
+                font_path=body_font_path,
+            )
             content_y = max(content_y, content_y_max - estimated_code_h)
             _draw_code_block(draw, img, code, file_path, content_y, content_y_max, palette)
         elif image_path:
@@ -864,7 +953,10 @@ class PptxStyleRenderer:
             )
             if panel_x is None:
                 # image panel 失敗 → fallback 純文字
-                _draw_bullets(draw, bullets, content_y, content_y_max, palette)
+                _draw_bullets(
+                    draw, bullets, content_y, content_y_max, palette,
+                    font_path=body_font_path,
+                )
             else:
                 # bullets 寬度 = 左側到 panel_x 之間 (扣 indent)
                 indent = 60
@@ -872,9 +964,13 @@ class PptxStyleRenderer:
                 _draw_bullets(
                     draw, bullets, content_y, content_y_max, palette,
                     max_text_width=bullet_max_w,
+                    font_path=body_font_path,
                 )
         else:
-            _draw_bullets(draw, bullets, content_y, content_y_max, palette)
+            _draw_bullets(
+                draw, bullets, content_y, content_y_max, palette,
+                font_path=body_font_path,
+            )
 
         _draw_subtitle_strip(draw)
         try:

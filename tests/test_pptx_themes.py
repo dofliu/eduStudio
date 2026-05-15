@@ -6,10 +6,14 @@ import pytest
 
 from core.render.pptx_style import (
     DEFAULT_THEME,
+    SERIF_FONT_CANDIDATES,
     THEME_BANNER_STYLES,
+    THEME_FONT_ROLES,
     THEME_TITLE_DECORS,
     THEMES,
+    _resolve_serif_font,
     get_banner_style,
+    get_font_path_for_theme,
     get_palette,
     get_title_decor,
 )
@@ -211,3 +215,59 @@ class TestTitleDecor:
     def test_editorial_uses_block(self):
         """雜誌風該用 block (§ 符號感)."""
         assert get_title_decor("dof-editorial") == "block"
+
+
+# ---------- iter 60: font_role per theme ----------
+
+
+class TestFontRole:
+    """serif 主題用 serif font, 其他維持 default sans."""
+
+    def test_default_theme_uses_sans(self):
+        """forest (default) 該用 default sans path."""
+        from core.config import get_font_path
+        assert get_font_path_for_theme("forest") == get_font_path()
+
+    def test_unknown_theme_uses_sans(self):
+        from core.config import get_font_path
+        assert get_font_path_for_theme("not_a_theme") == get_font_path()
+        assert get_font_path_for_theme(None) == get_font_path()
+
+    def test_serif_themes_listed(self):
+        """5 個 serif 主題該都在 THEME_FONT_ROLES 內標 'serif'."""
+        for theme in ("journal", "dof-editorial", "dof-podium",
+                      "dof-notebook", "dof-elven"):
+            assert THEME_FONT_ROLES.get(theme) == "serif", (
+                f"{theme} 該標 serif"
+            )
+
+    def test_serif_themes_get_serif_path(self):
+        """serif 主題 get_font_path_for_theme 該回非 default sans 路徑
+        (如果系統有 serif font; 沒就回 default fallback)."""
+        from core.config import get_font_path
+        default = get_font_path()
+        serif_path = get_font_path_for_theme("journal")
+        # 系統有 Noto Serif TC 或 mingliu 時, 該回非 default 路徑
+        import os
+        if any(os.path.exists(p) for p in SERIF_FONT_CANDIDATES):
+            assert serif_path != default, (
+                "系統有 serif font 但 get_font_path_for_theme 卻回 default"
+            )
+        else:
+            # 沒 serif font 時 fallback 到 default 也算正常
+            assert serif_path == default
+
+    def test_resolve_serif_font_returns_existing_path(self):
+        """_resolve_serif_font 該回實際存在的路徑 (有 serif 時) 或 default fallback."""
+        import os
+        path = _resolve_serif_font()
+        assert os.path.exists(path), f"serif font path {path} 不存在"
+
+    def test_non_serif_legacy_themes_default(self):
+        """forest / navy / frieren / naruto / shinobi 這些非 serif 主題該 default."""
+        for theme in ("forest", "navy", "frieren", "naruto", "dof-shinobi",
+                      "dof-zine", "dof-arcade", "dof-risograph",
+                      "dof-supergraphic", "dof-brutalist"):
+            # 不在 THEME_FONT_ROLES 內或標 "sans"
+            role = THEME_FONT_ROLES.get(theme, "sans")
+            assert role == "sans", f"{theme} 該是 sans, 卻是 {role!r}"

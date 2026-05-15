@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 # Gemini 影像生成 model — Flash family 比 imagen 便宜
-IMAGE_MODEL = "gemini-2.5-flash-image-preview"
+# 2026-05-15: GA 後 -preview 後綴拿掉, 改成 gemini-2.5-flash-image
+IMAGE_MODEL = "gemini-2.5-flash-image"
 
 
 def _build_diagram_prompt(section: dict, deck_title: str = "") -> str:

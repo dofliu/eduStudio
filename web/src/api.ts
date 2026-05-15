@@ -5,6 +5,7 @@ import type {
   CreateJobRequest,
   CreateJobResponse,
   Deck,
+  JobFiguresResponse,
   JobLogResponse,
   JobOptions,
   JobRecord,
@@ -83,6 +84,17 @@ export const api = {
   // artifact download URL — 給 <a href> 直接用, 不走 fetch
   artifactUrl: (jobId: string, name: string) =>
     `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}`,
+
+  // ---------- Figures (iter 54) ----------
+
+  /** 列該 job 抽出來的 PDF figures (給 SlideEditor 換圖 picker 用). */
+  listFigures: (jobId: string) =>
+    call<JobFiguresResponse>(`/jobs/${jobId}/figures`),
+
+  /** Figure 預覽 URL — <img src> 用. fig_id 例如 "fig_p3_1" 沒副檔名,
+   * 需要傳完整 figure.path ("fig_p3_1.png") 給後端 file 名 lookup. */
+  figureUrl: (jobId: string, filename: string) =>
+    `/jobs/${jobId}/figures/${encodeURIComponent(filename)}`,
 
   // ---------- YouTube (PR-3f) ----------
 

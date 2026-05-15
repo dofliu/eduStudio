@@ -129,6 +129,24 @@ export interface Slide {
   bg_image?: string | null;
   bg_type?: string | null;       // "slide" | undefined
   layout?: string | null;         // "full" | "split-left" (Phase 4 預留)
+  // iter 52: PDF figure 配圖 id (例 "fig_p3_1") 或 null. iter 53 runner 渲染前
+  // 會轉成絕對路徑, 但 deck.json 跟 UI 都看 id.
+  image_path?: string | null;
+}
+
+// iter 54: jobs/{id}/figures route 回的單張 figure metadata
+export interface JobFigure {
+  id: string;                    // "fig_p3_1"
+  page_no: number;
+  path: string;                  // "fig_p3_1.png"
+  width: number;
+  height: number;
+  caption_hint: string;
+  url: string;                   // "/jobs/{id}/figures/fig_p3_1.png"
+}
+
+export interface JobFiguresResponse {
+  figures: JobFigure[];
 }
 
 export interface Section {

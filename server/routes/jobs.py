@@ -262,3 +262,65 @@ async def download_artifact(job_id: str, name: str, store: JobStore = Depends(ge
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"artifact 不存在: {name}")
     return FileResponse(target, filename=name)
+
+
+# ---------- Figures (iter 54) ----------
+
+@router.get("/{job_id}/figures")
+async def list_figures(job_id: str, store: JobStore = Depends(get_default_store)) -> JSONResponse:
+    """列出該 job 抽出來的 PDF figures (iter 51 抽到 jobs/<id>/figures/).
+
+    給 SlideEditor 的「換圖」picker 用 — 列出所有 figures 配 thumbnail URL,
+    UI 可呼叫 GET /jobs/{id}/figures/{name} 顯示縮圖.
+
+    來源 raw_content.json 內 figures 欄位 (iter 51 寫進去的 metadata).
+    沒 raw_content.json 或沒 figures → 回空 list.
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+
+    raw_path = store.job_dir(job_id) / "raw_content.json"
+    if not raw_path.exists():
+        return JSONResponse(content={"figures": []})
+
+    try:
+        raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    except Exception:
+        return JSONResponse(content={"figures": []})
+
+    figures = raw.get("figures") or []
+    # 加 url 欄位讓 UI 直接拿 thumbnail
+    out = []
+    for f in figures:
+        if not isinstance(f, dict) or not f.get("path"):
+            continue
+        out.append({
+            "id": f.get("id"),
+            "page_no": f.get("page_no"),
+            "path": f.get("path"),
+            "width": f.get("width"),
+            "height": f.get("height"),
+            "caption_hint": f.get("caption_hint", ""),
+            "url": f"/jobs/{job_id}/figures/{f['path']}",
+        })
+    return JSONResponse(content={"figures": out})
+
+
+@router.get("/{job_id}/figures/{name}")
+async def download_figure(
+    job_id: str, name: str, store: JobStore = Depends(get_default_store),
+) -> FileResponse:
+    """下載 / 預覽單張 figure. <img src="..."> 直接吃這條.
+
+    跟 artifact 同 path-traversal 防呆, target 限定 figures/ 下.
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    if "/" in name or "\\" in name or ".." in name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 figure 檔名")
+    target = store.job_dir(job_id) / "figures" / name
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"figure 不存在: {name}")
+    return FileResponse(target, filename=name)

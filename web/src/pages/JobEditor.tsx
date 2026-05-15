@@ -1,18 +1,27 @@
-// JobEditor — Job 編輯頁的「外殼」: 載入 / 存檔 / approve 邏輯統一,
-// 內容渲染依 schema 分流到 deck 或 exam 兩個 Panel。
+// JobEditor — UI redesign 套用後的版本
 //
-// PR-3e: deck schema (sections / slides) 編輯
-// PR-3f: done 階段顯示 artifact 列 + 📺 上傳到 YouTube 入口
-// PR-3g: exam schema (problems / steps) 編輯, 取代 Flask app.py /edit 頁
+// 邏輯完全保留:
+//   - job / draft / loading / saving / dirty state
+//   - reloadAll polling
+//   - updateSlide / updateSectionTitle / onExamChange / onSave / onApprove / onRenderSection
+//   - 所有 schema 辨識 (isExamDraft / isDeckDraft)
+//   - LogPanel / SlideEditor / ExamProblemsPanel 子元件原樣使用
+//
+// 視覺改動:
+//   - 全域 sticky toolbar 改成 Topbar 風格
+//   - Deck 模式從「整頁 scroll 所有 slides」改成 3-pane (左 list / 中 preview / 右 SlideEditor)
+//     左 list 的 activeSlideId 是純 UI state, 不影響 save/render 行為
+//   - Exam 模式維持 ExamProblemsPanel 的整頁流, 只換 wrapper 樣式
+//   - Artifacts / YouTube / 警示 banner / log panel 全部保留, 改新版視覺
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { ExamProblemsPanel } from '../components/ExamProblemsPanel';
 import { LogPanel } from '../components/LogPanel';
 import { SlideEditor } from '../components/SlideEditor';
-import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/Toast';
+import { Btn, StatusPill, SourceBadge, Meter } from '../components/ui';
 import type { Deck, Draft, Exam, JobRecord, Slide } from '../types';
 import { isDeckDraft, isExamDraft } from '../types';
 
@@ -24,22 +33,20 @@ export default function JobEditor() {
   const { show } = useToast();
 
   const [job, setJob] = useState<JobRecord | null>(null);
-  // 使用泛型 Draft, schema 由 type guard 在 render 時辨識
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // 新增的 UI state (純前端, 不影響任何 API/save 行為)
+  const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
 
   const reloadAll = useCallback(async () => {
     if (!jobId) return;
     try {
       const j = await api.getJob(jobId);
       setJob(j);
-      // 只在 dirty=false 時才覆蓋本地 draft, 避免吃掉使用者尚未存檔的修改
       if (!dirty) {
         try {
-          // server /draft 端點型別宣告是 Deck, 但實際回傳是 dict.
-          // 我們在 client 用 Draft (= Exam | Deck | unknown) 接, runtime 由 guard 分流
           const d = (await api.getDraft(jobId)) as unknown as Draft;
           setDraft(d);
         } catch {
@@ -55,12 +62,11 @@ export default function JobEditor() {
 
   useEffect(() => {
     reloadAll();
-    // ingesting / rendering 中持續輪詢, 其他狀態 reload 一次也無妨
     const t = setInterval(reloadAll, POLL_INTERVAL_MS);
     return () => clearInterval(t);
   }, [reloadAll]);
 
-  // ---- Deck schema mutators ----
+  // ── Deck mutators ──────────────────────────────────────────────────────
   const updateSlide = (sectionIdx: number, slideIdx: number, next: Slide) => {
     if (!draft || !isDeckDraft(draft)) return;
     const sections = [...draft.sections];
@@ -79,18 +85,17 @@ export default function JobEditor() {
     setDirty(true);
   };
 
-  // ---- Exam schema mutators (整顆替換, panel 內部負責 immutable update) ----
+  // ── Exam mutator ───────────────────────────────────────────────────────
   const onExamChange = (next: Exam) => {
     setDraft(next);
     setDirty(true);
   };
 
-  // ---- Save / Approve ----
+  // ── Save / Approve / Render ────────────────────────────────────────────
   const onSave = async () => {
     if (!draft || !jobId) return;
     setSaving(true);
     try {
-      // server schema 是 dict, cast 過去
       await api.saveDraft(jobId, draft as unknown as Deck);
       setDirty(false);
       show('已儲存');
@@ -124,7 +129,6 @@ export default function JobEditor() {
     }
   };
 
-  // PR-4a: 單章重 render. 跑前自動 save (避免改了沒存就跑舊版).
   const onRenderSection = async (sectionId: string, sectionLabel: string) => {
     if (!jobId || !draft) return;
     if (!confirm(`重新渲染「${sectionLabel}」? 其他章不會動。`)) return;
@@ -143,9 +147,31 @@ export default function JobEditor() {
     }
   };
 
-  // section render 只能在 done / failed 觸發 (跟 server 端條件對齊)
   const canRenderSection = job?.state === 'done' || job?.state === 'failed';
 
+  // ── 攤平的 deck slide list (only 在 isDeck 時用) ────────────────────────
+  const flatSlides = useMemo(() => {
+    if (!draft || !isDeckDraft(draft)) return [] as Array<{
+      slide: Slide; sectionIdx: number; slideIdx: number; sectionTitle: string;
+    }>;
+    return draft.sections.flatMap((sec, si) =>
+      sec.slides.map((sl, sli) => ({
+        slide: sl,
+        sectionIdx: si,
+        slideIdx: sli,
+        sectionTitle: sec.title,
+      })),
+    );
+  }, [draft]);
+
+  // 預設選第一張
+  useEffect(() => {
+    if (!activeSlideId && flatSlides.length > 0) {
+      setActiveSlideId(flatSlides[0].slide.id);
+    }
+  }, [activeSlideId, flatSlides]);
+
+  // ── early returns ──────────────────────────────────────────────────────
   if (loading && !job) {
     return <div className="text-center py-10 text-ink-muted">Loading…</div>;
   }
@@ -153,66 +179,45 @@ export default function JobEditor() {
     return (
       <div className="text-center py-10">
         <p className="text-ink-muted mb-4">Job 不存在</p>
-        <Link to="/" className="btn btn-ghost">
-          ← Back to Jobs
-        </Link>
+        <Link to="/" className="text-forest-600 hover:underline">← Back to Jobs</Link>
       </div>
     );
   }
 
-  // 可編輯狀態:
-  // - awaiting_review: 主路徑
-  // - failed: PR-3j retry render
-  // - done: 改 layout / 補錯字後用 section re-render 重跑該章 (mp4 會被新版蓋掉)
   const canEdit =
     job.state === 'awaiting_review' ||
     job.state === 'failed' ||
     job.state === 'done';
   const isRetry = job.state === 'failed';
-  // done 狀態 dirty 時 mp4 跟 deck 不同步, 提示 user 用 section re-render 更新
   const showStaleArtifactWarning = job.state === 'done' && dirty;
 
   if (!draft) {
     return (
-      <div>
-        <div className="mb-4">
-          <Link to="/" className="text-forest hover:underline text-sm">
-            ← Back to Jobs
-          </Link>
-        </div>
-        <div className="bg-white border border-border rounded p-6 text-center">
-          <StatusBadge state={job.state} />
-          <p className="mt-4 text-ink-muted">
-            deck.json 尚未產生 (job 在 {job.state} 階段)。畫面會自動更新…
-          </p>
+      <div className="px-10 py-8 max-w-4xl">
+        <Link to="/" className="text-forest-600 hover:underline text-[12px] font-mono">← Back to Jobs</Link>
+        <div className="bg-paper-card border border-paper-line rounded-sm p-8 text-center mt-4">
+          <StatusPill state={job.state} />
+          <p className="mt-4 text-ink-muted">deck.json 尚未產生 (job 在 {job.state} 階段)。畫面會自動更新…</p>
         </div>
       </div>
     );
   }
 
-  // ---- Schema 辨識 ----
   const isExam = isExamDraft(draft);
   const isDeck = isDeckDraft(draft);
 
   if (!isExam && !isDeck) {
     return (
-      <div>
-        <div className="mb-4">
-          <Link to="/" className="text-forest hover:underline text-sm">
-            ← Back to Jobs
-          </Link>
-        </div>
-        <div className="bg-white border border-border rounded p-6 text-center text-ink-muted">
+      <div className="px-10 py-8 max-w-4xl">
+        <Link to="/" className="text-forest-600 hover:underline text-[12px] font-mono">← Back to Jobs</Link>
+        <div className="bg-paper-card border border-paper-line rounded-sm p-8 text-center mt-4 text-ink-muted">
           無法辨識 schema (既無 problems 也無 sections), 請檢查 jobs/&lt;id&gt;/deck.json
         </div>
       </div>
     );
   }
 
-  // ---- 統計資訊 (toolbar 顯示) ----
-  const title = isExam
-    ? (draft as Exam).exam_title
-    : (draft as Deck).deck_title;
+  const title = isExam ? (draft as Exam).exam_title : (draft as Deck).deck_title;
   const subtitle = isExam
     ? (() => {
         const e = draft as Exam;
@@ -225,262 +230,450 @@ export default function JobEditor() {
         return `${d.sections.length} sections · ${totalSlides} slides`;
       })();
 
-  // iter 47: final.mp4 排頂 + 視覺強調. 其他章 mp4 列在下方 collapsible
   const mp4s = job.artifacts.filter((a) => a.kind === 'mp4');
   const finalMp4 = mp4s.find((a) => a.name === 'final.mp4');
   const sectionMp4s = mp4s.filter((a) => a.name !== 'final.mp4');
 
+  // 攤平結構, 找目前 active slide (deck 模式)
+  const active = isDeck
+    ? flatSlides.find((s) => s.slide.id === activeSlideId) || flatSlides[0]
+    : null;
+
   return (
-    <div>
-      <div className="mb-3">
-        <Link to="/" className="text-forest hover:underline text-sm">
-          ← Back to Jobs
-        </Link>
-      </div>
+    <div className="flex flex-col h-screen">
+      {/* ── Header (取代原本的 sticky toolbar) ─────────────────────────── */}
+      <header className="border-b border-paper-line bg-paper">
+        <div className="px-10 pt-6 pb-2">
+          <Link to="/" className="text-[12px] font-mono text-forest-600 hover:underline">← Back to Jobs</Link>
+        </div>
+        <div className="px-10 pb-5 flex items-end justify-between gap-6">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-ink-muted">
+                04 · Edit · {subtitle}
+              </span>
+              <span className="ml-2"><SourceBadge type={job.source_type} size="sm" /></span>
+              <StatusPill state={job.state} size="sm" />
+              {dirty && (
+                <span className="text-[11px] font-mono text-accent-coral inline-flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-coral"></span>未存檔
+                </span>
+              )}
+            </div>
+            <h1 className="font-display text-[34px] leading-[1.1] text-forest-700 break-all">
+              {isExam ? '📝 ' : '🎬 '}{title}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Btn kind="ghost" size="md" onClick={onSave} disabled={!canEdit || saving || !dirty}>
+              {saving ? '...' : '💾 Save'}
+            </Btn>
+            {job.state !== 'done' && (
+              <Btn
+                kind="primary"
+                size="md"
+                onClick={onApprove}
+                disabled={!canEdit || saving}
+                title={isRetry ? '清掉之前的錯誤, 用目前 deck.json 重新跑 render' : undefined}
+              >
+                {isRetry ? '🔄 重試 render' : '✓ Approve & Render'}
+              </Btn>
+            )}
+          </div>
+        </div>
+      </header>
 
-      {/* PR-4c: per-job log tail — 摺疊式, 進行中 auto-poll */}
-      <LogPanel jobId={job.id} jobState={job.state} />
+      {/* ── Banners & artifacts (置於 toolbar 下, 主編輯區之上) ──────── */}
+      <div className="px-10 pt-4 pb-2 space-y-3">
+        <LogPanel jobId={job.id} jobState={job.state} />
 
-      {/* PR-3f: render 完成後顯示 artifact 列 + YouTube 上傳入口
-          iter 47: final.mp4 (多章合成) 排頂並用 highlight 區塊;
-          各章 mp4 列在下方 (重 render 用, 視覺次要) */}
-      {job.state === 'done' && mp4s.length > 0 && (
-        <div className="space-y-3 mb-4">
-          {/* 主交付: final.mp4 — 醒目區塊 */}
-          {finalMp4 && (() => {
-            const yt = job.youtube_uploads?.[finalMp4.name];
-            return (
-              <div className="bg-emerald-50 border-2 border-emerald-500 rounded-md p-4">
-                <div className="font-semibold text-emerald-800 mb-2">
-                  🎬 完整影片 (含全部章節 + intro)
-                </div>
-                <div className="flex items-center gap-2 text-sm flex-wrap">
-                  <span className="font-mono">{finalMp4.name}</span>
-                  <span className="text-ink-muted text-xs">
-                    {(finalMp4.size_bytes / 1024 / 1024).toFixed(1)} MB
-                  </span>
-                  <a
-                    href={api.artifactUrl(job.id, finalMp4.name)}
-                    className="btn btn-primary text-sm"
-                  >
-                    ▶ 預覽完整影片
-                  </a>
+        {isRetry && job.error && (
+          <div className="border-l-2 border-accent-coral pl-4 py-2 bg-paper-warm">
+            <div className="text-[12px] font-mono uppercase tracking-[0.18em] text-accent-coral mb-1">render error</div>
+            <div className="text-[13px] text-ink font-mono break-all">{job.error}</div>
+            <div className="text-[12px] text-ink-muted mt-1.5">
+              可直接編輯 deck 後按「🔄 重試 render」重跑, 不會重新做 ingest。
+            </div>
+          </div>
+        )}
+
+        {showStaleArtifactWarning && (
+          <div className="border-l-2 border-chalk-yellowDark pl-4 py-2 bg-chalk-yellow/15">
+            <div className="text-[12px] font-mono uppercase tracking-[0.18em] text-forest-700 mb-1">deck 已改, mp4 仍是舊版</div>
+            <div className="text-[12px] text-ink">
+              修改不會自動重 render。先按 💾 Save 存 deck, 然後到下方對應章節點「🎬 重 render 本章」。
+            </div>
+          </div>
+        )}
+
+        {!canEdit && (
+          <div className="bg-paper-warm border border-paper-line rounded-sm p-3 text-[12.5px] text-ink-muted">
+            目前 state=<code className="font-mono text-ink">{job.state}</code>, 為唯讀模式。
+            僅 <code className="font-mono text-ink">awaiting_review</code> / <code className="font-mono text-ink">failed</code> / <code className="font-mono text-ink">done</code> 可儲存 / 重新 render。
+          </div>
+        )}
+
+        {/* Artifacts (only done & has mp4) */}
+        {job.state === 'done' && mp4s.length > 0 && (
+          <div className="space-y-2">
+            {finalMp4 && (() => {
+              const yt = job.youtube_uploads?.[finalMp4.name];
+              return (
+                <div className="border border-forest-500 bg-forest-100 rounded-sm p-3.5 flex items-center gap-3 flex-wrap">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-forest-700">🎬 完整影片</div>
+                  <span className="font-mono text-[12.5px]">{finalMp4.name}</span>
+                  <span className="text-[11px] text-ink-muted font-mono">{(finalMp4.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                  <a href={api.artifactUrl(job.id, finalMp4.name)} className="btn btn-primary !text-[12px] !h-7">▶ 預覽完整影片</a>
                   <Link
                     to={`/jobs/${job.id}/publish/${encodeURIComponent(finalMp4.name)}`}
-                    className={
-                      'btn text-sm ' +
-                      (yt?.state === 'done'
-                        ? 'btn-ghost text-green-700'
-                        : 'btn-secondary')
-                    }
+                    className={'btn !text-[12px] !h-7 ' + (yt?.state === 'done' ? 'btn-ghost !text-forest-700' : 'btn-secondary')}
                   >
-                    📺{' '}
-                    {yt?.state === 'done'
-                      ? '已上傳到 YouTube (查看)'
-                      : yt?.state === 'uploading'
-                      ? `上傳中 ${yt.progress_percent}%`
-                      : yt?.state === 'failed'
-                      ? '上傳失敗 (重試)'
+                    📺 {yt?.state === 'done' ? '已上傳 (查看)'
+                      : yt?.state === 'uploading' ? `上傳中 ${yt.progress_percent}%`
+                      : yt?.state === 'failed' ? '上傳失敗 (重試)'
                       : '上傳到 YouTube'}
                   </Link>
                   {yt?.url && (
-                    <a
-                      href={yt.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-forest underline break-all"
-                    >
-                      {yt.url}
-                    </a>
+                    <a href={yt.url} target="_blank" rel="noreferrer" className="text-[11px] text-forest-600 underline decoration-dotted break-all">{yt.url}</a>
                   )}
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
-          {/* 各章 mp4: 視覺次要 (給 section re-render 用) */}
-          {sectionMp4s.length > 0 && (
-            <div className="bg-white border border-border rounded-md p-4">
-              <div className="font-semibold text-forest mb-2">
-                {finalMp4 ? '📦 各章獨立影片' : '📦 Artifacts'} ({sectionMp4s.length})
-                {finalMp4 && (
-                  <span className="text-ink-muted text-xs font-normal ml-2">
-                    重 render 單章 / 分段播放用; 主要上傳 YT 用上方完整影片
-                  </span>
-                )}
-              </div>
-              <div className="space-y-2">
-                {sectionMp4s.map((a) => {
-                  const yt = job.youtube_uploads?.[a.name];
-                  return (
-                    <div
-                      key={a.name}
-                      className="flex items-center gap-2 text-sm border-t border-border pt-2 first:border-t-0 first:pt-0 flex-wrap"
-                    >
-                      <span className="font-mono">{a.name}</span>
-                      <span className="text-ink-muted text-xs">
-                        {(a.size_bytes / 1024 / 1024).toFixed(1)} MB
-                      </span>
-                      <a
-                        href={api.artifactUrl(job.id, a.name)}
-                        className="text-forest underline"
-                      >
-                        ▶ 預覽
-                      </a>
-                      <Link
-                        to={`/jobs/${job.id}/publish/${encodeURIComponent(a.name)}`}
-                        className={
-                          'btn btn-ghost text-xs ' +
-                          (yt?.state === 'done' ? 'text-green-700' : '')
-                        }
-                      >
-                        📺{' '}
-                        {yt?.state === 'done'
-                          ? '已上傳 (查看)'
-                          : yt?.state === 'uploading'
-                          ? `上傳中 ${yt.progress_percent}%`
-                          : yt?.state === 'failed'
-                          ? '上傳失敗 (重試)'
-                          : '上傳到 YouTube'}
-                      </Link>
-                      {yt?.url && (
-                        <a
-                          href={yt.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-forest underline break-all"
+            {sectionMp4s.length > 0 && (
+              <details className="border border-paper-line bg-paper-card rounded-sm">
+                <summary className="cursor-pointer px-3.5 py-2.5 text-[12.5px] text-forest-700 select-none flex items-center gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-ink-muted">artifacts</span>
+                  <span>{finalMp4 ? '📦 各章獨立影片' : '📦 Artifacts'} · {sectionMp4s.length}</span>
+                  {finalMp4 && <span className="text-[11px] text-ink-muted font-normal">重 render 單章 / 分段播放用</span>}
+                </summary>
+                <div className="px-3.5 pb-3.5 pt-1 space-y-2">
+                  {sectionMp4s.map((a) => {
+                    const yt = job.youtube_uploads?.[a.name];
+                    return (
+                      <div key={a.name} className="flex items-center gap-2 text-[12.5px] flex-wrap border-t border-paper-line pt-2 first:border-t-0 first:pt-0">
+                        <span className="font-mono">{a.name}</span>
+                        <span className="text-[11px] text-ink-muted font-mono">{(a.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                        <a href={api.artifactUrl(job.id, a.name)} className="text-forest-600 underline decoration-dotted">▶ 預覽</a>
+                        <Link
+                          to={`/jobs/${job.id}/publish/${encodeURIComponent(a.name)}`}
+                          className={'btn btn-ghost !text-[11px] !h-6 ' + (yt?.state === 'done' ? '!text-forest-700' : '')}
                         >
-                          {yt.url}
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* sticky toolbar */}
-      <div className="sticky top-0 z-10 bg-forest-bg/95 backdrop-blur py-3 border-b border-border mb-4 flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-forest truncate">
-            {isExam && '📝 '}
-            {isDeck && '🎬 '}
-            {title}
+                          📺 {yt?.state === 'done' ? '已上傳 (查看)'
+                            : yt?.state === 'uploading' ? `上傳中 ${yt.progress_percent}%`
+                            : yt?.state === 'failed' ? '上傳失敗 (重試)'
+                            : '上傳到 YouTube'}
+                        </Link>
+                        {yt?.url && (
+                          <a href={yt.url} target="_blank" rel="noreferrer" className="text-[11px] text-ink-muted underline break-all">{yt.url}</a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
           </div>
-          <div className="text-xs text-ink-muted">
-            {subtitle}
-            {dirty && <span className="ml-2 text-orange-700">• 未存檔</span>}
-          </div>
-        </div>
-        <StatusBadge state={job.state} />
-        <button
-          onClick={onSave}
-          disabled={!canEdit || saving || !dirty}
-          className="btn btn-primary"
-        >
-          {saving ? '...' : '💾 Save'}
-        </button>
-        {/* Approve 對 done 狀態沒意義 (已 approved 過), 只在 awaiting_review / failed 顯示 */}
-        {job.state !== 'done' && (
-          <button
-            onClick={onApprove}
-            disabled={!canEdit || saving}
-            className="btn btn-primary"
-            title={isRetry ? '清掉之前的錯誤, 用目前 deck.json 重新跑 render' : undefined}
-          >
-            {isRetry ? '🔄 重試 render' : '✓ Approve & Render'}
-          </button>
         )}
       </div>
 
-      {/* PR-3j: 失敗 banner + 提示可直接重試 (不必重做 ingest) */}
-      {isRetry && job.error && (
-        <div className="bg-red-50 border border-red-300 rounded p-3 mb-4 text-sm">
-          <div className="font-semibold text-red-800">⚠ 上次 render 失敗</div>
-          <div className="text-red-700 mt-1 break-all">{job.error}</div>
-          <div className="text-xs text-ink-muted mt-2">
-            可直接編輯 deck 後按「🔄 重試 render」重跑, 不會重新做 ingest。
-          </div>
-        </div>
-      )}
-
-      {/* DONE 狀態改了 deck 但還沒重 render: 既有 mp4 跟新 deck 不同步, 提示 user */}
-      {showStaleArtifactWarning && (
-        <div className="bg-orange-50 border border-orange-300 rounded p-3 mb-4 text-sm">
-          <div className="font-semibold text-orange-800">⚠ Deck 已修改, 但 mp4 仍是舊版</div>
-          <div className="text-orange-700 mt-1">
-            修改不會自動重 render。先按 💾 Save 存 deck, 然後到底下對應章節點「重新渲染本章」。
-          </div>
-        </div>
-      )}
-
-      {!canEdit && (
-        <div className="bg-stone-100 border border-border rounded p-3 mb-4 text-sm text-ink-muted">
-          目前 state=<code className="font-mono">{job.state}</code>, 為唯讀模式。僅
-          <code className="font-mono mx-1">awaiting_review</code> /
-          <code className="font-mono mx-1">failed</code> /
-          <code className="font-mono mx-1">done</code> 可儲存 / 重新 render。
-        </div>
-      )}
-
-      {/* ---- Schema-specific panel ---- */}
-      {isExam && (
-        <ExamProblemsPanel
-          exam={draft as Exam}
-          readOnly={!canEdit}
-          onChange={onExamChange}
-          onRenderSection={canRenderSection ? onRenderSection : undefined}
+      {/* ── 主編輯區 ────────────────────────────────────────────────── */}
+      {isDeck ? (
+        <DeckThreePane
+          deck={draft as Deck}
+          flatSlides={flatSlides}
+          active={active}
+          activeSlideId={activeSlideId}
+          setActiveSlideId={setActiveSlideId}
+          canEdit={canEdit}
+          canRenderSection={canRenderSection}
+          saving={saving}
+          updateSlide={updateSlide}
+          updateSectionTitle={updateSectionTitle}
+          onRenderSection={onRenderSection}
+          jobId={jobId}
         />
+      ) : (
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-10 py-4">
+          {/* Exam 維持原 ExamProblemsPanel 的整頁流, 加個 hint */}
+          <div className="mb-4 text-[12px] text-ink-muted">每題下方有 step list, 改完按上方的 💾 Save 存草稿。</div>
+          <ExamProblemsPanel
+            exam={draft as Exam}
+            readOnly={!canEdit}
+            onChange={onExamChange}
+            onRenderSection={canRenderSection ? onRenderSection : undefined}
+          />
+        </div>
       )}
+    </div>
+  );
+}
 
-      {isDeck && (
-        <>
-          {(draft as Deck).sections.map((sec, sIdx) => (
-            <section
-              key={sec.id}
-              className="bg-white border border-border rounded-md p-4 mb-4"
-            >
-              <div className="border-b-2 border-chalk-yellow pb-2 mb-3 flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-forest text-sm shrink-0">
-                  章 {sIdx + 1}:
-                </span>
-                <input
-                  type="text"
-                  className="field-input flex-1 text-base font-semibold"
-                  value={sec.title}
-                  disabled={!canEdit}
-                  onChange={(e) => updateSectionTitle(sIdx, e.target.value)}
-                />
-                <span className="text-xs text-ink-muted shrink-0">
-                  {sec.slides.length} slides
-                </span>
-                {/* PR-4a: 單章重 render */}
-                {canRenderSection && (
+// ─── Deck 3-pane workspace ────────────────────────────────────────────────
+
+interface ThreePaneProps {
+  deck: Deck;
+  flatSlides: Array<{ slide: Slide; sectionIdx: number; slideIdx: number; sectionTitle: string }>;
+  active: { slide: Slide; sectionIdx: number; slideIdx: number; sectionTitle: string } | null | undefined;
+  activeSlideId: string | null;
+  setActiveSlideId: (id: string) => void;
+  canEdit: boolean;
+  canRenderSection: boolean;
+  saving: boolean;
+  updateSlide: (sectionIdx: number, slideIdx: number, next: Slide) => void;
+  updateSectionTitle: (sectionIdx: number, title: string) => void;
+  onRenderSection: (sectionId: string, sectionLabel: string) => void;
+  jobId?: string;   // iter 54: 透傳給 SlideEditor 讓它 fetch figures
+}
+
+function DeckThreePane({
+  deck, flatSlides, active, activeSlideId, setActiveSlideId,
+  canEdit, canRenderSection, saving,
+  updateSlide, updateSectionTitle, onRenderSection,
+  jobId,
+}: ThreePaneProps) {
+  const totalSlides = flatSlides.length;
+  const activeFlatIdx = flatSlides.findIndex((s) => s.slide.id === activeSlideId);
+
+  return (
+    <div className="flex-1 flex overflow-hidden min-h-0">
+      {/* LEFT — slide list, 一個 section 一段 */}
+      <div className="w-[260px] shrink-0 border-r border-paper-line flex flex-col bg-paper">
+        <div className="px-4 py-3 border-b border-paper-line">
+          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-ink-muted">slides · {totalSlides}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {deck.sections.map((sec, si) => (
+            <div key={sec.id} className="border-b border-paper-line last:border-b-0">
+              <div className="px-4 py-2.5 bg-paper-warm sticky top-0 z-10">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-[10px] text-ink-faint num shrink-0">CH {String(si + 1).padStart(2, '0')}</span>
+                  <input
+                    type="text"
+                    className="flex-1 bg-transparent text-[12px] font-medium text-forest-700 focus:outline-none focus:ring-1 focus:ring-chalk-yellow rounded-sm px-1 -mx-1"
+                    value={sec.title}
+                    disabled={!canEdit}
+                    onChange={(e) => updateSectionTitle(si, e.target.value)}
+                  />
+                  <span className="font-mono text-[10px] text-ink-muted shrink-0">{sec.slides.length}</span>
+                </div>
+              </div>
+              {sec.slides.map((sl, sli) => {
+                const sel = sl.id === activeSlideId;
+                const flatIdx = deck.sections.slice(0, si).reduce((s, x) => s + x.slides.length, 0) + sli;
+                return (
                   <button
-                    onClick={() => onRenderSection(sec.id, `章 ${sIdx + 1} ${sec.title}`)}
+                    key={sl.id}
+                    onClick={() => setActiveSlideId(sl.id)}
+                    className={
+                      'w-full text-left px-4 py-2.5 flex gap-3 items-start border-l-2 transition-colors ' +
+                      (sel ? 'bg-chalk-yellow/40 border-forest-600' : 'border-transparent hover:bg-paper-warm')
+                    }
+                  >
+                    <span className="font-mono text-[10px] text-ink-faint num shrink-0 mt-0.5 w-5">{String(flatIdx + 1).padStart(2, '0')}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12.5px] font-medium text-ink leading-tight truncate">{sl.title}</div>
+                      <div className="text-[10.5px] text-ink-muted mt-0.5">
+                        {sl.bullets.length} bullets · {sl.narration.length}字
+                      </div>
+                    </div>
+                    {sl.code_snippet && <span className="font-mono text-[9px] text-accent-plum mt-1">{'</>'}</span>}
+                  </button>
+                );
+              })}
+              {canRenderSection && (
+                <div className="px-4 py-2 bg-paper">
+                  <Btn
+                    kind="quiet"
+                    size="sm"
+                    className="!w-full !justify-center !text-[11px]"
+                    onClick={() => onRenderSection(sec.id, `章 ${si + 1} ${sec.title}`)}
                     disabled={saving}
-                    className="btn btn-ghost text-xs shrink-0"
-                    title="只重新渲染本章 (其他章不動)"
                   >
                     🎬 重 render 本章
-                  </button>
-                )}
-              </div>
-              {sec.slides.map((sl, slIdx) => (
-                <SlideEditor
-                  key={sl.id}
-                  slide={sl}
-                  readOnly={!canEdit}
-                  onChange={(next) => updateSlide(sIdx, slIdx, next)}
-                />
-              ))}
-            </section>
+                  </Btn>
+                </div>
+              )}
+            </div>
           ))}
-        </>
-      )}
+        </div>
+      </div>
+
+      {/* MIDDLE — preview */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin paper-grain min-w-0">
+        {active && (
+          <div className="py-7 px-8">
+            <div className="flex items-center gap-3 mb-5 text-[12px] text-ink-muted flex-wrap">
+              <span className="font-mono">section {String(active.sectionIdx + 1).padStart(2, '0')}</span>
+              <span>→</span>
+              <span className="truncate">{active.sectionTitle}</span>
+              <span>→</span>
+              <span className="font-mono">slide {activeFlatIdx + 1} / {totalSlides}</span>
+              <div className="ml-auto flex items-center gap-1">
+                <Btn
+                  kind="quiet"
+                  size="sm"
+                  onClick={() => setActiveSlideId(flatSlides[Math.max(0, activeFlatIdx - 1)].slide.id)}
+                  disabled={activeFlatIdx <= 0}
+                >← 上一張</Btn>
+                <Btn
+                  kind="quiet"
+                  size="sm"
+                  onClick={() => setActiveSlideId(flatSlides[Math.min(flatSlides.length - 1, activeFlatIdx + 1)].slide.id)}
+                  disabled={activeFlatIdx >= flatSlides.length - 1}
+                >下一張 →</Btn>
+              </div>
+            </div>
+
+            <SlidePreview slide={active.slide} theme={null} />
+
+            {/* narration / meta strip */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-ink-muted">narration · 老師口語旁白</span>
+                <div className="flex items-center gap-3 text-[11px] text-ink-muted">
+                  <span>{active.slide.narration.length} 字</span>
+                  <span className="font-mono">est. {Math.round(active.slide.narration.length / 4.2)}s</span>
+                  <span className="font-mono">bullets · {active.slide.bullets.length}</span>
+                </div>
+              </div>
+              <div className="rounded-sm border-l-2 border-forest-500 bg-paper-card px-4 py-3.5 text-[13.5px] leading-relaxed text-ink">
+                {active.slide.narration || <span className="text-ink-muted italic">(尚無 narration)</span>}
+              </div>
+            </div>
+
+            {/* slide preview chart bottom — narration length 對齊提示 */}
+            <NarrationGauge length={active.slide.narration.length} />
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT — SlideEditor */}
+      <div className="w-[400px] shrink-0 border-l border-paper-line bg-paper flex flex-col overflow-hidden">
+        <div className="px-5 py-3 border-b border-paper-line flex items-center">
+          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-ink-muted">edit · slide {activeFlatIdx + 1}</span>
+          <span className="ml-auto text-[10px] font-mono text-ink-faint">{active?.slide.id}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-4">
+          {active ? (
+            <SlideEditor
+              key={active.slide.id}
+              slide={active.slide}
+              readOnly={!canEdit}
+              onChange={(next) => updateSlide(active.sectionIdx, active.slideIdx, next)}
+              jobId={jobId}
+            />
+          ) : (
+            <div className="text-[12px] text-ink-muted text-center py-8">選一張 slide 開始編輯</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NarrationGauge({ length }: { length: number }) {
+  const min = 100, max = 200, hard = 280;
+  const pct = Math.min(1, length / hard);
+  const status = length === 0 ? 'empty'
+    : length < min ? 'short'
+    : length > hard ? 'over'
+    : length > max ? 'long'
+    : 'ok';
+  const color =
+    status === 'ok'    ? 'text-forest-600' :
+    status === 'over'  ? 'text-accent-coral' :
+    status === 'long'  ? 'text-chalk-yellowDark' :
+                         'text-ink-muted';
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between mb-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-ink-muted">
+        <span>narration 長度</span>
+        <span className={color}>{length} / 目標 {min}~{max}</span>
+      </div>
+      <div className="relative">
+        <Meter
+          value={pct}
+          tone={status === 'over' ? 'coral' : status === 'long' ? 'yellow' : 'forest'}
+        />
+        <div className="absolute top-0 h-1 w-px bg-ink-faint" style={{ left: `${(min / hard) * 100}%` }} />
+        <div className="absolute top-0 h-1 w-px bg-ink-faint" style={{ left: `${(max / hard) * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ── 16:9 slide preview ───────────────────────────────────────────────────
+// 注意: 這只是「視覺預覽」, 真正 render 仍由 server pptx renderer 跑.
+// 不要在這裡塞太多邏輯, 它只負責把 deck.json 的內容用近似的版型顯示出來.
+
+function SlidePreview({ slide, theme }: { slide: Slide; theme: string | null }) {
+  const themeMap: Record<string, { bg: string; fg: string; body: string; accent: string }> = {
+    forest:  { bg: '#152822', fg: '#ffd96b', body: '#e8e6d8', accent: '#b4dcc8' },
+    navy:    { bg: '#1a2a4a', fg: '#ffd96b', body: '#e8e6d8', accent: '#b4dcc8' },
+    journal: { bg: '#f2ecd6', fg: '#1e3a2e', body: '#2a3a32', accent: '#7a3c52' },
+    naruto:  { bg: '#1e0e08', fg: '#ffc88c', body: '#f0d4a8', accent: '#c8553d' },
+  };
+  const t = themeMap[theme || 'forest'] || themeMap.forest;
+  const hasCode = !!slide.code_snippet;
+  // 簡報模式 (slides_pdf): 用實際投影片圖, 不繪製近似版型
+  const slideImgUrl = slide.bg_image ? api.slideImageUrl(slide.bg_image) : null;
+
+  if (slideImgUrl) {
+    return (
+      <div className="rounded-sm overflow-hidden shadow-lift border border-paper-edge bg-black" style={{ aspectRatio: '16/9' }}>
+        <img src={slideImgUrl} alt={slide.title} className="w-full h-full object-contain" loading="lazy" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-sm overflow-hidden shadow-lift border border-paper-edge" style={{ aspectRatio: '16/9' }}>
+      <div
+        className="w-full h-full p-10 flex flex-col"
+        style={{ background: t.bg, color: t.body, fontFamily: (theme === 'journal') ? '"Instrument Serif", serif' : 'inherit' }}
+      >
+        <div className="flex items-baseline gap-3 mb-6">
+          <div className="font-mono text-[12px] uppercase tracking-[0.2em] opacity-60" style={{ color: t.accent }}>
+            slide · {slide.id}
+          </div>
+          <div className="h-px flex-1" style={{ background: 'currentColor', opacity: 0.15 }}></div>
+        </div>
+        <h2 className="text-[40px] leading-[1.05] mb-7 font-display" style={{ color: t.fg }}>{slide.title}</h2>
+
+        {hasCode ? (
+          <div className="grid grid-cols-[1fr_1.3fr] gap-7 flex-1 min-h-0">
+            <ul className="space-y-3.5 self-start">
+              {slide.bullets.map((b, i) => (
+                <li key={i} className="flex gap-3 text-[18px] leading-[1.35]">
+                  <span style={{ color: t.accent }} className="font-mono text-[16px] mt-0.5">▸</span>
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="rounded-sm border self-start w-full" style={{ borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.25)' }}>
+              <div className="px-3 py-1.5 font-mono text-[11px] border-b" style={{ borderColor: 'rgba(255,255,255,0.1)', color: t.accent }}>
+                {slide.code_lang || 'code'} · preview
+              </div>
+              <pre className="px-4 py-3 font-mono text-[12px] leading-[1.55] whitespace-pre-wrap overflow-hidden" style={{ color: t.body }}>{slide.code_snippet}</pre>
+            </div>
+          </div>
+        ) : (
+          <ul className="space-y-4 flex-1">
+            {slide.bullets.map((b, i) => (
+              <li key={i} className="flex gap-4 text-[22px] leading-[1.3]">
+                <span style={{ color: t.accent }} className="font-mono text-[20px] mt-1">▸</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-auto flex items-center justify-between text-[11px] font-mono" style={{ color: t.accent, opacity: 0.55 }}>
+          <span>autoSolverVideo · preview</span>
+          <span>{slide.id}</span>
+        </div>
+      </div>
     </div>
   );
 }

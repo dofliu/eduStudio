@@ -20,6 +20,16 @@
 ==== 完整文件內容 (請聚焦在本章主題的部分) ====
 {document_content}
 
+==== 可選用的圖 (iter 52: PDF 抽出, 若無 figures 段空) ====
+{figures_section}
+
+**配圖規則** (有 figures 時才看):
+- 看「page X」決定該圖屬於哪段內容 — 跟本章主題對得上才配
+- 每張 slide 最多配 1 張圖, 用 figure id 寫入 `image_path` 欄位 (例: "fig_p6_1")
+- 不配圖時 `image_path` 設 null
+- 一張圖不要重複用兩個 slide
+- 寧可少配不亂配 — 圖不相關比沒圖糟
+
 ==== 投影片設計原則 ====
 1. **{slides_per_section_range} 張投影片** (★ 取下限優先), 第一張通常是章節概觀, 最後一張為小結
 2. **每張 narration {narration_chars_range} 字** (中文字數, 取下限優先), 對應 {narration_seconds_range} 秒語音
@@ -48,7 +58,8 @@
       "code_snippet": null,
       "code_lang": null,
       "file_path": null,
-      "narration": "..."
+      "narration": "...",
+      "image_path": null
     }}
   ]
 }}

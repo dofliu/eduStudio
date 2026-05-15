@@ -229,6 +229,7 @@ def normalize_deck(deck: dict) -> dict:
             sl.setdefault("file_path", None)
             sl.setdefault("narration", "")
             sl.setdefault("notes", None)
+            sl.setdefault("image_path", None)   # iter 52: figure 配圖 id (or None)
 
     return deck
 

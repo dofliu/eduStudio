@@ -105,6 +105,14 @@ class TestNormalizeDeck:
         assert sl["bullets"] == []
         assert sl["code_snippet"] is None
         assert sl["narration"] == ""
+        # iter 52: image_path 預設 None
+        assert sl["image_path"] is None
+
+    def test_preserves_existing_image_path(self):
+        """iter 52: 已有 image_path 該被保留 (normalize 只補不蓋)."""
+        deck = {"sections": [{"slides": [{"image_path": "fig_p3_1"}]}]}
+        normalize_deck(deck)
+        assert deck["sections"][0]["slides"][0]["image_path"] == "fig_p3_1"
 
 
 # ---------- assert_deck_minimum ----------

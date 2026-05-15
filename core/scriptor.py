@@ -155,6 +155,11 @@ def script_long_form(
     p = _length_preset(length_mode)
 
     document_content = raw_content.get("content", "")
+    # iter 52: figures 從 raw_content 拉, format 給 prompt; 沒 figures 給空段落 + 警示
+    figures = raw_content.get("figures", []) or []
+    figures_section = _format_figures_for_prompt(figures)
+    valid_figure_ids = {f["id"] for f in figures}
+
     sections_out = []
     total = len(outline.get("sections", []))
     for i, sec_outline in enumerate(outline["sections"]):
@@ -171,6 +176,7 @@ def script_long_form(
             section_intent=sec_outline.get("intent", ""),
             section_topics=", ".join(sec_outline.get("topics", [])),
             document_content=document_content,
+            figures_section=figures_section,
             length_directive=p["length_directive"],
             slides_per_section_range=p["slides_per_section_range"],
             narration_chars_range=p["narration_chars_range"],
@@ -178,6 +184,8 @@ def script_long_form(
         )
 
         section_dict = _call_with_retry(client, types, prompt, section_id, sec_outline)
+        # iter 52: 驗 slide.image_path — Gemini 亂打的 id 清掉
+        _sanitize_slide_image_paths(section_dict, valid_figure_ids)
         sections_out.append(section_dict)
 
     deck = {
@@ -192,6 +200,51 @@ def script_long_form(
         "sections": sections_out,
     }
     return normalize_deck(deck)
+
+
+# ---------- iter 52: figures helpers ----------
+
+
+def _format_figures_for_prompt(figures: list[dict]) -> str:
+    """把 figures list 排成給 Gemini 看的條列, 用 page_no 排序方便配章節.
+
+    沒 figures 時回提示文字 (讓 Gemini 知道是「沒圖可配」, 不是 prompt bug).
+    """
+    if not figures:
+        return "(本份文件沒抽到 figure, 全部 slide 的 image_path 都填 null)"
+
+    by_page = sorted(figures, key=lambda f: (f.get("page_no", 0), f.get("id", "")))
+    lines = []
+    for f in by_page:
+        cap = (f.get("caption_hint") or "").strip()
+        cap_str = f" — {cap}" if cap else ""
+        lines.append(
+            f"- {f['id']}: page {f.get('page_no', '?')}, "
+            f"{f.get('width', 0)}×{f.get('height', 0)}{cap_str}"
+        )
+    return "\n".join(lines)
+
+
+def _sanitize_slide_image_paths(section_dict: dict, valid_ids: set[str]) -> None:
+    """iter 52: 清掉 Gemini 亂打 / 漏掉的 image_path.
+
+    規則:
+    - image_path 不是字串 / 不在 valid_ids → 設 None
+    - 沒 image_path key 補上 None (deck schema 一致性)
+    - 同一 section 內同一張圖重複使用, 第二次以後設 None (跨 section 也應該不重用,
+      但 scriptor 一次只看一個 section 沒辦法擋, 留 deck-level normalize 或下個 iter)
+    """
+    slides = section_dict.get("slides") or []
+    used_in_section: set[str] = set()
+    for slide in slides:
+        img = slide.get("image_path")
+        if not isinstance(img, str) or img not in valid_ids:
+            slide["image_path"] = None
+            continue
+        if img in used_in_section:
+            slide["image_path"] = None
+            continue
+        used_in_section.add(img)
 
 
 # ---------- Internals ----------

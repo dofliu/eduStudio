@@ -148,6 +148,7 @@ class TestPromptIntegration:
             section_intent="i",
             section_topics="topics",
             document_content="...",
+            figures_section="(no figures)",   # iter 52
             length_directive=p["length_directive"],
             slides_per_section_range=p["slides_per_section_range"],
             narration_chars_range=p["narration_chars_range"],

@@ -113,6 +113,7 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
     iter 43: rec.options.length_mode 透傳到 outliner / scriptor.
     """
     from core.adapters.repo import scan_repo
+    from core.mermaid_render import extract_and_render_mermaid_from_repo
     from core.outliner import mock_outline, outline_repo
     from core.scriptor import mock_deck_from_outline, script_repo
 
@@ -126,8 +127,22 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
     # adapter 是純磁碟讀取, scriptor / outliner 是 Gemini 同步呼叫, 都丟 thread
     raw = await asyncio.to_thread(scan_repo, src_path, max_files=max_files)
 
-    # 把中間產物也寫到 jobs/<id>/ 方便 debug (raw_content.json + outline.json)
+    # iter 57: 抽 repo 內 .md 既有 mermaid blocks 渲染成 PNG 放 figures/.
+    # 失敗只 warning 不擋, 沒 mermaid 就回空 list.
     job_dir = deck_path.parent
+    try:
+        mermaid_figs = await asyncio.to_thread(
+            extract_and_render_mermaid_from_repo, raw, job_dir / "figures",
+        )
+        if mermaid_figs:
+            raw["figures"] = (raw.get("figures") or []) + mermaid_figs
+            logger.info("Mermaid 抽取: %d 張", len(mermaid_figs))
+    except Exception as e:
+        logger.exception("Mermaid 抽取失敗 (不擋 ingest): %s", e)
+
+    raw.setdefault("figures", [])
+
+    # 把中間產物也寫到 jobs/<id>/ 方便 debug (raw_content.json + outline.json)
     (job_dir / "raw_content.json").write_text(
         json.dumps(raw, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -215,6 +230,22 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
                 logger.info("PDF figure 抽取: %d 張", len(figures))
             except Exception as e:
                 logger.exception("PDF figure 抽取失敗 (不擋 ingest): %s", e)
+                raw["figures"] = []
+        elif raw.get("format") in ("md", "txt"):
+            # iter 57: .md 文件抽 mermaid blocks (txt 也試, 雖然罕見)
+            try:
+                from core.mermaid_render import extract_and_render_mermaid_from_text
+                mermaid_figs = await asyncio.to_thread(
+                    extract_and_render_mermaid_from_text,
+                    raw.get("content", ""),
+                    job_dir / "figures",
+                    source_label=raw.get("title", "doc"),
+                )
+                raw["figures"] = mermaid_figs
+                if mermaid_figs:
+                    logger.info("Mermaid 抽取 (.md): %d 張", len(mermaid_figs))
+            except Exception as e:
+                logger.exception("Mermaid 抽取失敗 (不擋 ingest): %s", e)
                 raw["figures"] = []
         else:
             raw["figures"] = []

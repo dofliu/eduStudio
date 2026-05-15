@@ -51,9 +51,16 @@ from core.visuals import (
 )
 
 
-# ---------- Theme (PR-5a) ----------
-# 兩套色票都對齊「深底 + 高對比文字 + 強調色底線/marker」的視覺結構,
-# 切主題只是換 hue, layout / 字級 / 邊距完全不變。
+# ---------- Theme (PR-5a / iter 58) ----------
+# 色票 + iter 58 加入的 banner_style 開始有 layout 差異.
+
+# iter 58 banner 樣式 (四種):
+#   "rectangle" (default): 填滿矩形 + 底線 + 文字 — 多數深底主題
+#   "hairline":            無填色, 上下兩條細線, 文字躺在 bg 上 — 淺底極簡 (editorial / journal / notebook / elven)
+#   "reverse":             深色填滿 + 強對比文字 — 衝擊家族 (brutalist / supergraphic / zine)
+#   "neon":                填滿 + 內側螢光細邊 — 霓虹主題 (arcade)
+BannerStyle = str  # Literal["rectangle", "hairline", "reverse", "neon"]
+
 
 class Palette(TypedDict):
     bg: tuple[int, int, int]            # 主背景 (大面積)
@@ -64,6 +71,37 @@ class Palette(TypedDict):
     highlight: tuple[int, int, int]     # 強調色 (黃 / 青) — 底線 + bullet marker
     secondary: tuple[int, int, int]     # banner 文字 / 次要色
     file_header: tuple[int, int, int]   # 程式碼區塊上方檔名 # filename
+
+
+# iter 58: theme → banner style 對應, 沒列在裡面的 fallback 到 "rectangle"
+# 沒寫在 Palette TypedDict 內 (TypedDict 用 NotRequired 可選欄位 + Python 3.11+
+# 才有, 為了相容性放外面 mapping)
+THEME_BANNER_STYLES: dict[str, str] = {
+    "forest": "rectangle",        # 深綠教學, 經典
+    "navy": "rectangle",          # 深藍科技, 經典
+    "frieren": "rectangle",       # 藏青漫畫
+    "naruto": "rectangle",        # 焦糖漫畫
+    "journal": "hairline",        # 期刊細線
+    # v1 沉穩家族 - 多數走 hairline (極簡 / 學者氣質)
+    "dof-editorial": "hairline",  # 雜誌編輯 - 髮絲線分隔
+    "dof-podium": "hairline",     # 講壇 TED - 極簡
+    "dof-notebook": "hairline",   # 札記 - 紙感
+    "dof-shinobi": "rectangle",   # 忍者深底 - 需 solid 填色
+    "dof-elven": "hairline",      # 魔法幻境 - 細緻
+    # v2 衝擊家族
+    "dof-zine": "reverse",        # 海報撞色
+    "dof-arcade": "neon",         # 霓虹發光
+    "dof-risograph": "rectangle", # 油墨疊印
+    "dof-supergraphic": "reverse",# Pentagram 大色塊
+    "dof-brutalist": "reverse",   # 野獸派反白
+}
+
+
+def get_banner_style(theme_name: str | None) -> str:
+    """容錯查 banner style, 沒列就回 'rectangle' (現行預設行為)."""
+    if not theme_name:
+        return "rectangle"
+    return THEME_BANNER_STYLES.get(theme_name, "rectangle")
 
 
 THEMES: dict[str, Palette] = {
@@ -347,8 +385,30 @@ def _draw_text_wrapped(draw, xy, text, font, fill, max_w, line_h, fb_font=None) 
 
 # ---------- 元件繪製 (palette 是函式參數, 切主題只是換 palette) ----------
 
-def _draw_banner(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
-    """頂部章節 banner: 略深背景 + 章節標題 + 底線。"""
+def _draw_banner(
+    draw: ImageDraw.ImageDraw, section_title: str, palette: Palette,
+    style: str = "rectangle",
+) -> None:
+    """頂部章節 banner — iter 58 加 4 種 style dispatch.
+
+    style:
+      "rectangle" (default): 填滿矩形 + 底線 + secondary 色文字 (現行預設)
+      "hairline":            雙細線夾住 banner 區, 不填色, 文字躺 bg 上
+      "reverse":             primary 色填滿 + bg 色文字 (反白衝擊)
+      "neon":                填滿 + 內 highlight 細邊 (霓虹發光感)
+    """
+    if style == "hairline":
+        _draw_banner_hairline(draw, section_title, palette)
+    elif style == "reverse":
+        _draw_banner_reverse(draw, section_title, palette)
+    elif style == "neon":
+        _draw_banner_neon(draw, section_title, palette)
+    else:  # rectangle (default fallback)
+        _draw_banner_rectangle(draw, section_title, palette)
+
+
+def _draw_banner_rectangle(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+    """現行 default 樣式: 填滿矩形 + 底線 + secondary 色文字."""
     draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=palette["banner"])
     draw.line(
         [(0, BANNER_HEIGHT), (VIDEO_WIDTH, BANNER_HEIGHT)],
@@ -359,6 +419,62 @@ def _draw_banner(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette
         text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
         _draw_text_mixed(
             draw, (SIDE_MARGIN, text_y), section_title, font, palette["secondary"],
+        )
+
+
+def _draw_banner_hairline(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+    """極簡髮絲線: 不填色, 上下細線 + primary 色文字躺 bg 上.
+    給 editorial / journal / notebook / podium / elven 用."""
+    # 不畫填色矩形 (banner 區用 bg 色)
+    # 上下兩條細線, 用 secondary 色
+    top_y = BANNER_HEIGHT - 10
+    draw.line(
+        [(SIDE_MARGIN, 14), (VIDEO_WIDTH - SIDE_MARGIN, 14)],
+        fill=palette["secondary"], width=1,
+    )
+    draw.line(
+        [(SIDE_MARGIN, top_y), (VIDEO_WIDTH - SIDE_MARGIN, top_y)],
+        fill=palette["secondary"], width=1,
+    )
+    if section_title:
+        font = _font(get_font_path(), BANNER_FONT_SIZE - 2)   # 略小, 配薄線
+        text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN, text_y), section_title, font, palette["primary"],
+        )
+
+
+def _draw_banner_reverse(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+    """反白衝擊: primary 色填滿 + bg 色文字 (對比強烈).
+    給 zine / supergraphic / brutalist 用."""
+    draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=palette["primary"])
+    # 底部用 highlight 色標一條粗線 (野獸派風格)
+    draw.rectangle(
+        [0, BANNER_HEIGHT - 4, VIDEO_WIDTH, BANNER_HEIGHT],
+        fill=palette["highlight"],
+    )
+    if section_title:
+        font = _font(get_font_path(), BANNER_FONT_SIZE + 2)   # 略大, 配粗 banner
+        text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN, text_y), section_title, font, palette["bg"],
+        )
+
+
+def _draw_banner_neon(draw: ImageDraw.ImageDraw, section_title: str, palette: Palette) -> None:
+    """霓虹: 填滿 + 內 highlight 細邊 + 高對比文字.
+    給 arcade 用."""
+    draw.rectangle([0, 0, VIDEO_WIDTH, BANNER_HEIGHT], fill=palette["banner"])
+    # 內側 4px highlight 色亮邊 (模擬霓虹發光)
+    draw.rectangle(
+        [4, 4, VIDEO_WIDTH - 5, BANNER_HEIGHT - 5],
+        outline=palette["highlight"], width=2,
+    )
+    if section_title:
+        font = _font(get_font_path(), BANNER_FONT_SIZE)
+        text_y = (BANNER_HEIGHT - BANNER_FONT_SIZE) // 2 - 4
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN, text_y), section_title, font, palette["highlight"],
         )
 
 
@@ -569,13 +685,16 @@ class PptxStyleRenderer:
                 f"deck 可能損毀或 caller 傳錯"
             )
         step = steps[step_idx - 1]
-        palette = get_palette(data.get("theme"))
+        theme_name = data.get("theme")
+        palette = get_palette(theme_name)
+        # iter 58: banner style 依主題切 — rectangle (default) / hairline / reverse / neon
+        banner_style = get_banner_style(theme_name)
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
 
         section_title = step.get("section_title") or data.get("title", "")
-        _draw_banner(draw, section_title, palette)
+        _draw_banner(draw, section_title, palette, style=banner_style)
 
         title = step.get("title", "")
         title_end_y = _draw_title(draw, title, palette)

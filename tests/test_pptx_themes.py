@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from core.render.pptx_style import DEFAULT_THEME, THEMES, get_palette
+from core.render.pptx_style import (
+    DEFAULT_THEME,
+    THEME_BANNER_STYLES,
+    THEMES,
+    get_banner_style,
+    get_palette,
+)
 
 
 REQUIRED_KEYS = {
@@ -106,3 +112,55 @@ class TestPaletteContrast:
             abs(p["highlight"][i] - p["primary"][i]) for i in range(3)
         )
         assert diff > 30, f"{theme} highlight 跟 primary 太接近"
+
+
+# ---------- iter 58: banner_style ----------
+
+
+class TestBannerStyle:
+    """每主題該有對應 banner style, 不認識的 theme fallback 到 rectangle."""
+
+    VALID_STYLES = {"rectangle", "hairline", "reverse", "neon"}
+
+    def test_default_is_rectangle(self):
+        assert get_banner_style(None) == "rectangle"
+        assert get_banner_style("") == "rectangle"
+
+    def test_unknown_theme_fallback(self):
+        assert get_banner_style("not_a_theme") == "rectangle"
+
+    @pytest.mark.parametrize("theme", list(THEMES.keys()))
+    def test_every_theme_has_valid_style(self, theme: str):
+        """每張現存主題該對到 4 種有效 style 之一."""
+        style = get_banner_style(theme)
+        assert style in self.VALID_STYLES, (
+            f"{theme} banner_style={style!r} 不在 {self.VALID_STYLES}"
+        )
+
+    def test_styles_have_meaningful_distribution(self):
+        """15 主題不該全 rectangle (那就沒個性化效果). 至少 3 種 style 在用."""
+        styles_in_use = {
+            get_banner_style(t) for t in THEMES.keys()
+        }
+        assert len(styles_in_use) >= 3, (
+            f"banner_style 多樣性不夠: {styles_in_use}"
+        )
+
+    def test_brutalist_uses_reverse(self):
+        """野獸派該用 reverse — 反白色塊是其招牌."""
+        assert get_banner_style("dof-brutalist") == "reverse"
+
+    def test_arcade_uses_neon(self):
+        """街機霓虹該用 neon — 發光感是其招牌."""
+        assert get_banner_style("dof-arcade") == "neon"
+
+    def test_journal_uses_hairline(self):
+        """期刊風該用 hairline — 學術極簡."""
+        assert get_banner_style("journal") == "hairline"
+
+    def test_legacy_themes_still_rectangle(self):
+        """forest / navy / frieren / naruto 維持 rectangle 不變 (backwards compat)."""
+        for legacy in ("forest", "navy", "frieren", "naruto"):
+            assert get_banner_style(legacy) == "rectangle", (
+                f"{legacy} 應保留原 rectangle style 不該被誤改"
+            )

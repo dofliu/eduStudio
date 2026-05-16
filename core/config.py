@@ -85,6 +85,103 @@ VIDEO_FPS = 30
 PAUSE_AFTER_EACH = 0.6
 
 
+# iter 83 (B1+B2 Option B): runtime 切影片尺寸 (橫向 / 縱向 + 解析度).
+# 用 monkey-patch 模式 — 接 set_video_dimensions(aspect, resolution) 改
+# module-level 常數, render 完 restore. 非 thread-safe, 跟現有 sequential
+# job runner 設計相容 (v4 worker pool 啟動後要走別的方案).
+
+# 各 aspect × resolution 對應的 (width, height) 表.
+# 1080p / 1440p / 4K 在 16:9 跟 9:16 之間切換時直接整數對調.
+VIDEO_DIMENSIONS: dict[tuple[str, str], tuple[int, int]] = {
+    ("16:9", "1080p"): (1920, 1080),
+    ("16:9", "1440p"): (2560, 1440),
+    ("16:9", "4K"):    (3840, 2160),
+    ("9:16", "1080p"): (1080, 1920),
+    ("9:16", "1440p"): (1440, 2560),
+    ("9:16", "4K"):    (2160, 3840),
+}
+
+
+def resolve_video_dimensions(
+    aspect_ratio: str = "16:9", resolution: str = "1080p",
+) -> tuple[int, int]:
+    """從 (aspect_ratio, resolution) 取對應 (width, height).
+    無效組合 fallback 到 (1920, 1080)."""
+    return VIDEO_DIMENSIONS.get((aspect_ratio, resolution), (1920, 1080))
+
+
+class video_dimensions_override:
+    """context manager — render 期間暫時 patch module-level 影片尺寸.
+
+    使用:
+        with video_dimensions_override("9:16", "1080p"):
+            # core.config.VIDEO_WIDTH == 1080, VIDEO_HEIGHT == 1920
+            pipeline.render_video(...)
+        # 出 with 後 restore 到原值
+
+    為什麼用 module attr monkey-patch 而非傳參:
+    pipeline + pptx_style + visuals 散一堆 module-level 常數捕獲, 改全部
+    function signature 加 dimensions 是 2-3 天 refactor. 短期用這方案 ship.
+    v4 worker 啟動後要走「per-render 不共享 module state」方案.
+
+    非 thread-safe — 兩個 thread 同時開 context 會搶. 跟 server.runner.py
+    現有 sequential job 設計相容.
+    """
+
+    def __init__(self, aspect_ratio: str = "16:9", resolution: str = "1080p"):
+        self.aspect_ratio = aspect_ratio
+        self.resolution = resolution
+        self._old_w: int | None = None
+        self._old_h: int | None = None
+
+    # 需要 patch 的所有 module — `from X import Y` 會在每個 module 內留
+    # 自己的 reference, 必須各個都 patch. 否則 render 仍讀舊值.
+    _PATCH_TARGETS = (
+        ("core.config", "VIDEO_WIDTH", "VIDEO_HEIGHT"),
+        ("core.visuals", "VIDEO_WIDTH", "VIDEO_HEIGHT"),
+        ("core.render.pptx_style", "VIDEO_WIDTH", "VIDEO_HEIGHT"),
+        ("pipeline", "WIDTH", "HEIGHT"),
+    )
+
+    def _set_all(self, w: int, h: int) -> None:
+        import sys
+        for mod_name, w_attr, h_attr in self._PATCH_TARGETS:
+            mod = sys.modules.get(mod_name)
+            if mod is None:
+                continue
+            if hasattr(mod, w_attr):
+                setattr(mod, w_attr, w)
+            if hasattr(mod, h_attr):
+                setattr(mod, h_attr, h)
+        # CONTENT_BOTTOM 重算 (跟 height 連動)
+        for mod_name in ("core.visuals", "core.render.pptx_style"):
+            mod = sys.modules.get(mod_name)
+            if mod is not None and hasattr(mod, "CONTENT_BOTTOM"):
+                from core.visuals import SUBTITLE_BAND_HEIGHT
+                setattr(mod, "CONTENT_BOTTOM", h - SUBTITLE_BAND_HEIGHT)
+
+    def __enter__(self) -> tuple[int, int]:
+        import sys
+        # 確保 pipeline / pptx_style 已 import (測試環境可能還沒)
+        try:
+            import core.visuals  # noqa
+            import core.render.pptx_style  # noqa
+            import pipeline  # noqa
+        except ImportError:
+            pass
+        this_mod = sys.modules[__name__]
+        self._old_w = this_mod.VIDEO_WIDTH
+        self._old_h = this_mod.VIDEO_HEIGHT
+        w, h = resolve_video_dimensions(self.aspect_ratio, self.resolution)
+        self._set_all(w, h)
+        return (w, h)
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self._old_w is not None and self._old_h is not None:
+            self._set_all(self._old_w, self._old_h)
+        return None
+
+
 # ---------- Intro 影片串接 (iter 41) ----------
 # 用戶個人 ~8 秒的開場投影片影片. 啟用 JobOptions.prepend_intro=True 時,
 # 渲染完成的主影片前面會接這支 intro, 統一 YT 上傳的品牌開場.

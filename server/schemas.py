@@ -235,6 +235,17 @@ class JobOptions(BaseModel):
         default=None,
         description="iter 80: 字幕描邊色 hex. None → 黑 #000000.",
     )
+    # iter 83 (B1+B2): 影片長寬比 + 解析度
+    aspect_ratio: str | None = Field(
+        default=None,
+        description="iter 83: 影片長寬比, '16:9' (橫向, 預設) 或 '9:16' "
+                    "(縱向, 給 Shorts/TikTok/Reels). None → '16:9'.",
+    )
+    resolution: str | None = Field(
+        default=None,
+        description="iter 83: 影片解析度, '1080p' (預設) / '1440p' / '4K'. "
+                    "None → '1080p'. 1440p 跟 4K 渲染時間明顯較長 (2-3x).",
+    )
 
     model_config = ConfigDict(extra="allow")
 

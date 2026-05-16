@@ -121,6 +121,8 @@ class ProposalApproveRequest(BaseModel):
     subtitle_font_size: int | None = None               # iter 80: 字幕字級
     subtitle_primary_color: str | None = None           # iter 80: 字幕字色 hex
     subtitle_outline_color: str | None = None           # iter 80: 描邊色 hex
+    aspect_ratio: Literal["16:9", "9:16"] | None = None # iter 83: 長寬比
+    resolution: Literal["1080p", "1440p", "4K"] | None = None  # iter 83: 解析度
 
 
 class ScanFolderRequest(BaseModel):
@@ -301,6 +303,11 @@ async def approve_proposal(
             opts_kwargs["subtitle_primary_color"] = body.subtitle_primary_color
         if body.subtitle_outline_color is not None:
             opts_kwargs["subtitle_outline_color"] = body.subtitle_outline_color
+        # iter 83 (B1+B2): 長寬比 + 解析度
+        if body.aspect_ratio is not None:
+            opts_kwargs["aspect_ratio"] = body.aspect_ratio
+        if body.resolution is not None:
+            opts_kwargs["resolution"] = body.resolution
 
     req = CreateJobRequest(
         source_type=source_type,

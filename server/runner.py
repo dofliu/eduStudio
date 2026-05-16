@@ -471,16 +471,38 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
 async def _run_render(
     store: JobStore, rec: JobRecord, *, section_id: str | None = None,
 ) -> None:
-    """跑 render 階段: deck.json → MP4 + SRT 進 jobs/<id>/artifacts/。
+    """跑 render 階段: deck.json → MP4 + SRT 進 jobs/<id>/artifacts/.
 
     schema 分流:
     - sections 為頂層 (新 deck schema) + source_type=repo: 走 pptx_slide 渲染 (Forest)
     - sections 為頂層 + 其他 source_type: 走黑板渲染 (deck_to_exam_schema)
     - problems 為頂層 (v1 exam schema): 直接餵 pipeline (考卷 / 簡報走這條)
 
-    PR-4a: section_id 非 None 時只 render 該 section, 其他章保持既有 mp4 不動。
-    讓使用者改一章 narration 後不必重跑全部 (50 頁簡報省 30 分鐘)。
+    PR-4a: section_id 非 None 時只 render 該 section.
+
+    iter 83 (B1+B2 Option B): 用 video_dimensions_override context 把影片
+    尺寸 patch 成 user 選的 aspect_ratio + resolution (預設 16:9 1080p
+    保持現有行為). 整個 render 都包在 context 內, 出去 restore.
     """
+    from core import problem_to_v0_json, render_video
+    from core.config import OUTPUT_DIR, video_dimensions_override
+    from core.deck import (
+        deck_to_exam_schema,
+        deck_to_exam_schema_pptx,
+        deck_to_exam_schema_slides,
+    )
+
+    aspect = rec.options.aspect_ratio or "16:9"
+    resolution = rec.options.resolution or "1080p"
+    with video_dimensions_override(aspect, resolution):
+        await _run_render_inner(store, rec, section_id=section_id)
+
+
+async def _run_render_inner(
+    store: JobStore, rec: JobRecord, *, section_id: str | None = None,
+) -> None:
+    """實際 render — 由 _run_render 包 video_dimensions_override 進來呼叫.
+    拆出來只為了讓 monkey-patch 的 scope 包住整段 render."""
     from core import problem_to_v0_json, render_video
     from core.config import OUTPUT_DIR
     from core.deck import (

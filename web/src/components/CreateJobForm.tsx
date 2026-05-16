@@ -86,6 +86,9 @@ export function CreateJobForm({ onCreated }: Props) {
   const [subtitleFontSize, setSubtitleFontSize] = useState<number | ''>('');
   const [subtitlePrimaryColor, setSubtitlePrimaryColor] = useState('');
   const [subtitleOutlineColor, setSubtitleOutlineColor] = useState('');
+  // iter 83 (B1+B2): 影片長寬比 + 解析度
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [resolution, setResolution] = useState<'1080p' | '1440p' | '4K'>('1080p');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -152,6 +155,9 @@ export function CreateJobForm({ onCreated }: Props) {
     ...(hardsub && subtitleFontSize !== '' ? { subtitle_font_size: subtitleFontSize } : {}),
     ...(hardsub && subtitlePrimaryColor ? { subtitle_primary_color: subtitlePrimaryColor } : {}),
     ...(hardsub && subtitleOutlineColor ? { subtitle_outline_color: subtitleOutlineColor } : {}),
+    // iter 83 (B1+B2): 長寬比 + 解析度 (只在主題適用 source 送, exam_pdf/slides_pdf 不影響)
+    ...(aspectRatio !== '16:9' ? { aspect_ratio: aspectRatio } : {}),
+    ...(resolution !== '1080p' ? { resolution: resolution } : {}),
   });
 
   const submit = async () => {
@@ -429,6 +435,38 @@ export function CreateJobForm({ onCreated }: Props) {
           </select>
         </div>
       )}
+
+      {/* iter 83 (B1+B2): 長寬比 + 解析度 */}
+      <div className="mt-3 flex gap-3">
+        <div className="flex-1">
+          <label className="field-label">長寬比</label>
+          <select
+            className="field-input"
+            value={aspectRatio}
+            onChange={(e) => setAspectRatio(e.target.value as '16:9' | '9:16')}
+          >
+            <option value="16:9">📺 16:9 橫向 (YouTube / 一般)</option>
+            <option value="9:16">📱 9:16 縱向 (Shorts / TikTok / Reels)</option>
+          </select>
+          {aspectRatio === '9:16' && (
+            <div className="text-[10px] text-accent-coral mt-0.5">
+              ⚠ 縱向 v1: 主 layout 已適配, 但部分元素 (cover/outro/signature) 位置會偏, 留待後續調
+            </div>
+          )}
+        </div>
+        <div className="flex-1">
+          <label className="field-label">解析度</label>
+          <select
+            className="field-input"
+            value={resolution}
+            onChange={(e) => setResolution(e.target.value as '1080p' | '1440p' | '4K')}
+          >
+            <option value="1080p">1080p — Full HD (預設)</option>
+            <option value="1440p">1440p — 2K (~2× 時間)</option>
+            <option value="4K">4K — UHD (~3× 時間)</option>
+          </select>
+        </div>
+      </div>
 
       <div className="flex items-center gap-4 mt-3 text-sm flex-wrap">
         <label className="flex items-center gap-1.5 cursor-pointer">

@@ -155,6 +155,14 @@ class JobOptions(BaseModel):
                     "None / 空字串 → 用今天日期. 不檢查格式 — 給用戶自由 "
                     "(可以寫「2026 春季」等).",
     )
+    cover_narration: str | None = Field(
+        default=None,
+        description="iter 65: per-job 封面開場口白覆寫. None / 空字串 → 用 "
+                    "core.cover_gen._COVER_NARRATION_TEMPLATE 套 speaker / "
+                    "title / org. 非空 → 直接拿用戶字串當 narration 餵 TTS, "
+                    "不再套模板. 長度建議 60~180 字 (跟 scriptor narration "
+                    "規範一致).",
+    )
 
     model_config = ConfigDict(extra="allow")
 

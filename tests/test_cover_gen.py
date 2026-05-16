@@ -70,6 +70,30 @@ class TestBuildCoverSection:
         sec = build_cover_section("T")
         assert sec["slides"][0]["image_path"] is None
 
+    def test_narration_override_replaces_template(self):
+        """iter 65: 給 narration_override 直接用, 不套模板."""
+        custom = "今天要分享的內容是一個自訂口白測試, 大概 30 個字差不多."
+        sec = build_cover_section(
+            "原本主題", speaker="講者", org="單位",
+            narration_override=custom,
+        )
+        narration = sec["slides"][0]["narration"]
+        assert narration == custom
+        # 模板會塞 deck_title; override 模式下不該出現
+        # (這個 custom 沒寫「原本主題」, 證明沒套模板)
+        assert "原本主題" not in narration
+
+    def test_narration_override_empty_uses_template(self):
+        """iter 65: 空字串 fallback 到模板."""
+        sec = build_cover_section(
+            "主題X", speaker="講者Y", org="單位Z",
+            narration_override="",
+        )
+        narration = sec["slides"][0]["narration"]
+        assert "講者Y" in narration
+        assert "主題X" in narration
+        assert "單位Z" in narration
+
 
 class TestSectionIsCover:
     def test_cover_section_by_id(self):

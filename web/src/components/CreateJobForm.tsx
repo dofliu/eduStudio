@@ -63,6 +63,8 @@ export function CreateJobForm({ onCreated }: Props) {
   const [coverSpeaker, setCoverSpeaker] = useState('');
   const [coverOrg, setCoverOrg] = useState('');
   const [coverDate, setCoverDate] = useState('');
+  // iter 65: 封面 narration override (空字串 → 後端 fallback 模板)
+  const [coverNarration, setCoverNarration] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -104,6 +106,9 @@ export function CreateJobForm({ onCreated }: Props) {
       ? { cover_org: coverOrg.trim() } : {}),
     ...(showLengthMode && prependCover && coverDate.trim()
       ? { cover_date: coverDate.trim() } : {}),
+    // iter 65: 封面 narration override (textarea, 不 trim 內容只 trim 外圍)
+    ...(showLengthMode && prependCover && coverNarration.trim()
+      ? { cover_narration: coverNarration.trim() } : {}),
   });
 
   const submit = async () => {
@@ -396,6 +401,18 @@ export function CreateJobForm({ onCreated }: Props) {
               onChange={(e) => setCoverDate(e.target.value)}
               placeholder="日期 (留空=今天)"
               className="border rounded px-2 py-1 w-36"
+            />
+          </div>
+        )}
+        {/* iter 65: 封面開場口白覆寫 — 空白用模板, 填了直接拿來 TTS */}
+        {showLengthMode && prependCover && (
+          <div className="ml-6 mt-1">
+            <textarea
+              value={coverNarration}
+              onChange={(e) => setCoverNarration(e.target.value)}
+              placeholder="開場口白 (留空=模板「各位好, 我是X. 今天介紹X. 本內容由X帶來…」, 建議 60~180 字)"
+              className="border rounded px-2 py-1 w-full text-xs"
+              rows={3}
             />
           </div>
         )}

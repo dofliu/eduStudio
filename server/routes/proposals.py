@@ -107,6 +107,7 @@ class ProposalApproveRequest(BaseModel):
     cover_speaker: str | None = None                # iter 62b: 封面講者覆寫
     cover_org: str | None = None                    # iter 62b: 封面單位覆寫
     cover_date: str | None = None                   # iter 62b: 封面日期覆寫
+    cover_narration: str | None = None               # iter 65: 封面口白覆寫
 
 
 class ScanFolderRequest(BaseModel):
@@ -255,6 +256,8 @@ async def approve_proposal(
             opts_kwargs["cover_org"] = body.cover_org
         if body.cover_date is not None:
             opts_kwargs["cover_date"] = body.cover_date
+        if body.cover_narration is not None:
+            opts_kwargs["cover_narration"] = body.cover_narration
 
     req = CreateJobRequest(
         source_type=source_type,

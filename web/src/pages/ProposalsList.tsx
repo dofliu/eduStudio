@@ -59,6 +59,8 @@ export default function ProposalsList() {
   const [coverSpeakerByProposal, setCoverSpeakerByProposal] = useState<Record<string, string>>({});
   const [coverOrgByProposal, setCoverOrgByProposal] = useState<Record<string, string>>({});
   const [coverDateByProposal, setCoverDateByProposal] = useState<Record<string, string>>({});
+  // iter 65: 封面 narration override (空字串 = 後端 fallback 模板)
+  const [coverNarrationByProposal, setCoverNarrationByProposal] = useState<Record<string, string>>({});
   // scan modal state
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -98,6 +100,7 @@ export default function ProposalsList() {
       const coverSpeaker = prependCover ? (coverSpeakerByProposal[p.id] ?? '').trim() : '';
       const coverOrg = prependCover ? (coverOrgByProposal[p.id] ?? '').trim() : '';
       const coverDate = prependCover ? (coverDateByProposal[p.id] ?? '').trim() : '';
+      const coverNarration = prependCover ? (coverNarrationByProposal[p.id] ?? '').trim() : '';
       const body: {
         theme?: string;
         prepend_intro?: boolean;
@@ -108,6 +111,7 @@ export default function ProposalsList() {
         cover_speaker?: string;
         cover_org?: string;
         cover_date?: string;
+        cover_narration?: string;
       } = {};
       if (theme) body.theme = theme;
       if (prependIntro) body.prepend_intro = true;
@@ -118,6 +122,7 @@ export default function ProposalsList() {
       if (coverSpeaker) body.cover_speaker = coverSpeaker;
       if (coverOrg) body.cover_org = coverOrg;
       if (coverDate) body.cover_date = coverDate;
+      if (coverNarration) body.cover_narration = coverNarration;
       const r = await api.approveProposal(p.id, Object.keys(body).length > 0 ? body : undefined);
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
       navigate(`/jobs/${r.job.job_id}`);
@@ -259,6 +264,7 @@ export default function ProposalsList() {
                   coverSpeakerValue={coverSpeakerByProposal[p.id] ?? ''}
                   coverOrgValue={coverOrgByProposal[p.id] ?? ''}
                   coverDateValue={coverDateByProposal[p.id] ?? ''}
+                  coverNarrationValue={coverNarrationByProposal[p.id] ?? ''}
                   onToggle={() => setOpenCfg(openCfg === p.id ? null : p.id)}
                   onApprove={() => handleApprove(p)}
                   onIgnore={() => handleIgnore(p)}
@@ -271,6 +277,7 @@ export default function ProposalsList() {
                   onCoverSpeakerChange={(v) => setCoverSpeakerByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onCoverOrgChange={(v) => setCoverOrgByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onCoverDateChange={(v) => setCoverDateByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onCoverNarrationChange={(v) => setCoverNarrationByProposal(prev => ({ ...prev, [p.id]: v }))}
                 />
               ))}
             </div>
@@ -318,6 +325,7 @@ interface CardProps {
   coverSpeakerValue: string; // iter 62b: 封面 meta override (空=後端 fallback)
   coverOrgValue: string;
   coverDateValue: string;
+  coverNarrationValue: string; // iter 65: 封面 narration override (空=後端模板)
   onToggle: () => void;
   onApprove: () => void;
   onIgnore: () => void;
@@ -330,14 +338,15 @@ interface CardProps {
   onCoverSpeakerChange: (v: string) => void;
   onCoverOrgChange: (v: string) => void;
   onCoverDateChange: (v: string) => void;
+  onCoverNarrationChange: (v: string) => void;
 }
 
 function ProposalCard({
   p, open, busy, themeValue, lengthValue, introValue, aiGenValue, aiMermaidValue, coverValue,
-  coverSpeakerValue, coverOrgValue, coverDateValue,
+  coverSpeakerValue, coverOrgValue, coverDateValue, coverNarrationValue,
   onToggle, onApprove, onIgnore,
   onThemeChange, onLengthChange, onIntroChange, onAiGenChange, onAiMermaidChange, onCoverChange,
-  onCoverSpeakerChange, onCoverOrgChange, onCoverDateChange,
+  onCoverSpeakerChange, onCoverOrgChange, onCoverDateChange, onCoverNarrationChange,
 }: CardProps) {
   const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
 
@@ -534,6 +543,15 @@ function ProposalCard({
                     placeholder="日期 (留空=今天 YYYY-MM-DD)"
                     className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card"
                   />
+                  {/* iter 65: 開場口白覆寫 */}
+                  <textarea
+                    value={coverNarrationValue}
+                    onChange={(e) => onCoverNarrationChange(e.target.value)}
+                    disabled={busy}
+                    placeholder="開場口白 (留空=模板「各位好, 我是X. 今天介紹X. 本內容由X帶來…」, 建議 60~180 字)"
+                    rows={3}
+                    className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card resize-y"
+                  />
                 </div>
               )}
             </div>
@@ -562,6 +580,9 @@ function ProposalCard({
                 )}
                 {themeApplicable && coverValue && coverDateValue.trim() && (
                   <Row k="封面日期" v={coverDateValue.trim()} />
+                )}
+                {themeApplicable && coverValue && coverNarrationValue.trim() && (
+                  <Row k="封面口白" v={`自訂 (${coverNarrationValue.trim().length} 字)`} />
                 )}
                 <div className="flex justify-between border-t border-paper-line pt-1.5 mt-1.5">
                   <span className="text-ink-muted">預估</span>

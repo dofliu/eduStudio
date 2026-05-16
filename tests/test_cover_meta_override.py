@@ -106,6 +106,66 @@ class TestPrependCoverFallback:
         assert slide["cover_date"] == datetime.now().strftime("%Y-%m-%d")
 
 
+class TestPrependCoverNarrationOverride:
+    """iter 65: 自訂開場口白 — 非空 → 用 override, 空 → fallback 模板."""
+
+    def test_narration_override_used(self):
+        deck = _make_deck()
+        custom = "歡迎各位來到本次的特別講座, 今天我們深入聊聊封面口白覆寫."
+        with patch("core.config.get_cover_speaker", return_value="X"), \
+             patch("core.config.get_cover_org", return_value="Y"):
+            _prepend_cover_to_deck(deck, narration_override=custom)
+        slide = deck["sections"][0]["slides"][0]
+        assert slide["narration"] == custom
+
+    def test_narration_override_strips_outer_whitespace(self):
+        """前後空白 strip 掉, 內容保留."""
+        deck = _make_deck()
+        with patch("core.config.get_cover_speaker", return_value="X"), \
+             patch("core.config.get_cover_org", return_value="Y"):
+            _prepend_cover_to_deck(deck, narration_override="  hello world  ")
+        slide = deck["sections"][0]["slides"][0]
+        assert slide["narration"] == "hello world"
+
+    def test_empty_narration_falls_back_to_template(self):
+        deck = _make_deck()
+        with patch("core.config.get_cover_speaker", return_value="講者A"), \
+             patch("core.config.get_cover_org", return_value="單位B"):
+            _prepend_cover_to_deck(deck, narration_override="")
+        slide = deck["sections"][0]["slides"][0]
+        # 模板 narration 內含 deck_title / speaker / org
+        assert "講者A" in slide["narration"]
+        assert "單位B" in slide["narration"]
+        assert deck["deck_title"] in slide["narration"]
+
+    def test_whitespace_narration_falls_back(self):
+        """全空白 (含中文全形) 視同未設."""
+        deck = _make_deck()
+        with patch("core.config.get_cover_speaker", return_value="講者A"), \
+             patch("core.config.get_cover_org", return_value="單位B"):
+            _prepend_cover_to_deck(deck, narration_override="   \n  \t ")
+        slide = deck["sections"][0]["slides"][0]
+        # 該套模板, 不會是全空白
+        assert slide["narration"].strip() != ""
+        assert "講者A" in slide["narration"]
+
+    def test_narration_override_independent_of_meta(self):
+        """narration override 跟 speaker/org override 互不影響."""
+        deck = _make_deck()
+        with patch("core.config.get_cover_speaker", return_value="env_speaker"), \
+             patch("core.config.get_cover_org", return_value="env_org"):
+            _prepend_cover_to_deck(
+                deck,
+                speaker_override="ui_speaker",
+                narration_override="自訂 narration 字串",
+            )
+        slide = deck["sections"][0]["slides"][0]
+        # meta 仍走 override (ui_speaker)
+        assert slide["cover_speaker"] == "ui_speaker"
+        # narration 走 override, 跟 ui_speaker 無關
+        assert slide["narration"] == "自訂 narration 字串"
+
+
 class TestPrependCoverNoop:
     """sections 不是 list / 結構壞掉 → noop, 不擋 ingest."""
 

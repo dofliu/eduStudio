@@ -175,6 +175,7 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
             speaker_override=rec.options.cover_speaker,
             org_override=rec.options.cover_org,
             date_override=rec.options.cover_date,
+            narration_override=rec.options.cover_narration,
         )
 
     (job_dir / "outline.json").write_text(
@@ -194,6 +195,7 @@ def _prepend_cover_to_deck(
     speaker_override: str | None = None,
     org_override: str | None = None,
     date_override: str | None = None,
+    narration_override: str | None = None,
 ) -> None:
     """iter 62: 在 deck.sections 最前面插入封面 section.
 
@@ -203,6 +205,8 @@ def _prepend_cover_to_deck(
       - speaker: core.config.get_cover_speaker() (env 或預設)
       - org:     core.config.get_cover_org()
       - date:    今天 (build_cover_section 內部處理)
+
+    iter 65: narration_override 非空 → 直接拿來當 narration; 否則用模板.
 
     in-place 修改 deck. 失敗 (沒 sections 等) noop, 不擋 ingest.
     """
@@ -217,11 +221,14 @@ def _prepend_cover_to_deck(
     speaker = (speaker_override or "").strip() or get_cover_speaker()
     org = (org_override or "").strip() or get_cover_org()
     date_val = (date_override or "").strip() or None  # None → 今天
+    # iter 65: narration override (空字串 → None → fallback 模板)
+    narration_val = (narration_override or "").strip() or None
     cover_sec = build_cover_section(
         title,
         speaker=speaker,
         org=org,
         date_str=date_val,
+        narration_override=narration_val,
     )
     sections.insert(0, cover_sec)
 
@@ -368,6 +375,7 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
             speaker_override=rec.options.cover_speaker,
             org_override=rec.options.cover_org,
             date_override=rec.options.cover_date,
+            narration_override=rec.options.cover_narration,
         )
 
     (job_dir / "outline.json").write_text(

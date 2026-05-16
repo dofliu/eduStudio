@@ -33,6 +33,7 @@ def build_cover_section(
     speaker: str = "",
     org: str = "",
     date_str: str | None = None,
+    narration_override: str | None = None,
 ) -> dict:
     """產出一張封面 section (含單一 cover slide).
 
@@ -41,6 +42,8 @@ def build_cover_section(
         speaker: 講者 (空字串時不畫該欄位)
         org: 單位 (空字串時不畫)
         date_str: 日期字串 (None → 今天 YYYY-MM-DD)
+        narration_override: iter 65 — 自訂開場口白. 非空 → 用 override,
+            None / 空字串 → 用 _COVER_NARRATION_TEMPLATE 套 speaker/title/org.
 
     回 section dict, 結構跟 scriptor 出的 section 一致, 但 slide.bg_type
     設成 "cover" 讓 renderer 切專屬 layout. id 用 "_cover" 底線 prefix
@@ -49,11 +52,16 @@ def build_cover_section(
     if date_str is None:
         date_str = datetime.now().strftime("%Y-%m-%d")
 
-    narration = _COVER_NARRATION_TEMPLATE.format(
-        speaker=speaker or "劉老師",
-        deck_title=deck_title or "今天的主題",
-        org=org or "DofLab",
-    )
+    # iter 65: narration_override 非空 → 直接用; 否則 fallback 到模板
+    override = (narration_override or "").strip()
+    if override:
+        narration = override
+    else:
+        narration = _COVER_NARRATION_TEMPLATE.format(
+            speaker=speaker or "劉老師",
+            deck_title=deck_title or "今天的主題",
+            org=org or "DofLab",
+        )
 
     return {
         "id": "_cover",

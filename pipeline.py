@@ -399,10 +399,16 @@ def _load_pptx_renderer():
     return PptxStyleRenderer()
 
 
+# iter 62 + 63: 封面 / 結尾 slide 都走 pptx renderer, 內部 (PptxStyleRenderer.render)
+# 看 step.bg_type 自己 dispatch 到 _draw_cover_slide / _draw_outro_slide. 這層
+# 只負責「哪個 renderer 接這個 bg_type」, 不重複內部 dispatch 邏輯.
+_pptx_renderer = _load_pptx_renderer()
 _RENDERERS = {
     "blackboard": BlackboardRenderer(),
     "slide": SlideRenderer(),
-    "pptx_slide": _load_pptx_renderer(),
+    "pptx_slide": _pptx_renderer,
+    "cover": _pptx_renderer,    # iter 62
+    "outro": _pptx_renderer,    # iter 63
 }
 
 

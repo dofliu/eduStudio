@@ -31,6 +31,7 @@ from .routes import jobs as jobs_routes
 from .routes import library as library_routes
 from .routes import proposals as proposals_routes
 from .routes import slides as slides_routes
+from .routes import themes as themes_routes
 from .routes import uploads as uploads_routes
 from .routes import voices as voices_routes
 from .routes import youtube as youtube_routes
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(library_routes.router)
     app.include_router(editor_routes.router)
     app.include_router(proposals_routes.router)  # v4 階段 2 B iter 14
+    app.include_router(themes_routes.router)     # iter 72: theme gallery
 
     # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor
     # 用 StaticFiles mount /ui/assets 處理已知 asset 檔, 其餘 /ui/* 走 SPA fallback

@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useToast } from './Toast';
 import type { SourceType } from '../types';
+import { ThemeGalleryModal } from './ThemeGalleryModal';
 
 interface Props {
   onCreated: () => void;
@@ -75,6 +76,8 @@ export function CreateJobForm({ onCreated }: Props) {
   // iter 67: outro 結尾頁 QR codes
   const [showQrOnOutro, setShowQrOnOutro] = useState(false);
   const [outroYoutubeUrl, setOutroYoutubeUrl] = useState('');
+  // iter 72: 主題預覽 modal
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -288,10 +291,20 @@ export function CreateJobForm({ onCreated }: Props) {
       )}
 
       {/* PR-5a: pptx 主題下拉, 只對 repo / document / url 顯示
-          iter 44: 加 10 套 dof-* — v1 沉穩 / v2 衝擊兩家族 */}
+          iter 44: 加 10 套 dof-* — v1 沉穩 / v2 衝擊兩家族
+          iter 72: 加「🎨 預覽」按鈕開 ThemeGalleryModal */}
       {showTheme && (
         <div className="mt-3">
-          <label className="field-label">pptx 主題</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="field-label !mb-0">pptx 主題</label>
+            <button
+              type="button"
+              onClick={() => setGalleryOpen(true)}
+              className="text-xs text-forest-700 hover:underline"
+            >
+              🎨 預覽 15 主題
+            </button>
+          </div>
           <select
             className="field-input"
             value={theme}
@@ -525,6 +538,15 @@ export function CreateJobForm({ onCreated }: Props) {
           取消
         </button>
       </div>
+
+      {/* iter 72: 主題預覽 modal */}
+      {galleryOpen && (
+        <ThemeGalleryModal
+          currentTheme={theme}
+          onSelect={(t) => setTheme(t as ThemeName)}
+          onClose={() => setGalleryOpen(false)}
+        />
+      )}
     </div>
   );
 }

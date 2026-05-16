@@ -11,6 +11,7 @@ import { api, ApiError } from '../api';
 import { useToast } from '../components/Toast';
 import { Btn, Topbar, SourceBadge, Field, Input, Select, Meter, VideoThumb } from '../components/ui';
 import { SOURCE_META } from '../components/ui/SourceBadge';
+import { ThemeGalleryModal } from '../components/ThemeGalleryModal';
 import type { Proposal, ScanStatusResponse, SourceType } from '../types';
 
 // iter 40: theme 只對走 PptxStyleRenderer 的 source 適用
@@ -70,6 +71,8 @@ export default function ProposalsList() {
   const [appendOutroVideoByProposal, setAppendOutroVideoByProposal] = useState<Record<string, boolean>>({});
   const [showQrOnOutroByProposal, setShowQrOnOutroByProposal] = useState<Record<string, boolean>>({});
   const [outroYoutubeUrlByProposal, setOutroYoutubeUrlByProposal] = useState<Record<string, string>>({});
+  // iter 72: 主題預覽 modal — galleryFor 是哪個 proposal 開的
+  const [galleryFor, setGalleryFor] = useState<string | null>(null);
   // scan modal state
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -324,6 +327,7 @@ export default function ProposalsList() {
                   onOutroVideoChange={(v) => setAppendOutroVideoByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onQrChange={(v) => setShowQrOnOutroByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onOutroYoutubeChange={(v) => setOutroYoutubeUrlByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onGalleryOpen={() => setGalleryFor(p.id)}
                 />
               ))}
             </div>
@@ -341,6 +345,15 @@ export default function ProposalsList() {
           status={scanStatus}
           onClose={() => !scanning && setScanModal(false)}
           onScan={handleScan}
+        />
+      )}
+
+      {/* iter 72: 主題預覽 modal — galleryFor 是當前開的 proposal id */}
+      {galleryFor && (
+        <ThemeGalleryModal
+          currentTheme={themeByProposal[galleryFor] ?? 'forest'}
+          onSelect={(t) => setThemeByProposal(prev => ({ ...prev, [galleryFor]: t as ThemeName }))}
+          onClose={() => setGalleryFor(null)}
         />
       )}
     </div>
@@ -399,6 +412,7 @@ interface CardProps {
   onOutroVideoChange: (v: boolean) => void;
   onQrChange: (v: boolean) => void;
   onOutroYoutubeChange: (v: string) => void;
+  onGalleryOpen: () => void;       // iter 72: 開主題預覽 modal
 }
 
 function ProposalCard({
@@ -411,6 +425,7 @@ function ProposalCard({
   onCoverSpeakerChange, onCoverOrgChange, onCoverDateChange, onCoverNarrationChange,
   onOutroChange, onOutroThanksChange, onOutroUrlChange, onOutroNarrationChange,
   onOutroVideoChange, onQrChange, onOutroYoutubeChange,
+  onGalleryOpen,
 }: CardProps) {
   const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
 
@@ -460,8 +475,17 @@ function ProposalCard({
         <div className="px-5 pb-5 pt-3 border-t border-paper-line bg-paper">
           <div className="grid grid-cols-3 gap-5">
             <div>
-              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted mb-2">
-                pptx 主題 {!themeApplicable && <span className="text-ink-faint">(此類型不適用)</span>}
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted mb-2 flex justify-between items-center">
+                <span>pptx 主題 {!themeApplicable && <span className="text-ink-faint">(此類型不適用)</span>}</span>
+                {themeApplicable && (
+                  <button
+                    type="button"
+                    onClick={onGalleryOpen}
+                    className="text-[10.5px] normal-case tracking-normal text-forest-700 hover:underline"
+                  >
+                    🎨 預覽
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-1.5 max-h-[260px] overflow-y-auto scrollbar-thin pr-1">
                 {THEME_OPTIONS.map(o => {

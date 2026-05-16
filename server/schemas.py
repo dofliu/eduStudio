@@ -139,6 +139,22 @@ class JobOptions(BaseModel):
                     "覆寫. 只影響 repo / document / url (multi-section concat 路徑); "
                     "exam_pdf 每題獨立 mp4 不適用.",
     )
+    cover_speaker: str | None = Field(
+        default=None,
+        description="iter 62b: per-job 封面講者覆寫. None / 空字串 → 用 "
+                    "core.config.get_cover_speaker() (env 或預設). 只 prepend_cover=True "
+                    "時有意義.",
+    )
+    cover_org: str | None = Field(
+        default=None,
+        description="iter 62b: per-job 封面單位覆寫. 同上 fallback 規則.",
+    )
+    cover_date: str | None = Field(
+        default=None,
+        description="iter 62b: per-job 封面日期 (字串, 建議 YYYY-MM-DD). "
+                    "None / 空字串 → 用今天日期. 不檢查格式 — 給用戶自由 "
+                    "(可以寫「2026 春季」等).",
+    )
 
     model_config = ConfigDict(extra="allow")
 

@@ -104,6 +104,9 @@ class ProposalApproveRequest(BaseModel):
     ai_generate_diagrams: bool | None = None     # iter 56: AI 生圖 (Gemini Flash Image)
     ai_generate_mermaid: bool | None = None       # iter 57b: AI 生 mermaid syntax
     prepend_cover: bool | None = None              # iter 62: 插入封面頁
+    cover_speaker: str | None = None                # iter 62b: 封面講者覆寫
+    cover_org: str | None = None                    # iter 62b: 封面單位覆寫
+    cover_date: str | None = None                   # iter 62b: 封面日期覆寫
 
 
 class ScanFolderRequest(BaseModel):
@@ -245,6 +248,13 @@ async def approve_proposal(
             opts_kwargs["ai_generate_mermaid"] = body.ai_generate_mermaid
         if body.prepend_cover is not None:
             opts_kwargs["prepend_cover"] = body.prepend_cover
+        # iter 62b: 封面 meta per-job override (空字串視同未設, 留給 runner fallback)
+        if body.cover_speaker is not None:
+            opts_kwargs["cover_speaker"] = body.cover_speaker
+        if body.cover_org is not None:
+            opts_kwargs["cover_org"] = body.cover_org
+        if body.cover_date is not None:
+            opts_kwargs["cover_date"] = body.cover_date
 
     req = CreateJobRequest(
         source_type=source_type,

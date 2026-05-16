@@ -168,8 +168,14 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         )
 
     # iter 62: 封面頁 prepend (opt-in), 插在 sections[0]
+    # iter 62b: per-job meta override
     if rec.options.prepend_cover:
-        _prepend_cover_to_deck(deck)
+        _prepend_cover_to_deck(
+            deck,
+            speaker_override=rec.options.cover_speaker,
+            org_override=rec.options.cover_org,
+            date_override=rec.options.cover_date,
+        )
 
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),
@@ -182,11 +188,21 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
     return deck
 
 
-def _prepend_cover_to_deck(deck: dict) -> None:
+def _prepend_cover_to_deck(
+    deck: dict,
+    *,
+    speaker_override: str | None = None,
+    org_override: str | None = None,
+    date_override: str | None = None,
+) -> None:
     """iter 62: 在 deck.sections 最前面插入封面 section.
 
     封面內容: deck_title + 講者 + 日期 + 單位 + 開場口白 narration.
-    講者 / 單位由 core.config.get_cover_speaker / get_cover_org (env 可覆寫).
+
+    iter 62b: 三個 override 參數 — 非 None 且非空字串時優先用; 否則 fallback:
+      - speaker: core.config.get_cover_speaker() (env 或預設)
+      - org:     core.config.get_cover_org()
+      - date:    今天 (build_cover_section 內部處理)
 
     in-place 修改 deck. 失敗 (沒 sections 等) noop, 不擋 ingest.
     """
@@ -197,10 +213,15 @@ def _prepend_cover_to_deck(deck: dict) -> None:
     if not isinstance(sections, list):
         return
     title = deck.get("deck_title") or deck.get("title") or "今天的主題"
+    # iter 62b: per-job override 優先, 空字串視同未設
+    speaker = (speaker_override or "").strip() or get_cover_speaker()
+    org = (org_override or "").strip() or get_cover_org()
+    date_val = (date_override or "").strip() or None  # None → 今天
     cover_sec = build_cover_section(
         title,
-        speaker=get_cover_speaker(),
-        org=get_cover_org(),
+        speaker=speaker,
+        org=org,
+        date_str=date_val,
     )
     sections.insert(0, cover_sec)
 
@@ -340,8 +361,14 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
         )
 
     # iter 62: 封面頁 prepend (opt-in), 插在 sections[0]
+    # iter 62b: per-job meta override (空字串視同未設 → fallback env / 今天)
     if rec.options.prepend_cover:
-        _prepend_cover_to_deck(deck)
+        _prepend_cover_to_deck(
+            deck,
+            speaker_override=rec.options.cover_speaker,
+            org_override=rec.options.cover_org,
+            date_override=rec.options.cover_date,
+        )
 
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),

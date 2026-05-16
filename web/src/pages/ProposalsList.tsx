@@ -55,6 +55,10 @@ export default function ProposalsList() {
   const [aiMermaidByProposal, setAiMermaidByProposal] = useState<Record<string, boolean>>({});
   // iter 62: 封面頁 opt-in (主題 + 講者 + 日期 + 單位)
   const [prependCoverByProposal, setPrependCoverByProposal] = useState<Record<string, boolean>>({});
+  // iter 62b: 封面 meta per-job override (空字串 = 後端 fallback env / 今天)
+  const [coverSpeakerByProposal, setCoverSpeakerByProposal] = useState<Record<string, string>>({});
+  const [coverOrgByProposal, setCoverOrgByProposal] = useState<Record<string, string>>({});
+  const [coverDateByProposal, setCoverDateByProposal] = useState<Record<string, string>>({});
   // scan modal state
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -90,6 +94,10 @@ export default function ProposalsList() {
       const aiGen = themeApplicable ? (aiGenByProposal[p.id] ?? false) : false;
       const aiMermaid = themeApplicable ? (aiMermaidByProposal[p.id] ?? false) : false;
       const prependCover = themeApplicable ? (prependCoverByProposal[p.id] ?? false) : false;
+      // iter 62b: per-job 封面 meta override, 非空才送 (空字串視同未設讓後端 fallback)
+      const coverSpeaker = prependCover ? (coverSpeakerByProposal[p.id] ?? '').trim() : '';
+      const coverOrg = prependCover ? (coverOrgByProposal[p.id] ?? '').trim() : '';
+      const coverDate = prependCover ? (coverDateByProposal[p.id] ?? '').trim() : '';
       const body: {
         theme?: string;
         prepend_intro?: boolean;
@@ -97,6 +105,9 @@ export default function ProposalsList() {
         ai_generate_diagrams?: boolean;
         ai_generate_mermaid?: boolean;
         prepend_cover?: boolean;
+        cover_speaker?: string;
+        cover_org?: string;
+        cover_date?: string;
       } = {};
       if (theme) body.theme = theme;
       if (prependIntro) body.prepend_intro = true;
@@ -104,6 +115,9 @@ export default function ProposalsList() {
       if (aiGen) body.ai_generate_diagrams = true;
       if (aiMermaid) body.ai_generate_mermaid = true;
       if (prependCover) body.prepend_cover = true;
+      if (coverSpeaker) body.cover_speaker = coverSpeaker;
+      if (coverOrg) body.cover_org = coverOrg;
+      if (coverDate) body.cover_date = coverDate;
       const r = await api.approveProposal(p.id, Object.keys(body).length > 0 ? body : undefined);
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
       navigate(`/jobs/${r.job.job_id}`);
@@ -242,6 +256,9 @@ export default function ProposalsList() {
                   aiGenValue={aiGenByProposal[p.id] ?? false}
                   aiMermaidValue={aiMermaidByProposal[p.id] ?? false}
                   coverValue={prependCoverByProposal[p.id] ?? false}
+                  coverSpeakerValue={coverSpeakerByProposal[p.id] ?? ''}
+                  coverOrgValue={coverOrgByProposal[p.id] ?? ''}
+                  coverDateValue={coverDateByProposal[p.id] ?? ''}
                   onToggle={() => setOpenCfg(openCfg === p.id ? null : p.id)}
                   onApprove={() => handleApprove(p)}
                   onIgnore={() => handleIgnore(p)}
@@ -251,6 +268,9 @@ export default function ProposalsList() {
                   onAiGenChange={(v) => setAiGenByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onAiMermaidChange={(v) => setAiMermaidByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onCoverChange={(v) => setPrependCoverByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onCoverSpeakerChange={(v) => setCoverSpeakerByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onCoverOrgChange={(v) => setCoverOrgByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onCoverDateChange={(v) => setCoverDateByProposal(prev => ({ ...prev, [p.id]: v }))}
                 />
               ))}
             </div>
@@ -295,6 +315,9 @@ interface CardProps {
   aiGenValue: boolean;       // iter 56: AI 生圖 opt-in
   aiMermaidValue: boolean;   // iter 57b: AI 生 mermaid opt-in
   coverValue: boolean;       // iter 62: 封面頁 opt-in
+  coverSpeakerValue: string; // iter 62b: 封面 meta override (空=後端 fallback)
+  coverOrgValue: string;
+  coverDateValue: string;
   onToggle: () => void;
   onApprove: () => void;
   onIgnore: () => void;
@@ -304,12 +327,17 @@ interface CardProps {
   onAiGenChange: (v: boolean) => void;
   onAiMermaidChange: (v: boolean) => void;
   onCoverChange: (v: boolean) => void;
+  onCoverSpeakerChange: (v: string) => void;
+  onCoverOrgChange: (v: string) => void;
+  onCoverDateChange: (v: string) => void;
 }
 
 function ProposalCard({
   p, open, busy, themeValue, lengthValue, introValue, aiGenValue, aiMermaidValue, coverValue,
+  coverSpeakerValue, coverOrgValue, coverDateValue,
   onToggle, onApprove, onIgnore,
   onThemeChange, onLengthChange, onIntroChange, onAiGenChange, onAiMermaidChange, onCoverChange,
+  onCoverSpeakerChange, onCoverOrgChange, onCoverDateChange,
 }: CardProps) {
   const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
 
@@ -478,6 +506,36 @@ function ProposalCard({
                   </div>
                 </label>
               )}
+              {/* iter 62b: 封面 meta override — 只在 coverValue 開時秀, 空白=後端 fallback */}
+              {themeApplicable && coverValue && (
+                <div className="mt-2 p-2.5 rounded-sm border border-paper-edge bg-paper-warm space-y-1.5">
+                  <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted">封面 meta (空白 = 用預設)</div>
+                  <input
+                    type="text"
+                    value={coverSpeakerValue}
+                    onChange={(e) => onCoverSpeakerChange(e.target.value)}
+                    disabled={busy}
+                    placeholder="講者 (留空=預設劉瑞弘 副教授)"
+                    className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card"
+                  />
+                  <input
+                    type="text"
+                    value={coverOrgValue}
+                    onChange={(e) => onCoverOrgChange(e.target.value)}
+                    disabled={busy}
+                    placeholder="單位 (留空=預設 NCUT IAE · DofLab)"
+                    className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card"
+                  />
+                  <input
+                    type="text"
+                    value={coverDateValue}
+                    onChange={(e) => onCoverDateChange(e.target.value)}
+                    disabled={busy}
+                    placeholder="日期 (留空=今天 YYYY-MM-DD)"
+                    className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card"
+                  />
+                </div>
+              )}
             </div>
 
             <div>
@@ -495,6 +553,15 @@ function ProposalCard({
                 )}
                 {themeApplicable && (
                   <Row k="封面頁" v={coverValue ? '插入' : '不插'} />
+                )}
+                {themeApplicable && coverValue && coverSpeakerValue.trim() && (
+                  <Row k="封面講者" v={coverSpeakerValue.trim()} />
+                )}
+                {themeApplicable && coverValue && coverOrgValue.trim() && (
+                  <Row k="封面單位" v={coverOrgValue.trim()} />
+                )}
+                {themeApplicable && coverValue && coverDateValue.trim() && (
+                  <Row k="封面日期" v={coverDateValue.trim()} />
                 )}
                 <div className="flex justify-between border-t border-paper-line pt-1.5 mt-1.5">
                   <span className="text-ink-muted">預估</span>

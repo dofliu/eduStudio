@@ -59,6 +59,10 @@ export function CreateJobForm({ onCreated }: Props) {
   const [aiGenerateMermaid, setAiGenerateMermaid] = useState(false);
   // iter 62: 在 intro 之後 / 主內容前插封面頁 (主題 + 講者 + 日期 + 單位)
   const [prependCover, setPrependCover] = useState(false);
+  // iter 62b: 封面 meta per-job override (空字串視同未設 — 後端 fallback env / 今天)
+  const [coverSpeaker, setCoverSpeaker] = useState('');
+  const [coverOrg, setCoverOrg] = useState('');
+  const [coverDate, setCoverDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -93,6 +97,13 @@ export function CreateJobForm({ onCreated }: Props) {
     ...(showLengthMode ? { ai_generate_mermaid: aiGenerateMermaid } : {}),
     // iter 62: 封面頁
     ...(showLengthMode ? { prepend_cover: prependCover } : {}),
+    // iter 62b: 封面 meta override — 只在 prepend_cover 開且非空才送
+    ...(showLengthMode && prependCover && coverSpeaker.trim()
+      ? { cover_speaker: coverSpeaker.trim() } : {}),
+    ...(showLengthMode && prependCover && coverOrg.trim()
+      ? { cover_org: coverOrg.trim() } : {}),
+    ...(showLengthMode && prependCover && coverDate.trim()
+      ? { cover_date: coverDate.trim() } : {}),
   });
 
   const submit = async () => {
@@ -361,6 +372,32 @@ export function CreateJobForm({ onCreated }: Props) {
             />
             🪪 插入封面頁 (主題 + 講者 + 日期 + 單位 + 開場口白)
           </label>
+        )}
+        {/* iter 62b: 開封面頁時才秀 meta override 三欄, 空白 → 後端 fallback */}
+        {showLengthMode && prependCover && (
+          <div className="ml-6 mt-1 flex flex-wrap gap-2 text-xs">
+            <input
+              type="text"
+              value={coverSpeaker}
+              onChange={(e) => setCoverSpeaker(e.target.value)}
+              placeholder="講者 (留空=預設)"
+              className="border rounded px-2 py-1 w-44"
+            />
+            <input
+              type="text"
+              value={coverOrg}
+              onChange={(e) => setCoverOrg(e.target.value)}
+              placeholder="單位 (留空=預設)"
+              className="border rounded px-2 py-1 w-56"
+            />
+            <input
+              type="text"
+              value={coverDate}
+              onChange={(e) => setCoverDate(e.target.value)}
+              placeholder="日期 (留空=今天)"
+              className="border rounded px-2 py-1 w-36"
+            />
+          </div>
         )}
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input

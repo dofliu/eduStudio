@@ -855,19 +855,49 @@ def _pick_meta_color(palette: Palette, threshold: float = 80.0) -> tuple[int, in
     return palette["primary"]
 
 
+def _draw_brutalist_frame(
+    draw: ImageDraw.ImageDraw, palette: Palette,
+    inset: int = 80, thickness: int = 12,
+) -> None:
+    """iter 64: 為 banner_style=reverse 的主題 (brutalist / supergraphic /
+    zine) 在封面/結尾頁外圍畫粗框, 加強野獸派 / 海報式視覺衝擊感.
+
+    inset: 框離邊緣的內縮量
+    thickness: 框線粗細
+
+    Letterbox-friendly: 上邊框不蓋到 teacher photo overlay, 下邊框不蓋到字幕帶.
+    """
+    left = inset
+    right = VIDEO_WIDTH - inset
+    top = inset
+    bottom = VIDEO_HEIGHT - SUBTITLE_STRIP_HEIGHT - inset // 2
+    # 四條邊: 上 / 下 / 左 / 右
+    draw.rectangle([left, top, right, top + thickness], fill=palette["primary"])
+    draw.rectangle([left, bottom - thickness, right, bottom], fill=palette["primary"])
+    draw.rectangle([left, top, left + thickness, bottom], fill=palette["primary"])
+    draw.rectangle([right - thickness, top, right, bottom], fill=palette["primary"])
+
+
 def _draw_cover_slide(
     draw: ImageDraw.ImageDraw, step: dict, palette: Palette,
     body_font_path: str | None = None,
+    *,
+    signature_decor: str | None = None,
+    banner_style: str = "rectangle",
 ) -> None:
-    """iter 62: 封面頁專屬 layout.
+    """iter 62 + 64: 封面頁專屬 layout.
 
-    版面:
+    版面 (預設):
     - 上 1/3 空白 (留 breathing room)
     - 中央: 大標題 (deck title), 字級 = TITLE_FONT_SIZE * 1.4
     - 標題下方 highlight 色橫線 (居中)
     - 標題下: 講者 / 日期 / 單位 三行 meta (iter 62a: contrast-aware 選色,
       secondary 對比不夠時 fallback 到 primary)
-    - 不畫 banner, 不畫 signature decor (封面本身就是設計)
+
+    iter 64 主題差異化:
+    - banner_style="reverse" 主題 (brutalist / supergraphic / zine): 外圍粗框
+    - signature_decor 非 None: 對應主題 (shinobi / elven / arcade / brutalist
+      / editorial) 在右上角畫識別徽章
     """
     fpath = body_font_path or get_font_path()
     # 大標題字級
@@ -882,6 +912,10 @@ def _draw_cover_slide(
     meta_font = _font(fpath, meta_size)
     # iter 62a: meta 文字色 — 對比優先, 不依賴 secondary
     meta_color = _pick_meta_color(palette)
+
+    # iter 64: reverse 主題畫粗框 (在最底層, 後續元素疊在上面)
+    if banner_style == "reverse":
+        _draw_brutalist_frame(draw, palette)
 
     # 標題: 居中, 自動換行 (寬度限 80% video width)
     max_title_w = int(VIDEO_WIDTH * 0.85)
@@ -918,19 +952,30 @@ def _draw_cover_slide(
         )
         meta_y += meta_size + 14
 
+    # iter 64: signature decor (5 主題各自的識別徽章) 畫在右上角
+    if signature_decor:
+        _draw_signature_decor(draw, signature_decor, palette, step_idx=1)
+
 
 def _draw_outro_slide(
     draw: ImageDraw.ImageDraw, step: dict, palette: Palette,
     body_font_path: str | None = None,
+    *,
+    signature_decor: str | None = None,
+    banner_style: str = "rectangle",
 ) -> None:
-    """iter 63: 結尾頁專屬 layout, 跟封面對稱.
+    """iter 63 + 64: 結尾頁專屬 layout, 跟封面對稱.
 
-    版面:
+    版面 (預設):
     - 上 1/3 空白
     - 中央: 大字 thanks_text (預設「謝謝聆聽」), 字級 = TITLE_FONT_SIZE * 1.6
       (比封面更大, 結尾要有 closure 感)
     - 主標下方 highlight 色橫線 (居中)
     - 主標下: 講者 / 單位 / URL 三行 meta (contrast-aware 選色, 跟封面共用)
+
+    iter 64 主題差異化 (跟 cover 對稱):
+    - banner_style="reverse": 外圍粗框
+    - signature_decor 非 None: 右上角識別徽章
     """
     fpath = body_font_path or get_font_path()
     outro_title_size = int(TITLE_FONT_SIZE * 1.6)
@@ -944,6 +989,10 @@ def _draw_outro_slide(
     meta_font = _font(fpath, meta_size)
     # 共用 iter 62a 的 contrast-aware 選色
     meta_color = _pick_meta_color(palette)
+
+    # iter 64: reverse 主題畫粗框
+    if banner_style == "reverse":
+        _draw_brutalist_frame(draw, palette)
 
     # 主標題: 居中, 跟封面同邏輯
     max_title_w = int(VIDEO_WIDTH * 0.85)
@@ -978,6 +1027,10 @@ def _draw_outro_slide(
             draw, (line_x, meta_y), line, meta_font, meta_color,
         )
         meta_y += meta_size + 14
+
+    # iter 64: signature decor (跟 cover 對稱)
+    if signature_decor:
+        _draw_signature_decor(draw, signature_decor, palette, step_idx=1)
 
 
 def _draw_signature_decor(
@@ -1255,9 +1308,13 @@ class PptxStyleRenderer:
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
 
-        # iter 62: 封面頁專屬 layout — 居中大字 + meta, 不畫 banner / signature
+        # iter 62 + 64: 封面頁專屬 layout — 居中大字 + meta + 主題差異化
+        # (reverse 主題加粗框 + 5 主題簽名徽章在右上)
         if step.get("bg_type") == "cover":
-            _draw_cover_slide(draw, step, palette, body_font_path)
+            _draw_cover_slide(
+                draw, step, palette, body_font_path,
+                signature_decor=signature_decor, banner_style=banner_style,
+            )
             _draw_subtitle_strip(draw)
             try:
                 from pipeline import _overlay_teacher_photo
@@ -1267,9 +1324,12 @@ class PptxStyleRenderer:
             img.save(out_p, "PNG")
             return
 
-        # iter 63: 結尾頁專屬 layout — 跟封面對稱, 不畫 banner / signature
+        # iter 63 + 64: 結尾頁專屬 layout — 跟封面對稱
         if step.get("bg_type") == "outro":
-            _draw_outro_slide(draw, step, palette, body_font_path)
+            _draw_outro_slide(
+                draw, step, palette, body_font_path,
+                signature_decor=signature_decor, banner_style=banner_style,
+            )
             _draw_subtitle_strip(draw)
             try:
                 from pipeline import _overlay_teacher_photo

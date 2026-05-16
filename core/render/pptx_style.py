@@ -626,6 +626,30 @@ def _draw_text_wrapped(draw, xy, text, font, fill, max_w, line_h, fb_font=None) 
     return y
 
 
+def _draw_text_wrapped_centered(
+    draw, text: str, font, fill, max_w: int, line_h: int, y_top: int,
+    canvas_w: int | None = None, fb_font=None,
+) -> tuple[int, int]:
+    """iter 84: wrap + 每行獨立居中. 給 cover / outro 大字用.
+
+    跟 _draw_text_wrapped 差別: 每行測寬度後個別算 center x, 不像原版用
+    第一行寬度當所有行的起點 (wrap 後第一行被切短時起點偏右).
+
+    回傳 (end_y, widest_line_width). widest 用來畫 highlight rule 同寬.
+    """
+    cw = canvas_w if canvas_w is not None else VIDEO_WIDTH
+    lines = _wrap_text(text, font, max_w)
+    widest = 0
+    y = y_top
+    for ln in lines:
+        lw = int(font.getlength(ln))
+        widest = max(widest, lw)
+        line_x = max(0, (cw - lw) // 2)
+        _draw_text_mixed(draw, (line_x, y), ln, font, fill, fb_font=fb_font)
+        y += line_h
+    return y, widest
+
+
 # ---------- 元件繪製 (palette 是函式參數, 切主題只是換 palette) ----------
 
 def _draw_banner(
@@ -1435,21 +1459,16 @@ def _draw_cover_slide(
     if banner_style == "reverse":
         _draw_brutalist_frame(draw, palette)
 
-    # 標題: 居中, 自動換行 (寬度限 80% video width)
+    # 標題: 居中, 自動換行 (iter 84: 每行獨立居中, 用 _draw_text_wrapped_centered)
     max_title_w = int(VIDEO_WIDTH * 0.85)
     title_y = int(VIDEO_HEIGHT * 0.32)
-    # 簡單居中: 量第一行寬, 從中心對齊起始 x
-    first_line = deck_title.split("\n")[0]
-    title_w = int(title_font.getlength(first_line))
-    title_w = min(title_w, max_title_w)
-    title_x = max(SIDE_MARGIN, (VIDEO_WIDTH - title_w) // 2)
-    end_y = _draw_text_wrapped(
-        draw, (title_x, title_y), deck_title, title_font, palette["primary"],
-        max_w=max_title_w, line_h=cover_title_size + 18,
+    end_y, widest = _draw_text_wrapped_centered(
+        draw, deck_title, title_font, palette["primary"],
+        max_w=max_title_w, line_h=cover_title_size + 18, y_top=title_y,
     )
 
-    # 標題下方 highlight 色橫線, 居中, 寬度約等於文字
-    rule_w = max(180, min(title_w, max_title_w))
+    # 標題下方 highlight 色橫線, 跟最寬行同寬 + 居中
+    rule_w = max(180, widest)
     rule_x = (VIDEO_WIDTH - rule_w) // 2
     rule_y = end_y + 24
     draw.rectangle(
@@ -1590,20 +1609,16 @@ def _draw_outro_slide(
     if banner_style == "reverse":
         _draw_brutalist_frame(draw, palette)
 
-    # 主標題: 居中, 跟封面同邏輯
+    # 主標題: 居中, 跟封面同邏輯 (iter 84: 每行獨立居中)
     max_title_w = int(VIDEO_WIDTH * 0.85)
     title_y = int(VIDEO_HEIGHT * 0.30)
-    first_line = thanks.split("\n")[0]
-    title_w = int(title_font.getlength(first_line))
-    title_w = min(title_w, max_title_w)
-    title_x = max(SIDE_MARGIN, (VIDEO_WIDTH - title_w) // 2)
-    end_y = _draw_text_wrapped(
-        draw, (title_x, title_y), thanks, title_font, palette["primary"],
-        max_w=max_title_w, line_h=outro_title_size + 18,
+    end_y, widest = _draw_text_wrapped_centered(
+        draw, thanks, title_font, palette["primary"],
+        max_w=max_title_w, line_h=outro_title_size + 18, y_top=title_y,
     )
 
-    # 主標下方 highlight 色橫線, 居中, 寬度約等於文字
-    rule_w = max(220, min(title_w, max_title_w))
+    # 主標下方 highlight 色橫線, 跟最寬行同寬 + 居中
+    rule_w = max(220, widest)
     rule_x = (VIDEO_WIDTH - rule_w) // 2
     rule_y = end_y + 28
     draw.rectangle(

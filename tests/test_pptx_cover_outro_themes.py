@@ -147,6 +147,84 @@ class TestSignatureDecorOnCoverOutro:
             assert max_dist > 30
 
 
+class TestIter84MultilineTitleCentered:
+    """iter 84: 長標題 wrap 後每行該獨立居中. landscape 跟 portrait 都該 OK.
+
+    bug 背景: iter 62 cover/outro 用第一行未 wrap 寬度當所有行起點 x,
+    wrap 後第一行被切短時起點偏右. iter 84 改成 _draw_text_wrapped_centered
+    每行單獨量寬居中.
+    """
+
+    def _render_cover_with_long_title(self, theme: str, tmp_path: Path,
+                                       aspect_ratio: str = "16:9") -> Image.Image:
+        from core.config import video_dimensions_override
+        out = tmp_path / f"cover_{theme}_{aspect_ratio.replace(':', 'x')}.png"
+        long_title = "應力與應變 — 材料力學基礎與工程應用"  # 預期換行
+        with video_dimensions_override(aspect_ratio, "1080p"):
+            data = {
+                "theme": theme,
+                "steps": [{
+                    "bg_type": "cover", "title": long_title,
+                    "cover_speaker": "X", "cover_org": "Y", "cover_date": "2026",
+                    "bullets": [], "code_snippet": None, "code_lang": None,
+                    "file_path": None, "image_path": None,
+                    "narration": "n", "section_title": "",
+                }],
+            }
+            pipeline.render_frame(data, 1, out, tmp_path)
+        return Image.open(out).convert("RGB")
+
+    def test_landscape_long_title_centered(self):
+        """landscape (1920) 長標題即使 wrap 也該每行居中 (左右對稱有 primary 色像素)."""
+        from core.render.pptx_style import get_palette
+        with TemporaryDirectory() as td:
+            img = self._render_cover_with_long_title("forest", Path(td), "16:9")
+            primary = get_palette("forest")["primary"]
+            # 採 title y 區間 (350-700), 比較左 1/4 跟右 1/4 的 primary 色像素數
+            left_count = 0
+            right_count = 0
+            for y in range(350, 700, 10):
+                for x in range(0, 480, 10):
+                    px = img.getpixel((x, y))
+                    if _color_distance(px, primary) < 50:
+                        left_count += 1
+                for x in range(1440, 1920, 10):
+                    px = img.getpixel((x, y))
+                    if _color_distance(px, primary) < 50:
+                        right_count += 1
+            # 左右該對稱 (差距 < 30%)
+            if left_count + right_count > 10:
+                ratio = abs(left_count - right_count) / max(left_count, right_count, 1)
+                assert ratio < 0.4, (
+                    f"landscape title 左右不對稱: left={left_count} right={right_count} "
+                    f"(ratio {ratio:.2f})"
+                )
+
+    def test_portrait_long_title_centered(self):
+        """portrait (1080) 長標題該 wrap + 每行居中."""
+        from core.render.pptx_style import get_palette
+        with TemporaryDirectory() as td:
+            img = self._render_cover_with_long_title("forest", Path(td), "9:16")
+            assert img.size == (1080, 1920)
+            primary = get_palette("forest")["primary"]
+            left_count = right_count = 0
+            for y in range(600, 900, 10):
+                for x in range(0, 270, 10):
+                    px = img.getpixel((x, y))
+                    if _color_distance(px, primary) < 50:
+                        left_count += 1
+                for x in range(810, 1080, 10):
+                    px = img.getpixel((x, y))
+                    if _color_distance(px, primary) < 50:
+                        right_count += 1
+            if left_count + right_count > 10:
+                ratio = abs(left_count - right_count) / max(left_count, right_count, 1)
+                assert ratio < 0.4, (
+                    f"portrait title 左右不對稱: left={left_count} right={right_count} "
+                    f"(ratio {ratio:.2f})"
+                )
+
+
 class TestRendersAllThemes:
     """iter 64: 確認所有 15 主題的 cover / outro 都能跑 (不 raise)."""
 

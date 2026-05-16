@@ -109,7 +109,7 @@
 - [x] A2 Margin per-theme (iter 75, side_margin 接 title + bullets)
 - [x] A3 自訂主題色票 UI (iter 76, 3 色 override: bg / primary / highlight)
 - **A 全部完成 (2026-05-16). 接下來啟動 B 影片格式.**
-- [x] B1 縱向短影片 9:16 (iter 83, Option B monkey-patch)
+- [x] B1 縱向短影片 9:16 (iter 83, Option B monkey-patch + iter 84 title 多行居中)
 - [x] B2 解析度可選 1080p/1440p/4K (iter 83 同步完成, 共用 dimension table)
 - [x] B3 整段時長可選 (iter 77, ultra_quick 3~5 min Shorts/Reels, a30a621)
 - [x] C1 Narration 長度驗證 + prompt 強化 (iter 79, 治標+追蹤)

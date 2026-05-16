@@ -109,9 +109,9 @@
 - [x] A2 Margin per-theme (iter 75, side_margin 接 title + bullets)
 - [x] A3 自訂主題色票 UI (iter 76, 3 色 override: bg / primary / highlight)
 - **A 全部完成 (2026-05-16). 接下來啟動 B 影片格式.**
-- [ ] B1 縱向短影片
-- [ ] B2 解析度可選
-- [x] B3 整段時長可選 (iter 77, ultra_quick 3~5 min Shorts/Reels)
+- [ ] B1 縱向短影片 9:16 — 等決策 (見 docs/B1_B2_DYNAMIC_DIMENSIONS_RFC.md)
+- [ ] B2 解析度可選 1080p/1440p/4K — 跟 B1 共用 refactor, 一起做
+- [x] B3 整段時長可選 (iter 77, ultra_quick 3~5 min Shorts/Reels, a30a621)
 - [ ] C1 Narration 截斷率治本
 - [ ] C2 TTS 中文發音治本
 - [ ] C3 narration AI 品質升級

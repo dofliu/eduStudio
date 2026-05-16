@@ -115,6 +115,9 @@ class ProposalApproveRequest(BaseModel):
     append_outro_video: bool | None = None             # iter 66: outro 個人影片串接
     show_qr_on_outro: bool | None = None               # iter 67: outro QR code
     outro_youtube_url: str | None = None               # iter 67: YouTube QR URL
+    palette_bg: str | None = None                       # iter 76 (A3): 自訂背景
+    palette_primary: str | None = None                  # iter 76: 自訂主色
+    palette_highlight: str | None = None                # iter 76: 自訂強調色
 
 
 class ScanFolderRequest(BaseModel):
@@ -281,6 +284,13 @@ async def approve_proposal(
             opts_kwargs["show_qr_on_outro"] = body.show_qr_on_outro
         if body.outro_youtube_url is not None:
             opts_kwargs["outro_youtube_url"] = body.outro_youtube_url
+        # iter 76 (A3): 自訂主題 3 色 override
+        if body.palette_bg is not None:
+            opts_kwargs["palette_bg"] = body.palette_bg
+        if body.palette_primary is not None:
+            opts_kwargs["palette_primary"] = body.palette_primary
+        if body.palette_highlight is not None:
+            opts_kwargs["palette_highlight"] = body.palette_highlight
 
     req = CreateJobRequest(
         source_type=source_type,

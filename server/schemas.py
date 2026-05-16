@@ -205,6 +205,22 @@ class JobOptions(BaseModel):
                     "None / 空 → fallback 到 CLAUDE_OUTRO_YOUTUBE_URL env / "
                     "預設 https://www.youtube.com/@dofliu.",
     )
+    # iter 76 (A3): 自訂主題色票 override — 用 hex string (#RRGGBB / RRGGBB).
+    # 3 個最影響視覺的 token. 其他 5 個 (banner / secondary / code_bg /
+    # code_border / file_header) 仍跟主題基底 — 簡化用戶選擇.
+    palette_bg: str | None = Field(
+        default=None,
+        description="iter 76: 自訂背景色 hex (例 '#1e3a2e' 或 '1e3a2e'). "
+                    "None → 用主題預設.",
+    )
+    palette_primary: str | None = Field(
+        default=None,
+        description="iter 76: 自訂主色 (標題 / bullet 文字), hex.",
+    )
+    palette_highlight: str | None = Field(
+        default=None,
+        description="iter 76: 自訂強調色 (底線 / marker / banner 字), hex.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

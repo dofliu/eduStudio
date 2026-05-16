@@ -107,7 +107,8 @@
 進度:
 - [x] A1 字級 / 行距 per-theme (iter 74, commit 5101afa)
 - [x] A2 Margin per-theme (iter 75, side_margin 接 title + bullets)
-- [ ] A3 自訂主題色票 UI
+- [x] A3 自訂主題色票 UI (iter 76, 3 色 override: bg / primary / highlight)
+- **A 全部完成 (2026-05-16). 接下來啟動 B 影片格式.**
 - [ ] B1 縱向短影片
 - [ ] B2 解析度可選
 - [ ] B3 整段時長可選

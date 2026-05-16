@@ -574,6 +574,13 @@ async def _run_render(
         v0 = problem_to_v0_json(deck["exam_title"], prob)
         v0["theme"] = theme
         v0["hardsub"] = hardsub
+        # iter 76 (A3): 自訂主題 3 色 override 透傳到 renderer
+        if rec.options.palette_bg:
+            v0["palette_bg"] = rec.options.palette_bg
+        if rec.options.palette_primary:
+            v0["palette_primary"] = rec.options.palette_primary
+        if rec.options.palette_highlight:
+            v0["palette_highlight"] = rec.options.palette_highlight
         # iter 53: 把 step.image_path 從 id 換成絕對路徑 (檔案 missing 時 None)
         _resolve_step_image_paths(v0.get("steps") or [], figures_dir)
         v0_path = artifacts_dir / f"{pid}.json"

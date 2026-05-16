@@ -279,6 +279,46 @@ def get_theme_metric(theme_name: str | None, key: str, default):
     return metrics.get(key, default)
 
 
+def _hex_to_rgb(hex_str: str | None) -> tuple[int, int, int] | None:
+    """iter 76 (A3): hex 字串 (#RRGGBB 或 RRGGBB) → (r, g, b) tuple.
+
+    回 None: hex_str 空 / 格式錯. 不 raise — 失敗 fallback 到主題基底.
+    """
+    if not hex_str:
+        return None
+    s = hex_str.strip().lstrip("#")
+    if len(s) != 6:
+        return None
+    try:
+        return (int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
+    except ValueError:
+        return None
+
+
+def merge_custom_palette(
+    base: Palette,
+    custom_bg: str | None = None,
+    custom_primary: str | None = None,
+    custom_highlight: str | None = None,
+) -> Palette:
+    """iter 76 (A3): 把用戶 hex 自訂色 merge 進主題基底 palette.
+
+    每個 token 失敗 (None / 解析錯) 就用 base. 完整 type-checked 回傳新
+    Palette dict, 不修改 base.
+    """
+    merged = dict(base)
+    bg = _hex_to_rgb(custom_bg)
+    if bg is not None:
+        merged["bg"] = bg
+    primary = _hex_to_rgb(custom_primary)
+    if primary is not None:
+        merged["primary"] = primary
+    highlight = _hex_to_rgb(custom_highlight)
+    if highlight is not None:
+        merged["highlight"] = highlight
+    return merged  # type: ignore[return-value]
+
+
 THEME_SIGNATURE_DECORS: dict[str, str] = {
     # 原 5 個 (iter 61)
     "dof-shinobi": "shinobi_stamp",
@@ -2102,6 +2142,12 @@ class PptxStyleRenderer:
         step = steps[step_idx - 1]
         theme_name = data.get("theme")
         palette = get_palette(theme_name)
+        # iter 76 (A3): 自訂 3 色 override (data 帶過來的 hex, 解析失敗 fallback)
+        cp_bg = data.get("palette_bg")
+        cp_primary = data.get("palette_primary")
+        cp_highlight = data.get("palette_highlight")
+        if any((cp_bg, cp_primary, cp_highlight)):
+            palette = merge_custom_palette(palette, cp_bg, cp_primary, cp_highlight)
         # iter 58: banner style 依主題切 — rectangle (default) / hairline / reverse / neon
         banner_style = get_banner_style(theme_name)
         # iter 59: title decor 依主題切 — underline (default) / block / hairline / reverse

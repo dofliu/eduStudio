@@ -78,6 +78,10 @@ export function CreateJobForm({ onCreated }: Props) {
   const [outroYoutubeUrl, setOutroYoutubeUrl] = useState('');
   // iter 72: 主題預覽 modal
   const [galleryOpen, setGalleryOpen] = useState(false);
+  // iter 76 (A3): 自訂主題 3 色 override (空 = 用主題預設)
+  const [paletteBg, setPaletteBg] = useState('');
+  const [palettePrimary, setPalettePrimary] = useState('');
+  const [paletteHighlight, setPaletteHighlight] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -136,6 +140,10 @@ export function CreateJobForm({ onCreated }: Props) {
     ...(showLengthMode && appendOutro ? { show_qr_on_outro: showQrOnOutro } : {}),
     ...(showLengthMode && appendOutro && showQrOnOutro && outroYoutubeUrl.trim()
       ? { outro_youtube_url: outroYoutubeUrl.trim() } : {}),
+    // iter 76 (A3): 自訂主題 3 色 (只在主題適用時送, 空字串不送讓後端 fallback)
+    ...(showTheme && paletteBg ? { palette_bg: paletteBg } : {}),
+    ...(showTheme && palettePrimary ? { palette_primary: palettePrimary } : {}),
+    ...(showTheme && paletteHighlight ? { palette_highlight: paletteHighlight } : {}),
   });
 
   const submit = async () => {
@@ -336,6 +344,64 @@ export function CreateJobForm({ onCreated }: Props) {
               <option value="dof-brutalist">⚠ Brutalist — 野獸派宣言 (觀點 talk / 批判)</option>
             </optgroup>
           </select>
+          {/* iter 76 (A3): 自訂主題 3 色 override — 空白用主題預設 */}
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-ink-muted">自訂 3 色 (留空=用主題預設):</span>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="color"
+                value={paletteBg || '#1e3a2e'}
+                onChange={(e) => setPaletteBg(e.target.value)}
+                className="w-7 h-7 cursor-pointer border border-paper-line"
+                title="背景色 bg"
+              />
+              <span>bg</span>
+              {paletteBg && (
+                <button
+                  type="button"
+                  onClick={() => setPaletteBg('')}
+                  className="ml-1 text-ink-faint hover:text-ink"
+                  title="清除"
+                >×</button>
+              )}
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="color"
+                value={palettePrimary || '#e8e6d8'}
+                onChange={(e) => setPalettePrimary(e.target.value)}
+                className="w-7 h-7 cursor-pointer border border-paper-line"
+                title="主色 primary (標題 / bullet 文字)"
+              />
+              <span>primary</span>
+              {palettePrimary && (
+                <button
+                  type="button"
+                  onClick={() => setPalettePrimary('')}
+                  className="ml-1 text-ink-faint hover:text-ink"
+                  title="清除"
+                >×</button>
+              )}
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="color"
+                value={paletteHighlight || '#f5d061'}
+                onChange={(e) => setPaletteHighlight(e.target.value)}
+                className="w-7 h-7 cursor-pointer border border-paper-line"
+                title="強調色 highlight (底線 / banner)"
+              />
+              <span>highlight</span>
+              {paletteHighlight && (
+                <button
+                  type="button"
+                  onClick={() => setPaletteHighlight('')}
+                  className="ml-1 text-ink-faint hover:text-ink"
+                  title="清除"
+                >×</button>
+              )}
+            </label>
+          </div>
         </div>
       )}
 

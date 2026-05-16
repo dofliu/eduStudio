@@ -204,6 +204,41 @@ def get_font_path_for_theme(theme_name: str | None) -> str:
 #   "arcade_pixels":  8-bit pixel dots (3x3 小方塊)
 #   "brutalist_warn": 警示斜紋 (對角線 stripes)
 #   "editorial_sec":  雜誌 § 章節符號 + 羅馬數字
+# iter 68b: 主題內容區 (bullets) layout 變體 — 觀眾停留最久區域, 改這裡才能
+# 拉出真正的視覺差異 (claude design 建議 01). 目前提供 3 個變體:
+#   - classic: • + 左對齊單欄 (預設, 教學經典)
+#   - numbered: 01 / 02 / 03 編號 + 左對齊單欄 (學術 / 編輯感)
+#   - centered: 居中對稱 + 大留白, 一張 slide 一個重點 (key-message style)
+# 之後可擴 offset / arcade_hud / notebook_lined / shinobi_vertical 等變體.
+THEME_CONTENT_LAYOUTS: dict[str, str] = {
+    "forest": "classic",
+    "navy": "classic",
+    "frieren": "classic",
+    "naruto": "classic",
+    "journal": "numbered",          # 學術期刊風 — 編號條列
+    # v1 沉穩家族
+    "dof-editorial": "numbered",    # 雜誌編輯風 — 編號
+    "dof-podium": "centered",       # TED 講壇 — 居中大留白
+    "dof-notebook": "classic",      # 札記 — 維持 bullet (未來可改 notebook_lined)
+    "dof-shinobi": "classic",       # 忍者 — 維持 (未來可改縱書)
+    "dof-elven": "centered",        # 月光對稱 — 居中
+    # v2 衝擊家族
+    "dof-zine": "classic",          # 海報 — 維持 (未來 offset)
+    "dof-arcade": "classic",        # 像素 — 維持 (未來 HUD)
+    "dof-risograph": "classic",     # 油墨 — 維持
+    "dof-supergraphic": "classic",  # 大色塊 — 維持 (未來 offset)
+    "dof-brutalist": "classic",     # 野獸派 — 維持 (未來 offset)
+}
+
+
+def get_content_layout(theme_name: str | None) -> str:
+    """主題對應的 content layout (classic / numbered / centered).
+    沒列回 classic (預設)."""
+    if not theme_name:
+        return "classic"
+    return THEME_CONTENT_LAYOUTS.get(theme_name, "classic")
+
+
 THEME_SIGNATURE_DECORS: dict[str, str] = {
     "dof-shinobi": "shinobi_stamp",
     "dof-elven": "elven_diamond",
@@ -736,16 +771,13 @@ def _draw_title_reverse(
     return end_y + 36
 
 
-def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
-                  y_max: int, palette: Palette,
-                  max_text_width: int | None = None,
-                  font_path: str | None = None) -> int:
-    """畫 bullets 列表, 強調色 ▸ marker + 主色文字, 回傳結束 y。
-
-    iter 53: max_text_width 由 caller 指定窄寬 (例: split-image layout 時
-    bullets 佔左側 55% 寬). None 走原本全寬 (預設).
-    iter 60: font_path 由 caller 帶 (serif 主題用 serif font).
-    """
+def _draw_bullets_classic(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """經典版: highlight 色 • marker + 左對齊單欄. 教學主題 (forest / navy 等)."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
@@ -777,6 +809,126 @@ def _draw_bullets(draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
                 )
             break
     return y
+
+
+def _draw_bullets_numbered(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """編號版: 01 / 02 / 03 兩位數編號 + 左對齊單欄. 學術 / 編輯感, journal /
+    editorial 主題用. 編號用 secondary 色, 跟 highlight 區分."""
+    if not bullets:
+        return y_start
+    fpath = font_path or get_font_path()
+    font = _font(fpath, BULLET_FONT_SIZE)
+    line_h = BULLET_FONT_SIZE + 18  # 行距比 classic 略大 (學術風偏 airy)
+    # 編號字級比 bullet 文字略大, 並用 mono-ish 字 (襯線主題已是 serif, 編號
+    # 維持同字型即可, 視覺自然)
+    num_font = _font(fpath, BULLET_FONT_SIZE + 8)
+    # 兩位數編號的 width 大致固定, 算最大 indent
+    indent = 110
+    text_max_w = max_text_width if max_text_width is not None else (
+        VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
+    )
+
+    y = y_start
+    for i, bullet in enumerate(bullets):
+        bullet = (bullet or "").strip()
+        if not bullet:
+            continue
+        # 編號 01, 02, 03... 至 99 (兩位數補 0)
+        label = f"{i + 1:02d}"
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN + 14, y - 4), label, num_font, palette["secondary"],
+        )
+        end_y = _draw_text_wrapped(
+            draw, (SIDE_MARGIN + indent, y), bullet, font, palette["primary"],
+            max_w=text_max_w, line_h=line_h,
+        )
+        y = end_y + 14
+        if y > y_max:
+            if i < len(bullets) - 1:
+                draw.text(
+                    (SIDE_MARGIN + indent, y - 8), "...",
+                    font=font, fill=palette["primary"],
+                )
+            break
+    return y
+
+
+def _draw_bullets_centered(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """居中版: 每條 bullet 居中, 大留白, 字級略大. 主題 podium / elven —
+    key-message 演講風. 不畫 marker (極簡, bullet 自身就是主角)."""
+    if not bullets:
+        return y_start
+    fpath = font_path or get_font_path()
+    # 字級略大, 行距特別大 (留白感)
+    font = _font(fpath, BULLET_FONT_SIZE + 4)
+    line_h = BULLET_FONT_SIZE + 32
+    # 居中時 max_text_width 用 70% video width (留白)
+    text_max_w = max_text_width if max_text_width is not None else int(VIDEO_WIDTH * 0.70)
+
+    y = y_start
+    # 每條 bullet 之間多 24px 額外間距 (vs classic 12)
+    item_gap = 32
+    for i, bullet in enumerate(bullets):
+        bullet = (bullet or "").strip()
+        if not bullet:
+            continue
+        # 量第一行寬度 -> 算居中 x. _draw_text_wrapped 不支援居中 wrap, 所以
+        # 手動算每行寬度. 簡化做法: 全部 bullet 視為單行, 量 width, 居中.
+        # 超寬 wrap 時還是會折行但每行從同樣 x 開始 (與真正居中略差但 OK).
+        line_w = int(font.getlength(bullet))
+        line_w = min(line_w, text_max_w)
+        line_x = max(SIDE_MARGIN, (VIDEO_WIDTH - line_w) // 2)
+        end_y = _draw_text_wrapped(
+            draw, (line_x, y), bullet, font, palette["primary"],
+            max_w=text_max_w, line_h=line_h,
+        )
+        y = end_y + item_gap
+        if y > y_max:
+            if i < len(bullets) - 1:
+                ellipsis_x = (VIDEO_WIDTH - int(font.getlength("..."))) // 2
+                draw.text(
+                    (ellipsis_x, y - 8), "...",
+                    font=font, fill=palette["primary"],
+                )
+            break
+    return y
+
+
+def _draw_bullets(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+    layout: str = "classic",
+) -> int:
+    """畫 bullets, dispatch 到對應 layout 變體, 回傳結束 y.
+
+    iter 68b: layout 由 caller 從 get_content_layout(theme_name) 取得.
+    未知 layout fallback 到 classic.
+
+    iter 53: max_text_width 由 caller 指定窄寬 (例: split-image layout 時
+    bullets 佔左側 55% 寬).
+    iter 60: font_path 由 caller 帶 (serif 主題用 serif font).
+    """
+    if not bullets:
+        return y_start
+    fn = {
+        "classic": _draw_bullets_classic,
+        "numbered": _draw_bullets_numbered,
+        "centered": _draw_bullets_centered,
+    }.get(layout, _draw_bullets_classic)
+    return fn(draw, bullets, y_start, y_max, palette,
+              max_text_width=max_text_width, font_path=font_path)
 
 
 def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
@@ -1352,11 +1504,28 @@ def _draw_image_panel(
         return (None, 0)
 
 
-def _draw_subtitle_strip(draw: ImageDraw.ImageDraw) -> None:
-    """底部 180px 黑帶, 給 SRT 字幕用 (與既有 renderer 一致, 不隨主題變)。"""
+def _draw_subtitle_strip(
+    draw: ImageDraw.ImageDraw,
+    palette: Palette | None = None,
+) -> None:
+    """底部 180px 字幕帶.
+
+    iter 68a: 接 palette 後依主題切色 (palette["banner"]). 沒給 palette
+    fallback 到 SUBTITLE_STRIP (黑) 保持向後相容 — blackboard / slide
+    renderer 仍用全域常數.
+
+    為什麼用 palette["banner"]:
+    - 淺底主題 (journal / editorial / brutalist / elven 等) 不再用純黑
+      撞色, 改用 banner 同色系 (米色 / 警示橘紅 / 淡紫等), 視覺連貫
+    - 暗底主題 (forest / navy / shinobi / arcade) 的 banner 本來就是更
+      深的同色, 字幕帶仍然清楚
+    - 字幕文字本身是白色帶黑邊 (ffmpeg subtitles filter 設的, 見
+      pipeline.py:472 PrimaryColour=&H00FFFFFF&), 任何 band 色都讀得到
+    """
+    color = palette["banner"] if palette else SUBTITLE_STRIP
     draw.rectangle(
         [0, VIDEO_HEIGHT - SUBTITLE_STRIP_HEIGHT, VIDEO_WIDTH, VIDEO_HEIGHT],
-        fill=SUBTITLE_STRIP,
+        fill=color,
     )
 
 
@@ -1391,6 +1560,8 @@ class PptxStyleRenderer:
         body_font_path = get_font_path_for_theme(theme_name)
         # iter 61: 簽名裝飾 (5 個主題: shinobi/elven/arcade/brutalist/editorial)
         signature_decor = get_signature_decor(theme_name)
+        # iter 68b: bullets content layout (classic / numbered / centered)
+        content_layout = get_content_layout(theme_name)
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
@@ -1402,7 +1573,7 @@ class PptxStyleRenderer:
                 draw, step, palette, body_font_path,
                 signature_decor=signature_decor, banner_style=banner_style,
             )
-            _draw_subtitle_strip(draw)
+            _draw_subtitle_strip(draw, palette)
             try:
                 from pipeline import _overlay_teacher_photo
                 _overlay_teacher_photo(img)
@@ -1418,7 +1589,7 @@ class PptxStyleRenderer:
                 signature_decor=signature_decor, banner_style=banner_style,
                 img=img,
             )
-            _draw_subtitle_strip(draw)
+            _draw_subtitle_strip(draw, palette)
             try:
                 from pipeline import _overlay_teacher_photo
                 _overlay_teacher_photo(img)
@@ -1459,7 +1630,7 @@ class PptxStyleRenderer:
             bullets_y_max = content_y_max - estimated_code_h - 20
             content_y = _draw_bullets(
                 draw, bullets, content_y, bullets_y_max, palette,
-                font_path=body_font_path,
+                font_path=body_font_path, layout=content_layout,
             )
             content_y = max(content_y, content_y_max - estimated_code_h)
             _draw_code_block(draw, img, code, file_path, content_y, content_y_max, palette)
@@ -1472,7 +1643,7 @@ class PptxStyleRenderer:
                 # image panel 失敗 → fallback 純文字
                 _draw_bullets(
                     draw, bullets, content_y, content_y_max, palette,
-                    font_path=body_font_path,
+                    font_path=body_font_path, layout=content_layout,
                 )
             else:
                 # bullets 寬度 = 左側到 panel_x 之間 (扣 indent)
@@ -1481,15 +1652,15 @@ class PptxStyleRenderer:
                 _draw_bullets(
                     draw, bullets, content_y, content_y_max, palette,
                     max_text_width=bullet_max_w,
-                    font_path=body_font_path,
+                    font_path=body_font_path, layout=content_layout,
                 )
         else:
             _draw_bullets(
                 draw, bullets, content_y, content_y_max, palette,
-                font_path=body_font_path,
+                font_path=body_font_path, layout=content_layout,
             )
 
-        _draw_subtitle_strip(draw)
+        _draw_subtitle_strip(draw, palette)
         try:
             from pipeline import _overlay_teacher_photo
             _overlay_teacher_photo(img)

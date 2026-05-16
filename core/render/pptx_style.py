@@ -1095,7 +1095,7 @@ def _draw_editorial_section_mark(
 def _draw_image_panel(
     img: Image.Image, image_path: str, y_top: int, y_bottom: int,
     palette: Palette,
-) -> tuple[int, int]:
+) -> tuple[int | None, int]:
     """iter 53: split-image-right layout — 把 figure 圖貼到主圖右側區塊.
 
     切版策略:

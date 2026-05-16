@@ -1,10 +1,10 @@
 name: autoSolverVideo
 name_zh: 教學影片自動生成平台
 category: edtech
-progress: 98
+progress: 99
 status: active
-last_updated: "2026-05-14"
-next_milestone: "v4 四大 feature track server-side 全完成 (Docker / pdf-to-video skill / ideate / diagram). 剩 user 本機實測 (Docker / skill / diagram 真實圖); 下一個主菜可能是 ideate UI 進度 streaming, pipeline.py 拆檔, 或 階段 3 D 持久化 worker (要先 RFC)"
+last_updated: "2026-05-16"
+next_milestone: "iter 62b 封面頁 meta per-job UI override 完成. 下一個主菜可能是 iter 63 結尾頁, iter 64 封面 per-theme layout, iter 65 封面 narration 用戶可改, 或 階段 3 D 持久化 worker (要先 RFC)"
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -135,3 +135,46 @@ key_metrics: |
   - Pronunciation map 缺漏 (需實聽錄音)
   - pipeline.py 拆檔 (中大型 refactor)
   - 階段 3 D 持久化 worker (要先 RFC 對齊技術選型)
+
+  iter 32~62b 自動化迭代 (2026-05-14~16, 全部 CI 綠):
+
+  iter 41~50 串接 / quick 長度 / TTS 修補:
+  - iter 41: prepend_intro 個人 intro 串開場
+  - iter 43: length_mode (quick 8~15min / lecture 20~40min) 預設
+  - iter 45: multi-section concat (每 section 獨立 mp4 → final.mp4)
+  - iter 46: quick 真的「快」(sections 3~4 / slides 4~5 / chars 80~120)
+  - iter 47~50: 雜項修補 (跳 narration / SRT 對齊 / log)
+
+  iter 51~54 Option A — PDF figures 自動配圖 (4 phases):
+  - iter 51: PyMuPDF 抽 figures + figure schema 統一
+  - iter 52: scriptor 看 figures 選 image_path (跨 section dedupe)
+  - iter 52b: image_path 去重 + intro_rewriter regex boundary 修
+  - iter 53: split-image-right layout (影片實際看到圖)
+  - iter 54: SlideEditor figure picker (UI 替換 / 移除)
+
+  iter 55~57b Option B + D — AI 配圖 (生圖 + Mermaid):
+  - iter 55: done 狀態加「重新渲染整支」入口
+  - iter 56: Gemini 2.5 Flash Image 生架構圖 (opt-in, 會計費)
+  - iter 56b: 補回 UI redesign 蓋掉的功能按鈕
+  - iter 56c: model name → gemini-2.5-flash-image (GA, -preview 去掉)
+  - iter 56d: AI 生圖自動 attach 到 section 第一張 slide
+  - iter 57: repo .md 內 mermaid blocks → mermaid.ink 渲染
+  - iter 57b: AI 生 mermaid syntax fallback (text gen 較便宜)
+
+  iter 58~61 Option 2 — 主題真的有區隔感 (4 phases):
+  - iter 58: banner_style 4 種 (rectangle / hairline / reverse / neon)
+  - iter 59: title_decor 4 種 (underline / block / hairline / reverse)
+  - iter 60: font_role per theme (serif/sans, NotoSerifTC-VF 動態載)
+  - iter 61: 5 主題簽名裝飾 (shinobi 徽章 / elven 寶石 / arcade 像素 /
+    brutalist 警示 / editorial section mark)
+
+  iter 62 + 62a + 62b — 封面頁:
+  - iter 62: 插入封面頁 (intro 之後 / 主內容前), 主題 + 講者 + 日期 +
+    單位, 配模板開場口白. opt-in, 走 multi-section concat 路徑.
+  - iter 62a: meta 文字色 contrast-aware (Rec. 601 luma 差值 < 80 fallback
+    到 primary, brutalist 螢光綠 + supergraphic 白配白 都修)
+  - iter 62b: 封面 meta per-job UI override (講者 / 單位 / 日期),
+    空白 fallback env / 今天, +10 tests.
+
+  測試覆蓋: 695 tests / 14+ modules (含 test_cover_gen 13, test_cover_meta_override
+  10, test_pptx_themes 121 含 15 主題 contrast 護網).

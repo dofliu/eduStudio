@@ -837,6 +837,24 @@ def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
     return block_bottom + 16
 
 
+def _luma(rgb: tuple[int, int, int]) -> float:
+    """Rec. 601 luma — 用來判斷顏色亮度. 0 (黑) ~ 255 (白)."""
+    return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+
+
+def _pick_meta_color(palette: Palette, threshold: float = 80.0) -> tuple[int, int, int]:
+    """iter 62a: 封面 meta 文字選色 — secondary 對比夠就用, 不夠 fallback 到 primary.
+
+    背景: 部分主題的 secondary 是 muted gray / lavender / neon 對淺底對比不
+    足 (例: brutalist secondary=螢光綠 配米白幾乎看不見). 這函式做防呆.
+
+    threshold=80: Rec. 601 luma 差值門檻, 經驗值. < 80 視為對比不足.
+    """
+    if abs(_luma(palette["secondary"]) - _luma(palette["bg"])) >= threshold:
+        return palette["secondary"]
+    return palette["primary"]
+
+
 def _draw_cover_slide(
     draw: ImageDraw.ImageDraw, step: dict, palette: Palette,
     body_font_path: str | None = None,
@@ -847,7 +865,8 @@ def _draw_cover_slide(
     - 上 1/3 空白 (留 breathing room)
     - 中央: 大標題 (deck title), 字級 = TITLE_FONT_SIZE * 1.4
     - 標題下方 highlight 色橫線 (居中)
-    - 標題下: 講者 / 日期 / 單位 三行 meta (用 secondary 色)
+    - 標題下: 講者 / 日期 / 單位 三行 meta (iter 62a: contrast-aware 選色,
+      secondary 對比不夠時 fallback 到 primary)
     - 不畫 banner, 不畫 signature decor (封面本身就是設計)
     """
     fpath = body_font_path or get_font_path()
@@ -861,6 +880,8 @@ def _draw_cover_slide(
 
     title_font = _font(fpath, cover_title_size)
     meta_font = _font(fpath, meta_size)
+    # iter 62a: meta 文字色 — 對比優先, 不依賴 secondary
+    meta_color = _pick_meta_color(palette)
 
     # 標題: 居中, 自動換行 (寬度限 80% video width)
     max_title_w = int(VIDEO_WIDTH * 0.85)
@@ -884,7 +905,7 @@ def _draw_cover_slide(
         fill=palette["highlight"],
     )
 
-    # Meta 三行 — 居中
+    # Meta 三行 — 居中, 用 contrast-aware color
     meta_y = rule_y + 40
     for line in (speaker, date, org):
         line = (line or "").strip()
@@ -893,7 +914,7 @@ def _draw_cover_slide(
         line_w = int(meta_font.getlength(line))
         line_x = max(SIDE_MARGIN, (VIDEO_WIDTH - line_w) // 2)
         _draw_text_mixed(
-            draw, (line_x, meta_y), line, meta_font, palette["secondary"],
+            draw, (line_x, meta_y), line, meta_font, meta_color,
         )
         meta_y += meta_size + 14
 

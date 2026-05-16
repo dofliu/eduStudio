@@ -328,3 +328,48 @@ class TestSignatureDecor:
             assert get_signature_decor(legacy) is None, (
                 f"{legacy} 不該有簽名裝飾 (避免改動既有觀感)"
             )
+
+
+# ---------- iter 62a: cover meta contrast ----------
+
+
+class TestCoverMetaContrast:
+    """封面 meta 文字選色 — 對比足夠用 secondary, 不夠 fallback 到 primary."""
+
+    @pytest.mark.parametrize("theme", list(THEMES.keys()))
+    def test_meta_color_has_sufficient_contrast_vs_bg(self, theme: str):
+        """每個主題的 cover meta 色該跟 bg 有 ≥ 80 luma 差 (Rec. 601)."""
+        from core.render.pptx_style import _pick_meta_color, _luma
+        p = THEMES[theme]
+        meta_color = _pick_meta_color(p)
+        contrast = abs(_luma(meta_color) - _luma(p["bg"]))
+        assert contrast >= 80, (
+            f"{theme} cover meta 對比不足: luma diff = {contrast:.0f}, "
+            f"meta={meta_color}, bg={p['bg']}"
+        )
+
+    def test_brutalist_uses_primary_not_neon_green(self):
+        """iter 62a 主要修法: brutalist secondary 是螢光綠 (對比差),
+        fallback 該選 primary 黑色."""
+        from core.render.pptx_style import _pick_meta_color
+        p = THEMES["dof-brutalist"]
+        meta_color = _pick_meta_color(p)
+        # 該回 primary (黑) 而非 secondary (螢光綠)
+        assert meta_color == p["primary"]
+        assert meta_color != p["secondary"]
+
+    def test_supergraphic_avoids_white_on_white(self):
+        """supergraphic bg 跟 secondary 都是純白, 一定要 fallback."""
+        from core.render.pptx_style import _pick_meta_color
+        p = THEMES["dof-supergraphic"]
+        meta_color = _pick_meta_color(p)
+        # 該回 primary (黑) 才看得見
+        assert meta_color == p["primary"]
+
+    def test_forest_keeps_secondary(self):
+        """forest secondary 是淺綠, 配深綠 bg 對比足夠, 該保留設計感."""
+        from core.render.pptx_style import _pick_meta_color
+        p = THEMES["forest"]
+        meta_color = _pick_meta_color(p)
+        # 深底主題 secondary 通常是淺色, 對比夠 → 保留
+        assert meta_color == p["secondary"]

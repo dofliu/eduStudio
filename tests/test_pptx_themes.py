@@ -279,24 +279,26 @@ class TestFontRole:
 
 
 class TestSignatureDecor:
-    """5 個主題各有獨特裝飾元素 (shinobi/elven/arcade/brutalist/editorial)."""
+    """iter 61 + 69: 15 個主題各有獨特裝飾元素."""
 
     VALID_DECORS = {
+        # iter 61 原 5 個
         "shinobi_stamp", "elven_diamond", "arcade_pixels",
         "brutalist_warn", "editorial_sec",
+        # iter 69 補的 10 個
+        "chalk_strokes", "circuit_trace", "magic_hex", "spiral_seal",
+        "page_marker", "minimal_diamond", "sticky_corner",
+        "sticker_bang", "riso_dots", "big_number",
     }
-
-    def test_default_is_none(self):
-        """大多數主題沒簽名裝飾, 該回 None (renderer noop)."""
-        assert get_signature_decor(None) is None
-        assert get_signature_decor("") is None
-        assert get_signature_decor("forest") is None
-        assert get_signature_decor("navy") is None
-        assert get_signature_decor("journal") is None
 
     def test_unknown_theme_none(self):
         assert get_signature_decor("not_a_theme") is None
 
+    def test_none_input(self):
+        assert get_signature_decor(None) is None
+        assert get_signature_decor("") is None
+
+    # iter 61 原 5 個 mapping (保留)
     def test_shinobi_has_stamp(self):
         assert get_signature_decor("dof-shinobi") == "shinobi_stamp"
 
@@ -312,9 +314,40 @@ class TestSignatureDecor:
     def test_editorial_has_section_mark(self):
         assert get_signature_decor("dof-editorial") == "editorial_sec"
 
-    def test_5_signatures_total(self):
-        """只設計給 5 個主題, 不該膨脹 (避免 maintainence cost 失控)."""
-        assert len(THEME_SIGNATURE_DECORS) == 5
+    # iter 69 新增 10 個 mapping
+    def test_forest_has_chalk_strokes(self):
+        assert get_signature_decor("forest") == "chalk_strokes"
+
+    def test_navy_has_circuit_trace(self):
+        assert get_signature_decor("navy") == "circuit_trace"
+
+    def test_frieren_has_magic_hex(self):
+        assert get_signature_decor("frieren") == "magic_hex"
+
+    def test_naruto_has_spiral_seal(self):
+        assert get_signature_decor("naruto") == "spiral_seal"
+
+    def test_journal_has_page_marker(self):
+        assert get_signature_decor("journal") == "page_marker"
+
+    def test_podium_has_minimal_diamond(self):
+        assert get_signature_decor("dof-podium") == "minimal_diamond"
+
+    def test_notebook_has_sticky_corner(self):
+        assert get_signature_decor("dof-notebook") == "sticky_corner"
+
+    def test_zine_has_sticker_bang(self):
+        assert get_signature_decor("dof-zine") == "sticker_bang"
+
+    def test_risograph_has_riso_dots(self):
+        assert get_signature_decor("dof-risograph") == "riso_dots"
+
+    def test_supergraphic_has_big_number(self):
+        assert get_signature_decor("dof-supergraphic") == "big_number"
+
+    def test_15_signatures_total(self):
+        """iter 69 後 15 個主題都該有 signature decor (claude design 03)."""
+        assert len(THEME_SIGNATURE_DECORS) == 15
 
     def test_signature_values_in_valid_set(self):
         for theme, decor in THEME_SIGNATURE_DECORS.items():
@@ -322,11 +355,12 @@ class TestSignatureDecor:
                 f"{theme} signature {decor!r} 不在 valid set"
             )
 
-    def test_legacy_themes_no_signature(self):
-        """forest / navy / frieren / naruto 不該有簽名裝飾 (backwards compat)."""
-        for legacy in ("forest", "navy", "frieren", "naruto"):
-            assert get_signature_decor(legacy) is None, (
-                f"{legacy} 不該有簽名裝飾 (避免改動既有觀感)"
+    def test_all_15_themes_have_signature(self):
+        """確認 mapping 跟 THEMES 對齊 — 沒主題漏掉, 也沒多寫不存在的主題."""
+        from core.render.pptx_style import THEMES
+        for theme_name in THEMES.keys():
+            assert theme_name in THEME_SIGNATURE_DECORS, (
+                f"{theme_name} 沒對應 signature decor"
             )
 
 

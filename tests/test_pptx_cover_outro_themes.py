@@ -103,22 +103,25 @@ class TestBrutalistFrameOnReverseThemes:
 
 
 class TestSignatureDecorOnCoverOutro:
-    """iter 64: 5 個有 THEME_SIGNATURE_DECORS 的主題, 封面 / 結尾右上角該畫
-    識別徽章 (跟 palette.bg 不同色)."""
+    """iter 64 + 69: 全 15 主題都該有 THEME_SIGNATURE_DECORS, 封面 / 結尾
+    右上角該畫對應的識別徽章 (跟 palette.bg 不同色). iter 69 補完 10 個之後
+    沒主題會 fall back 到「沒 signature」分支."""
 
-    SIGNATURE_THEMES = ["dof-shinobi", "dof-elven", "dof-arcade",
-                        "dof-brutalist", "dof-editorial"]
-    NON_SIGNATURE_THEMES = ["forest", "navy", "dof-podium"]
+    # iter 69 後全 15 主題都有 signature
+    SIGNATURE_THEMES = [
+        "dof-shinobi", "dof-elven", "dof-arcade", "dof-brutalist", "dof-editorial",
+        "forest", "navy", "frieren", "naruto", "journal",
+        "dof-podium", "dof-notebook", "dof-zine", "dof-risograph", "dof-supergraphic",
+    ]
 
     @pytest.mark.parametrize("theme", SIGNATURE_THEMES)
     def test_cover_has_signature(self, theme):
-        """右上角區域 (signature decor 中心約 (1780, 220)) 該跟 bg 不同."""
+        """右上角區域 (signature decor 中心約 (1780, 130)) 該跟 bg 不同."""
         from core.render.pptx_style import get_palette
         with TemporaryDirectory() as td:
             img = _render_cover(theme, Path(td))
             palette = get_palette(theme)
-            # 在 decor 中心 + 周圍 ±30 採 9 點, 至少有 1 點跟 bg 差很多
-            # 較密集採樣 (5x5, ±20 step) 蓋住小 glyph 如 editorial §
+            # 密集採樣 (5x5, ±20 step) 蓋住小 glyph 如 editorial §
             samples = []
             for dx in (-40, -20, 0, 20, 40):
                 for dy in (-40, -20, 0, 20, 40):
@@ -127,22 +130,6 @@ class TestSignatureDecorOnCoverOutro:
             assert max_dist > 30, (
                 f"{theme} 封面 signature 區無變化, "
                 f"max distance vs bg = {max_dist:.1f}"
-            )
-
-    @pytest.mark.parametrize("theme", NON_SIGNATURE_THEMES)
-    def test_cover_no_signature(self, theme):
-        """沒 signature 的主題, 該區域全部是 bg 色 (允許小誤差)."""
-        from core.render.pptx_style import get_palette
-        with TemporaryDirectory() as td:
-            img = _render_cover(theme, Path(td))
-            palette = get_palette(theme)
-            samples = []
-            for dx in (-40, -20, 0, 20, 40):
-                for dy in (-40, -20, 0, 20, 40):
-                    samples.append(img.getpixel((1780 + dx, 130 + dy)))
-            max_dist = max(_color_distance(p, palette["bg"]) for p in samples)
-            assert max_dist < 20, (
-                f"{theme} 封面該區應是 bg, max distance {max_dist:.1f}"
             )
 
     @pytest.mark.parametrize("theme", SIGNATURE_THEMES)

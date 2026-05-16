@@ -240,11 +240,23 @@ def get_content_layout(theme_name: str | None) -> str:
 
 
 THEME_SIGNATURE_DECORS: dict[str, str] = {
+    # 原 5 個 (iter 61)
     "dof-shinobi": "shinobi_stamp",
     "dof-elven": "elven_diamond",
     "dof-arcade": "arcade_pixels",
     "dof-brutalist": "brutalist_warn",
     "dof-editorial": "editorial_sec",
+    # iter 69: 補另外 10 個 (claude design 建議 03)
+    "forest": "chalk_strokes",          # 黑板粉筆筆觸
+    "navy": "circuit_trace",            # PCB 線路
+    "frieren": "magic_hex",             # 六角魔法陣
+    "naruto": "spiral_seal",            # 卷軸螺旋封印
+    "journal": "page_marker",           # — 1 — 頁碼章節
+    "dof-podium": "minimal_diamond",    # ◆ + 細直線
+    "dof-notebook": "sticky_corner",    # 便條紙折角
+    "dof-zine": "sticker_bang",         # 撞色 sticker
+    "dof-risograph": "riso_dots",       # 兩色錯位圓點
+    "dof-supergraphic": "big_number",   # 巨大數字
 }
 
 
@@ -1298,6 +1310,27 @@ def _draw_signature_decor(
         _draw_brutalist_warn(draw, corner_x, corner_y, palette)
     elif decor == "editorial_sec":
         _draw_editorial_section_mark(draw, corner_x, corner_y, palette, step_idx)
+    # iter 69: 10 個新 decor
+    elif decor == "chalk_strokes":
+        _draw_chalk_strokes(draw, corner_x, corner_y, palette)
+    elif decor == "circuit_trace":
+        _draw_circuit_trace(draw, corner_x, corner_y, palette)
+    elif decor == "magic_hex":
+        _draw_magic_hex(draw, corner_x, corner_y, palette)
+    elif decor == "spiral_seal":
+        _draw_spiral_seal(draw, corner_x, corner_y, palette)
+    elif decor == "page_marker":
+        _draw_page_marker(draw, corner_x, corner_y, palette, step_idx)
+    elif decor == "minimal_diamond":
+        _draw_minimal_diamond(draw, corner_x, corner_y, palette)
+    elif decor == "sticky_corner":
+        _draw_sticky_corner(draw, corner_x, corner_y, palette)
+    elif decor == "sticker_bang":
+        _draw_sticker_bang(draw, corner_x, corner_y, palette)
+    elif decor == "riso_dots":
+        _draw_riso_dots(draw, corner_x, corner_y, palette)
+    elif decor == "big_number":
+        _draw_big_number(draw, corner_x, corner_y, palette, step_idx)
 
 
 def _draw_shinobi_stamp(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
@@ -1443,6 +1476,209 @@ def _draw_editorial_section_mark(
         )
     except Exception:
         pass
+
+
+# ---------- iter 69: 補 10 個主題 signature decor ----------
+
+def _draw_chalk_strokes(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """forest 粉筆筆觸: 3 條長短不一的水平粉筆痕, highlight 色 (黃)."""
+    strokes = [
+        # (x_offset_from_center, y_offset, length, thickness)
+        (-50, -28, 100, 4),
+        (-40, -8, 80, 3),
+        (-60, 18, 110, 5),
+    ]
+    for x_off, y_off, length, th in strokes:
+        x0 = cx + x_off
+        y0 = cy + y_off
+        draw.rectangle(
+            [x0, y0, x0 + length, y0 + th],
+            fill=palette["highlight"],
+        )
+    # 末端兩條極細 (淡化感)
+    draw.line([(cx - 30, cy + 38), (cx + 40, cy + 38)],
+              fill=palette["secondary"], width=1)
+
+
+def _draw_circuit_trace(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """navy PCB 線路: 90 度折線 + 端點圓點, highlight 色 (青藍)."""
+    # 3 條折線, 各有端點圓
+    paths = [
+        [(cx - 50, cy - 30), (cx - 50, cy), (cx + 10, cy)],
+        [(cx + 30, cy - 30), (cx + 30, cy + 20), (cx + 60, cy + 20)],
+        [(cx - 20, cy + 35), (cx + 40, cy + 35)],
+    ]
+    for path in paths:
+        for i in range(len(path) - 1):
+            draw.line([path[i], path[i + 1]], fill=palette["highlight"], width=3)
+        # 端點圓
+        for pt in (path[0], path[-1]):
+            r = 5
+            draw.ellipse([pt[0] - r, pt[1] - r, pt[0] + r, pt[1] + r],
+                         fill=palette["highlight"])
+
+
+def _draw_magic_hex(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """frieren 六角魔法陣: hex + 內接圓 + 中心點, highlight 色."""
+    import math
+    radius = 45
+    # 六角形頂點
+    hex_pts = []
+    for i in range(6):
+        angle = math.pi / 6 + i * math.pi / 3  # 30° + 60° increments
+        hex_pts.append((cx + radius * math.cos(angle), cy + radius * math.sin(angle)))
+    # 外六角線
+    for i in range(6):
+        draw.line([hex_pts[i], hex_pts[(i + 1) % 6]],
+                  fill=palette["highlight"], width=2)
+    # 內接圓 (稍小)
+    inner_r = 28
+    draw.ellipse(
+        [cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r],
+        outline=palette["secondary"], width=1,
+    )
+    # 中心點
+    draw.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=palette["highlight"])
+
+
+def _draw_spiral_seal(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """naruto 卷軸螺旋封印: 3 圈同心圓 + 旋轉螺旋線, 焦糖 + 朱紅雙色."""
+    # 同心圓 3 層
+    for r, color in ((46, palette["highlight"]), (32, palette["secondary"]),
+                     (18, palette["highlight"])):
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r],
+                     outline=color, width=2)
+    # 中心實心圓 (印章感)
+    draw.ellipse([cx - 8, cy - 8, cx + 8, cy + 8], fill=palette["highlight"])
+    # 漩渦短線 (4 條從中心向外旋轉)
+    import math
+    for i in range(4):
+        angle = i * math.pi / 2
+        x_end = cx + 50 * math.cos(angle)
+        y_end = cy + 50 * math.sin(angle)
+        draw.line([(cx, cy), (x_end, y_end)], fill=palette["secondary"], width=1)
+
+
+def _draw_page_marker(
+    draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette, step_idx: int,
+) -> None:
+    """journal 頁碼章節: 「— N —」橫線中央夾數字, 期刊風."""
+    try:
+        num_font = _font(get_font_path(), 40)
+    except Exception:
+        return
+    num_str = f"{step_idx:02d}"
+    # 量字寬
+    bbox = num_font.getbbox(num_str)
+    tw = bbox[2] - bbox[0]
+    # 中央數字
+    draw.text((cx - tw // 2, cy - 20), num_str,
+              font=num_font, fill=palette["primary"])
+    # 左右兩條短橫線
+    line_y = cy + 5
+    draw.line([(cx - 60, line_y), (cx - tw // 2 - 8, line_y)],
+              fill=palette["secondary"], width=2)
+    draw.line([(cx + tw // 2 + 8, line_y), (cx + 60, line_y)],
+              fill=palette["secondary"], width=2)
+
+
+def _draw_minimal_diamond(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """podium ◆ + 細直線: TED 極簡風. 一菱形 + 旁邊垂直細線, 純文字感."""
+    # 實心小菱形
+    size = 14
+    diamond = [(cx, cy - size), (cx + size, cy), (cx, cy + size), (cx - size, cy)]
+    draw.polygon(diamond, fill=palette["primary"])
+    # 右側細垂直線
+    line_x = cx + size + 18
+    draw.line([(line_x, cy - 32), (line_x, cy + 32)],
+              fill=palette["secondary"], width=1)
+
+
+def _draw_sticky_corner(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """notebook 便條紙折角: 矩形 + 右下角小三角形折角, 淡黃."""
+    # 主矩形 (highlight 色, 便條黃)
+    w, h = 110, 70
+    x0, y0 = cx - w // 2, cy - h // 2
+    x1, y1 = x0 + w, y0 + h
+    draw.rectangle([x0, y0, x1, y1], fill=palette["highlight"])
+    # 右下角折角三角形 (略深, secondary 色)
+    fold_size = 18
+    fold = [
+        (x1 - fold_size, y1),       # 折角起點 (底邊)
+        (x1, y1),                    # 右下角
+        (x1, y1 - fold_size),       # 折角終點 (右邊)
+    ]
+    draw.polygon(fold, fill=palette["secondary"])
+    # 折角邊線
+    draw.line([(x1 - fold_size, y1), (x1, y1 - fold_size)],
+              fill=palette["primary"], width=1)
+    # 中央橫線 (代表筆記文字)
+    for i, dy in enumerate((-15, 0, 15)):
+        line_w = (40, 50, 35)[i]
+        draw.line([(x0 + 12, cy + dy), (x0 + 12 + line_w, cy + dy)],
+                  fill=palette["primary"], width=1)
+
+
+def _draw_sticker_bang(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """zine 撞色 sticker: 大圓 (highlight 色) + 中央「!」字 (bg 色反白)."""
+    radius = 45
+    # 主圓 (sticker 撞色)
+    draw.ellipse(
+        [cx - radius, cy - radius, cx + radius, cy + radius],
+        fill=palette["highlight"], outline=palette["primary"], width=3,
+    )
+    # 中央 ! 字 (反白)
+    try:
+        bang_font = _font(get_font_path(), 56)
+        bbox = bang_font.getbbox("!")
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text(
+            (cx - tw // 2, cy - th // 2 - 6),
+            "!", font=bang_font, fill=palette["bg"],
+        )
+    except Exception:
+        pass
+
+
+def _draw_riso_dots(draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette) -> None:
+    """risograph 兩色錯位疊印圓點: highlight 圓 + secondary 圓 錯位疊印感.
+
+    PIL 沒 alpha blend, 用兩個錯位實心圓 + 中央深色疊印區模擬."""
+    r = 32
+    # highlight 色圓 (略偏左)
+    draw.ellipse(
+        [cx - r - 12, cy - r, cx + r - 12, cy + r],
+        fill=palette["highlight"],
+    )
+    # secondary 色圓 (略偏右, 疊在前一個上面)
+    draw.ellipse(
+        [cx - r + 12, cy - r, cx + r + 12, cy + r],
+        fill=palette["secondary"],
+    )
+    # 中央疊印區 — 用 primary 一個小圓模擬 (兩色疊出深色)
+    overlap_r = 12
+    draw.ellipse(
+        [cx - overlap_r, cy - overlap_r, cx + overlap_r, cy + overlap_r],
+        fill=palette["primary"],
+    )
+
+
+def _draw_big_number(
+    draw: ImageDraw.ImageDraw, cx: int, cy: int, palette: Palette, step_idx: int,
+) -> None:
+    """supergraphic 巨大數字: 大字「01」/「02」之類, 大色塊風."""
+    try:
+        big_font = _font(get_font_path(), 96)
+    except Exception:
+        return
+    num_str = f"{step_idx:02d}"
+    bbox = big_font.getbbox(num_str)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    # 整個編號往左偏一點, 露出右側
+    draw.text(
+        (cx - tw // 2, cy - th // 2 - 10),
+        num_str, font=big_font, fill=palette["highlight"],
+    )
 
 
 def _draw_image_panel(

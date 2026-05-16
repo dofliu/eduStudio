@@ -139,7 +139,10 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
         section_title = section.get("title", "").strip()
         steps = []
         for slide in section.get("slides", []):
-            steps.append({
+            # iter 62: 封面 slide 走專屬 bg_type, 不被覆寫成 pptx_slide
+            slide_bg_type = slide.get("bg_type")
+            bg_type = slide_bg_type if slide_bg_type == "cover" else "pptx_slide"
+            step = {
                 "_section": _shorten_section_label(section_title),
                 "section_title": section_title,
                 "title": (slide.get("title") or "").strip(),
@@ -149,11 +152,17 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
                 "file_path": slide.get("file_path"),
                 "display": _slide_to_display(slide),  # legacy
                 "narration": (slide.get("narration") or "").strip(),
-                "bg_type": "pptx_slide",
+                "bg_type": bg_type,
                 # iter 53: figure id (or None). 此時還是 deck.json 的 id
                 # (例如 "fig_p3_1"), runner 會在 render 前轉成絕對路徑.
                 "image_path": slide.get("image_path"),
-            })
+            }
+            # iter 62: cover 專屬 meta 欄位 (其他 layout 不會讀)
+            if bg_type == "cover":
+                step["cover_speaker"] = slide.get("cover_speaker", "")
+                step["cover_org"] = slide.get("cover_org", "")
+                step["cover_date"] = slide.get("cover_date", "")
+            steps.append(step)
         if not steps:
             continue
         problems.append({

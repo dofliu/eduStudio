@@ -131,6 +131,14 @@ class JobOptions(BaseModel):
                     "不擋 ingest. 兩個 opt-in 都開時, scriptor 自動配圖優先 ai_*, "
                     "用戶可在 UI 手動換.",
     )
+    prepend_cover: bool = Field(
+        default=False,
+        description="iter 62: 在 intro 之後 / 主內容之前插入封面頁 (deck_title + "
+                    "講者 + 日期 + 單位), 配開場口白 narration. 講者 / 單位由 "
+                    "core.config 預設或 env CLAUDE_COVER_SPEAKER / CLAUDE_COVER_ORG "
+                    "覆寫. 只影響 repo / document / url (multi-section concat 路徑); "
+                    "exam_pdf 每題獨立 mp4 不適用.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

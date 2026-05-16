@@ -53,6 +53,8 @@ export default function ProposalsList() {
   const [aiGenByProposal, setAiGenByProposal] = useState<Record<string, boolean>>({});
   // iter 57b: AI 生 mermaid opt-in (text gen, 較便宜)
   const [aiMermaidByProposal, setAiMermaidByProposal] = useState<Record<string, boolean>>({});
+  // iter 62: 封面頁 opt-in (主題 + 講者 + 日期 + 單位)
+  const [prependCoverByProposal, setPrependCoverByProposal] = useState<Record<string, boolean>>({});
   // scan modal state
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -87,18 +89,21 @@ export default function ProposalsList() {
       const lengthMode = themeApplicable ? lengthModeByProposal[p.id] : undefined;
       const aiGen = themeApplicable ? (aiGenByProposal[p.id] ?? false) : false;
       const aiMermaid = themeApplicable ? (aiMermaidByProposal[p.id] ?? false) : false;
+      const prependCover = themeApplicable ? (prependCoverByProposal[p.id] ?? false) : false;
       const body: {
         theme?: string;
         prepend_intro?: boolean;
         length_mode?: string;
         ai_generate_diagrams?: boolean;
         ai_generate_mermaid?: boolean;
+        prepend_cover?: boolean;
       } = {};
       if (theme) body.theme = theme;
       if (prependIntro) body.prepend_intro = true;
       if (lengthMode && lengthMode !== 'quick') body.length_mode = lengthMode;
       if (aiGen) body.ai_generate_diagrams = true;
       if (aiMermaid) body.ai_generate_mermaid = true;
+      if (prependCover) body.prepend_cover = true;
       const r = await api.approveProposal(p.id, Object.keys(body).length > 0 ? body : undefined);
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
       navigate(`/jobs/${r.job.job_id}`);
@@ -236,6 +241,7 @@ export default function ProposalsList() {
                   introValue={prependIntroByProposal[p.id] ?? false}
                   aiGenValue={aiGenByProposal[p.id] ?? false}
                   aiMermaidValue={aiMermaidByProposal[p.id] ?? false}
+                  coverValue={prependCoverByProposal[p.id] ?? false}
                   onToggle={() => setOpenCfg(openCfg === p.id ? null : p.id)}
                   onApprove={() => handleApprove(p)}
                   onIgnore={() => handleIgnore(p)}
@@ -244,6 +250,7 @@ export default function ProposalsList() {
                   onIntroChange={(v) => setPrependIntroByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onAiGenChange={(v) => setAiGenByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onAiMermaidChange={(v) => setAiMermaidByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onCoverChange={(v) => setPrependCoverByProposal(prev => ({ ...prev, [p.id]: v }))}
                 />
               ))}
             </div>
@@ -287,6 +294,7 @@ interface CardProps {
   introValue: boolean;
   aiGenValue: boolean;       // iter 56: AI 生圖 opt-in
   aiMermaidValue: boolean;   // iter 57b: AI 生 mermaid opt-in
+  coverValue: boolean;       // iter 62: 封面頁 opt-in
   onToggle: () => void;
   onApprove: () => void;
   onIgnore: () => void;
@@ -295,12 +303,13 @@ interface CardProps {
   onIntroChange: (v: boolean) => void;
   onAiGenChange: (v: boolean) => void;
   onAiMermaidChange: (v: boolean) => void;
+  onCoverChange: (v: boolean) => void;
 }
 
 function ProposalCard({
-  p, open, busy, themeValue, lengthValue, introValue, aiGenValue, aiMermaidValue,
+  p, open, busy, themeValue, lengthValue, introValue, aiGenValue, aiMermaidValue, coverValue,
   onToggle, onApprove, onIgnore,
-  onThemeChange, onLengthChange, onIntroChange, onAiGenChange, onAiMermaidChange,
+  onThemeChange, onLengthChange, onIntroChange, onAiGenChange, onAiMermaidChange, onCoverChange,
 }: CardProps) {
   const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
 
@@ -439,7 +448,7 @@ function ProposalCard({
               )}
               {/* iter 57b: AI 生 mermaid — text gen, 較便宜 */}
               {themeApplicable && (
-                <label className="flex items-center gap-2 p-2.5 rounded-sm border border-paper-edge bg-paper-card cursor-pointer hover:bg-paper-warm">
+                <label className="flex items-center gap-2 p-2.5 rounded-sm border border-paper-edge bg-paper-card cursor-pointer hover:bg-paper-warm mb-2">
                   <input
                     type="checkbox"
                     checked={aiMermaidValue}
@@ -450,6 +459,22 @@ function ProposalCard({
                   <div className="flex-1">
                     <div className="text-[12.5px] text-ink">📐 AI 生 Mermaid 流程圖</div>
                     <div className="text-[11px] text-ink-muted">每章 1 張, text gen → mermaid.ink 渲染, 較便宜</div>
+                  </div>
+                </label>
+              )}
+              {/* iter 62: 封面頁 — intro 之後 / 主內容前 */}
+              {themeApplicable && (
+                <label className="flex items-center gap-2 p-2.5 rounded-sm border border-paper-edge bg-paper-card cursor-pointer hover:bg-paper-warm">
+                  <input
+                    type="checkbox"
+                    checked={coverValue}
+                    onChange={(e) => onCoverChange(e.target.checked)}
+                    disabled={busy}
+                    className="w-3.5 h-3.5 accent-forest-600"
+                  />
+                  <div className="flex-1">
+                    <div className="text-[12.5px] text-ink">🪪 插入封面頁</div>
+                    <div className="text-[11px] text-ink-muted">主題 + 講者 + 日期 + 單位, 配開場口白</div>
                   </div>
                 </label>
               )}
@@ -467,6 +492,9 @@ function ProposalCard({
                 )}
                 {themeApplicable && (
                   <Row k="AI Mermaid" v={aiMermaidValue ? '啟用' : '關閉'} />
+                )}
+                {themeApplicable && (
+                  <Row k="封面頁" v={coverValue ? '插入' : '不插'} />
                 )}
                 <div className="flex justify-between border-t border-paper-line pt-1.5 mt-1.5">
                   <span className="text-ink-muted">預估</span>

@@ -103,6 +103,7 @@ class ProposalApproveRequest(BaseModel):
     length_mode: Literal["quick", "lecture"] | None = None   # iter 43: 影片長度模式
     ai_generate_diagrams: bool | None = None     # iter 56: AI 生圖 (Gemini Flash Image)
     ai_generate_mermaid: bool | None = None       # iter 57b: AI 生 mermaid syntax
+    prepend_cover: bool | None = None              # iter 62: 插入封面頁
 
 
 class ScanFolderRequest(BaseModel):
@@ -242,6 +243,8 @@ async def approve_proposal(
             opts_kwargs["ai_generate_diagrams"] = body.ai_generate_diagrams
         if body.ai_generate_mermaid is not None:
             opts_kwargs["ai_generate_mermaid"] = body.ai_generate_mermaid
+        if body.prepend_cover is not None:
+            opts_kwargs["prepend_cover"] = body.prepend_cover
 
     req = CreateJobRequest(
         source_type=source_type,

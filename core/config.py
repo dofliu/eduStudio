@@ -106,3 +106,20 @@ def get_intro_video_path() -> str:
 # Intro normalize cache 放 PROJECT_ROOT/assets/, 不是 PROJECT_ROOT 根
 # (跟既有 photos/ voices/ 等 asset 目錄並列)
 ASSETS_DIR = PROJECT_ROOT / "assets"
+
+
+# ---------- 封面頁預設 (iter 62) ----------
+# prepend_cover=True 時, 自動在影片開頭插一張封面頁: 主題 + 講者 + 日期 + 單位.
+# env 可覆寫單一欄位, 沒覆寫就用這裡的 default.
+DEFAULT_COVER_SPEAKER = "劉瑞弘 副教授"
+DEFAULT_COVER_ORG = "國立勤益科技大學 · 智慧自動化工程系 · DofLab"
+
+
+def get_cover_speaker() -> str:
+    """封面講者欄位. env CLAUDE_COVER_SPEAKER 可覆寫."""
+    return os.environ.get("CLAUDE_COVER_SPEAKER", DEFAULT_COVER_SPEAKER)
+
+
+def get_cover_org() -> str:
+    """封面單位欄位. env CLAUDE_COVER_ORG 可覆寫."""
+    return os.environ.get("CLAUDE_COVER_ORG", DEFAULT_COVER_ORG)

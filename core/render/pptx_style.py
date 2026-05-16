@@ -837,6 +837,67 @@ def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
     return block_bottom + 16
 
 
+def _draw_cover_slide(
+    draw: ImageDraw.ImageDraw, step: dict, palette: Palette,
+    body_font_path: str | None = None,
+) -> None:
+    """iter 62: 封面頁專屬 layout.
+
+    版面:
+    - 上 1/3 空白 (留 breathing room)
+    - 中央: 大標題 (deck title), 字級 = TITLE_FONT_SIZE * 1.4
+    - 標題下方 highlight 色橫線 (居中)
+    - 標題下: 講者 / 日期 / 單位 三行 meta (用 secondary 色)
+    - 不畫 banner, 不畫 signature decor (封面本身就是設計)
+    """
+    fpath = body_font_path or get_font_path()
+    # 大標題字級
+    cover_title_size = int(TITLE_FONT_SIZE * 1.4)
+    meta_size = 32
+    deck_title = (step.get("title") or "今天的主題").strip()
+    speaker = (step.get("cover_speaker") or "").strip()
+    date = (step.get("cover_date") or "").strip()
+    org = (step.get("cover_org") or "").strip()
+
+    title_font = _font(fpath, cover_title_size)
+    meta_font = _font(fpath, meta_size)
+
+    # 標題: 居中, 自動換行 (寬度限 80% video width)
+    max_title_w = int(VIDEO_WIDTH * 0.85)
+    title_y = int(VIDEO_HEIGHT * 0.32)
+    # 簡單居中: 量第一行寬, 從中心對齊起始 x
+    first_line = deck_title.split("\n")[0]
+    title_w = int(title_font.getlength(first_line))
+    title_w = min(title_w, max_title_w)
+    title_x = max(SIDE_MARGIN, (VIDEO_WIDTH - title_w) // 2)
+    end_y = _draw_text_wrapped(
+        draw, (title_x, title_y), deck_title, title_font, palette["primary"],
+        max_w=max_title_w, line_h=cover_title_size + 18,
+    )
+
+    # 標題下方 highlight 色橫線, 居中, 寬度約等於文字
+    rule_w = max(180, min(title_w, max_title_w))
+    rule_x = (VIDEO_WIDTH - rule_w) // 2
+    rule_y = end_y + 24
+    draw.rectangle(
+        [rule_x, rule_y, rule_x + rule_w, rule_y + 4],
+        fill=palette["highlight"],
+    )
+
+    # Meta 三行 — 居中
+    meta_y = rule_y + 40
+    for line in (speaker, date, org):
+        line = (line or "").strip()
+        if not line:
+            continue
+        line_w = int(meta_font.getlength(line))
+        line_x = max(SIDE_MARGIN, (VIDEO_WIDTH - line_w) // 2)
+        _draw_text_mixed(
+            draw, (line_x, meta_y), line, meta_font, palette["secondary"],
+        )
+        meta_y += meta_size + 14
+
+
 def _draw_signature_decor(
     draw: ImageDraw.ImageDraw, decor: str | None, palette: Palette,
     step_idx: int = 1,
@@ -1111,6 +1172,18 @@ class PptxStyleRenderer:
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
+
+        # iter 62: 封面頁專屬 layout — 居中大字 + meta, 不畫 banner / signature
+        if step.get("bg_type") == "cover":
+            _draw_cover_slide(draw, step, palette, body_font_path)
+            _draw_subtitle_strip(draw)
+            try:
+                from pipeline import _overlay_teacher_photo
+                _overlay_teacher_photo(img)
+            except Exception:
+                pass
+            img.save(out_p, "PNG")
+            return
 
         section_title = step.get("section_title") or data.get("title", "")
         _draw_banner(draw, section_title, palette, style=banner_style, font_path=body_font_path)

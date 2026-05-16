@@ -167,6 +167,10 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
             script_repo, outline, raw, length_mode=length_mode,
         )
 
+    # iter 62: 封面頁 prepend (opt-in), 插在 sections[0]
+    if rec.options.prepend_cover:
+        _prepend_cover_to_deck(deck)
+
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -176,6 +180,29 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         encoding="utf-8",
     )
     return deck
+
+
+def _prepend_cover_to_deck(deck: dict) -> None:
+    """iter 62: 在 deck.sections 最前面插入封面 section.
+
+    封面內容: deck_title + 講者 + 日期 + 單位 + 開場口白 narration.
+    講者 / 單位由 core.config.get_cover_speaker / get_cover_org (env 可覆寫).
+
+    in-place 修改 deck. 失敗 (沒 sections 等) noop, 不擋 ingest.
+    """
+    from core.config import get_cover_speaker, get_cover_org
+    from core.cover_gen import build_cover_section
+
+    sections = deck.get("sections")
+    if not isinstance(sections, list):
+        return
+    title = deck.get("deck_title") or deck.get("title") or "今天的主題"
+    cover_sec = build_cover_section(
+        title,
+        speaker=get_cover_speaker(),
+        org=get_cover_org(),
+    )
+    sections.insert(0, cover_sec)
 
 
 async def _generate_ai_diagrams_for_outline(
@@ -311,6 +338,10 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
         deck = await asyncio.to_thread(
             script_long_form, outline, raw, length_mode=length_mode,
         )
+
+    # iter 62: 封面頁 prepend (opt-in), 插在 sections[0]
+    if rec.options.prepend_cover:
+        _prepend_cover_to_deck(deck)
 
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),

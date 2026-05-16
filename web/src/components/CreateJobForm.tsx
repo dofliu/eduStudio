@@ -57,6 +57,8 @@ export function CreateJobForm({ onCreated }: Props) {
   const [aiGenerateDiagrams, setAiGenerateDiagrams] = useState(false);
   // iter 57b: AI 生 mermaid syntax (cheap text gen)
   const [aiGenerateMermaid, setAiGenerateMermaid] = useState(false);
+  // iter 62: 在 intro 之後 / 主內容前插封面頁 (主題 + 講者 + 日期 + 單位)
+  const [prependCover, setPrependCover] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -89,6 +91,8 @@ export function CreateJobForm({ onCreated }: Props) {
     ...(showLengthMode ? { ai_generate_diagrams: aiGenerateDiagrams } : {}),
     // iter 57b: AI 生 mermaid syntax (Gemini text → mermaid.ink)
     ...(showLengthMode ? { ai_generate_mermaid: aiGenerateMermaid } : {}),
+    // iter 62: 封面頁
+    ...(showLengthMode ? { prepend_cover: prependCover } : {}),
   });
 
   const submit = async () => {
@@ -345,6 +349,17 @@ export function CreateJobForm({ onCreated }: Props) {
               onChange={(e) => setAiGenerateMermaid(e.target.checked)}
             />
             📐 AI 生 Mermaid 流程圖 (每章 1 張, text gen 較便宜)
+          </label>
+        )}
+        {/* iter 62: 封面頁 — intro 之後 / 主內容前 */}
+        {showLengthMode && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={prependCover}
+              onChange={(e) => setPrependCover(e.target.checked)}
+            />
+            🪪 插入封面頁 (主題 + 講者 + 日期 + 單位 + 開場口白)
           </label>
         )}
         <label className="flex items-center gap-1.5 cursor-pointer">

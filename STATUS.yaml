@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-16"
-next_milestone: "iter 62b 封面頁 meta per-job UI override 完成. 下一個主菜可能是 iter 63 結尾頁, iter 64 封面 per-theme layout, iter 65 封面 narration 用戶可改, 或 階段 3 D 持久化 worker (要先 RFC)"
+next_milestone: "影片內容品質為主 (主題 / 格式 / narration 等). v4 worker RFC 已寫 (docs/V4_WORKER_RFC.md), 2026-05-16 劉老師決定暫緩 — 個人使用情境不痛, 等對外開放 / 多 job 並發 / Cloud Run 部署等場景再啟動."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn

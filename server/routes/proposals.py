@@ -118,6 +118,9 @@ class ProposalApproveRequest(BaseModel):
     palette_bg: str | None = None                       # iter 76 (A3): 自訂背景
     palette_primary: str | None = None                  # iter 76: 自訂主色
     palette_highlight: str | None = None                # iter 76: 自訂強調色
+    subtitle_font_size: int | None = None               # iter 80: 字幕字級
+    subtitle_primary_color: str | None = None           # iter 80: 字幕字色 hex
+    subtitle_outline_color: str | None = None           # iter 80: 描邊色 hex
 
 
 class ScanFolderRequest(BaseModel):
@@ -291,6 +294,13 @@ async def approve_proposal(
             opts_kwargs["palette_primary"] = body.palette_primary
         if body.palette_highlight is not None:
             opts_kwargs["palette_highlight"] = body.palette_highlight
+        # iter 80 (D2): 字幕樣式
+        if body.subtitle_font_size is not None:
+            opts_kwargs["subtitle_font_size"] = body.subtitle_font_size
+        if body.subtitle_primary_color is not None:
+            opts_kwargs["subtitle_primary_color"] = body.subtitle_primary_color
+        if body.subtitle_outline_color is not None:
+            opts_kwargs["subtitle_outline_color"] = body.subtitle_outline_color
 
     req = CreateJobRequest(
         source_type=source_type,

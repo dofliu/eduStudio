@@ -116,4 +116,4 @@
 - [ ] C2 TTS 中文發音治本 (需 user 提供樣本)
 - [ ] C3 narration AI 品質升級 (依 user 想加的風格)
 - [ ] D1 outline AI review 介面
-- [ ] D2 字幕風格樣式
+- [x] D2 字幕風格樣式 (iter 80, 字級/字色/描邊色 hex)

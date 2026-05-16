@@ -454,36 +454,78 @@ def build_clip(f_p, a_p, dur, out_p, q_work):
     ]
     subprocess.run(cmd, check=True)
 
-def _build_hardsub_cmd(out_name: str, work_dir: Path) -> list[str]:
-    """產生 ffmpeg 燒字幕指令 (PR-5c). 抽出函式給 unit test 用 (不必跑 ffmpeg).
+def _hex_to_ass_bgr(hex_str: str | None) -> str | None:
+    """iter 80 (D2): hex (#RRGGBB / RRGGBB) → ASS subtitle 用 &H00BBGGRR&.
+
+    注意 ASS 用 BGR 排列 (跟 HTML/CSS 反), alpha 在前. 失敗回 None.
+    """
+    if not hex_str:
+        return None
+    s = hex_str.strip().lstrip("#")
+    if len(s) != 6:
+        return None
+    try:
+        r = int(s[0:2], 16)
+        g = int(s[2:4], 16)
+        b = int(s[4:6], 16)
+        return f"&H00{b:02X}{g:02X}{r:02X}&"
+    except ValueError:
+        return None
+
+
+def _build_hardsub_cmd(
+    out_name: str, work_dir: Path,
+    *,
+    font_size: int = 22,
+    primary_color: str | None = None,
+    outline_color: str | None = None,
+) -> list[str]:
+    """產生 ffmpeg 燒字幕指令 (PR-5c, iter 80 D2 加 user 可調樣式).
 
     cwd 設為 OUTPUT_DIR 讓 subtitles filter 用相對檔名, 避開 Windows path 含
-    冒號要 escape 的麻煩 (`D\:/foo/bar.srt`)。
+    冒號要 escape 的麻煩 (`D\:/foo/bar.srt`).
 
-    force_style 把字型固定 Microsoft JhengHei (Windows) / SimHei (跨平台後備),
-    白字黑邊 BorderStyle=3 (字幕底有 box) 在多種背景都看得清楚。
+    font_size: 字幕字級 (預設 22, 對 1920x1080 視訊適中)
+    primary_color: 字色 hex (#RRGGBB), None → 白
+    outline_color: 描邊色 hex, None → 黑
+
+    force_style 字型固定 Microsoft JhengHei (Windows) / SimHei (跨平台後備).
+    BorderStyle=3 字幕底有 box, 在多種背景都看得清楚.
     """
+    primary = _hex_to_ass_bgr(primary_color) or "&H00FFFFFF&"
+    outline = _hex_to_ass_bgr(outline_color) or "&H00000000&"
     return [
         "ffmpeg", "-y", "-loglevel", "error",
         "-i", f"{out_name}.mp4",
         "-vf", (
             f"subtitles={out_name}.srt:"
-            "force_style='FontName=Microsoft JhengHei,FontSize=22,"
-            "PrimaryColour=&H00FFFFFF&,OutlineColour=&H00000000&,"
-            "BorderStyle=3,MarginV=40'"
+            f"force_style='FontName=Microsoft JhengHei,FontSize={font_size},"
+            f"PrimaryColour={primary},OutlineColour={outline},"
+            f"BorderStyle=3,MarginV=40'"
         ),
         "-c:a", "copy",   # 音訊不重編碼, 節省時間
         f"{out_name}.hardsub.mp4",
     ]
 
 
-def burn_subtitles(out_name: str) -> None:
+def burn_subtitles(
+    out_name: str,
+    *,
+    font_size: int = 22,
+    primary_color: str | None = None,
+    outline_color: str | None = None,
+) -> None:
     """把 SRT 燒進 MP4: ffmpeg subtitles filter 重新編碼影片軌, 音訊直 copy.
 
     輸出取代原 OUTPUT_DIR/{out_name}.mp4 (移檔), 字幕 SRT 仍然保留方便 YouTube
-    上傳。失敗時保留原 mp4 不動, 印警告。
+    上傳. 失敗時保留原 mp4 不動, 印警告.
+
+    iter 80 (D2): 字幕樣式 (字級 / 字色 / 描邊色) 可由 caller 帶.
     """
-    cmd = _build_hardsub_cmd(out_name, OUTPUT_DIR)
+    cmd = _build_hardsub_cmd(
+        out_name, OUTPUT_DIR,
+        font_size=font_size, primary_color=primary_color, outline_color=outline_color,
+    )
     try:
         subprocess.run(cmd, cwd=OUTPUT_DIR, check=True)
     except subprocess.CalledProcessError as e:
@@ -531,10 +573,16 @@ async def main(json_path, out_name, start_step=None):
     srt_text = build_srt(data["steps"], durs, pause_after_each=PAUSE_AFTER_EACH)
     (OUTPUT_DIR / f"{out_name}.srt").write_text(srt_text, encoding="utf-8")
 
-    # PR-5c: 燒字幕 — 把外掛 SRT 直接畫進畫面, 取代原 mp4。
-    # data["hardsub"] 由 runner.py 從 JobOptions.hardsub 帶過來; 預設 False。
+    # PR-5c: 燒字幕 — 把外掛 SRT 直接畫進畫面, 取代原 mp4.
+    # data["hardsub"] 由 runner.py 從 JobOptions.hardsub 帶過來; 預設 False.
+    # iter 80 (D2): 字幕樣式 data["subtitle_*"] 也由 runner 帶 (可選).
     if data.get("hardsub"):
-        burn_subtitles(out_name)
+        burn_subtitles(
+            out_name,
+            font_size=data.get("subtitle_font_size", 22),
+            primary_color=data.get("subtitle_primary_color"),
+            outline_color=data.get("subtitle_outline_color"),
+        )
 
     print(f"✅ 完成: {out_name}.mp4")
 

@@ -71,6 +71,74 @@ class TestBuildHardsubCmd:
         assert cmd[-1] == "q1.hardsub.mp4"
 
 
+class TestIter80SubtitleStyleOverride:
+    """iter 80 (D2): 字幕字級 / 字色 / 描邊色可調."""
+
+    def test_hex_to_ass_bgr_simple(self):
+        from pipeline import _hex_to_ass_bgr
+        # 白色 #FFFFFF → BGR = FFFFFF
+        assert _hex_to_ass_bgr("#FFFFFF") == "&H00FFFFFF&"
+        # 黑色
+        assert _hex_to_ass_bgr("000000") == "&H00000000&"
+        # 紅色 #FF0000 (R=255 G=0 B=0) → ASS = &H000000FF& (B=0 G=0 R=255)
+        assert _hex_to_ass_bgr("#ff0000") == "&H000000FF&"
+        # 藍色 #0000FF (R=0 G=0 B=255) → ASS = &H00FF0000&
+        assert _hex_to_ass_bgr("#0000FF") == "&H00FF0000&"
+
+    def test_hex_to_ass_bgr_invalid(self):
+        from pipeline import _hex_to_ass_bgr
+        assert _hex_to_ass_bgr(None) is None
+        assert _hex_to_ass_bgr("") is None
+        assert _hex_to_ass_bgr("nope") is None
+        assert _hex_to_ass_bgr("#zzz") is None
+
+    def test_default_font_size_22(self):
+        cmd = pipeline._build_hardsub_cmd("q1", Path("/x"))
+        vf = cmd[cmd.index("-vf") + 1]
+        assert "FontSize=22" in vf
+
+    def test_custom_font_size(self):
+        cmd = pipeline._build_hardsub_cmd("q1", Path("/x"), font_size=32)
+        vf = cmd[cmd.index("-vf") + 1]
+        assert "FontSize=32" in vf
+
+    def test_default_primary_white(self):
+        cmd = pipeline._build_hardsub_cmd("q1", Path("/x"))
+        vf = cmd[cmd.index("-vf") + 1]
+        assert "PrimaryColour=&H00FFFFFF&" in vf
+
+    def test_default_outline_black(self):
+        cmd = pipeline._build_hardsub_cmd("q1", Path("/x"))
+        vf = cmd[cmd.index("-vf") + 1]
+        assert "OutlineColour=&H00000000&" in vf
+
+    def test_custom_primary_yellow(self):
+        cmd = pipeline._build_hardsub_cmd(
+            "q1", Path("/x"), primary_color="#FFD700",
+        )
+        vf = cmd[cmd.index("-vf") + 1]
+        # 黃 #FFD700 R=FF G=D7 B=00 → BGR = 00D7FF
+        assert "PrimaryColour=&H0000D7FF&" in vf
+
+    def test_custom_outline_navy(self):
+        cmd = pipeline._build_hardsub_cmd(
+            "q1", Path("/x"), outline_color="#001f3f",
+        )
+        vf = cmd[cmd.index("-vf") + 1]
+        # 深藍 #001F3F → BGR = 3F1F00
+        assert "OutlineColour=&H003F1F00&" in vf
+
+    def test_invalid_hex_falls_back_to_default(self):
+        """invalid hex 該 fallback 到白/黑 (不該炸)."""
+        cmd = pipeline._build_hardsub_cmd(
+            "q1", Path("/x"),
+            primary_color="garbage", outline_color="zzz",
+        )
+        vf = cmd[cmd.index("-vf") + 1]
+        assert "PrimaryColour=&H00FFFFFF&" in vf
+        assert "OutlineColour=&H00000000&" in vf
+
+
 class TestWindowsPathSafety:
     """CR 已知測試覆蓋盲點之一 (test_burn_subtitles_windows_path).
 

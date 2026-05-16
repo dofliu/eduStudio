@@ -581,6 +581,13 @@ async def _run_render(
             v0["palette_primary"] = rec.options.palette_primary
         if rec.options.palette_highlight:
             v0["palette_highlight"] = rec.options.palette_highlight
+        # iter 80 (D2): 字幕樣式透傳到 pipeline.burn_subtitles
+        if rec.options.subtitle_font_size:
+            v0["subtitle_font_size"] = rec.options.subtitle_font_size
+        if rec.options.subtitle_primary_color:
+            v0["subtitle_primary_color"] = rec.options.subtitle_primary_color
+        if rec.options.subtitle_outline_color:
+            v0["subtitle_outline_color"] = rec.options.subtitle_outline_color
         # iter 53: 把 step.image_path 從 id 換成絕對路徑 (檔案 missing 時 None)
         _resolve_step_image_paths(v0.get("steps") or [], figures_dir)
         v0_path = artifacts_dir / f"{pid}.json"

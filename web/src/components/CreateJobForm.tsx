@@ -82,6 +82,10 @@ export function CreateJobForm({ onCreated }: Props) {
   const [paletteBg, setPaletteBg] = useState('');
   const [palettePrimary, setPalettePrimary] = useState('');
   const [paletteHighlight, setPaletteHighlight] = useState('');
+  // iter 80 (D2): 字幕樣式 — 只 hardsub 時有效
+  const [subtitleFontSize, setSubtitleFontSize] = useState<number | ''>('');
+  const [subtitlePrimaryColor, setSubtitlePrimaryColor] = useState('');
+  const [subtitleOutlineColor, setSubtitleOutlineColor] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -144,6 +148,10 @@ export function CreateJobForm({ onCreated }: Props) {
     ...(showTheme && paletteBg ? { palette_bg: paletteBg } : {}),
     ...(showTheme && palettePrimary ? { palette_primary: palettePrimary } : {}),
     ...(showTheme && paletteHighlight ? { palette_highlight: paletteHighlight } : {}),
+    // iter 80 (D2): 字幕樣式 (只 hardsub 時送)
+    ...(hardsub && subtitleFontSize !== '' ? { subtitle_font_size: subtitleFontSize } : {}),
+    ...(hardsub && subtitlePrimaryColor ? { subtitle_primary_color: subtitlePrimaryColor } : {}),
+    ...(hardsub && subtitleOutlineColor ? { subtitle_outline_color: subtitleOutlineColor } : {}),
   });
 
   const submit = async () => {
@@ -440,6 +448,52 @@ export function CreateJobForm({ onCreated }: Props) {
           />
           燒字幕進 MP4 (離線播放看得到; YouTube 不必勾)
         </label>
+        {/* iter 80 (D2): 字幕樣式 — 勾 hardsub 才秀 */}
+        {hardsub && (
+          <div className="ml-6 flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-ink-muted">字幕樣式:</span>
+            <label className="flex items-center gap-1">
+              字級
+              <input
+                type="number"
+                min={12}
+                max={48}
+                value={subtitleFontSize}
+                onChange={(e) => setSubtitleFontSize(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="22"
+                className="w-14 border rounded px-1.5 py-0.5"
+              />
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="color"
+                value={subtitlePrimaryColor || '#ffffff'}
+                onChange={(e) => setSubtitlePrimaryColor(e.target.value)}
+                className="w-7 h-7 cursor-pointer border border-paper-line"
+                title="字幕字色 (預設白)"
+              />
+              <span>字色</span>
+              {subtitlePrimaryColor && (
+                <button type="button" onClick={() => setSubtitlePrimaryColor('')}
+                  className="ml-0.5 text-ink-faint hover:text-ink">×</button>
+              )}
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="color"
+                value={subtitleOutlineColor || '#000000'}
+                onChange={(e) => setSubtitleOutlineColor(e.target.value)}
+                className="w-7 h-7 cursor-pointer border border-paper-line"
+                title="字幕描邊色 (預設黑)"
+              />
+              <span>描邊</span>
+              {subtitleOutlineColor && (
+                <button type="button" onClick={() => setSubtitleOutlineColor('')}
+                  className="ml-0.5 text-ink-faint hover:text-ink">×</button>
+              )}
+            </label>
+          </div>
+        )}
         {/* iter 41: intro 串接 */}
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input

@@ -221,6 +221,20 @@ class JobOptions(BaseModel):
         default=None,
         description="iter 76: 自訂強調色 (底線 / marker / banner 字), hex.",
     )
+    # iter 80 (D2): 字幕樣式 — 只在 hardsub=True 時有效
+    subtitle_font_size: int | None = Field(
+        default=None,
+        description="iter 80: 燒字幕字級 (預設 22, 對 1920x1080 視訊適中). "
+                    "建議 16-32 範圍. None → 用預設.",
+    )
+    subtitle_primary_color: str | None = Field(
+        default=None,
+        description="iter 80: 字幕字色 hex (#RRGGBB / RRGGBB). None → 白 #FFFFFF.",
+    )
+    subtitle_outline_color: str | None = Field(
+        default=None,
+        description="iter 80: 字幕描邊色 hex. None → 黑 #000000.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

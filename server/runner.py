@@ -719,6 +719,22 @@ def _log_deck_duration_estimate(
     else:
         logger.info(msg)
 
+    # iter 79 (C1): 額外掃 per-slide narration 長度 — 找出哪些 slide
+    # 超出當前 mode 上限. estimate_deck_duration 是「整份預算」, 這是
+    # 「每張 slide 個別檢查」, 兩者互補.
+    try:
+        from core.narration_validator import (
+            check_deck_narration_lengths,
+            format_validation_report,
+        )
+        report = check_deck_narration_lengths(deck, length_mode)
+        if report["over_budget_count"] > 0:
+            logger.warning("⚠ %s", format_validation_report(report, length_mode))
+        else:
+            logger.info(format_validation_report(report, length_mode))
+    except Exception as e:
+        logger.exception("narration 長度驗證失敗 (不擋流程): %s", e)
+
 
 def _resolve_step_image_paths(steps: list[dict], figures_dir: Path) -> None:
     """iter 53: step.image_path 從 figure id 轉成絕對檔案路徑 (in-place).

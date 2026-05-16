@@ -7,6 +7,13 @@
 **本章 narration 規格**: 每張 slide narration **{narration_chars_range} 字**, 不可超出.
 取下限優先 — 短而精準比長而冗贅好.
 
+★ 寫每張 slide 的 narration 前, **先在心裡數字數**:
+   - 中文字數 = 字符數 (1 個漢字 = 1 字), 標點符號也算
+   - 寫完一句再估, 超出上限就刪減 / 換更短的同義詞
+   - 範例: "我們用 scan_repo 走遍整個 repo, 跳過 binary 跟 build artifact。"
+     = 31 字 (含標點). 60-80 字的 slide 寫 2-3 句即可
+   - 寫出來的 narration 若任一張超出上限, 整份輸出會被 server 拒收
+
 ==== 整體脈絡 ====
 專案: {deck_title}
 講解主軸: {summary}

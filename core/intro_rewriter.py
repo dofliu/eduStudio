@@ -158,11 +158,24 @@ def _rewrite_problems_deck(deck: dict, audience: str) -> dict:
 
 
 def _rewrite_sections_deck(deck: dict, audience: str) -> dict:
-    """新 deck schema (sections / slides): 每 section 第一張 slide 改開頭."""
+    """新 deck schema (sections / slides): 每 section 第一張 slide 改開頭.
+
+    iter 63a 修補: 跳過 cover (_cover) / outro (_outro) section — 它們
+    narration 是 cover_gen / outro_gen 寫好的模板, 不該被「同學您好」這類
+    開頭詞蓋掉.
+    """
     sections = deck.get("sections", [])
     for sec in sections:
         slides = sec.get("slides") or []
         if not slides:
+            continue
+        # iter 63a: 跳過 cover / outro section (id 以 "_" 開頭是慣例,
+        # 也兼看第一 slide bg_type — 雙保險)
+        sec_id = str(sec.get("id") or "")
+        if sec_id.startswith("_"):
+            continue
+        first_bg = slides[0].get("bg_type") if slides else None
+        if first_bg in ("cover", "outro"):
             continue
         first = slides[0]
         narration = first.get("narration") or ""

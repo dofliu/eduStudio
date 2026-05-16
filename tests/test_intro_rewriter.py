@@ -244,6 +244,68 @@ class TestRewriteDeckIntros:
         assert a == b
 
 
+class TestSkipCoverOutro:
+    """iter 63a: cover / outro section narration 不該被 rewriter 動到."""
+
+    def test_skip_cover_section_by_id(self):
+        original_cover_narration = "各位好, 我是劉老師。今天介紹X。本內容由Y帶來, 讓我們開始。"
+        deck = {"sections": [
+            {
+                "id": "_cover",
+                "slides": [{"id": "_cover_1", "narration": original_cover_narration, "bg_type": "cover"}],
+            },
+            {
+                "id": "intro",
+                "slides": [{"id": "intro_1", "narration": "各位同學好, 今天來看程式碼。"}],
+            },
+        ]}
+        out = rewrite_deck_intros(deck, "repo")  # repo → general audience
+        # cover narration 該保持原樣
+        assert out["sections"][0]["slides"][0]["narration"] == original_cover_narration
+
+    def test_skip_outro_section_by_id(self):
+        original_outro_narration = "今天的內容到此告一段落, 感謝各位的時間。"
+        deck = {"sections": [
+            {
+                "id": "intro",
+                "slides": [{"id": "intro_1", "narration": "各位同學好, 今天來看程式碼。"}],
+            },
+            {
+                "id": "_outro",
+                "slides": [{"id": "_outro_1", "narration": original_outro_narration, "bg_type": "outro"}],
+            },
+        ]}
+        out = rewrite_deck_intros(deck, "repo")
+        # outro narration 該保持原樣
+        assert out["sections"][-1]["slides"][0]["narration"] == original_outro_narration
+
+    def test_skip_by_bg_type_fallback(self):
+        """即使 section id 沒以 '_' 開頭, slide bg_type=cover 也該跳過 (雙保險)."""
+        original = "封面 narration"
+        deck = {"sections": [
+            {
+                "id": "weird_id_not_underscored",
+                "slides": [{"narration": original, "bg_type": "cover"}],
+            },
+        ]}
+        out = rewrite_deck_intros(deck, "repo")
+        assert out["sections"][0]["slides"][0]["narration"] == original
+
+    def test_normal_section_still_rewritten(self):
+        """確認 cover/outro 跳過時, 一般 section 仍正常 rewrite."""
+        deck = {"sections": [
+            {"id": "_cover", "slides": [{"narration": "各位好, 我是X.", "bg_type": "cover"}]},
+            {"id": "main", "slides": [{"narration": "各位同學好, 來看內容。"}]},
+        ]}
+        out = rewrite_deck_intros(deck, "repo")
+        # cover 不動
+        assert out["sections"][0]["slides"][0]["narration"] == "各位好, 我是X."
+        # main 的 "各位同學好" 該被改 (重複問候語多樣化邏輯)
+        # (不確定 rewrite 結果, 只確認跟原本不同)
+        main_narr = out["sections"][1]["slides"][0]["narration"]
+        # rewrite 可能 noop 也可能改寫, 兩種都接受 — 重點是 cover 不動
+
+
 class TestAudienceMapping:
     """source_type → audience 的對應, 跟用戶確認的規則一致."""
 

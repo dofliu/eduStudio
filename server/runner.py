@@ -433,6 +433,17 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
             date_override=rec.options.cover_date,
             narration_override=rec.options.cover_narration,
         )
+    # iter 63: 結尾頁 append (opt-in), 加在 sections[-1]
+    # iter 63b: long_form ingest 也要 hook (之前只做 repo ingest, 是漏洞)
+    if rec.options.append_outro:
+        _append_outro_to_deck(
+            deck,
+            speaker_override=rec.options.cover_speaker,
+            org_override=rec.options.cover_org,
+            thanks_override=rec.options.outro_thanks,
+            url_override=rec.options.outro_url,
+            narration_override=rec.options.outro_narration,
+        )
 
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),

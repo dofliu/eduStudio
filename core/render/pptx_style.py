@@ -239,6 +239,46 @@ def get_content_layout(theme_name: str | None) -> str:
     return THEME_CONTENT_LAYOUTS.get(theme_name, "classic")
 
 
+# iter 74 (A1, claude design 04 + 05): per-theme 字級 / 行距 / margin metrics.
+# 不破壞 iter 71 各 layout 內部精心調過的 multiplier — 這層只調「基線」,
+# layout 函式 (offset 用 1.6× hero, centered +4 等) 仍依基線相對縮放.
+#
+# Keys:
+#   title_size           主標題字級 (slide top), 預設 TITLE_FONT_SIZE=64
+#   bullet_size          bullet 字級, 預設 BULLET_FONT_SIZE=38
+#   line_height_extra    bullet 行間距 (font_size + extra), 預設 16
+#   side_margin          左右留白 px, 預設 100
+#   content_width_ratio  內容區寬度 (1.0=滿版, 0.7=居中縮窄), 預設 1.0
+#
+# None / 缺欄位 → fallback 到全域常數.
+THEME_METRICS: dict[str, dict] = {
+    # 衝擊家族 — 超大字
+    "dof-brutalist":    {"title_size": 88, "bullet_size": 44, "side_margin": 40},
+    "dof-supergraphic": {"title_size": 96, "bullet_size": 46, "side_margin": 40},
+    "dof-zine":         {"title_size": 76, "bullet_size": 42, "side_margin": 60},
+    # 學術 / 編輯家族 — 大行距 (airy 感)
+    "journal":          {"line_height_extra": 24, "bullet_size": 40},
+    "dof-editorial":    {"line_height_extra": 24, "bullet_size": 40},
+    # 講壇 / 月光 — 居中縮窄 + 少字大字
+    "dof-podium":       {"title_size": 72, "bullet_size": 44,
+                         "content_width_ratio": 0.70, "line_height_extra": 28},
+    "dof-elven":        {"title_size": 70, "bullet_size": 44,
+                         "content_width_ratio": 0.72, "line_height_extra": 26},
+    # 札記 — 行距更大 (筆記本格感)
+    "dof-notebook":     {"line_height_extra": 28, "bullet_size": 36},
+    # 其他保持預設 (forest / navy / frieren / naruto / dof-shinobi / dof-arcade /
+    # dof-risograph) — 既有觀感不動
+}
+
+
+def get_theme_metric(theme_name: str | None, key: str, default):
+    """取主題的特定 metric, 沒設用 default. iter 74."""
+    if not theme_name:
+        return default
+    metrics = THEME_METRICS.get(theme_name, {})
+    return metrics.get(key, default)
+
+
 THEME_SIGNATURE_DECORS: dict[str, str] = {
     # 原 5 個 (iter 61)
     "dof-shinobi": "shinobi_stamp",
@@ -657,8 +697,10 @@ def _draw_banner_neon(
 def _draw_title(
     draw: ImageDraw.ImageDraw, title: str, palette: Palette,
     decor: str = "underline", font_path: str | None = None,
+    title_size: int | None = None,
 ) -> int:
     """slide 主標題 dispatch — iter 59 加 4 種 decor. iter 60 加 font_path.
+    iter 74 (A1): title_size 由 caller 從 THEME_METRICS 取, None → 全域 default.
 
     decor:
       "underline" (default): 標題下方 highlight 色橫線 (現行行為)
@@ -666,29 +708,33 @@ def _draw_title(
       "hairline":            標題上方 1px 細線 (學術 / 細緻)
       "reverse":             標題 wrapped 在 highlight 色塊 + bg 色反白文字
     font_path: iter 60 — serif 主題帶 serif font 進來.
+    title_size: iter 74 — 主題覆寫字級 (brutalist=88, supergraphic=96 等).
     """
+    size = title_size if title_size is not None else TITLE_FONT_SIZE
     if decor == "block":
-        return _draw_title_block(draw, title, palette, font_path)
+        return _draw_title_block(draw, title, palette, font_path, size)
     if decor == "hairline":
-        return _draw_title_hairline(draw, title, palette, font_path)
+        return _draw_title_hairline(draw, title, palette, font_path, size)
     if decor == "reverse":
-        return _draw_title_reverse(draw, title, palette, font_path)
-    return _draw_title_underline(draw, title, palette, font_path)
+        return _draw_title_reverse(draw, title, palette, font_path, size)
+    return _draw_title_underline(draw, title, palette, font_path, size)
 
 
 def _draw_title_underline(
     draw: ImageDraw.ImageDraw, title: str, palette: Palette,
     font_path: str | None = None,
+    title_size: int = TITLE_FONT_SIZE,
 ) -> int:
-    """現行 default: 標題下方 highlight 橫線, 寬 5."""
+    """現行 default: 標題下方 highlight 橫線, 寬 5.
+    iter 74: title_size 接 caller (從 THEME_METRICS), 預設保持原 64."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), title_size)
     title_y = CONTENT_TOP + 30
     end_y = _draw_text_wrapped(
         draw, (SIDE_MARGIN, title_y), title, font, palette["primary"],
-        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2, line_h=TITLE_FONT_SIZE + 14,
+        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2, line_h=title_size + 14,
     )
     underline_w = max(200, int(font.getlength(title.split("\n")[0])))
     underline_w = min(underline_w, VIDEO_WIDTH - SIDE_MARGIN * 2)
@@ -703,28 +749,26 @@ def _draw_title_underline(
 def _draw_title_block(
     draw: ImageDraw.ImageDraw, title: str, palette: Palette,
     font_path: str | None = None,
+    title_size: int = TITLE_FONT_SIZE,
 ) -> int:
-    """標題前 highlight 色塊 prefix — 像 § / 章節符號感.
-    給 editorial / shinobi / risograph 用 (雜誌 / 印章 / 油墨)."""
+    """標題前 highlight 色塊 prefix — 像 § / 章節符號感."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), title_size)
     title_y = CONTENT_TOP + 30
-    # 標題前方塊 (寬 16px, 高 = 字級 70%)
     block_w = 16
-    block_h = int(TITLE_FONT_SIZE * 0.7)
+    block_h = int(title_size * 0.7)
     block_x = SIDE_MARGIN
-    block_y = title_y + int(TITLE_FONT_SIZE * 0.18)
+    block_y = title_y + int(title_size * 0.18)
     draw.rectangle(
         [block_x, block_y, block_x + block_w, block_y + block_h],
         fill=palette["highlight"],
     )
-    # 文字往右挪一個 gap (block + 18px 間距)
     text_x = SIDE_MARGIN + block_w + 18
     end_y = _draw_text_wrapped(
         draw, (text_x, title_y), title, font, palette["primary"],
-        max_w=VIDEO_WIDTH - text_x - SIDE_MARGIN, line_h=TITLE_FONT_SIZE + 14,
+        max_w=VIDEO_WIDTH - text_x - SIDE_MARGIN, line_h=title_size + 14,
     )
     return end_y + 30
 
@@ -732,15 +776,14 @@ def _draw_title_block(
 def _draw_title_hairline(
     draw: ImageDraw.ImageDraw, title: str, palette: Palette,
     font_path: str | None = None,
+    title_size: int = TITLE_FONT_SIZE,
 ) -> int:
-    """標題上方 1px 細線 — 學術 / 月光感.
-    給 journal / podium / notebook / elven 用."""
+    """標題上方 1px 細線 — 學術 / 月光感."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), title_size)
     title_y = CONTENT_TOP + 30
-    # 上方一條 hairline (寬至文字段+200px, 限制在版面內)
     hairline_y = title_y - 14
     hairline_w = max(300, int(font.getlength(title.split("\n")[0])) + 100)
     hairline_w = min(hairline_w, VIDEO_WIDTH - SIDE_MARGIN * 2)
@@ -750,7 +793,7 @@ def _draw_title_hairline(
     )
     end_y = _draw_text_wrapped(
         draw, (SIDE_MARGIN, title_y), title, font, palette["primary"],
-        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2, line_h=TITLE_FONT_SIZE + 14,
+        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2, line_h=title_size + 14,
     )
     return end_y + 30
 
@@ -758,19 +801,18 @@ def _draw_title_hairline(
 def _draw_title_reverse(
     draw: ImageDraw.ImageDraw, title: str, palette: Palette,
     font_path: str | None = None,
+    title_size: int = TITLE_FONT_SIZE,
 ) -> int:
-    """標題包進 highlight 色塊 + bg 色反白文字 — 海報 / 反白標籤式.
-    給 zine / brutalist / supergraphic 用."""
+    """標題包進 highlight 色塊 + bg 色反白文字 — 海報 / 反白標籤式."""
     title = (title or "").strip()
     if not title:
         return CONTENT_TOP
-    font = _font(font_path or get_font_path(), TITLE_FONT_SIZE)
+    font = _font(font_path or get_font_path(), title_size)
     title_y = CONTENT_TOP + 30
-    # 量第一行寬度當色塊寬 (多行的話色塊只包第一行)
     first_line = title.split("\n")[0]
     text_w = int(font.getlength(first_line))
     block_w = min(text_w + 60, VIDEO_WIDTH - SIDE_MARGIN * 2)
-    block_h = TITLE_FONT_SIZE + 28
+    block_h = title_size + 28
     draw.rectangle(
         [SIDE_MARGIN, title_y - 12,
          SIDE_MARGIN + block_w, title_y + block_h - 12],
@@ -778,7 +820,7 @@ def _draw_title_reverse(
     )
     end_y = _draw_text_wrapped(
         draw, (SIDE_MARGIN + 18, title_y), title, font, palette["bg"],
-        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2 - 36, line_h=TITLE_FONT_SIZE + 14,
+        max_w=VIDEO_WIDTH - SIDE_MARGIN * 2 - 36, line_h=title_size + 14,
     )
     return end_y + 36
 
@@ -788,18 +830,23 @@ def _draw_bullets_classic(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
-    """經典版: highlight 色 • marker + 左對齊單欄. 教學主題 (forest / navy 等)."""
+    """經典版: highlight 色 • marker + 左對齊單欄. 教學主題 (forest / navy 等).
+    iter 74 (A1): bullet_size / line_height_extra 主題可覆寫."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
-    font = _font(fpath, BULLET_FONT_SIZE)
-    line_h = BULLET_FONT_SIZE + 16
+    fsize = bullet_size if bullet_size is not None else BULLET_FONT_SIZE
+    extra = line_height_extra if line_height_extra is not None else 16
+    font = _font(fpath, fsize)
+    line_h = fsize + extra
     indent = 60
     text_max_w = max_text_width if max_text_width is not None else (
         VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
     )
-    marker_font = _font(fpath, BULLET_FONT_SIZE + 6)
+    marker_font = _font(fpath, fsize + 6)
 
     y = y_start
     for i, bullet in enumerate(bullets):
@@ -828,17 +875,21 @@ def _draw_bullets_numbered(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
     """編號版: 01 / 02 / 03 兩位數編號 + 左對齊單欄. 學術 / 編輯感, journal /
-    editorial 主題用. 編號用 secondary 色, 跟 highlight 區分."""
+    editorial 主題用. 編號用 secondary 色, 跟 highlight 區分.
+    iter 74 (A1): bullet_size / line_height_extra 主題可覆寫."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
-    font = _font(fpath, BULLET_FONT_SIZE)
-    line_h = BULLET_FONT_SIZE + 18  # 行距比 classic 略大 (學術風偏 airy)
-    # 編號字級比 bullet 文字略大, 並用 mono-ish 字 (襯線主題已是 serif, 編號
-    # 維持同字型即可, 視覺自然)
-    num_font = _font(fpath, BULLET_FONT_SIZE + 8)
+    fsize = bullet_size if bullet_size is not None else BULLET_FONT_SIZE
+    # numbered 預設行距比 classic 略大 (學術風偏 airy), 但仍尊重 metric 覆寫
+    extra = line_height_extra if line_height_extra is not None else 18
+    font = _font(fpath, fsize)
+    line_h = fsize + extra
+    num_font = _font(fpath, fsize + 8)
     # 兩位數編號的 width 大致固定, 算最大 indent
     indent = 110
     text_max_w = max_text_width if max_text_width is not None else (
@@ -875,16 +926,20 @@ def _draw_bullets_centered(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
     """居中版: 每條 bullet 居中, 大留白, 字級略大. 主題 podium / elven —
-    key-message 演講風. 不畫 marker (極簡, bullet 自身就是主角)."""
+    key-message 演講風. 不畫 marker (極簡, bullet 自身就是主角).
+    iter 74 (A1): bullet_size / line_height_extra 主題可覆寫."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
-    # 字級略大, 行距特別大 (留白感)
-    font = _font(fpath, BULLET_FONT_SIZE + 4)
-    line_h = BULLET_FONT_SIZE + 32
-    # 居中時 max_text_width 用 70% video width (留白)
+    # centered 預設字級 + 4, 行距 + 32 (key-message 風), 但 metric 可覆寫
+    fsize = bullet_size if bullet_size is not None else (BULLET_FONT_SIZE + 4)
+    extra = line_height_extra if line_height_extra is not None else 32
+    font = _font(fpath, fsize)
+    line_h = fsize + extra
     text_max_w = max_text_width if max_text_width is not None else int(VIDEO_WIDTH * 0.70)
 
     y = y_start
@@ -921,20 +976,24 @@ def _draw_bullets_offset(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,  # noqa: 不直接用, hero/small 自有 gap
 ) -> int:
     """iter 71: 錯位 + 強反差 — 第一條超大字 + 其他擠小 + x 軸錯位.
 
     野獸派 / 海報式衝擊: 第一條 bullet 是 hero (用 highlight 色 + 大字),
     其餘 bullet 文字略小, x 縮排錯位.
     主題: zine / brutalist / supergraphic.
+    iter 74 (A1): bullet_size 是 base, 保留 1.6× hero / 0.85× small 相對倍率.
     """
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
-    hero_font = _font(fpath, int(BULLET_FONT_SIZE * 1.6))
-    small_font = _font(fpath, int(BULLET_FONT_SIZE * 0.85))
-    hero_line_h = int(BULLET_FONT_SIZE * 1.6) + 14
-    small_line_h = int(BULLET_FONT_SIZE * 0.85) + 12
+    base = bullet_size if bullet_size is not None else BULLET_FONT_SIZE
+    hero_font = _font(fpath, int(base * 1.6))
+    small_font = _font(fpath, int(base * 0.85))
+    hero_line_h = int(base * 1.6) + 14
+    small_line_h = int(base * 0.85) + 12
 
     text_max_w = max_text_width if max_text_width is not None else (
         VIDEO_WIDTH - SIDE_MARGIN * 2 - 80
@@ -971,19 +1030,20 @@ def _draw_bullets_arcade_hud(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
     """iter 71: 8-bit HUD 風 — 每條 bullet 前 [ITEM_NN] 方括號 + 點數標籤.
-
-    arcade 主題, 像素遊戲 UI 感. 編號用 mono 字型 (跟 code 共用), 強化
-    程式 / 終端機感.
-    """
+    iter 74 (A1): bullet_size / line_height_extra 主題可覆寫."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
     mono_path = get_mono_font_path()
-    font = _font(fpath, BULLET_FONT_SIZE)
-    tag_font = _font(mono_path, int(BULLET_FONT_SIZE * 0.85))
-    line_h = BULLET_FONT_SIZE + 18
+    fsize = bullet_size if bullet_size is not None else BULLET_FONT_SIZE
+    extra = line_height_extra if line_height_extra is not None else 18
+    font = _font(fpath, fsize)
+    tag_font = _font(mono_path, int(fsize * 0.85))
+    line_h = fsize + extra
     indent = 220  # 留給 [ITEM_NN] tag
 
     text_max_w = max_text_width if max_text_width is not None else (
@@ -1016,16 +1076,19 @@ def _draw_bullets_notebook_lined(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
     """iter 71: 札記筆記風 — 行距大 + 每條前破折號 (—) + 細水平底線.
-
-    notebook 主題. 模擬橫格筆記本: 文字行下有極細水平線, 視覺像寫在格子上.
-    """
+    iter 74 (A1): bullet_size / line_height_extra 主題可覆寫."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
-    font = _font(fpath, BULLET_FONT_SIZE)
-    line_h = BULLET_FONT_SIZE + 32  # 行距大, airy
+    fsize = bullet_size if bullet_size is not None else BULLET_FONT_SIZE
+    # notebook 預設行距大 (筆記本 airy 感), 但 metric 可覆寫
+    extra = line_height_extra if line_height_extra is not None else 32
+    font = _font(fpath, fsize)
+    line_h = fsize + extra
     indent = 80
 
     text_max_w = max_text_width if max_text_width is not None else (
@@ -1063,18 +1126,19 @@ def _draw_bullets_shinobi_vertical(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
     """iter 71: 忍者卷軸式 — 縱線分組 ┃ + 漢字編號 (一 / 二 / 三).
-
-    shinobi 主題. PIL 純橫排 (不真直書, 太複雜), 但用 ┃ 縱線 + 漢字編號
-    + bullet 文字, 視覺接近卷軸條目感.
-    """
+    iter 74 (A1): bullet_size / line_height_extra 主題可覆寫."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
-    font = _font(fpath, BULLET_FONT_SIZE)
-    label_font = _font(fpath, int(BULLET_FONT_SIZE * 1.1))
-    line_h = BULLET_FONT_SIZE + 20
+    fsize = bullet_size if bullet_size is not None else BULLET_FONT_SIZE
+    extra = line_height_extra if line_height_extra is not None else 20
+    font = _font(fpath, fsize)
+    label_font = _font(fpath, int(fsize * 1.1))
+    line_h = fsize + extra
     indent = 160
 
     # 漢字一二三...十 (超過 10 fallback 阿拉伯)
@@ -1116,18 +1180,20 @@ def _draw_bullets_risograph_offset(
     y_max: int, palette: Palette,
     max_text_width: int | None = None,
     font_path: str | None = None,
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
     """iter 71: risograph 兩色錯位疊印 — 文字畫兩次, secondary 色微錯位
     在 primary 色下方, 模擬油墨疊印效果.
-
-    risograph 主題. PIL 沒 alpha blend, 用「畫兩次 + 錯位」假裝.
-    """
+    iter 74 (A1): bullet_size / line_height_extra 主題可覆寫."""
     if not bullets:
         return y_start
     fpath = font_path or get_font_path()
-    font = _font(fpath, BULLET_FONT_SIZE)
-    marker_font = _font(fpath, BULLET_FONT_SIZE + 6)
-    line_h = BULLET_FONT_SIZE + 18
+    fsize = bullet_size if bullet_size is not None else BULLET_FONT_SIZE
+    extra = line_height_extra if line_height_extra is not None else 18
+    font = _font(fpath, fsize)
+    marker_font = _font(fpath, fsize + 6)
+    line_h = fsize + extra
     indent = 70
 
     text_max_w = max_text_width if max_text_width is not None else (
@@ -1171,12 +1237,17 @@ def _draw_bullets(
     max_text_width: int | None = None,
     font_path: str | None = None,
     layout: str = "classic",
+    bullet_size: int | None = None,
+    line_height_extra: int | None = None,
 ) -> int:
     """畫 bullets, dispatch 到對應 layout 變體, 回傳結束 y.
 
     iter 68b: layout 由 caller 從 get_content_layout(theme_name) 取得.
     iter 71: 補 5 個變體 (offset / arcade_hud / notebook_lined /
     shinobi_vertical / risograph_offset). 未知 layout fallback 到 classic.
+    iter 74 (A1): bullet_size + line_height_extra 由 caller 從 THEME_METRICS
+    取. None → 用全域 BULLET_FONT_SIZE / 16. layout 內部仍可相對縮放 (offset
+    用 hero 1.6× 等), 這層只調 base.
 
     iter 53: max_text_width 由 caller 指定窄寬 (例: split-image layout 時
     bullets 佔左側 55% 寬).
@@ -1195,7 +1266,8 @@ def _draw_bullets(
         "risograph_offset": _draw_bullets_risograph_offset,
     }.get(layout, _draw_bullets_classic)
     return fn(draw, bullets, y_start, y_max, palette,
-              max_text_width=max_text_width, font_path=font_path)
+              max_text_width=max_text_width, font_path=font_path,
+              bullet_size=bullet_size, line_height_extra=line_height_extra)
 
 
 def _draw_code_block(draw: ImageDraw.ImageDraw, img: Image.Image,
@@ -2053,6 +2125,11 @@ class PptxStyleRenderer:
         signature_decor = get_signature_decor(theme_name)
         # iter 68b: bullets content layout (classic / numbered / centered)
         content_layout = get_content_layout(theme_name)
+        # iter 74 (A1): per-theme metrics (字級 / 行距) — 不影響 layout 內部
+        # multiplier (offset hero 1.6× 等), 只調 base.
+        theme_title_size = get_theme_metric(theme_name, "title_size", TITLE_FONT_SIZE)
+        theme_bullet_size = get_theme_metric(theme_name, "bullet_size", BULLET_FONT_SIZE)
+        theme_line_extra = get_theme_metric(theme_name, "line_height_extra", None)
 
         img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), palette["bg"])
         draw = ImageDraw.Draw(img)
@@ -2093,7 +2170,10 @@ class PptxStyleRenderer:
         _draw_banner(draw, section_title, palette, style=banner_style, font_path=body_font_path)
 
         title = step.get("title", "")
-        title_end_y = _draw_title(draw, title, palette, decor=title_decor, font_path=body_font_path)
+        title_end_y = _draw_title(
+            draw, title, palette, decor=title_decor, font_path=body_font_path,
+            title_size=theme_title_size,
+        )
         # iter 61: 在 title 完成後畫簽名 (避免被 title 文字蓋)
         _draw_signature_decor(draw, signature_decor, palette, step_idx=step_idx)
 
@@ -2122,6 +2202,8 @@ class PptxStyleRenderer:
             content_y = _draw_bullets(
                 draw, bullets, content_y, bullets_y_max, palette,
                 font_path=body_font_path, layout=content_layout,
+                bullet_size=theme_bullet_size,
+                line_height_extra=theme_line_extra,
             )
             content_y = max(content_y, content_y_max - estimated_code_h)
             _draw_code_block(draw, img, code, file_path, content_y, content_y_max, palette)
@@ -2135,6 +2217,8 @@ class PptxStyleRenderer:
                 _draw_bullets(
                     draw, bullets, content_y, content_y_max, palette,
                     font_path=body_font_path, layout=content_layout,
+                    bullet_size=theme_bullet_size,
+                    line_height_extra=theme_line_extra,
                 )
             else:
                 # bullets 寬度 = 左側到 panel_x 之間 (扣 indent)
@@ -2144,11 +2228,15 @@ class PptxStyleRenderer:
                     draw, bullets, content_y, content_y_max, palette,
                     max_text_width=bullet_max_w,
                     font_path=body_font_path, layout=content_layout,
+                    bullet_size=theme_bullet_size,
+                    line_height_extra=theme_line_extra,
                 )
         else:
             _draw_bullets(
                 draw, bullets, content_y, content_y_max, palette,
                 font_path=body_font_path, layout=content_layout,
+                bullet_size=theme_bullet_size,
+                line_height_extra=theme_line_extra,
             )
 
         _draw_subtitle_strip(draw, palette)

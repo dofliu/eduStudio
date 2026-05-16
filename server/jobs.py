@@ -258,6 +258,11 @@ class JobStore:
     def deck_path(self, job_id: str) -> Path:
         return self.root / job_id / "deck.json"
 
+    def outline_path(self, job_id: str) -> Path:
+        """iter 81 (D1 v1): outline.json (scriptor 前的中間產物). 不存在時
+        表示尚未 ingest 完 (或 source_type=exam_pdf 直接吐 deck 沒 outline)."""
+        return self.root / job_id / "outline.json"
+
     def artifacts_dir(self, job_id: str) -> Path:
         return self.root / job_id / "artifacts"
 

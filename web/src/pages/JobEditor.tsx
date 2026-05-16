@@ -19,6 +19,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { ExamProblemsPanel } from '../components/ExamProblemsPanel';
 import { LogPanel } from '../components/LogPanel';
+import { OutlineModal } from '../components/OutlineModal';
 import { SlideEditor } from '../components/SlideEditor';
 import { useToast } from '../components/Toast';
 import { Btn, StatusPill, SourceBadge, Meter } from '../components/ui';
@@ -39,6 +40,8 @@ export default function JobEditor() {
   const [dirty, setDirty] = useState(false);
   // 新增的 UI state (純前端, 不影響任何 API/save 行為)
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
+  // iter 81 (D1 v1): outline modal
+  const [outlineOpen, setOutlineOpen] = useState(false);
 
   const reloadAll = useCallback(async () => {
     if (!jobId) return;
@@ -272,6 +275,12 @@ export default function JobEditor() {
         )}
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* iter 81 (D1 v1): outline 預覽 — exam_pdf 沒 outline 所以隱藏 */}
+          {!isExam && (
+            <Btn kind="ghost" size="sm" onClick={() => setOutlineOpen(true)}>
+              📋 outline
+            </Btn>
+          )}
           <Btn kind="ghost" size="sm" onClick={onSave} disabled={!canEdit || saving || !dirty}>
             {saving ? '...' : '💾 Save'}
           </Btn>
@@ -413,6 +422,11 @@ export default function JobEditor() {
             onRenderSection={canRenderSection ? onRenderSection : undefined}
           />
         </div>
+      )}
+
+      {/* iter 81 (D1 v1): outline 預覽 modal */}
+      {outlineOpen && jobId && (
+        <OutlineModal jobId={jobId} onClose={() => setOutlineOpen(false)} />
       )}
     </div>
   );

@@ -7,6 +7,7 @@
     DELETE /jobs/{id}                     刪除 (含磁碟資料)
     GET    /jobs/{id}/draft               取 deck.json (review / done 階段)
     PUT    /jobs/{id}/draft               覆寫 deck.json (僅 awaiting_review)
+    GET    /jobs/{id}/outline              取 outline.json (iter 81 D1 v1)
     POST   /jobs/{id}/approve             從 awaiting_review 進入 render
     GET    /jobs/{id}/artifacts/{name}    下載產物檔
 """
@@ -106,6 +107,29 @@ async def get_draft(job_id: str, store: JobStore = Depends(get_default_store)) -
         )
     deck = json.loads(deck_path.read_text(encoding="utf-8"))
     return JSONResponse(content=deck)
+
+
+# ---------- Outline (D1 v1, iter 81) ----------
+
+@router.get("/{job_id}/outline")
+async def get_outline(job_id: str, store: JobStore = Depends(get_default_store)) -> JSONResponse:
+    """iter 81 (D1 v1): 取 outline.json — scriptor 前的中間產物.
+
+    outliner_repo / outliner_longform 產的章節 + topics + 字數預算規劃,
+    後續 scriptor 才依此把每章長成 slide 集. 提供給用戶看 LLM 的拆解
+    結果, 判斷要不要重 ingest (調 length_mode / source).
+
+    exam_pdf 直接吐 deck (沒 outline 中間步驟), 該 source 永遠回 404.
+    repo / document / url / slides_pdf 在 ingest 完後該有 outline.json.
+    """
+    outline_path = store.outline_path(job_id)
+    if not outline_path.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "outline.json 尚未產生 (該 source_type 不產 outline 或 ingest 未完)",
+        )
+    outline = json.loads(outline_path.read_text(encoding="utf-8"))
+    return JSONResponse(content=outline)
 
 
 @router.put("/{job_id}/draft", response_model=JobRecord)

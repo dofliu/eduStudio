@@ -71,6 +71,9 @@ export const api = {
       body: JSON.stringify({ deck }),
     }),
 
+  // iter 81 (D1 v1): outline.json — scriptor 前的中間產物, 用戶看 LLM 拆解
+  getOutline: (jobId: string) => call<Record<string, unknown>>(`/jobs/${jobId}/outline`),
+
   approve: (jobId: string) =>
     call<JobRecord>(`/jobs/${jobId}/approve`, { method: 'POST' }),
 

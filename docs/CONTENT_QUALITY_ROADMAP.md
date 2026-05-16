@@ -105,8 +105,8 @@
 按 A → B → C → D 順序逐項完成. 每項做完更新本檔案進度.
 
 進度:
-- [ ] A1 字級 / 行距 per-theme
-- [ ] A2 Margin / 對齊 per-theme
+- [x] A1 字級 / 行距 per-theme (iter 74, commit 5101afa)
+- [x] A2 Margin per-theme (iter 75, side_margin 接 title + bullets)
 - [ ] A3 自訂主題色票 UI
 - [ ] B1 縱向短影片
 - [ ] B2 解析度可選

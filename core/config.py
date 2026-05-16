@@ -123,3 +123,22 @@ def get_cover_speaker() -> str:
 def get_cover_org() -> str:
     """封面單位欄位. env CLAUDE_COVER_ORG 可覆寫."""
     return os.environ.get("CLAUDE_COVER_ORG", DEFAULT_COVER_ORG)
+
+
+# ---------- 結尾頁預設 (iter 63) ----------
+# append_outro=True 時, 自動在主內容後插一張結尾頁: 大字「謝謝聆聽」+ 講者 +
+# lab url + 單位. 跟封面對稱, narration 模板簡短.
+DEFAULT_OUTRO_THANKS = "謝謝聆聽"
+DEFAULT_OUTRO_URL = "doflab.cc"
+
+
+def get_outro_thanks() -> str:
+    """結尾頁主標題 (大字). env CLAUDE_OUTRO_THANKS 可覆寫."""
+    return os.environ.get("CLAUDE_OUTRO_THANKS", DEFAULT_OUTRO_THANKS)
+
+
+def get_outro_url() -> str:
+    """結尾頁聯絡 URL. env CLAUDE_OUTRO_URL 可覆寫.
+
+    不檢查 URL 格式 — 給用戶自由 (可放 GitHub / email / lab 網址 / 任何字串)."""
+    return os.environ.get("CLAUDE_OUTRO_URL", DEFAULT_OUTRO_URL)

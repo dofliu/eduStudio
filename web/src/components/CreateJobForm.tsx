@@ -65,6 +65,11 @@ export function CreateJobForm({ onCreated }: Props) {
   const [coverDate, setCoverDate] = useState('');
   // iter 65: 封面 narration override (空字串 → 後端 fallback 模板)
   const [coverNarration, setCoverNarration] = useState('');
+  // iter 63: 結尾頁 + meta override (跟封面對稱)
+  const [appendOutro, setAppendOutro] = useState(false);
+  const [outroThanks, setOutroThanks] = useState('');
+  const [outroUrl, setOutroUrl] = useState('');
+  const [outroNarration, setOutroNarration] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -109,6 +114,14 @@ export function CreateJobForm({ onCreated }: Props) {
     // iter 65: 封面 narration override (textarea, 不 trim 內容只 trim 外圍)
     ...(showLengthMode && prependCover && coverNarration.trim()
       ? { cover_narration: coverNarration.trim() } : {}),
+    // iter 63: 結尾頁 + 三個 override
+    ...(showLengthMode ? { append_outro: appendOutro } : {}),
+    ...(showLengthMode && appendOutro && outroThanks.trim()
+      ? { outro_thanks: outroThanks.trim() } : {}),
+    ...(showLengthMode && appendOutro && outroUrl.trim()
+      ? { outro_url: outroUrl.trim() } : {}),
+    ...(showLengthMode && appendOutro && outroNarration.trim()
+      ? { outro_narration: outroNarration.trim() } : {}),
   });
 
   const submit = async () => {
@@ -411,6 +424,44 @@ export function CreateJobForm({ onCreated }: Props) {
               value={coverNarration}
               onChange={(e) => setCoverNarration(e.target.value)}
               placeholder="開場口白 (留空=模板「各位好, 我是X. 今天介紹X. 本內容由X帶來…」, 建議 60~180 字)"
+              className="border rounded px-2 py-1 w-full text-xs"
+              rows={3}
+            />
+          </div>
+        )}
+        {/* iter 63: 結尾頁 — 跟封面對稱, 加在主內容後 */}
+        {showLengthMode && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={appendOutro}
+              onChange={(e) => setAppendOutro(e.target.checked)}
+            />
+            🎬 加結尾頁 (謝謝聆聽 + 講者 + 單位 + URL + 結尾口白)
+          </label>
+        )}
+        {showLengthMode && appendOutro && (
+          <div className="ml-6 mt-1 space-y-1.5">
+            <div className="flex flex-wrap gap-2 text-xs">
+              <input
+                type="text"
+                value={outroThanks}
+                onChange={(e) => setOutroThanks(e.target.value)}
+                placeholder="主標題 (留空=謝謝聆聽)"
+                className="border rounded px-2 py-1 w-44"
+              />
+              <input
+                type="text"
+                value={outroUrl}
+                onChange={(e) => setOutroUrl(e.target.value)}
+                placeholder="聯絡 URL (留空=doflab.cc)"
+                className="border rounded px-2 py-1 w-56"
+              />
+            </div>
+            <textarea
+              value={outroNarration}
+              onChange={(e) => setOutroNarration(e.target.value)}
+              placeholder="結尾口白 (留空=模板「今天的內容到此告一段落, 感謝各位的時間…」)"
               className="border rounded px-2 py-1 w-full text-xs"
               rows={3}
             />

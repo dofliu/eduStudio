@@ -177,6 +177,17 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
             date_override=rec.options.cover_date,
             narration_override=rec.options.cover_narration,
         )
+    # iter 63: 結尾頁 append (opt-in), 加在 sections[-1]
+    # speaker / org override 跟 cover 共用欄位 (一份設定兩邊用)
+    if rec.options.append_outro:
+        _append_outro_to_deck(
+            deck,
+            speaker_override=rec.options.cover_speaker,
+            org_override=rec.options.cover_org,
+            thanks_override=rec.options.outro_thanks,
+            url_override=rec.options.outro_url,
+            narration_override=rec.options.outro_narration,
+        )
 
     (job_dir / "outline.json").write_text(
         json.dumps(outline, ensure_ascii=False, indent=2),
@@ -187,6 +198,51 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         encoding="utf-8",
     )
     return deck
+
+
+def _append_outro_to_deck(
+    deck: dict,
+    *,
+    speaker_override: str | None = None,
+    org_override: str | None = None,
+    thanks_override: str | None = None,
+    url_override: str | None = None,
+    narration_override: str | None = None,
+) -> None:
+    """iter 63: 在 deck.sections 最後面 append 結尾 section.
+
+    結尾內容: 大字「謝謝聆聽」+ 講者 + 單位 + URL + 結尾口白.
+
+    所有 override 都是 None / 空 → fallback:
+      - speaker: get_cover_speaker() (跟封面共用 env)
+      - org:     get_cover_org() (跟封面共用 env)
+      - thanks:  get_outro_thanks() (預設「謝謝聆聽」)
+      - url:     get_outro_url() (預設 doflab.cc)
+
+    in-place 修改 deck. 失敗 (sections 不是 list) noop, 不擋 ingest.
+    """
+    from core.config import (
+        get_cover_speaker, get_cover_org,
+        get_outro_thanks, get_outro_url,
+    )
+    from core.outro_gen import build_outro_section
+
+    sections = deck.get("sections")
+    if not isinstance(sections, list):
+        return
+    speaker = (speaker_override or "").strip() or get_cover_speaker()
+    org = (org_override or "").strip() or get_cover_org()
+    thanks = (thanks_override or "").strip() or get_outro_thanks()
+    url = (url_override or "").strip() or get_outro_url()
+    narration_val = (narration_override or "").strip() or None
+    outro_sec = build_outro_section(
+        speaker=speaker,
+        org=org,
+        thanks_text=thanks,
+        url=url,
+        narration_override=narration_val,
+    )
+    sections.append(outro_sec)
 
 
 def _prepend_cover_to_deck(

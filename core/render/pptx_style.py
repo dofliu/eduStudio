@@ -919,6 +919,67 @@ def _draw_cover_slide(
         meta_y += meta_size + 14
 
 
+def _draw_outro_slide(
+    draw: ImageDraw.ImageDraw, step: dict, palette: Palette,
+    body_font_path: str | None = None,
+) -> None:
+    """iter 63: 結尾頁專屬 layout, 跟封面對稱.
+
+    版面:
+    - 上 1/3 空白
+    - 中央: 大字 thanks_text (預設「謝謝聆聽」), 字級 = TITLE_FONT_SIZE * 1.6
+      (比封面更大, 結尾要有 closure 感)
+    - 主標下方 highlight 色橫線 (居中)
+    - 主標下: 講者 / 單位 / URL 三行 meta (contrast-aware 選色, 跟封面共用)
+    """
+    fpath = body_font_path or get_font_path()
+    outro_title_size = int(TITLE_FONT_SIZE * 1.6)
+    meta_size = 32
+    thanks = (step.get("title") or "謝謝聆聽").strip()
+    speaker = (step.get("outro_speaker") or "").strip()
+    org = (step.get("outro_org") or "").strip()
+    url = (step.get("outro_url") or "").strip()
+
+    title_font = _font(fpath, outro_title_size)
+    meta_font = _font(fpath, meta_size)
+    # 共用 iter 62a 的 contrast-aware 選色
+    meta_color = _pick_meta_color(palette)
+
+    # 主標題: 居中, 跟封面同邏輯
+    max_title_w = int(VIDEO_WIDTH * 0.85)
+    title_y = int(VIDEO_HEIGHT * 0.30)
+    first_line = thanks.split("\n")[0]
+    title_w = int(title_font.getlength(first_line))
+    title_w = min(title_w, max_title_w)
+    title_x = max(SIDE_MARGIN, (VIDEO_WIDTH - title_w) // 2)
+    end_y = _draw_text_wrapped(
+        draw, (title_x, title_y), thanks, title_font, palette["primary"],
+        max_w=max_title_w, line_h=outro_title_size + 18,
+    )
+
+    # 主標下方 highlight 色橫線, 居中, 寬度約等於文字
+    rule_w = max(220, min(title_w, max_title_w))
+    rule_x = (VIDEO_WIDTH - rule_w) // 2
+    rule_y = end_y + 28
+    draw.rectangle(
+        [rule_x, rule_y, rule_x + rule_w, rule_y + 4],
+        fill=palette["highlight"],
+    )
+
+    # Meta 三行 — 講者 / 單位 / URL
+    meta_y = rule_y + 44
+    for line in (speaker, org, url):
+        line = (line or "").strip()
+        if not line:
+            continue
+        line_w = int(meta_font.getlength(line))
+        line_x = max(SIDE_MARGIN, (VIDEO_WIDTH - line_w) // 2)
+        _draw_text_mixed(
+            draw, (line_x, meta_y), line, meta_font, meta_color,
+        )
+        meta_y += meta_size + 14
+
+
 def _draw_signature_decor(
     draw: ImageDraw.ImageDraw, decor: str | None, palette: Palette,
     step_idx: int = 1,
@@ -1197,6 +1258,18 @@ class PptxStyleRenderer:
         # iter 62: 封面頁專屬 layout — 居中大字 + meta, 不畫 banner / signature
         if step.get("bg_type") == "cover":
             _draw_cover_slide(draw, step, palette, body_font_path)
+            _draw_subtitle_strip(draw)
+            try:
+                from pipeline import _overlay_teacher_photo
+                _overlay_teacher_photo(img)
+            except Exception:
+                pass
+            img.save(out_p, "PNG")
+            return
+
+        # iter 63: 結尾頁專屬 layout — 跟封面對稱, 不畫 banner / signature
+        if step.get("bg_type") == "outro":
+            _draw_outro_slide(draw, step, palette, body_font_path)
             _draw_subtitle_strip(draw)
             try:
                 from pipeline import _overlay_teacher_photo

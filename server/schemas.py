@@ -163,6 +163,28 @@ class JobOptions(BaseModel):
                     "不再套模板. 長度建議 60~180 字 (跟 scriptor narration "
                     "規範一致).",
     )
+    # iter 63: 結尾頁 (跟 prepend_cover 對稱)
+    append_outro: bool = Field(
+        default=False,
+        description="iter 63: 在主內容後插入結尾頁 (大字「謝謝聆聽」+ 講者 + "
+                    "單位 + URL), 配結尾口白. 講者 / 單位用 cover_speaker / "
+                    "cover_org 共用 (沒填用 env 預設); URL 用 outro_url 欄. "
+                    "只影響 repo / document / url (multi-section concat).",
+    )
+    outro_thanks: str | None = Field(
+        default=None,
+        description="iter 63: per-job 結尾大字 (預設「謝謝聆聽」). 空 → 預設.",
+    )
+    outro_url: str | None = Field(
+        default=None,
+        description="iter 63: per-job 結尾頁聯絡 URL (預設 doflab.cc). 不檢查 "
+                    "格式 — 可放 GitHub / email / 任何字串.",
+    )
+    outro_narration: str | None = Field(
+        default=None,
+        description="iter 63: per-job 結尾口白覆寫. None / 空 → 用模板 "
+                    "「今天的內容到此告一段落, 感謝各位的時間…」.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

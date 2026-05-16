@@ -61,6 +61,11 @@ export default function ProposalsList() {
   const [coverDateByProposal, setCoverDateByProposal] = useState<Record<string, string>>({});
   // iter 65: 封面 narration override (空字串 = 後端 fallback 模板)
   const [coverNarrationByProposal, setCoverNarrationByProposal] = useState<Record<string, string>>({});
+  // iter 63: 結尾頁 + 三個 override per-proposal
+  const [appendOutroByProposal, setAppendOutroByProposal] = useState<Record<string, boolean>>({});
+  const [outroThanksByProposal, setOutroThanksByProposal] = useState<Record<string, string>>({});
+  const [outroUrlByProposal, setOutroUrlByProposal] = useState<Record<string, string>>({});
+  const [outroNarrationByProposal, setOutroNarrationByProposal] = useState<Record<string, string>>({});
   // scan modal state
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -101,6 +106,11 @@ export default function ProposalsList() {
       const coverOrg = prependCover ? (coverOrgByProposal[p.id] ?? '').trim() : '';
       const coverDate = prependCover ? (coverDateByProposal[p.id] ?? '').trim() : '';
       const coverNarration = prependCover ? (coverNarrationByProposal[p.id] ?? '').trim() : '';
+      // iter 63: 結尾頁 + override
+      const appendOutro = themeApplicable ? (appendOutroByProposal[p.id] ?? false) : false;
+      const outroThanks = appendOutro ? (outroThanksByProposal[p.id] ?? '').trim() : '';
+      const outroUrl = appendOutro ? (outroUrlByProposal[p.id] ?? '').trim() : '';
+      const outroNarration = appendOutro ? (outroNarrationByProposal[p.id] ?? '').trim() : '';
       const body: {
         theme?: string;
         prepend_intro?: boolean;
@@ -112,6 +122,10 @@ export default function ProposalsList() {
         cover_org?: string;
         cover_date?: string;
         cover_narration?: string;
+        append_outro?: boolean;
+        outro_thanks?: string;
+        outro_url?: string;
+        outro_narration?: string;
       } = {};
       if (theme) body.theme = theme;
       if (prependIntro) body.prepend_intro = true;
@@ -123,6 +137,10 @@ export default function ProposalsList() {
       if (coverOrg) body.cover_org = coverOrg;
       if (coverDate) body.cover_date = coverDate;
       if (coverNarration) body.cover_narration = coverNarration;
+      if (appendOutro) body.append_outro = true;
+      if (outroThanks) body.outro_thanks = outroThanks;
+      if (outroUrl) body.outro_url = outroUrl;
+      if (outroNarration) body.outro_narration = outroNarration;
       const r = await api.approveProposal(p.id, Object.keys(body).length > 0 ? body : undefined);
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
       navigate(`/jobs/${r.job.job_id}`);
@@ -265,6 +283,10 @@ export default function ProposalsList() {
                   coverOrgValue={coverOrgByProposal[p.id] ?? ''}
                   coverDateValue={coverDateByProposal[p.id] ?? ''}
                   coverNarrationValue={coverNarrationByProposal[p.id] ?? ''}
+                  outroValue={appendOutroByProposal[p.id] ?? false}
+                  outroThanksValue={outroThanksByProposal[p.id] ?? ''}
+                  outroUrlValue={outroUrlByProposal[p.id] ?? ''}
+                  outroNarrationValue={outroNarrationByProposal[p.id] ?? ''}
                   onToggle={() => setOpenCfg(openCfg === p.id ? null : p.id)}
                   onApprove={() => handleApprove(p)}
                   onIgnore={() => handleIgnore(p)}
@@ -278,6 +300,10 @@ export default function ProposalsList() {
                   onCoverOrgChange={(v) => setCoverOrgByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onCoverDateChange={(v) => setCoverDateByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onCoverNarrationChange={(v) => setCoverNarrationByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onOutroChange={(v) => setAppendOutroByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onOutroThanksChange={(v) => setOutroThanksByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onOutroUrlChange={(v) => setOutroUrlByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onOutroNarrationChange={(v) => setOutroNarrationByProposal(prev => ({ ...prev, [p.id]: v }))}
                 />
               ))}
             </div>
@@ -326,6 +352,10 @@ interface CardProps {
   coverOrgValue: string;
   coverDateValue: string;
   coverNarrationValue: string; // iter 65: 封面 narration override (空=後端模板)
+  outroValue: boolean;         // iter 63: 結尾頁 opt-in
+  outroThanksValue: string;
+  outroUrlValue: string;
+  outroNarrationValue: string;
   onToggle: () => void;
   onApprove: () => void;
   onIgnore: () => void;
@@ -339,14 +369,20 @@ interface CardProps {
   onCoverOrgChange: (v: string) => void;
   onCoverDateChange: (v: string) => void;
   onCoverNarrationChange: (v: string) => void;
+  onOutroChange: (v: boolean) => void;
+  onOutroThanksChange: (v: string) => void;
+  onOutroUrlChange: (v: string) => void;
+  onOutroNarrationChange: (v: string) => void;
 }
 
 function ProposalCard({
   p, open, busy, themeValue, lengthValue, introValue, aiGenValue, aiMermaidValue, coverValue,
   coverSpeakerValue, coverOrgValue, coverDateValue, coverNarrationValue,
+  outroValue, outroThanksValue, outroUrlValue, outroNarrationValue,
   onToggle, onApprove, onIgnore,
   onThemeChange, onLengthChange, onIntroChange, onAiGenChange, onAiMermaidChange, onCoverChange,
   onCoverSpeakerChange, onCoverOrgChange, onCoverDateChange, onCoverNarrationChange,
+  onOutroChange, onOutroThanksChange, onOutroUrlChange, onOutroNarrationChange,
 }: CardProps) {
   const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
 
@@ -554,6 +590,51 @@ function ProposalCard({
                   />
                 </div>
               )}
+              {/* iter 63: 結尾頁 — 主內容後 */}
+              {themeApplicable && (
+                <label className="flex items-center gap-2 p-2.5 rounded-sm border border-paper-edge bg-paper-card cursor-pointer hover:bg-paper-warm mt-2">
+                  <input
+                    type="checkbox"
+                    checked={outroValue}
+                    onChange={(e) => onOutroChange(e.target.checked)}
+                    disabled={busy}
+                    className="w-3.5 h-3.5 accent-forest-600"
+                  />
+                  <div className="flex-1">
+                    <div className="text-[12.5px] text-ink">🎬 加結尾頁</div>
+                    <div className="text-[11px] text-ink-muted">主標 + 講者 + 單位 + URL, 配結尾口白</div>
+                  </div>
+                </label>
+              )}
+              {themeApplicable && outroValue && (
+                <div className="mt-2 p-2.5 rounded-sm border border-paper-edge bg-paper-warm space-y-1.5">
+                  <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted">結尾 meta (空白 = 用預設; 講者 / 單位跟封面共用)</div>
+                  <input
+                    type="text"
+                    value={outroThanksValue}
+                    onChange={(e) => onOutroThanksChange(e.target.value)}
+                    disabled={busy}
+                    placeholder="主標題 (留空=謝謝聆聽)"
+                    className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card"
+                  />
+                  <input
+                    type="text"
+                    value={outroUrlValue}
+                    onChange={(e) => onOutroUrlChange(e.target.value)}
+                    disabled={busy}
+                    placeholder="聯絡 URL (留空=doflab.cc)"
+                    className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card"
+                  />
+                  <textarea
+                    value={outroNarrationValue}
+                    onChange={(e) => onOutroNarrationChange(e.target.value)}
+                    disabled={busy}
+                    placeholder="結尾口白 (留空=模板「今天的內容到此告一段落, 感謝各位的時間…」)"
+                    rows={3}
+                    className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card resize-y"
+                  />
+                </div>
+              )}
             </div>
 
             <div>
@@ -583,6 +664,18 @@ function ProposalCard({
                 )}
                 {themeApplicable && coverValue && coverNarrationValue.trim() && (
                   <Row k="封面口白" v={`自訂 (${coverNarrationValue.trim().length} 字)`} />
+                )}
+                {themeApplicable && (
+                  <Row k="結尾頁" v={outroValue ? '加' : '不加'} />
+                )}
+                {themeApplicable && outroValue && outroThanksValue.trim() && (
+                  <Row k="結尾主標" v={outroThanksValue.trim()} />
+                )}
+                {themeApplicable && outroValue && outroUrlValue.trim() && (
+                  <Row k="結尾 URL" v={outroUrlValue.trim()} />
+                )}
+                {themeApplicable && outroValue && outroNarrationValue.trim() && (
+                  <Row k="結尾口白" v={`自訂 (${outroNarrationValue.trim().length} 字)`} />
                 )}
                 <div className="flex justify-between border-t border-paper-line pt-1.5 mt-1.5">
                   <span className="text-ink-muted">預估</span>

@@ -108,6 +108,10 @@ class ProposalApproveRequest(BaseModel):
     cover_org: str | None = None                    # iter 62b: 封面單位覆寫
     cover_date: str | None = None                   # iter 62b: 封面日期覆寫
     cover_narration: str | None = None               # iter 65: 封面口白覆寫
+    append_outro: bool | None = None                  # iter 63: 插入結尾頁
+    outro_thanks: str | None = None                   # iter 63: 結尾大字覆寫
+    outro_url: str | None = None                      # iter 63: 結尾 URL 覆寫
+    outro_narration: str | None = None                # iter 63: 結尾口白覆寫
 
 
 class ScanFolderRequest(BaseModel):
@@ -258,6 +262,15 @@ async def approve_proposal(
             opts_kwargs["cover_date"] = body.cover_date
         if body.cover_narration is not None:
             opts_kwargs["cover_narration"] = body.cover_narration
+        # iter 63: 結尾頁 + 三個 override
+        if body.append_outro is not None:
+            opts_kwargs["append_outro"] = body.append_outro
+        if body.outro_thanks is not None:
+            opts_kwargs["outro_thanks"] = body.outro_thanks
+        if body.outro_url is not None:
+            opts_kwargs["outro_url"] = body.outro_url
+        if body.outro_narration is not None:
+            opts_kwargs["outro_narration"] = body.outro_narration
 
     req = CreateJobRequest(
         source_type=source_type,

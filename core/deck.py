@@ -139,9 +139,12 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
         section_title = section.get("title", "").strip()
         steps = []
         for slide in section.get("slides", []):
-            # iter 62: 封面 slide 走專屬 bg_type, 不被覆寫成 pptx_slide
+            # iter 62 + 63: 封面 / 結尾 slide 走專屬 bg_type, 不被覆寫成 pptx_slide
             slide_bg_type = slide.get("bg_type")
-            bg_type = slide_bg_type if slide_bg_type == "cover" else "pptx_slide"
+            if slide_bg_type in ("cover", "outro"):
+                bg_type = slide_bg_type
+            else:
+                bg_type = "pptx_slide"
             step = {
                 "_section": _shorten_section_label(section_title),
                 "section_title": section_title,
@@ -162,6 +165,11 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
                 step["cover_speaker"] = slide.get("cover_speaker", "")
                 step["cover_org"] = slide.get("cover_org", "")
                 step["cover_date"] = slide.get("cover_date", "")
+            # iter 63: outro 專屬 meta 欄位 (其他 layout 不會讀)
+            elif bg_type == "outro":
+                step["outro_speaker"] = slide.get("outro_speaker", "")
+                step["outro_org"] = slide.get("outro_org", "")
+                step["outro_url"] = slide.get("outro_url", "")
             steps.append(step)
         if not steps:
             continue

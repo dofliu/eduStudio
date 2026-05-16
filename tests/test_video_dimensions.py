@@ -71,6 +71,17 @@ class TestVideoDimensionsOverride:
             assert pipeline.HEIGHT == 1920
         assert pipeline.WIDTH == 1920
 
+    def test_pipeline_content_bottom_patched(self):
+        """iter 85 CR4 抓的 bug: pipeline.CONTENT_BOTTOM 也得 patch, 否則
+        BlackboardRenderer / SlideRenderer 在 portrait 下用 stale 900 切 slide."""
+        import pipeline
+        from core.visuals import SUBTITLE_BAND_HEIGHT
+        assert pipeline.CONTENT_BOTTOM == 1080 - SUBTITLE_BAND_HEIGHT
+        with video_dimensions_override("9:16", "1080p"):
+            assert pipeline.CONTENT_BOTTOM == 1920 - SUBTITLE_BAND_HEIGHT
+        # restore
+        assert pipeline.CONTENT_BOTTOM == 1080 - SUBTITLE_BAND_HEIGHT
+
     def test_restore_on_exception(self):
         """exception 也該 restore."""
         try:

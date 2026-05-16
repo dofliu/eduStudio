@@ -153,8 +153,10 @@ class video_dimensions_override:
                 setattr(mod, w_attr, w)
             if hasattr(mod, h_attr):
                 setattr(mod, h_attr, h)
-        # CONTENT_BOTTOM 重算 (跟 height 連動)
-        for mod_name in ("core.visuals", "core.render.pptx_style"):
+        # CONTENT_BOTTOM 重算 (跟 height 連動). pipeline.py 也 import 了該值,
+        # 給 BlackboardRenderer / SlideRenderer 用 — 不 patch 會在 portrait
+        # 下用 stale 900 把 slide 底部切到 1020+ 變空白 (iter 85 CR4 抓的).
+        for mod_name in ("core.visuals", "core.render.pptx_style", "pipeline"):
             mod = sys.modules.get(mod_name)
             if mod is not None and hasattr(mod, "CONTENT_BOTTOM"):
                 from core.visuals import SUBTITLE_BAND_HEIGHT

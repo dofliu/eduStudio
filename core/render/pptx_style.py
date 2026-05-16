@@ -215,19 +215,19 @@ THEME_CONTENT_LAYOUTS: dict[str, str] = {
     "navy": "classic",
     "frieren": "classic",
     "naruto": "classic",
-    "journal": "numbered",          # 學術期刊風 — 編號條列
+    "journal": "numbered",                  # 學術期刊風 — 編號條列
     # v1 沉穩家族
-    "dof-editorial": "numbered",    # 雜誌編輯風 — 編號
-    "dof-podium": "centered",       # TED 講壇 — 居中大留白
-    "dof-notebook": "classic",      # 札記 — 維持 bullet (未來可改 notebook_lined)
-    "dof-shinobi": "classic",       # 忍者 — 維持 (未來可改縱書)
-    "dof-elven": "centered",        # 月光對稱 — 居中
+    "dof-editorial": "numbered",            # 雜誌編輯風 — 編號
+    "dof-podium": "centered",               # TED 講壇 — 居中大留白
+    "dof-notebook": "notebook_lined",       # iter 71: 札記筆記風 (— + 行底線)
+    "dof-shinobi": "shinobi_vertical",      # iter 71: 卷軸縱線 + 漢字編號
+    "dof-elven": "centered",                # 月光對稱 — 居中
     # v2 衝擊家族
-    "dof-zine": "classic",          # 海報 — 維持 (未來 offset)
-    "dof-arcade": "classic",        # 像素 — 維持 (未來 HUD)
-    "dof-risograph": "classic",     # 油墨 — 維持
-    "dof-supergraphic": "classic",  # 大色塊 — 維持 (未來 offset)
-    "dof-brutalist": "classic",     # 野獸派 — 維持 (未來 offset)
+    "dof-zine": "offset",                   # iter 71: 海報錯位
+    "dof-arcade": "arcade_hud",             # iter 71: HUD [ITEM_NN]
+    "dof-risograph": "risograph_offset",    # iter 71: 兩色疊印
+    "dof-supergraphic": "offset",           # iter 71: 大色塊錯位
+    "dof-brutalist": "offset",              # iter 71: 野獸派錯位
 }
 
 
@@ -916,6 +916,255 @@ def _draw_bullets_centered(
     return y
 
 
+def _draw_bullets_offset(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """iter 71: 錯位 + 強反差 — 第一條超大字 + 其他擠小 + x 軸錯位.
+
+    野獸派 / 海報式衝擊: 第一條 bullet 是 hero (用 highlight 色 + 大字),
+    其餘 bullet 文字略小, x 縮排錯位.
+    主題: zine / brutalist / supergraphic.
+    """
+    if not bullets:
+        return y_start
+    fpath = font_path or get_font_path()
+    hero_font = _font(fpath, int(BULLET_FONT_SIZE * 1.6))
+    small_font = _font(fpath, int(BULLET_FONT_SIZE * 0.85))
+    hero_line_h = int(BULLET_FONT_SIZE * 1.6) + 14
+    small_line_h = int(BULLET_FONT_SIZE * 0.85) + 12
+
+    text_max_w = max_text_width if max_text_width is not None else (
+        VIDEO_WIDTH - SIDE_MARGIN * 2 - 80
+    )
+
+    y = y_start
+    for i, bullet in enumerate(bullets):
+        bullet = (bullet or "").strip()
+        if not bullet:
+            continue
+        if i == 0:
+            # hero bullet — 大字 highlight 色, 起點靠左
+            end_y = _draw_text_wrapped(
+                draw, (SIDE_MARGIN, y), bullet, hero_font, palette["highlight"],
+                max_w=text_max_w, line_h=hero_line_h,
+            )
+            y = end_y + 26
+        else:
+            # 錯位 x — 偶數 indent 60, 奇數 indent 140
+            indent = 60 if i % 2 == 1 else 140
+            end_y = _draw_text_wrapped(
+                draw, (SIDE_MARGIN + indent, y), bullet, small_font,
+                palette["primary"],
+                max_w=text_max_w - indent, line_h=small_line_h,
+            )
+            y = end_y + 14
+        if y > y_max:
+            break
+    return y
+
+
+def _draw_bullets_arcade_hud(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """iter 71: 8-bit HUD 風 — 每條 bullet 前 [ITEM_NN] 方括號 + 點數標籤.
+
+    arcade 主題, 像素遊戲 UI 感. 編號用 mono 字型 (跟 code 共用), 強化
+    程式 / 終端機感.
+    """
+    if not bullets:
+        return y_start
+    fpath = font_path or get_font_path()
+    mono_path = get_mono_font_path()
+    font = _font(fpath, BULLET_FONT_SIZE)
+    tag_font = _font(mono_path, int(BULLET_FONT_SIZE * 0.85))
+    line_h = BULLET_FONT_SIZE + 18
+    indent = 220  # 留給 [ITEM_NN] tag
+
+    text_max_w = max_text_width if max_text_width is not None else (
+        VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
+    )
+
+    y = y_start
+    for i, bullet in enumerate(bullets):
+        bullet = (bullet or "").strip()
+        if not bullet:
+            continue
+        # [ITEM_NN] 標籤
+        tag = f"[ITEM_{i + 1:02d}]"
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN + 10, y + 4), tag, tag_font, palette["highlight"],
+        )
+        # bullet 文字
+        end_y = _draw_text_wrapped(
+            draw, (SIDE_MARGIN + indent, y), bullet, font, palette["primary"],
+            max_w=text_max_w, line_h=line_h,
+        )
+        y = end_y + 14
+        if y > y_max:
+            break
+    return y
+
+
+def _draw_bullets_notebook_lined(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """iter 71: 札記筆記風 — 行距大 + 每條前破折號 (—) + 細水平底線.
+
+    notebook 主題. 模擬橫格筆記本: 文字行下有極細水平線, 視覺像寫在格子上.
+    """
+    if not bullets:
+        return y_start
+    fpath = font_path or get_font_path()
+    font = _font(fpath, BULLET_FONT_SIZE)
+    line_h = BULLET_FONT_SIZE + 32  # 行距大, airy
+    indent = 80
+
+    text_max_w = max_text_width if max_text_width is not None else (
+        VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
+    )
+
+    y = y_start
+    for i, bullet in enumerate(bullets):
+        bullet = (bullet or "").strip()
+        if not bullet:
+            continue
+        # 破折號 marker
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN + 14, y), "—", font, palette["secondary"],
+        )
+        end_y = _draw_text_wrapped(
+            draw, (SIDE_MARGIN + indent, y), bullet, font, palette["primary"],
+            max_w=text_max_w, line_h=line_h,
+        )
+        # 文字下方細水平底線 (模擬筆記本格)
+        underline_y = end_y + 10
+        draw.line(
+            [(SIDE_MARGIN + 14, underline_y),
+             (VIDEO_WIDTH - SIDE_MARGIN - 20, underline_y)],
+            fill=palette["secondary"], width=1,
+        )
+        y = end_y + 26
+        if y > y_max:
+            break
+    return y
+
+
+def _draw_bullets_shinobi_vertical(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """iter 71: 忍者卷軸式 — 縱線分組 ┃ + 漢字編號 (一 / 二 / 三).
+
+    shinobi 主題. PIL 純橫排 (不真直書, 太複雜), 但用 ┃ 縱線 + 漢字編號
+    + bullet 文字, 視覺接近卷軸條目感.
+    """
+    if not bullets:
+        return y_start
+    fpath = font_path or get_font_path()
+    font = _font(fpath, BULLET_FONT_SIZE)
+    label_font = _font(fpath, int(BULLET_FONT_SIZE * 1.1))
+    line_h = BULLET_FONT_SIZE + 20
+    indent = 160
+
+    # 漢字一二三...十 (超過 10 fallback 阿拉伯)
+    cn_digits = ("零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十")
+    text_max_w = max_text_width if max_text_width is not None else (
+        VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
+    )
+
+    y = y_start
+    for i, bullet in enumerate(bullets):
+        bullet = (bullet or "").strip()
+        if not bullet:
+            continue
+        # ┃ 縱線 marker (highlight 朱紅色, 跟 banner 同色系)
+        line_top = y + 2
+        line_bot = y + BULLET_FONT_SIZE + 12
+        draw.rectangle(
+            [SIDE_MARGIN + 18, line_top, SIDE_MARGIN + 22, line_bot],
+            fill=palette["highlight"],
+        )
+        # 漢字編號
+        num_str = cn_digits[i + 1] if 1 <= (i + 1) <= 10 else str(i + 1)
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN + 50, y), num_str, label_font, palette["highlight"],
+        )
+        # bullet 文字
+        end_y = _draw_text_wrapped(
+            draw, (SIDE_MARGIN + indent, y), bullet, font, palette["primary"],
+            max_w=text_max_w, line_h=line_h,
+        )
+        y = end_y + 18
+        if y > y_max:
+            break
+    return y
+
+
+def _draw_bullets_risograph_offset(
+    draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
+    y_max: int, palette: Palette,
+    max_text_width: int | None = None,
+    font_path: str | None = None,
+) -> int:
+    """iter 71: risograph 兩色錯位疊印 — 文字畫兩次, secondary 色微錯位
+    在 primary 色下方, 模擬油墨疊印效果.
+
+    risograph 主題. PIL 沒 alpha blend, 用「畫兩次 + 錯位」假裝.
+    """
+    if not bullets:
+        return y_start
+    fpath = font_path or get_font_path()
+    font = _font(fpath, BULLET_FONT_SIZE)
+    marker_font = _font(fpath, BULLET_FONT_SIZE + 6)
+    line_h = BULLET_FONT_SIZE + 18
+    indent = 70
+
+    text_max_w = max_text_width if max_text_width is not None else (
+        VIDEO_WIDTH - SIDE_MARGIN * 2 - indent
+    )
+
+    y = y_start
+    for i, bullet in enumerate(bullets):
+        bullet = (bullet or "").strip()
+        if not bullet:
+            continue
+        # marker 也疊印 — secondary 色錯位 + highlight 色覆蓋
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN + 18 + 3, y - 8 + 2), "●", marker_font,
+            palette["secondary"],
+        )
+        _draw_text_mixed(
+            draw, (SIDE_MARGIN + 18, y - 8), "●", marker_font,
+            palette["highlight"],
+        )
+        # bullet 文字錯位疊印: 先畫 secondary 色錯位版
+        _draw_text_wrapped(
+            draw, (SIDE_MARGIN + indent + 2, y + 2), bullet, font,
+            palette["secondary"],
+            max_w=text_max_w, line_h=line_h,
+        )
+        # 再畫 primary 色蓋上 (兩層形成 risograph 疊印錯位感)
+        end_y = _draw_text_wrapped(
+            draw, (SIDE_MARGIN + indent, y), bullet, font, palette["primary"],
+            max_w=text_max_w, line_h=line_h,
+        )
+        y = end_y + 14
+        if y > y_max:
+            break
+    return y
+
+
 def _draw_bullets(
     draw: ImageDraw.ImageDraw, bullets: list[str], y_start: int,
     y_max: int, palette: Palette,
@@ -926,7 +1175,8 @@ def _draw_bullets(
     """畫 bullets, dispatch 到對應 layout 變體, 回傳結束 y.
 
     iter 68b: layout 由 caller 從 get_content_layout(theme_name) 取得.
-    未知 layout fallback 到 classic.
+    iter 71: 補 5 個變體 (offset / arcade_hud / notebook_lined /
+    shinobi_vertical / risograph_offset). 未知 layout fallback 到 classic.
 
     iter 53: max_text_width 由 caller 指定窄寬 (例: split-image layout 時
     bullets 佔左側 55% 寬).
@@ -938,6 +1188,11 @@ def _draw_bullets(
         "classic": _draw_bullets_classic,
         "numbered": _draw_bullets_numbered,
         "centered": _draw_bullets_centered,
+        "offset": _draw_bullets_offset,
+        "arcade_hud": _draw_bullets_arcade_hud,
+        "notebook_lined": _draw_bullets_notebook_lined,
+        "shinobi_vertical": _draw_bullets_shinobi_vertical,
+        "risograph_offset": _draw_bullets_risograph_offset,
     }.get(layout, _draw_bullets_classic)
     return fn(draw, bullets, y_start, y_max, palette,
               max_text_width=max_text_width, font_path=font_path)

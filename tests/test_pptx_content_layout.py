@@ -178,6 +178,65 @@ class TestCenteredLayout:
             )
 
 
+class TestIter71NewLayouts:
+    """iter 71: 補完的 5 個 layout 變體 — 確認 dispatch table 對 + render 不 raise."""
+
+    @pytest.mark.parametrize("theme,layout", [
+        ("dof-zine", "offset"),
+        ("dof-brutalist", "offset"),
+        ("dof-supergraphic", "offset"),
+        ("dof-arcade", "arcade_hud"),
+        ("dof-notebook", "notebook_lined"),
+        ("dof-shinobi", "shinobi_vertical"),
+        ("dof-risograph", "risograph_offset"),
+    ])
+    def test_layout_dispatch_correct(self, theme, layout):
+        from core.render.pptx_style import get_content_layout
+        assert get_content_layout(theme) == layout
+
+    @pytest.mark.parametrize("theme", [
+        "dof-zine", "dof-brutalist", "dof-supergraphic",
+        "dof-arcade", "dof-notebook", "dof-shinobi", "dof-risograph",
+    ])
+    def test_new_layout_renders(self, theme):
+        """5 個新 layout 對應的主題 render 1 張 slide 不 raise."""
+        with TemporaryDirectory() as td:
+            img = _render_full_slide(theme, Path(td))
+            assert img.size == (1920, 1080)
+
+    def test_arcade_hud_has_item_tag(self):
+        """arcade_hud layout 該畫 [ITEM_NN] 方括號 (mono 字型, highlight 色)."""
+        from core.render.pptx_style import get_palette
+        with TemporaryDirectory() as td:
+            img = _render_full_slide("dof-arcade", Path(td))
+            palette = get_palette("dof-arcade")
+            hl = palette["highlight"]
+            # bullet 左側 (SIDE_MARGIN+10 ~ +200, y=180-700) 該有 highlight 色像素
+            count = 0
+            for y in range(180, 700, 5):
+                for x in range(110, 280, 5):
+                    px = img.getpixel((x, y))
+                    if _color_distance(px, hl) < 60:
+                        count += 1
+            assert count > 30, f"arcade_hud 該有 highlight tag 像素, 找到 {count}"
+
+    def test_shinobi_vertical_has_marker_bar(self):
+        """shinobi_vertical 該有 ┃ 縱線 (highlight 色). 左邊 SIDE_MARGIN+18 ~ +22."""
+        from core.render.pptx_style import get_palette
+        with TemporaryDirectory() as td:
+            img = _render_full_slide("dof-shinobi", Path(td))
+            palette = get_palette("dof-shinobi")
+            hl = palette["highlight"]
+            # 縱線 x ∈ [118, 122], y 隨 bullet 行
+            count = 0
+            for y in range(180, 700, 5):
+                for x in range(116, 124):
+                    px = img.getpixel((x, y))
+                    if _color_distance(px, hl) < 50:
+                        count += 1
+            assert count > 30, f"shinobi_vertical 該有縱線 (┃) 像素, 找到 {count}"
+
+
 class TestAllThemesStillRender:
     """iter 68: 加 dispatch 後, 15 主題 + 3 layout 都該能 render 不 raise."""
 

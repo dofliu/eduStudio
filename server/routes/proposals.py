@@ -112,6 +112,9 @@ class ProposalApproveRequest(BaseModel):
     outro_thanks: str | None = None                   # iter 63: 結尾大字覆寫
     outro_url: str | None = None                      # iter 63: 結尾 URL 覆寫
     outro_narration: str | None = None                # iter 63: 結尾口白覆寫
+    append_outro_video: bool | None = None             # iter 66: outro 個人影片串接
+    show_qr_on_outro: bool | None = None               # iter 67: outro QR code
+    outro_youtube_url: str | None = None               # iter 67: YouTube QR URL
 
 
 class ScanFolderRequest(BaseModel):
@@ -271,6 +274,13 @@ async def approve_proposal(
             opts_kwargs["outro_url"] = body.outro_url
         if body.outro_narration is not None:
             opts_kwargs["outro_narration"] = body.outro_narration
+        # iter 66/67: outro video / QR
+        if body.append_outro_video is not None:
+            opts_kwargs["append_outro_video"] = body.append_outro_video
+        if body.show_qr_on_outro is not None:
+            opts_kwargs["show_qr_on_outro"] = body.show_qr_on_outro
+        if body.outro_youtube_url is not None:
+            opts_kwargs["outro_youtube_url"] = body.outro_youtube_url
 
     req = CreateJobRequest(
         source_type=source_type,

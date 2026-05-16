@@ -70,6 +70,11 @@ export function CreateJobForm({ onCreated }: Props) {
   const [outroThanks, setOutroThanks] = useState('');
   const [outroUrl, setOutroUrl] = useState('');
   const [outroNarration, setOutroNarration] = useState('');
+  // iter 66: outro 個人影片串接 (跟 prepend_intro 對稱)
+  const [appendOutroVideo, setAppendOutroVideo] = useState(false);
+  // iter 67: outro 結尾頁 QR codes
+  const [showQrOnOutro, setShowQrOnOutro] = useState(false);
+  const [outroYoutubeUrl, setOutroYoutubeUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -122,6 +127,12 @@ export function CreateJobForm({ onCreated }: Props) {
       ? { outro_url: outroUrl.trim() } : {}),
     ...(showLengthMode && appendOutro && outroNarration.trim()
       ? { outro_narration: outroNarration.trim() } : {}),
+    // iter 66: outro 個人影片串接
+    ...(showLengthMode ? { append_outro_video: appendOutroVideo } : {}),
+    // iter 67: outro QR codes
+    ...(showLengthMode && appendOutro ? { show_qr_on_outro: showQrOnOutro } : {}),
+    ...(showLengthMode && appendOutro && showQrOnOutro && outroYoutubeUrl.trim()
+      ? { outro_youtube_url: outroYoutubeUrl.trim() } : {}),
   });
 
   const submit = async () => {
@@ -465,7 +476,36 @@ export function CreateJobForm({ onCreated }: Props) {
               className="border rounded px-2 py-1 w-full text-xs"
               rows={3}
             />
+            {/* iter 67: 結尾頁 QR codes */}
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                checked={showQrOnOutro}
+                onChange={(e) => setShowQrOnOutro(e.target.checked)}
+              />
+              📲 結尾頁畫 QR code (左下=網頁, 右下=頻道)
+            </label>
+            {showQrOnOutro && (
+              <input
+                type="text"
+                value={outroYoutubeUrl}
+                onChange={(e) => setOutroYoutubeUrl(e.target.value)}
+                placeholder="YouTube 頻道 URL (留空=youtube.com/@dofliu)"
+                className="border rounded px-2 py-1 w-full text-xs"
+              />
+            )}
           </div>
+        )}
+        {/* iter 66: outro 個人影片串接 (跟 intro 對稱, 串到 final 最後) */}
+        {showLengthMode && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={appendOutroVideo}
+              onChange={(e) => setAppendOutroVideo(e.target.checked)}
+            />
+            🎞️ 串接 outro 個人影片 (CLAUDE_OUTRO_VIDEO_PATH, 跟 intro 對稱)
+          </label>
         )}
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input

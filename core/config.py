@@ -103,6 +103,16 @@ def get_intro_video_path() -> str:
     return os.environ.get("CLAUDE_INTRO_VIDEO_PATH", DEFAULT_INTRO_VIDEO_PATH)
 
 
+# ---------- Outro 個人影片 (iter 66, 跟 intro 對稱) ----------
+DEFAULT_OUTRO_VIDEO_PATH = str(PROJECT_ROOT / "docs" / "outro_journal.mp4")
+
+
+def get_outro_video_path() -> str:
+    """Outro mp4 路徑 (跟 intro 對稱, 串接到 final 最後).
+    環境變數 CLAUDE_OUTRO_VIDEO_PATH 可覆寫."""
+    return os.environ.get("CLAUDE_OUTRO_VIDEO_PATH", DEFAULT_OUTRO_VIDEO_PATH)
+
+
 # Intro normalize cache 放 PROJECT_ROOT/assets/, 不是 PROJECT_ROOT 根
 # (跟既有 photos/ voices/ 等 asset 目錄並列)
 ASSETS_DIR = PROJECT_ROOT / "assets"
@@ -142,3 +152,12 @@ def get_outro_url() -> str:
 
     不檢查 URL 格式 — 給用戶自由 (可放 GitHub / email / lab 網址 / 任何字串)."""
     return os.environ.get("CLAUDE_OUTRO_URL", DEFAULT_OUTRO_URL)
+
+
+# iter 67: 結尾頁 QR code — 第二個 URL 給 YouTube 頻道用
+DEFAULT_OUTRO_YOUTUBE_URL = "https://www.youtube.com/@dofliu"
+
+
+def get_outro_youtube_url() -> str:
+    """結尾頁 YouTube 頻道 URL (給 QR code 用). env CLAUDE_OUTRO_YOUTUBE_URL 可覆寫."""
+    return os.environ.get("CLAUDE_OUTRO_YOUTUBE_URL", DEFAULT_OUTRO_YOUTUBE_URL)

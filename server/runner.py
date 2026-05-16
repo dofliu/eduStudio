@@ -187,6 +187,8 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
             thanks_override=rec.options.outro_thanks,
             url_override=rec.options.outro_url,
             narration_override=rec.options.outro_narration,
+            show_qr=bool(rec.options.show_qr_on_outro),
+            youtube_url_override=rec.options.outro_youtube_url,
         )
 
     (job_dir / "outline.json").write_text(
@@ -208,22 +210,27 @@ def _append_outro_to_deck(
     thanks_override: str | None = None,
     url_override: str | None = None,
     narration_override: str | None = None,
+    show_qr: bool = False,
+    youtube_url_override: str | None = None,
 ) -> None:
-    """iter 63: 在 deck.sections 最後面 append 結尾 section.
+    """iter 63 + 67: 在 deck.sections 最後面 append 結尾 section.
 
-    結尾內容: 大字「謝謝聆聽」+ 講者 + 單位 + URL + 結尾口白.
+    結尾內容: 大字「謝謝聆聽」+ 講者 + 單位 + URL + 結尾口白 (+ QR codes).
 
     所有 override 都是 None / 空 → fallback:
       - speaker: get_cover_speaker() (跟封面共用 env)
       - org:     get_cover_org() (跟封面共用 env)
       - thanks:  get_outro_thanks() (預設「謝謝聆聽」)
       - url:     get_outro_url() (預設 doflab.cc)
+      - youtube_url: get_outro_youtube_url() (預設 youtube.com/@dofliu)
+
+    show_qr=True 才在底部畫兩個 QR code (網頁 + YouTube).
 
     in-place 修改 deck. 失敗 (sections 不是 list) noop, 不擋 ingest.
     """
     from core.config import (
         get_cover_speaker, get_cover_org,
-        get_outro_thanks, get_outro_url,
+        get_outro_thanks, get_outro_url, get_outro_youtube_url,
     )
     from core.outro_gen import build_outro_section
 
@@ -235,12 +242,15 @@ def _append_outro_to_deck(
     thanks = (thanks_override or "").strip() or get_outro_thanks()
     url = (url_override or "").strip() or get_outro_url()
     narration_val = (narration_override or "").strip() or None
+    youtube_url = (youtube_url_override or "").strip() or get_outro_youtube_url()
     outro_sec = build_outro_section(
         speaker=speaker,
         org=org,
         thanks_text=thanks,
         url=url,
         narration_override=narration_val,
+        show_qr=show_qr,
+        youtube_url=youtube_url,
     )
     sections.append(outro_sec)
 
@@ -443,6 +453,8 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
             thanks_override=rec.options.outro_thanks,
             url_override=rec.options.outro_url,
             narration_override=rec.options.outro_narration,
+            show_qr=bool(rec.options.show_qr_on_outro),
+            youtube_url_override=rec.options.outro_youtube_url,
         )
 
     (job_dir / "outline.json").write_text(
@@ -526,6 +538,14 @@ async def _run_render(
         normalized_intro, intro_duration = await asyncio.to_thread(
             _prepare_intro_for_problems, problems, artifacts_dir,
         )
+    # iter 66: outro 個人影片 (跟 intro 對稱, 串到 final 最後)
+    append_outro_video = bool(rec.options.append_outro_video)
+    normalized_outro: Path | None = None
+    outro_duration: float = 0.0
+    if append_outro_video:
+        normalized_outro, outro_duration = await asyncio.to_thread(
+            _prepare_outro_for_problems, problems, artifacts_dir,
+        )
 
     # iter 45: 多章合 final.mp4 (用戶選 quick 8-15 分時想要單支影片, 不是 5 支
     # 各 6-7 分). 各章獨立 mp4 仍保留, 給 section re-render 用. 只在 source_type
@@ -594,12 +614,13 @@ async def _run_render(
                     seg_dur = 0.0
                 section_srts.append((srt_text, seg_dur))
 
-    # iter 45: 多章合 final.mp4 + final.srt
+    # iter 45 + 66: 多章合 final.mp4 + final.srt, intro 前 outro 後
     if should_merge and section_mp4s:
         await asyncio.to_thread(
             _merge_sections_to_final,
             section_mp4s, section_srts, artifacts_dir,
             normalized_intro, intro_duration,
+            normalized_outro, outro_duration,
         )
 
 
@@ -609,32 +630,37 @@ def _merge_sections_to_final(
     artifacts_dir: Path,
     intro_path: Path | None,
     intro_duration: float,
+    outro_path: Path | None = None,
+    outro_duration: float = 0.0,
 ) -> None:
-    """iter 45: 把各章 mp4 + intro 合成單一 final.mp4 / final.srt.
+    """iter 45: 把各章 mp4 + intro / outro 合成單一 final.mp4 / final.srt.
 
     用戶選 quick mode 期待 1 支 8-15 分鐘影片, 但 outliner 產 4-6 章 → 5 支
     各 6-7 分鐘. 這函式在所有章節 render 完後 concat 起來, 變成單一交付.
     各章 mp4 保留, 仍可用於 section re-render.
 
-    intro 也統一接到 final.mp4 最前, 避免每章重複 intro (iter 41 舊行為).
+    intro 接到 final.mp4 最前 / outro (iter 66) 接到最後. 都統一避免每章重複.
 
     失敗時 logger.warning 不 raise — 各章 mp4 仍是有效成品, 合成失敗不該整 job 死.
     """
     from core import video_concat
 
     try:
-        # 組要 concat 的 parts: [intro?, ch1, ch2, ...]
+        # 組要 concat 的 parts: [intro?, ch1, ch2, ..., outro?]
         parts = []
         if intro_path is not None:
             parts.append(intro_path)
         parts.extend(section_mp4s)
+        if outro_path is not None:
+            parts.append(outro_path)
 
         final_mp4 = artifacts_dir / "final.mp4"
         video_concat.concat_videos(parts, final_mp4)
         logger.info(
-            "final.mp4 合成完成: %d 章 + %s = %s",
+            "final.mp4 合成完成: %d 章 + %s + %s = %s",
             len(section_mp4s),
             "intro" if intro_path else "no intro",
+            "outro" if outro_path else "no outro",
             final_mp4.name,
         )
     except Exception as e:
@@ -642,12 +668,14 @@ def _merge_sections_to_final(
         return
 
     # SRT 合併: 各章 SRT 按累積時間偏移 + cue 重編號
-    # intro 不產 SRT, 但要佔 intro_duration 秒讓第一章 SRT 從 intro 後開始
+    # intro / outro 不產 SRT, 但要佔該長度讓 cue 對齊
     try:
         srt_parts: list[tuple[str, float]] = []
         if intro_path is not None and intro_duration > 0:
             srt_parts.append(("", intro_duration))   # 空 srt + intro 長度當 offset
         srt_parts.extend(section_srts)
+        if outro_path is not None and outro_duration > 0:
+            srt_parts.append(("", outro_duration))   # outro 也是空 srt
 
         merged_srt = video_concat.merge_srts(srt_parts)
         if merged_srt:
@@ -740,6 +768,44 @@ def _rewrite_deck_intros_inplace(
     logger.info(
         "intro 多樣化套用完成 (source_type=%s)", source_type_value,
     )
+
+
+def _prepare_outro_for_problems(
+    problems: list[dict], artifacts_dir: Path,
+) -> tuple[Path | None, float]:
+    """iter 66: 算 normalized outro + 抓 outro 秒數. 跟 _prepare_intro 對稱.
+
+    回傳 (normalized_outro_path, outro_duration). 失敗 (None, 0).
+    """
+    from core import video_concat
+    from core.config import ASSETS_DIR, get_outro_video_path
+
+    try:
+        outro_path = Path(get_outro_video_path())
+        if not outro_path.exists():
+            logger.warning(
+                "append_outro_video=True 但 outro 檔不存在 (%s), 跳過 outro 串接",
+                outro_path,
+            )
+            return None, 0.0
+
+        target = video_concat.AudioSpec(
+            sample_rate=96000, channels=1, codec="aac",
+        )
+        # 重用 normalize_intro_audio (跟 outro 同一條 normalize 邏輯, 命名歷史
+        # 因素叫 intro 但其實是通用 video normalize)
+        normalized = video_concat.normalize_intro_audio(
+            outro_path, target, ASSETS_DIR,
+        )
+        duration = video_concat.get_video_duration(normalized)
+        logger.info(
+            "outro 已 normalize: %s (%.2fs), 將串到 %d 支主影片後",
+            normalized.name, duration, len(problems),
+        )
+        return normalized, duration
+    except Exception as e:
+        logger.exception("outro 準備失敗, 跳過 outro 串接: %s", e)
+        return None, 0.0
 
 
 def _prepare_intro_for_problems(

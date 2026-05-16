@@ -66,6 +66,10 @@ export default function ProposalsList() {
   const [outroThanksByProposal, setOutroThanksByProposal] = useState<Record<string, string>>({});
   const [outroUrlByProposal, setOutroUrlByProposal] = useState<Record<string, string>>({});
   const [outroNarrationByProposal, setOutroNarrationByProposal] = useState<Record<string, string>>({});
+  // iter 66 + 67: outro 個人影片串接 + QR codes
+  const [appendOutroVideoByProposal, setAppendOutroVideoByProposal] = useState<Record<string, boolean>>({});
+  const [showQrOnOutroByProposal, setShowQrOnOutroByProposal] = useState<Record<string, boolean>>({});
+  const [outroYoutubeUrlByProposal, setOutroYoutubeUrlByProposal] = useState<Record<string, string>>({});
   // scan modal state
   const [scanModal, setScanModal] = useState(false);
   const [scanFolder, setScanFolder] = useState('');
@@ -111,6 +115,10 @@ export default function ProposalsList() {
       const outroThanks = appendOutro ? (outroThanksByProposal[p.id] ?? '').trim() : '';
       const outroUrl = appendOutro ? (outroUrlByProposal[p.id] ?? '').trim() : '';
       const outroNarration = appendOutro ? (outroNarrationByProposal[p.id] ?? '').trim() : '';
+      // iter 66/67: outro 個人影片 + QR
+      const appendOutroVideo = themeApplicable ? (appendOutroVideoByProposal[p.id] ?? false) : false;
+      const showQrOnOutro = appendOutro ? (showQrOnOutroByProposal[p.id] ?? false) : false;
+      const outroYoutubeUrl = showQrOnOutro ? (outroYoutubeUrlByProposal[p.id] ?? '').trim() : '';
       const body: {
         theme?: string;
         prepend_intro?: boolean;
@@ -126,6 +134,9 @@ export default function ProposalsList() {
         outro_thanks?: string;
         outro_url?: string;
         outro_narration?: string;
+        append_outro_video?: boolean;
+        show_qr_on_outro?: boolean;
+        outro_youtube_url?: string;
       } = {};
       if (theme) body.theme = theme;
       if (prependIntro) body.prepend_intro = true;
@@ -141,6 +152,9 @@ export default function ProposalsList() {
       if (outroThanks) body.outro_thanks = outroThanks;
       if (outroUrl) body.outro_url = outroUrl;
       if (outroNarration) body.outro_narration = outroNarration;
+      if (appendOutroVideo) body.append_outro_video = true;
+      if (showQrOnOutro) body.show_qr_on_outro = true;
+      if (outroYoutubeUrl) body.outro_youtube_url = outroYoutubeUrl;
       const r = await api.approveProposal(p.id, Object.keys(body).length > 0 ? body : undefined);
       show(`已核准, job ${r.job.job_id} 已排程`, 'info');
       navigate(`/jobs/${r.job.job_id}`);
@@ -287,6 +301,9 @@ export default function ProposalsList() {
                   outroThanksValue={outroThanksByProposal[p.id] ?? ''}
                   outroUrlValue={outroUrlByProposal[p.id] ?? ''}
                   outroNarrationValue={outroNarrationByProposal[p.id] ?? ''}
+                  outroVideoValue={appendOutroVideoByProposal[p.id] ?? false}
+                  qrValue={showQrOnOutroByProposal[p.id] ?? false}
+                  outroYoutubeValue={outroYoutubeUrlByProposal[p.id] ?? ''}
                   onToggle={() => setOpenCfg(openCfg === p.id ? null : p.id)}
                   onApprove={() => handleApprove(p)}
                   onIgnore={() => handleIgnore(p)}
@@ -304,6 +321,9 @@ export default function ProposalsList() {
                   onOutroThanksChange={(v) => setOutroThanksByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onOutroUrlChange={(v) => setOutroUrlByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onOutroNarrationChange={(v) => setOutroNarrationByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onOutroVideoChange={(v) => setAppendOutroVideoByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onQrChange={(v) => setShowQrOnOutroByProposal(prev => ({ ...prev, [p.id]: v }))}
+                  onOutroYoutubeChange={(v) => setOutroYoutubeUrlByProposal(prev => ({ ...prev, [p.id]: v }))}
                 />
               ))}
             </div>
@@ -356,6 +376,9 @@ interface CardProps {
   outroThanksValue: string;
   outroUrlValue: string;
   outroNarrationValue: string;
+  outroVideoValue: boolean;    // iter 66: outro 個人影片串接
+  qrValue: boolean;            // iter 67: 結尾頁 QR codes
+  outroYoutubeValue: string;
   onToggle: () => void;
   onApprove: () => void;
   onIgnore: () => void;
@@ -373,16 +396,21 @@ interface CardProps {
   onOutroThanksChange: (v: string) => void;
   onOutroUrlChange: (v: string) => void;
   onOutroNarrationChange: (v: string) => void;
+  onOutroVideoChange: (v: boolean) => void;
+  onQrChange: (v: boolean) => void;
+  onOutroYoutubeChange: (v: string) => void;
 }
 
 function ProposalCard({
   p, open, busy, themeValue, lengthValue, introValue, aiGenValue, aiMermaidValue, coverValue,
   coverSpeakerValue, coverOrgValue, coverDateValue, coverNarrationValue,
   outroValue, outroThanksValue, outroUrlValue, outroNarrationValue,
+  outroVideoValue, qrValue, outroYoutubeValue,
   onToggle, onApprove, onIgnore,
   onThemeChange, onLengthChange, onIntroChange, onAiGenChange, onAiMermaidChange, onCoverChange,
   onCoverSpeakerChange, onCoverOrgChange, onCoverDateChange, onCoverNarrationChange,
   onOutroChange, onOutroThanksChange, onOutroUrlChange, onOutroNarrationChange,
+  onOutroVideoChange, onQrChange, onOutroYoutubeChange,
 }: CardProps) {
   const themeApplicable = THEME_APPLICABLE.includes(p.source_type);
 
@@ -633,7 +661,44 @@ function ProposalCard({
                     rows={3}
                     className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card resize-y"
                   />
+                  {/* iter 67: 結尾頁 QR codes */}
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[11.5px] pt-1">
+                    <input
+                      type="checkbox"
+                      checked={qrValue}
+                      onChange={(e) => onQrChange(e.target.checked)}
+                      disabled={busy}
+                      className="w-3 h-3 accent-forest-600"
+                    />
+                    📲 結尾頁畫 QR code (左下=網頁, 右下=頻道)
+                  </label>
+                  {qrValue && (
+                    <input
+                      type="text"
+                      value={outroYoutubeValue}
+                      onChange={(e) => onOutroYoutubeChange(e.target.value)}
+                      disabled={busy}
+                      placeholder="YouTube 頻道 URL (留空=youtube.com/@dofliu)"
+                      className="w-full text-[12px] border border-paper-edge rounded-sm px-2 py-1 bg-paper-card"
+                    />
+                  )}
                 </div>
+              )}
+              {/* iter 66: outro 個人影片串接 (跟 intro 對稱, final 最後) */}
+              {themeApplicable && (
+                <label className="flex items-center gap-2 p-2.5 rounded-sm border border-paper-edge bg-paper-card cursor-pointer hover:bg-paper-warm mt-2">
+                  <input
+                    type="checkbox"
+                    checked={outroVideoValue}
+                    onChange={(e) => onOutroVideoChange(e.target.checked)}
+                    disabled={busy}
+                    className="w-3.5 h-3.5 accent-forest-600"
+                  />
+                  <div className="flex-1">
+                    <div className="text-[12.5px] text-ink">🎞️ 串接 outro 個人影片</div>
+                    <div className="text-[11px] text-ink-muted">CLAUDE_OUTRO_VIDEO_PATH (跟 intro 對稱, 串到 final 最後)</div>
+                  </div>
+                </label>
               )}
             </div>
 
@@ -676,6 +741,12 @@ function ProposalCard({
                 )}
                 {themeApplicable && outroValue && outroNarrationValue.trim() && (
                   <Row k="結尾口白" v={`自訂 (${outroNarrationValue.trim().length} 字)`} />
+                )}
+                {themeApplicable && outroValue && qrValue && (
+                  <Row k="結尾 QR" v={outroYoutubeValue.trim() ? `網頁+自訂頻道` : `網頁+預設頻道`} />
+                )}
+                {themeApplicable && (
+                  <Row k="Outro 影片" v={outroVideoValue ? '串接' : '不串'} />
                 )}
                 <div className="flex justify-between border-t border-paper-line pt-1.5 mt-1.5">
                   <span className="text-ink-muted">預估</span>

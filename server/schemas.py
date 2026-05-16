@@ -185,6 +185,26 @@ class JobOptions(BaseModel):
         description="iter 63: per-job 結尾口白覆寫. None / 空 → 用模板 "
                     "「今天的內容到此告一段落, 感謝各位的時間…」.",
     )
+    # iter 66: outro 個人影片 (跟 iter 41 prepend_intro 對稱, 串到 final 最後)
+    append_outro_video: bool = Field(
+        default=False,
+        description="iter 66: 把預設 / env 設定的 outro mp4 (CLAUDE_OUTRO_VIDEO_PATH) "
+                    "串接到 final.mp4 最後. 跟 prepend_intro 對稱. 只影響多章 "
+                    "merge 路徑 (repo / document / url / slides_pdf 整份 render).",
+    )
+    # iter 67: outro 結尾頁 QR code
+    show_qr_on_outro: bool = Field(
+        default=False,
+        description="iter 67: outro 結尾頁左下右下各畫一個 QR code. 左下指 "
+                    "outro_url (網頁), 右下指 outro_youtube_url (頻道). 只 "
+                    "append_outro=True 才有效.",
+    )
+    outro_youtube_url: str | None = Field(
+        default=None,
+        description="iter 67: 結尾頁 YouTube 頻道 URL (給 QR code 用). "
+                    "None / 空 → fallback 到 CLAUDE_OUTRO_YOUTUBE_URL env / "
+                    "預設 https://www.youtube.com/@dofliu.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

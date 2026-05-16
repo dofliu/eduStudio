@@ -36,6 +36,8 @@ def build_outro_section(
     thanks_text: str = "",
     url: str = "",
     narration_override: str | None = None,
+    show_qr: bool = False,
+    youtube_url: str = "",
 ) -> dict:
     """產出一張結尾 section (含單一 outro slide).
 
@@ -45,6 +47,9 @@ def build_outro_section(
         thanks_text: 大字主標題 (空 → 「謝謝聆聽」)
         url: 聯絡 URL (空 → 「doflab.cc」, 不檢查格式)
         narration_override: 自訂結尾口白. None / 空字串 → 套模板.
+        show_qr: iter 67 — 是否在底部畫兩個 QR code (網頁 + YouTube)
+        youtube_url: iter 67 — YouTube 頻道 URL (給 QR code 用,
+            空 → 跳過第二個 QR)
 
     回 section dict, 結構跟 scriptor 出的 section 一致, 但 slide.bg_type
     設成 "outro" 讓 renderer 切專屬 layout. id 用 "_outro" 底線 prefix
@@ -52,6 +57,7 @@ def build_outro_section(
     """
     thanks = (thanks_text or "").strip() or "謝謝聆聽"
     url_val = (url or "").strip() or "doflab.cc"
+    youtube_val = (youtube_url or "").strip()
 
     # iter 63: narration_override 非空 → 直接用; 否則 fallback 到模板
     override = (narration_override or "").strip()
@@ -82,6 +88,9 @@ def build_outro_section(
             "outro_speaker": speaker or "",
             "outro_org": org or "",
             "outro_url": url_val,
+            # iter 67 QR code 欄位
+            "outro_show_qr": bool(show_qr),
+            "outro_youtube_url": youtube_val,
         }],
     }
 

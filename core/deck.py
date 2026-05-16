@@ -170,6 +170,9 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
                 step["outro_speaker"] = slide.get("outro_speaker", "")
                 step["outro_org"] = slide.get("outro_org", "")
                 step["outro_url"] = slide.get("outro_url", "")
+                # iter 67 QR code 欄位
+                step["outro_show_qr"] = slide.get("outro_show_qr", False)
+                step["outro_youtube_url"] = slide.get("outro_youtube_url", "")
             steps.append(step)
         if not steps:
             continue

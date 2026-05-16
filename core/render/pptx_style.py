@@ -957,12 +957,90 @@ def _draw_cover_slide(
         _draw_signature_decor(draw, signature_decor, palette, step_idx=1)
 
 
+def _generate_qr_png(url: str, size_px: int = 220) -> Image.Image | None:
+    """iter 67: 生 QR code PIL.Image. URL 空 / qrcode 未裝 → None.
+
+    size_px: 最終長寬 (正方形). 內部 box_size 依此算.
+    """
+    url = (url or "").strip()
+    if not url:
+        return None
+    try:
+        import qrcode  # 可選依賴, 沒裝就跳過
+    except ImportError:
+        return None
+    try:
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        # 強制 RGB + resize 成目標尺寸
+        img = img.convert("RGB").resize((size_px, size_px), Image.NEAREST)
+        return img
+    except Exception:
+        return None
+
+
+def _draw_outro_qr_codes(
+    img: Image.Image, draw: ImageDraw.ImageDraw,
+    web_url: str, youtube_url: str, palette: Palette,
+    body_font_path: str | None = None,
+) -> None:
+    """iter 67: outro 底部畫兩個 QR code — 左下「網頁」, 右下「頻道」.
+
+    位置: 字幕帶上方 ~40px, 兩側距 SIDE_MARGIN 加 20px. QR 下方標籤
+    用 secondary 色小字.
+
+    每個 QR 失敗 (空 URL / qrcode 沒裝) → 跳過, 不擋整個 outro 渲染.
+    """
+    qr_size = 200
+    label_size = 24
+    qr_y = VIDEO_HEIGHT - SUBTITLE_STRIP_HEIGHT - qr_size - 50  # 上面 50 留標籤
+    side_inset = SIDE_MARGIN + 20
+    label_font = _font(body_font_path or get_font_path(), label_size)
+
+    # 左下: 網頁 QR
+    if web_url:
+        qr_left = _generate_qr_png(web_url, size_px=qr_size)
+        if qr_left is not None:
+            img.paste(qr_left, (side_inset, qr_y))
+            label = "網頁"
+            label_w = int(label_font.getlength(label))
+            label_x = side_inset + (qr_size - label_w) // 2
+            label_y = qr_y + qr_size + 6
+            _draw_text_mixed(
+                draw, (label_x, label_y), label, label_font,
+                palette["secondary"],
+            )
+
+    # 右下: YouTube QR
+    if youtube_url:
+        qr_right = _generate_qr_png(youtube_url, size_px=qr_size)
+        if qr_right is not None:
+            right_x = VIDEO_WIDTH - side_inset - qr_size
+            img.paste(qr_right, (right_x, qr_y))
+            label = "YouTube"
+            label_w = int(label_font.getlength(label))
+            label_x = right_x + (qr_size - label_w) // 2
+            label_y = qr_y + qr_size + 6
+            _draw_text_mixed(
+                draw, (label_x, label_y), label, label_font,
+                palette["secondary"],
+            )
+
+
 def _draw_outro_slide(
     draw: ImageDraw.ImageDraw, step: dict, palette: Palette,
     body_font_path: str | None = None,
     *,
     signature_decor: str | None = None,
     banner_style: str = "rectangle",
+    img: Image.Image | None = None,
 ) -> None:
     """iter 63 + 64: 結尾頁專屬 layout, 跟封面對稱.
 
@@ -1031,6 +1109,15 @@ def _draw_outro_slide(
     # iter 64: signature decor (跟 cover 對稱)
     if signature_decor:
         _draw_signature_decor(draw, signature_decor, palette, step_idx=1)
+
+    # iter 67: 底部 QR code (網頁 + YouTube). 只在 step.outro_show_qr=True
+    # 且 img (PIL Image) 傳進來時才畫 — img.paste 需要 Image 不只 draw.
+    if step.get("outro_show_qr") and img is not None:
+        web_url = (step.get("outro_url") or "").strip()
+        yt_url = (step.get("outro_youtube_url") or "").strip()
+        _draw_outro_qr_codes(
+            img, draw, web_url, yt_url, palette, body_font_path,
+        )
 
 
 def _draw_signature_decor(
@@ -1324,11 +1411,12 @@ class PptxStyleRenderer:
             img.save(out_p, "PNG")
             return
 
-        # iter 63 + 64: 結尾頁專屬 layout — 跟封面對稱
+        # iter 63 + 64 + 67: 結尾頁專屬 layout — 跟封面對稱 + 可選 QR codes
         if step.get("bg_type") == "outro":
             _draw_outro_slide(
                 draw, step, palette, body_font_path,
                 signature_decor=signature_decor, banner_style=banner_style,
+                img=img,
             )
             _draw_subtitle_strip(draw)
             try:

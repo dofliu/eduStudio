@@ -20,11 +20,26 @@ from __future__ import annotations
 from typing import Literal
 
 
-LengthMode = Literal["lecture", "quick"]
+LengthMode = Literal["lecture", "quick", "ultra_quick"]
 
 
 # 各模式參數 — 把硬寫的數字抽出來, prompt template 用 {} 拉
 LENGTH_PRESETS: dict[str, dict[str, str | int]] = {
+    "ultra_quick": {
+        # iter 77 (B3): 極短 3-5 min, TikTok / Reels / Shorts 預備.
+        # 2-3 章 × 3 slides × 60-80 字 = 360-720 字 = ~3 分鐘 (200 字/分鐘).
+        "target_minutes": "3~5",
+        "sections_range": "2~3",
+        "slides_per_section_range": "3~3",
+        "narration_chars_range": "60~80",
+        "narration_seconds_range": "15~25",
+        "total_narration_budget_chars": 900,
+        "length_directive": (
+            "★★ 硬上限: 整份影片 ≤ 5 分鐘 (短影片 / Shorts 用). 全部 narration "
+            "加總 ≤ 900 字. 只挑 1-2 個核心概念, 不展開細節. 寧可只講一件事 "
+            "也不要拼湊章節數. 適合 hook / 預告 / 摘要式呈現."
+        ),
+    },
     "quick": {
         # YT 快速講解, ≤15 分鐘.
         # iter 46: 收緊範圍 — 實測用戶選 quick 拿到 5 章 × 7-9 slides × 200 字

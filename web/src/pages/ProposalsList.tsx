@@ -49,7 +49,7 @@ export default function ProposalsList() {
   // 各卡片獨立狀態 (沿用原 code 的命名)
   const [themeByProposal, setThemeByProposal] = useState<Record<string, ThemeName>>({});
   const [prependIntroByProposal, setPrependIntroByProposal] = useState<Record<string, boolean>>({});
-  const [lengthModeByProposal, setLengthModeByProposal] = useState<Record<string, 'quick' | 'lecture'>>({});
+  const [lengthModeByProposal, setLengthModeByProposal] = useState<Record<string, 'ultra_quick' | 'quick' | 'lecture'>>({});
   // iter 56: AI 生圖 opt-in per-card (Gemini Flash Image, 會計費)
   const [aiGenByProposal, setAiGenByProposal] = useState<Record<string, boolean>>({});
   // iter 57b: AI 生 mermaid opt-in (text gen, 較便宜)
@@ -376,7 +376,7 @@ interface CardProps {
   open: boolean;
   busy: boolean;
   themeValue: ThemeName;
-  lengthValue: 'quick' | 'lecture';
+  lengthValue: 'ultra_quick' | 'quick' | 'lecture';
   introValue: boolean;
   aiGenValue: boolean;       // iter 56: AI 生圖 opt-in
   aiMermaidValue: boolean;   // iter 57b: AI 生 mermaid opt-in
@@ -396,7 +396,7 @@ interface CardProps {
   onApprove: () => void;
   onIgnore: () => void;
   onThemeChange: (v: ThemeName) => void;
-  onLengthChange: (v: 'quick' | 'lecture') => void;
+  onLengthChange: (v: 'ultra_quick' | 'quick' | 'lecture') => void;
   onIntroChange: (v: boolean) => void;
   onAiGenChange: (v: boolean) => void;
   onAiMermaidChange: (v: boolean) => void;
@@ -515,6 +515,7 @@ function ProposalCard({
               {themeApplicable ? (
                 <div className="space-y-1.5">
                   {[
+                    ['ultra_quick', '⚡⚡ 極短', '3~5 分鐘 · Shorts/Reels'],
                     ['quick',   '⚡ 快速', '8~15 分鐘 · 摘要重點'],
                     ['lecture', '📚 授課', '60~180 分鐘 · 完整講解'],
                   ].map(([v, l, d]) => {
@@ -522,7 +523,7 @@ function ProposalCard({
                     return (
                       <button
                         key={v}
-                        onClick={() => onLengthChange(v as 'quick' | 'lecture')}
+                        onClick={() => onLengthChange(v as 'ultra_quick' | 'quick' | 'lecture')}
                         disabled={busy}
                         className={
                           'w-full text-left p-2.5 rounded-sm border transition-colors ' +
@@ -731,7 +732,7 @@ function ProposalCard({
               <div className="rounded-sm border border-paper-edge bg-paper-card p-3 text-[12px] space-y-1.5">
                 <Row k="來源" v={SOURCE_META[p.source_type].label} />
                 <Row k="主題" v={themeApplicable ? themeValue : '— (固定底圖)'} />
-                <Row k="長度" v={themeApplicable ? (lengthValue === 'quick' ? '快速' : '授課') : '—'} />
+                <Row k="長度" v={themeApplicable ? ({ultra_quick: '極短', quick: '快速', lecture: '授課'}[lengthValue] ?? lengthValue) : '—'} />
                 <Row k="Intro" v={introValue ? '串接' : '不串'} />
                 {themeApplicable && (
                   <Row k="AI 生圖" v={aiGenValue ? '啟用' : '關閉'} />

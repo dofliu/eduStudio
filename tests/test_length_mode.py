@@ -60,6 +60,13 @@ class TestLengthPresetsContent:
             f"lecture 缺欄位: {self.REQUIRED_KEYS - keys}"
         )
 
+    def test_ultra_quick_has_all_required_keys(self):
+        """iter 77 (B3): ultra_quick mode 該有完整欄位."""
+        keys = set(LENGTH_PRESETS["ultra_quick"].keys())
+        assert self.REQUIRED_KEYS.issubset(keys), (
+            f"ultra_quick 缺欄位: {self.REQUIRED_KEYS - keys}"
+        )
+
     def test_lecture_is_longer_than_quick(self):
         """sanity check: lecture 的章節數應比 quick 多, 不然根本沒區別."""
         # 兩個都用「N~M」字串表達, 拆出來看下界
@@ -70,6 +77,36 @@ class TestLengthPresetsContent:
         l = LENGTH_PRESETS["lecture"]
         assert low(l["sections_range"]) >= low(q["sections_range"])
         assert low(l["narration_chars_range"]) >= low(q["narration_chars_range"])
+
+    def test_ultra_quick_is_shorter_than_quick(self):
+        """iter 77: ultra_quick 該明顯比 quick 短 — sections / chars 都少."""
+        def low(s: str) -> int:
+            return int(s.split("~")[0])
+        def high(s: str) -> int:
+            return int(s.split("~")[1])
+
+        u = LENGTH_PRESETS["ultra_quick"]
+        q = LENGTH_PRESETS["quick"]
+        # sections 上限 ultra_quick 該 ≤ quick 下限
+        assert high(u["sections_range"]) <= low(q["sections_range"])
+        # narration chars 上限 ultra_quick 該 ≤ quick 下限
+        assert high(u["narration_chars_range"]) <= low(q["narration_chars_range"])
+        # narration budget 該少 (~900 vs 2500)
+        assert u["total_narration_budget_chars"] < q["total_narration_budget_chars"]
+
+    def test_ultra_quick_target_3_5_min(self):
+        """target_minutes 該是 3~5 (短影片 / Shorts 規格)."""
+        u = LENGTH_PRESETS["ultra_quick"]
+        assert "3" in u["target_minutes"]
+        assert "5" in u["target_minutes"]
+
+
+class TestUltraQuickPreset:
+    """iter 77: preset() 對 ultra_quick 該回對應 dict."""
+
+    def test_ultra_quick_returns_ultra_quick_preset(self):
+        p = preset("ultra_quick")
+        assert p is LENGTH_PRESETS["ultra_quick"]
 
 
 class TestPromptIntegration:

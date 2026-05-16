@@ -53,7 +53,7 @@ export function CreateJobForm({ onCreated }: Props) {
   // iter 41: intro 串接 (個人開場), 對所有 source_type 都適用
   const [prependIntro, setPrependIntro] = useState(false);
   // iter 43: 影片長度模式 — 只對 repo / document / url 有意義
-  const [lengthMode, setLengthMode] = useState<'quick' | 'lecture'>('quick');
+  const [lengthMode, setLengthMode] = useState<'ultra_quick' | 'quick' | 'lecture'>('quick');
   // iter 56: AI 生圖, 只對 document / repo / url 有意義
   const [aiGenerateDiagrams, setAiGenerateDiagrams] = useState(false);
   // iter 57b: AI 生 mermaid syntax (cheap text gen)
@@ -413,8 +413,9 @@ export function CreateJobForm({ onCreated }: Props) {
           <select
             className="field-input"
             value={lengthMode}
-            onChange={(e) => setLengthMode(e.target.value as 'quick' | 'lecture')}
+            onChange={(e) => setLengthMode(e.target.value as 'ultra_quick' | 'quick' | 'lecture')}
           >
+            <option value="ultra_quick">⚡⚡ 極短影片 — 3~5 分鐘 (Shorts / TikTok / Reels)</option>
             <option value="quick">⚡ 快速講解 — 8~15 分鐘 (YT 影片)</option>
             <option value="lecture">📚 詳細授課 — 60~180 分鐘 (上課用)</option>
           </select>

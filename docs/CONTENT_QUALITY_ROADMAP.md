@@ -111,7 +111,7 @@
 - **A 全部完成 (2026-05-16). 接下來啟動 B 影片格式.**
 - [ ] B1 縱向短影片
 - [ ] B2 解析度可選
-- [ ] B3 整段時長可選
+- [x] B3 整段時長可選 (iter 77, ultra_quick 3~5 min Shorts/Reels)
 - [ ] C1 Narration 截斷率治本
 - [ ] C2 TTS 中文發音治本
 - [ ] C3 narration AI 品質升級

@@ -100,7 +100,7 @@ class ProposalApproveRequest(BaseModel):
     ] | None = None
     hardsub: bool | None = None
     prepend_intro: bool | None = None     # iter 41: 串個人 intro 開場
-    length_mode: Literal["quick", "lecture"] | None = None   # iter 43: 影片長度模式
+    length_mode: Literal["ultra_quick", "quick", "lecture"] | None = None   # iter 43+77: 影片長度模式
     ai_generate_diagrams: bool | None = None     # iter 56: AI 生圖 (Gemini Flash Image)
     ai_generate_mermaid: bool | None = None       # iter 57b: AI 生 mermaid syntax
     prepend_cover: bool | None = None              # iter 62: 插入封面頁

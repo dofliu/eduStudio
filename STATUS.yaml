@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-17"
-next_milestone: "影片內容品質 roadmap (docs/CONTENT_QUALITY_ROADMAP.md) A/B/C/D 自動化能做的全做完 (iter 73-85). 剩 C2 (TTS 中文發音, 等用戶提供樣本) + D1 v2 outline edit/approve gate (用戶實機反饋後再做). v4 worker 暫緩決策維持 — 等對外開放 / 多 job 並發再啟動."
+next_milestone: "用戶實機反饋兩個 issue 都已解 (iter 88 短影片獨立 layout + iter 89 複製 proposal). CI 從 iter 57 起連紅 30 commit 全部修綠 (iter 87/87b/87c/87d). 1022 tests, 5 jobs 全綠. 等用戶下一輪實機測試發現 / C2 TTS 樣本 / 或新需求."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -206,6 +206,28 @@ key_metrics: |
   - B1+B2 動態影片尺寸 (Option B monkey-patch, iter 83 + iter 84 portrait
     title 多行居中 + iter 85 pipeline.CONTENT_BOTTOM 漏 patch hotfix)
   - 1007 tests passed, A/B/C/D 自動化部分全做完
+
+  iter 87~89 (2026-05-17) CI 修復 + 用戶實測反饋:
+  - 用戶 screenshot 反映 CI 從 iter 57 起連紅 30 commit
+  - iter 87/87b/87c/87d 修 4 條獨立根因:
+    - 87 (302c6a7): test_document_adapter/test_mermaid_render/test_diagram_image_gen
+      加 importorskip / skipif (fitz / google.genai 未裝)
+    - 87b (4ac0218): CI workflow 加 apt-get fonts-noto-cjk + qrcode pip,
+      Linux Pillow 缺中文字型導致 OSError: cannot open resource
+    - 87c (6b689a0): 視覺採點 threshold 放寬 — Windows msjh 跟 Linux
+      NotoSansCJK 字寬差異, 嚴格 threshold 誤判
+    - 87d (b0016ee): 補上 web/src/components/ui/ 9 個檔案 — 從 UI redesign
+      起未 commit, HEAD broken state, frontend-typecheck job 一直紅
+  - 用戶反饋兩個 issue:
+    - iter 88 (a8db669): 短影片獨立 layout (bg_type=short_video_slide) —
+      ultra_quick 預設只改字數預算沒改 rendering, 加巨大字居中 + 圖片
+      滿版下半 + 5 主題 reverse 主題仍有粗框. ultra_quick mode UI 自動勾
+    - iter 89 (db5742b): proposal「複製為新 PENDING」按鈕, 解「同檔多
+      影片」場景 — 同份 PDF 想做 ultra_quick + lecture + 不同主題等
+      多支不同設定, 原本被 dedupe + APPROVED status 鎖死
+  - 1022 tests passed
+  - lessons learned: 從本機 1007 passed 到 CI 紅 30 commit, 表示 CI
+    workflow 該有 deps changelog audit, 加新 test 要驗 CI 跑得起來
 
   剩等用戶介入: C2 TTS 中文發音 (要樣本) / D1 v2 outline edit/approve
   gate (實機反饋後再做) / image_panel portrait 適配 (實機 broken 才修)

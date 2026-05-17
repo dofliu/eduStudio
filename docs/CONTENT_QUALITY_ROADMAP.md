@@ -117,3 +117,20 @@
 - [x] C3 narration AI 品質升級 (iter 82, scriptor prompts 加「先舉例 + 比喻」)
 - [x] D1 v1 outline 預覽 modal (iter 81, 唯讀) — v2 edit/approve gate 留下次
 - [x] D2 字幕風格樣式 (iter 80, 字級/字色/描邊色 hex)
+
+---
+
+## 用戶實機反饋追加項 (2026-05-17, iter 87+)
+
+iter 86 後用戶實機測試發現新需求 / bug, 排入 backlog 並完成:
+
+- [x] **iter 87/87b/87c/87d CI 修復** (302c6a7 / 4ac0218 / 6b689a0 / b0016ee)
+  - 從 iter 57 起 CI 連紅 30 commit, 4 條獨立根因 (fitz/google.genai 沒裝
+    / Linux 缺中文字型 + qrcode / 視覺採點跨字型 brittle / web/ui/ 沒 commit)
+- [x] **iter 88 短影片獨立 layout** (a8db669, `bg_type=short_video_slide`)
+  - ultra_quick 預設只改字數預算沒改 rendering, 加巨大字居中 + 圖片
+    滿版下半. ultra_quick mode UI 自動勾, 用戶可手動取消.
+- [x] **iter 89 複製 proposal 為新 PENDING** (db5742b)
+  - 同份 PDF 想做多支不同設定影片被 dedupe + APPROVED status 鎖死.
+    加 POST /proposals/{id}/duplicate + 「全部 ◌/✓」toggle + 「📋 複製」
+    按鈕. 不改 ideate.dedupe_against_jobs 本體.

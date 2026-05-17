@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-17"
-next_milestone: "用戶實機反饋兩個 issue 都已解 (iter 88 短影片獨立 layout + iter 89 複製 proposal). CI 從 iter 57 起連紅 30 commit 全部修綠 (iter 87/87b/87c/87d). 1022 tests, 5 jobs 全綠. 等用戶下一輪實機測試發現 / C2 TTS 樣本 / 或新需求."
+next_milestone: "iter 91 中文 wrap 標點 + 孤字後處理 — 短影片實測「Skill 的本質與差/異」孤字落單 issue 治本, _balance_wrap_lines 三輪修整 (開頭標點推下 / 收尾標點拉回 / 末行借字), 改 _wrap_text 全 caller (cover/outro/short_video_slide/normal slide) 自動受惠. 1030 tests (+8 test_wrap_balance), 5 jobs 全綠. 等用戶下一輪實機測試發現 / C2 TTS 樣本."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -228,6 +228,19 @@ key_metrics: |
   - 1022 tests passed
   - lessons learned: 從本機 1007 passed 到 CI 紅 30 commit, 表示 CI
     workflow 該有 deps changelog audit, 加新 test 要驗 CI 跑得起來
+
+  iter 91 (2026-05-17) 短影片實測反饋 — 中文 wrap 後處理:
+  - 用戶 9:16 短影片實測截圖: 「Skill 的本質與差/異」標題斷字, 孤字
+    「異」單字落單第二行. 標題下「Skill 是可重用的「工作流/程包」」
+    後引號也可能行尾孤立.
+  - 病根: _wrap_text 純貪婪斷字, 沒孤字 / 標點規則. 影響所有 caller
+    (cover / outro / short_video / normal slide title / bullets).
+  - 解: 新增 _balance_wrap_lines post-process, 三輪修整:
+    1) 開頭標點 (「『( 等) 不該行尾, 推到下一行頭 (允許 ×1.05 超寬)
+    2) 收尾標點 (」』。, 等) 不該行首, 拉回上一行尾 (允許 ×1.08)
+    3) 末行 < 3 字孤字, 從上一行尾借字下來 (最多 3 字, 不掏空上行)
+  - 改 _wrap_text 自動 post-process, 所有 caller 自動受惠.
+  - +8 tests (test_wrap_balance), 1030 total passed.
 
   剩等用戶介入: C2 TTS 中文發音 (要樣本) / D1 v2 outline edit/approve
   gate (實機反饋後再做) / image_panel portrait 適配 (實機 broken 才修)

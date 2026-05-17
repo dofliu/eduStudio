@@ -601,8 +601,81 @@ def _draw_text_mixed(draw, xy, text, main_font, fill, fb_font=None):
     return x
 
 
+# iter 91: 中文 wrap 標點規則 + 孤字避免 (短影片實測:「Skill 的本質與差/異」孤字)
+# 不該開頭 (行首): 收尾標點, 出現在行首該推回上一行末
+_PUNCT_NO_LINE_START = set("」』）)、，。：；！？!?,.;:>》〉")
+# 不該結尾 (行尾): 開頭標點, 留行尾該推到下一行頭
+_PUNCT_NO_LINE_END = set("「『（(<《〈")
+
+
+def _balance_wrap_lines(
+    lines: list[str], font: ImageFont.FreeTypeFont, max_w: int,
+) -> list[str]:
+    """iter 91: 中文 wrap post-process. 改善視覺斷行.
+
+    三輪修整 (順序很重要):
+    1. 行尾標點 (如「): 推到下一行頭, 跟它要修飾的字一起
+    2. 行首標點 (如」。,): 拉回上一行尾, 允許輕微超寬 (×1.08)
+    3. 孤字避免: 最後一行 ≤ 1 字 (中文) 且上一行還能釋出時, 借字下來
+
+    不會減少行數讓字溢出 — 借字前永遠檢查 font.getlength(prev) 還有空間.
+    """
+    if len(lines) < 2:
+        return lines
+    out = [s for s in lines]
+
+    # Pass 1: 開頭標點 (「『( 等) 不該行尾
+    i = 0
+    while i < len(out) - 1:
+        if out[i] and out[i][-1] in _PUNCT_NO_LINE_END:
+            ch = out[i][-1]
+            cand = ch + out[i + 1]
+            if font.getlength(cand) <= max_w * 1.05:
+                out[i] = out[i][:-1]
+                out[i + 1] = cand
+                if not out[i]:
+                    out.pop(i)
+                    continue
+        i += 1
+
+    # Pass 2: 收尾標點 (」』。, 等) 不該行首
+    i = 1
+    while i < len(out):
+        if out[i] and out[i][0] in _PUNCT_NO_LINE_START:
+            cand = out[i - 1] + out[i][0]
+            if font.getlength(cand) <= max_w * 1.08:
+                out[i - 1] = cand
+                out[i] = out[i][1:]
+                if not out[i]:
+                    out.pop(i)
+                    continue
+        i += 1
+
+    # Pass 3: 孤字避免 - 最後一行 < 3 字時, 從上一行尾借
+    # (英文整詞通常已成 1 行, 這條主要救中文)
+    if len(out) >= 2:
+        last = out[-1]
+        prev = out[-2]
+        # 防無限迴圈 + 不把上一行掏空
+        for _ in range(3):
+            if len(last) >= 3 or len(prev) <= 4:
+                break
+            cand = prev[-1] + last
+            if font.getlength(cand) > max_w:
+                break
+            prev = prev[:-1]
+            last = cand
+        out[-2] = prev
+        out[-1] = last
+    return out
+
+
 def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]:
-    """簡單貪婪換行,中文 / 英文都能處理 (按字元逐個累積)。"""
+    """簡單貪婪換行 + iter 91 標點 / 孤字 post-process.
+
+    中文 / 英文都能處理 (按字元逐個累積). 後處理只動配對標點 + 末行孤字,
+    不改變字數或文字內容.
+    """
     lines: list[str] = []
     for raw in text.split("\n"):
         buf = ""
@@ -614,7 +687,7 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_w: int) -> list[str]
                 buf += ch
         if buf:
             lines.append(buf)
-    return lines
+    return _balance_wrap_lines(lines, font, max_w)
 
 
 def _draw_text_wrapped(draw, xy, text, font, fill, max_w, line_h, fb_font=None) -> int:

@@ -134,3 +134,8 @@ iter 86 後用戶實機測試發現新需求 / bug, 排入 backlog 並完成:
   - 同份 PDF 想做多支不同設定影片被 dedupe + APPROVED status 鎖死.
     加 POST /proposals/{id}/duplicate + 「全部 ◌/✓」toggle + 「📋 複製」
     按鈕. 不改 ideate.dedupe_against_jobs 本體.
+- [x] **iter 91 中文 wrap 標點 + 孤字後處理**
+  - 短影片實測「Skill 的本質與差/異」孤字單字落單 + 開引號可能行尾.
+    `_balance_wrap_lines` 三輪修整: 開頭標點推下、收尾標點拉回、
+    末行 < 3 字借字. 改 `_wrap_text` 全 caller 自動受惠 (cover / outro /
+    short_video_slide / normal slide). +8 tests (test_wrap_balance).

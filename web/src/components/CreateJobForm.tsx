@@ -8,7 +8,7 @@
 // upload 模式呼叫 POST /upload (multipart), path/url 模式呼叫 POST /jobs (JSON)。
 // 建 job 後 onCreated() 觸發 JobsIndex 重新 poll。
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useToast } from './Toast';
 import type { SourceType } from '../types';
@@ -89,6 +89,15 @@ export function CreateJobForm({ onCreated }: Props) {
   // iter 83 (B1+B2): 影片長寬比 + 解析度
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
   const [resolution, setResolution] = useState<'1080p' | '1440p' | '4K'>('1080p');
+  // iter 88: 短影片 layout (ultra_quick mode 自動勾, 用戶可手動取消)
+  const [shortVideoLayout, setShortVideoLayout] = useState(false);
+  const [shortLayoutManual, setShortLayoutManual] = useState(false);
+  // iter 88: ultra_quick 切換時自動同步 short_video_layout, 除非用戶手動改過
+  useEffect(() => {
+    if (!shortLayoutManual) {
+      setShortVideoLayout(lengthMode === 'ultra_quick');
+    }
+  }, [lengthMode, shortLayoutManual]);
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -158,6 +167,8 @@ export function CreateJobForm({ onCreated }: Props) {
     // iter 83 (B1+B2): 長寬比 + 解析度 (只在主題適用 source 送, exam_pdf/slides_pdf 不影響)
     ...(aspectRatio !== '16:9' ? { aspect_ratio: aspectRatio } : {}),
     ...(resolution !== '1080p' ? { resolution: resolution } : {}),
+    // iter 88: 短影片 layout
+    ...(showLengthMode && shortVideoLayout ? { short_video_layout: true } : {}),
   });
 
   const submit = async () => {
@@ -433,6 +444,23 @@ export function CreateJobForm({ onCreated }: Props) {
             <option value="quick">⚡ 快速講解 — 8~15 分鐘 (YT 影片)</option>
             <option value="lecture">📚 詳細授課 — 60~180 分鐘 (上課用)</option>
           </select>
+          {/* iter 88: 短影片 layout — ultra_quick 自動勾, 用戶可手動取消 */}
+          <label className="flex items-center gap-1.5 mt-1.5 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={shortVideoLayout}
+              onChange={(e) => {
+                setShortVideoLayout(e.target.checked);
+                setShortLayoutManual(true);
+              }}
+            />
+            <span>
+              💥 短影片 layout (巨大字居中 + 圖片滿版下半, 抓即時注意力)
+              {lengthMode === 'ultra_quick' && !shortLayoutManual && (
+                <span className="text-ink-faint ml-1">[ultra_quick 自動勾]</span>
+              )}
+            </span>
+          </label>
         </div>
       )}
 

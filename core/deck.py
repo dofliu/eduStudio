@@ -123,7 +123,7 @@ def deck_to_exam_schema_slides(deck: dict) -> dict:
     }
 
 
-def deck_to_exam_schema_pptx(deck: dict) -> dict:
+def deck_to_exam_schema_pptx(deck: dict, *, short_video_layout: bool = False) -> dict:
     """把 deck.json 壓成 v1 exam schema, 但 step 帶 pptx_slide 渲染所需欄位。
 
     跟 deck_to_exam_schema 的差別:
@@ -133,6 +133,10 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
     - display 仍然有 (legacy fallback), 但 PptxStyleRenderer 不用
 
     PR-2b-ii: source_type=repo 走這條轉換, 其他類型仍走 deck_to_exam_schema 黑板版。
+
+    iter 88: short_video_layout=True 時 (ultra_quick mode UI 預設自動勾),
+    pptx_slide 改用 bg_type="short_video_slide" 走獨立大字居中 layout —
+    給 Shorts/TikTok/Reels 即時震撼用. cover/outro 不受影響.
     """
     problems = []
     for i, section in enumerate(deck.get("sections", [])):
@@ -143,6 +147,9 @@ def deck_to_exam_schema_pptx(deck: dict) -> dict:
             slide_bg_type = slide.get("bg_type")
             if slide_bg_type in ("cover", "outro"):
                 bg_type = slide_bg_type
+            elif short_video_layout:
+                # iter 88: 短影片用獨立大字 layout
+                bg_type = "short_video_slide"
             else:
                 bg_type = "pptx_slide"
             step = {

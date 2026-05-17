@@ -123,6 +123,7 @@ class ProposalApproveRequest(BaseModel):
     subtitle_outline_color: str | None = None           # iter 80: 描邊色 hex
     aspect_ratio: Literal["16:9", "9:16"] | None = None # iter 83: 長寬比
     resolution: Literal["1080p", "1440p", "4K"] | None = None  # iter 83: 解析度
+    short_video_layout: bool | None = None              # iter 88: 短影片 layout
 
 
 class ScanFolderRequest(BaseModel):
@@ -308,6 +309,8 @@ async def approve_proposal(
             opts_kwargs["aspect_ratio"] = body.aspect_ratio
         if body.resolution is not None:
             opts_kwargs["resolution"] = body.resolution
+        if body.short_video_layout is not None:
+            opts_kwargs["short_video_layout"] = body.short_video_layout
 
     req = CreateJobRequest(
         source_type=source_type,

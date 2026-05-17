@@ -407,8 +407,9 @@ _RENDERERS = {
     "blackboard": BlackboardRenderer(),
     "slide": SlideRenderer(),
     "pptx_slide": _pptx_renderer,
-    "cover": _pptx_renderer,    # iter 62
-    "outro": _pptx_renderer,    # iter 63
+    "cover": _pptx_renderer,             # iter 62
+    "outro": _pptx_renderer,             # iter 63
+    "short_video_slide": _pptx_renderer, # iter 88
 }
 
 

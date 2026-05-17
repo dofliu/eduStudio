@@ -525,7 +525,10 @@ async def _run_render_inner(
             deck = deck_to_exam_schema_slides(deck)
         elif rec.source_type in (SourceType.REPO, SourceType.DOCUMENT, SourceType.URL):
             # 長篇內容講解走 Forest pptx 主題, 比黑板適合
-            deck = deck_to_exam_schema_pptx(deck)
+            # iter 88: short_video_layout=True 時走獨立大字 layout (給 Shorts 用)
+            deck = deck_to_exam_schema_pptx(
+                deck, short_video_layout=bool(rec.options.short_video_layout),
+            )
         else:
             deck = deck_to_exam_schema(deck)
 

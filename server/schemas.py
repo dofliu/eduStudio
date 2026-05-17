@@ -246,6 +246,12 @@ class JobOptions(BaseModel):
         description="iter 83: 影片解析度, '1080p' (預設) / '1440p' / '4K'. "
                     "None → '1080p'. 1440p 跟 4K 渲染時間明顯較長 (2-3x).",
     )
+    short_video_layout: bool = Field(
+        default=False,
+        description="iter 88: 短影片 layout — 巨大字居中 + image 滿版下半, "
+                    "給 Shorts / TikTok / Reels 即時震撼用. ultra_quick mode "
+                    "UI 預設自動勾, 用戶可手動取消. cover/outro 不受影響.",
+    )
 
     model_config = ConfigDict(extra="allow")
 

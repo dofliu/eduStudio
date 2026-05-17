@@ -1653,6 +1653,130 @@ def _draw_outro_slide(
         )
 
 
+def _draw_short_video_slide(
+    draw: ImageDraw.ImageDraw, img: Image.Image, step: dict, palette: Palette,
+    body_font_path: str | None = None,
+) -> None:
+    """iter 88: 短影片獨立 layout — Shorts / TikTok / Reels 即時震撼用.
+
+    設計理念: 視覺要在 < 3 秒抓住觀眾, 不能有「資訊密度」, 只能有「衝擊」.
+    所以:
+    - 沒 banner / 沒 signature decor (簡潔)
+    - title 巨大字 (TITLE * 2.5 = 160) 居中
+    - 1-2 hero bullets 居中 + 大字 (BULLET * 2.2 = 84)
+    - image 滿版下半 (有圖時): image 佔下 50%, title + 1 bullet 上 50%
+    - bullets 多於 1 條時取前 1 條當 hero (其他併入下方小字)
+    - reverse 主題 (brutalist / supergraphic / zine) 用 highlight 色背景 title
+      block (跟 cover/outro reverse decor 對稱)
+
+    Layout 自動依有沒 image_path 切兩種:
+      A. 無 image:
+         上 1/3 留白 → title 巨大 (居中) → highlight 線 → hero bullet
+         (居中大字) → 第二/三 bullet 小字略小
+      B. 有 image:
+         上半 (0 ~ HEIGHT/2): title + 1 hero bullet 居中
+         下半 (HEIGHT/2 ~ CONTENT_BOTTOM): image letterbox 滿版
+    """
+    fpath = body_font_path or get_font_path()
+    title = (step.get("title") or "").strip()
+    bullets = [b for b in (step.get("bullets") or []) if b]
+    image_path = step.get("image_path")
+    has_image = bool(image_path)
+
+    # 巨大字級 (跟 cover 的 1.4× 比再大)
+    big_title_size = int(TITLE_FONT_SIZE * 2.0)   # 128 (vs 預設 64)
+    hero_bullet_size = int(BULLET_FONT_SIZE * 2.0)  # 76 (vs 預設 38)
+    secondary_bullet_size = int(BULLET_FONT_SIZE * 1.2)  # 46
+
+    big_title_font = _font(fpath, big_title_size)
+    hero_bullet_font = _font(fpath, hero_bullet_size)
+    secondary_bullet_font = _font(fpath, secondary_bullet_size)
+
+    # 限制標題寬 (留邊)
+    max_title_w = int(VIDEO_WIDTH * 0.85)
+
+    if has_image:
+        # ===== Layout B: 圖 + 文上下分 =====
+        # 上半: title + hero bullet (緊湊)
+        title_y = int(VIDEO_HEIGHT * 0.05)
+        end_y, _ = _draw_text_wrapped_centered(
+            draw, title, big_title_font, palette["primary"],
+            max_w=max_title_w, line_h=big_title_size + 16, y_top=title_y,
+        )
+        # 1 條 hero bullet (如果有)
+        if bullets:
+            bullet_y = end_y + 24
+            _, _ = _draw_text_wrapped_centered(
+                draw, bullets[0], hero_bullet_font, palette["highlight"],
+                max_w=int(VIDEO_WIDTH * 0.80), line_h=hero_bullet_size + 12,
+                y_top=bullet_y,
+            )
+        # 下半: image 滿版
+        img_top = int(VIDEO_HEIGHT * 0.50)
+        img_bot = VIDEO_HEIGHT - SUBTITLE_STRIP_HEIGHT - 20
+        try:
+            from pathlib import Path
+            from PIL import Image as _Image
+            if Path(image_path).exists():
+                with _Image.open(image_path) as fig:
+                    fig = fig.convert("RGB") if fig.mode != "RGB" else fig
+                    fw, fh = fig.size
+                    panel_w = VIDEO_WIDTH - SIDE_MARGIN * 2
+                    panel_h = img_bot - img_top
+                    scale = min(panel_w / fw, panel_h / fh)
+                    new_w = max(1, int(fw * scale))
+                    new_h = max(1, int(fh * scale))
+                    fig_resized = fig.resize((new_w, new_h), _Image.LANCZOS)
+                paste_x = (VIDEO_WIDTH - new_w) // 2
+                paste_y = img_top + (panel_h - new_h) // 2
+                img.paste(fig_resized, (paste_x, paste_y))
+                # 細邊框
+                draw.rectangle(
+                    [paste_x - 2, paste_y - 2, paste_x + new_w + 1, paste_y + new_h + 1],
+                    outline=palette["secondary"], width=2,
+                )
+        except Exception:
+            pass  # image 失敗, 仍輸出文字版
+
+    else:
+        # ===== Layout A: 純文字, 巨大字居中 =====
+        title_y = int(VIDEO_HEIGHT * 0.18)
+        end_y, widest = _draw_text_wrapped_centered(
+            draw, title, big_title_font, palette["primary"],
+            max_w=max_title_w, line_h=big_title_size + 20, y_top=title_y,
+        )
+        # highlight rule
+        rule_w = max(280, widest)
+        rule_x = (VIDEO_WIDTH - rule_w) // 2
+        rule_y = end_y + 24
+        draw.rectangle(
+            [rule_x, rule_y, rule_x + rule_w, rule_y + 6],
+            fill=palette["highlight"],
+        )
+
+        # hero bullet (第一條, 巨大)
+        cur_y = rule_y + 80
+        if bullets:
+            end_y, _ = _draw_text_wrapped_centered(
+                draw, bullets[0], hero_bullet_font, palette["primary"],
+                max_w=int(VIDEO_WIDTH * 0.80), line_h=hero_bullet_size + 14,
+                y_top=cur_y,
+            )
+            cur_y = end_y + 40
+
+        # 其他 bullets (略小, secondary 色, 居中)
+        for b in bullets[1:3]:  # 最多 2 條 secondary
+            if cur_y > VIDEO_HEIGHT - SUBTITLE_STRIP_HEIGHT - 100:
+                break
+            end_y, _ = _draw_text_wrapped_centered(
+                draw, b, secondary_bullet_font, palette["secondary"],
+                max_w=int(VIDEO_WIDTH * 0.78),
+                line_h=secondary_bullet_size + 10,
+                y_top=cur_y,
+            )
+            cur_y = end_y + 24
+
+
 def _draw_signature_decor(
     draw: ImageDraw.ImageDraw, decor: str | None, palette: Palette,
     step_idx: int = 1,
@@ -2206,6 +2330,21 @@ class PptxStyleRenderer:
                 draw, step, palette, body_font_path,
                 signature_decor=signature_decor, banner_style=banner_style,
                 img=img,
+            )
+            _draw_subtitle_strip(draw, palette)
+            try:
+                from pipeline import _overlay_teacher_photo
+                _overlay_teacher_photo(img)
+            except Exception:
+                pass
+            img.save(out_p, "PNG")
+            return
+
+        # iter 88: 短影片獨立 layout — 巨大字居中 + image 滿版下半 / 沒圖時
+        # title 上 1/3 + bullets 居中. 給 ultra_quick / Shorts 用.
+        if step.get("bg_type") == "short_video_slide":
+            _draw_short_video_slide(
+                draw, img, step, palette, body_font_path,
             )
             _draw_subtitle_strip(draw, palette)
             try:

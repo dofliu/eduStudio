@@ -18,6 +18,15 @@ from core.diagram_image_gen import (
 )
 
 
+def _has_google_genai() -> bool:
+    """iter 87: 跳過需要 google.genai 的測試, 給 CI 沒裝該 SDK 用."""
+    try:
+        import google.genai  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 class TestBuildDiagramPrompt:
     def test_includes_title(self):
         out = _build_diagram_prompt({"title": "Receptive Field"})
@@ -87,6 +96,10 @@ class TestExtractImageBytes:
 
 
 class TestGenerateSectionDiagramImage:
+    @pytest.mark.skipif(
+        not _has_google_genai(),
+        reason="google-genai SDK 未裝 (CI 沒裝該套件)",
+    )
     def test_missing_api_key(self, tmp_path, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         ok, err = generate_section_diagram_image(
@@ -95,6 +108,10 @@ class TestGenerateSectionDiagramImage:
         assert not ok
         assert "GEMINI_API_KEY" in err
 
+    @pytest.mark.skipif(
+        not _has_google_genai(),
+        reason="google-genai SDK 未裝",
+    )
     def test_api_failure_returns_false(self, tmp_path, monkeypatch):
         """Gemini API 拋例外 → 回 (False, error msg) 不該 raise."""
         import core.diagram_image_gen as mod

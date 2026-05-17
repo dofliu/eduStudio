@@ -20,6 +20,15 @@ from core.mermaid_render import (
 )
 
 
+def _has_google_genai() -> bool:
+    """iter 87: 跳過需要 google.genai 的測試, 給 CI 沒裝該 SDK 用."""
+    try:
+        import google.genai  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 class TestExtractMermaidBlocks:
     def test_no_blocks_returns_empty(self):
         assert extract_mermaid_blocks("just plain text") == []
@@ -312,6 +321,10 @@ class TestGenerateMermaidSyntaxForSection:
         out = generate_mermaid_syntax_for_section({})
         assert out is None
 
+    @pytest.mark.skipif(
+        not _has_google_genai(),
+        reason="google-genai SDK 未裝 (iter 87 CI 沒裝該套件)",
+    )
     def test_gemini_call_failure(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "fake")
 
@@ -329,6 +342,10 @@ class TestGenerateMermaidSyntaxForSection:
         out = generate_mermaid_syntax_for_section({"title": "T"})
         assert out is None
 
+    @pytest.mark.skipif(
+        not _has_google_genai(),
+        reason="google-genai SDK 未裝",
+    )
     def test_strips_code_fence_if_present(self, monkeypatch):
         """LLM 偶爾包了 ```mermaid``` fence, 該被剝掉."""
         monkeypatch.setenv("GEMINI_API_KEY", "fake")
@@ -353,6 +370,10 @@ class TestGenerateMermaidSyntaxForSection:
         assert "```" not in out
         assert "graph TD" in out
 
+    @pytest.mark.skipif(
+        not _has_google_genai(),
+        reason="google-genai SDK 未裝",
+    )
     def test_returns_raw_syntax_no_fence(self, monkeypatch):
         """LLM 直接給 syntax (沒包 fence), 該原樣回."""
         monkeypatch.setenv("GEMINI_API_KEY", "fake")

@@ -2,6 +2,9 @@
 
 PyMuPDF (fitz) 必裝, smoke + figure extraction 路徑都要真跑.
 md / txt 路徑不依 PDF lib, 純檔案 IO.
+
+iter 87: CI workflow 故意不裝 pymupdf (重型 + 平台相依). 用
+importorskip 讓沒裝 fitz 的環境跳過. 本地 dev 環境裝了 pymupdf 仍會跑.
 """
 from __future__ import annotations
 
@@ -9,6 +12,9 @@ import io
 from pathlib import Path
 
 import pytest
+
+# iter 87: CI 沒裝 fitz, 跳過整檔
+pytest.importorskip("fitz", reason="PyMuPDF 未裝, 跳過 PDF 抽圖測試 (CI 故意不裝重型 dep)")
 
 from core.adapters.document import (
     extract_pdf_figures,

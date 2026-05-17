@@ -115,14 +115,49 @@ def split_for_f5(text: str, max_chars: int = 30) -> list[str]:
     return [s for s in segments if s.strip()]
 
 
+# iter 93: 公式 / 變數 normalize 用的 blacklist
+# 「兩字母大小寫混合」常見英文詞, 不該被當變數拆字 (例 "It is" 拆成 "I t is")
+_VAR_SPLIT_SKIP = {
+    "It", "If", "In", "On", "Of", "Or", "As", "At", "By", "Be", "Do",
+    "Go", "He", "Me", "My", "No", "So", "To", "Up", "Us", "We", "An",
+    "Is",
+}
+
+
 def normalize_text(text: str) -> str:
-    """進 TTS 前的標準前處理: 分數展開、變數下標、發音對照、空白清理。
+    """進 TTS 前的標準前處理: 公式 / 變數 normalize、分數展開、發音對照、空白清理。
 
     所有 backend 的 synthesize 都會自動先過這個函式, 確保 pronunciation.json
     在每個入口都生效。
+
+    iter 93 新增 (實測 GCP Wavenet 念公式糟):
+    - 剝 markdown backtick / 星號 (LLM 偶爾把變數包成 `e(t)`, TTS 念「上句點」)
+    - 函式記法 `e(t)` → `e of t` (TTS 才會念 "e of t" 不是 "et")
+    - 兩字母變數黏字 `Kp` `uP` → `K p` `u P` (拆開逐字念, 避免「up」念成英文 "up")
     """
     if not text:
         return ""
+    # iter 93: 剝 markdown code / emphasis 標記 — TTS 會把 `\\`` 念成「上句點」
+    text = text.replace("`", " ").replace("*", " ")
+    # iter 93: 兩字母變數黏字拆開 (Kp → "K p", uP → "u P").
+    # ★ 必須放在函式記法 regex 之前, 否則 "uP(t)" 變 "u P(t)" 後 P(t)
+    # 沒機會被下一條 regex 抓成 "P of t".
+    # 規則: 剛好 2 字母 + 大小寫混合, 且不在常見英文詞 blacklist
+    def _split_var(m: re.Match) -> str:
+        tok = m.group(1)
+        if tok in _VAR_SPLIT_SKIP:
+            return tok
+        return f"{tok[0]} {tok[1]}"
+    # 不限 \b 後接 (, 因為 \b 在 "uP(" 之間也成立
+    text = re.sub(r"(?<![A-Za-z])([A-Z][a-z]|[a-z][A-Z])(?![A-Za-z])", _split_var, text)
+    # iter 93: 函式記法 e(t) / f(x) → "e of t" / "f of x" (數學朗讀慣例)
+    # 限「單字母 + 括號內單字母」, 避免動到普通括號內文.
+    # 跑在拆字之後, 拆完的 "P(t)" 也能被抓.
+    text = re.sub(
+        r"(?<![A-Za-z])([A-Za-z])\s*\(\s*([A-Za-z])\s*\)",
+        r"\1 of \2 ",
+        text,
+    )
     # 分數: (a)/(b) → b 分之 a
     text = re.sub(
         r"([\w\d]+|\([^()]+\))\s*/\s*\(([^()]+)\)",

@@ -53,6 +53,14 @@
 - 不要編造文件沒提到的內容; 寧可少說也不要捏造
 - code_snippet / code_lang / file_path 全部設 null (這是文件講解, 不是程式碼導覽)
 - bullets / narration 不要使用金錢符號 (dollar sign) 包裹的數學模式
+- ★ **narration 嚴禁 markdown 標記**: 不可用反引號 (backtick) 包變數
+  / 函式名 (例: 不要寫 `func` 寫 func), 不可用星號 * 強調 (TTS 會念
+  「上句點」/「星號」這類無意義詞). bullets 也同.
+- ★ **narration 公式 / 變數寫成可朗讀形式**:
+  - 函式記法 e(t) / f(x) 可寫, 後處理會自動轉「e of t」
+  - 兩字母變數 Kp / uP 可寫, 後處理會自動拆「K p」「u P」
+  - 但下標 *最佳* 寫法是分開: "K 下標 p" 或 "比例增益 K p" 取代 "Kp"
+  - 帶數字下標寫 "F 一" "P 十二" 比 "F1" "P12" 更穩
 
 ==== 輸出格式 (嚴格) ====
 直接回 JSON object, 從 {{ 開頭到 }} 結尾, 不要 Markdown fence、不要前後說明文字:

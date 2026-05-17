@@ -8,11 +8,17 @@
 - dynamic_avatar (動態頭像) 跟靜態 teacher_photo 互斥, dynamic 啟用時這
   函式 noop
 - 任何 PIL exception 都靜默 swallow (圖貼不上不該擋影片渲染整批)
+
+iter 92 talking_head_override:
+- runner 可用 context manager 暫時 force-skip 頭像 (短影片 / 用戶 off)
+- 跟 video_dimensions_override 同 pattern, scope 結束自動 restore
 """
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator, Literal
 
 from PIL import Image, ImageDraw
 
@@ -20,6 +26,56 @@ from core.config import PIPELINE_CONFIG_PATH
 
 
 _PIPELINE_CONFIG_CACHE: dict | None = None
+
+# iter 92: runtime 強制覆寫 — runner 用 context manager 進來改, 出去復原
+# None = 走 pipeline_config.json 預設, "off"/"always"/"long_form_only" = 覆寫
+_RUNTIME_TALKING_HEAD_MODE: str | None = None
+_RUNTIME_IS_SHORT_FORM: bool = False
+
+
+@contextmanager
+def talking_head_override(
+    mode: Literal["always", "long_form_only", "off"] | None,
+    *,
+    is_short_form: bool = False,
+) -> Iterator[None]:
+    """iter 92: 暫時覆寫頭像顯示策略.
+
+    mode:
+      - "off": 不畫頭像
+      - "always": 永遠畫 (即使短影片)
+      - "long_form_only": 預設, 短影片 (is_short_form=True) 不畫, 其他都畫
+      - None: 不覆寫, 走 pipeline_config.json 既有行為
+
+    is_short_form: 短影片標記 (ultra_quick / aspect_ratio="9:16" /
+                   short_video_layout 任一觸發). 只在 mode="long_form_only"
+                   時才看. caller (runner) 自己判斷, 不在這推導.
+
+    scope 結束自動 restore. 跟 video_dimensions_override 一致 pattern.
+    """
+    global _RUNTIME_TALKING_HEAD_MODE, _RUNTIME_IS_SHORT_FORM
+    prev_mode = _RUNTIME_TALKING_HEAD_MODE
+    prev_short = _RUNTIME_IS_SHORT_FORM
+    _RUNTIME_TALKING_HEAD_MODE = mode
+    _RUNTIME_IS_SHORT_FORM = bool(is_short_form)
+    try:
+        yield
+    finally:
+        _RUNTIME_TALKING_HEAD_MODE = prev_mode
+        _RUNTIME_IS_SHORT_FORM = prev_short
+
+
+def _should_skip_by_runtime_override() -> bool:
+    """iter 92: 檢查 runtime override 是否要 skip 整個 overlay."""
+    mode = _RUNTIME_TALKING_HEAD_MODE
+    if mode is None:
+        return False  # 沒覆寫, caller 繼續看 pipeline_config
+    if mode == "off":
+        return True
+    if mode == "always":
+        return False
+    # "long_form_only": 短影片 skip, 長片 show
+    return _RUNTIME_IS_SHORT_FORM
 
 
 def load_pipeline_config() -> dict:
@@ -57,11 +113,15 @@ def overlay_teacher_photo(
         border_color: 邊框配色 (預設 CHALK_WHITE = (232, 230, 216))
 
     行為:
+        - iter 92: runtime override (talking_head_override) 命中 skip → return
         - config.dynamic_avatar.enabled=True → 直接 return (動態 avatar 流程
           會另外處理頭像, 兩模式互斥)
         - config.teacher_photo.enabled=False / 缺檔 / 路徑壞 → 直接 return
         - 任何 PIL exception → 靜默 swallow (圖貼不上不該擋整批渲染)
     """
+    # iter 92: 先檢查 runtime override (runner 給的 user 偏好)
+    if _should_skip_by_runtime_override():
+        return
     cfg = config if config is not None else load_pipeline_config()
     if cfg.get("dynamic_avatar", {}).get("enabled"):
         return

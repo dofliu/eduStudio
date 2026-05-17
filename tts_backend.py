@@ -303,6 +303,81 @@ class F5TTS(TTSBackend):
                     pass    # Windows 偶爾鎖檔, 留著當下次 finally 一併清
 
 
+# ---------- Google Cloud TTS (iter 92, 付費高品質) ----------
+class GoogleTTS(TTSBackend):
+    """Google Cloud Text-to-Speech — zh-TW Wavenet / Standard voices.
+
+    為什麼加: F5 中國腔 / edge 偶爾不自然, GCP zh-TW Wavenet-A/B/C 是
+    付費裡 zh-TW 品質最穩的 (Neural2 zh-TW 不支援, Studio 太貴).
+
+    認證: 走標準 GOOGLE_APPLICATION_CREDENTIALS env var 指向 service
+    account JSON. 沒設或 lib 沒裝 → synthesize 回 False (跟 F5 一致),
+    caller 走 FallbackTTS fallback 到 edge.
+
+    成本 (2026): Wavenet $16 USD/1M chars; 一支 15 min 中文影片 ~$0.07
+    (個人月用量 ~$1-2).
+    """
+    name = "google"
+
+    def __init__(
+        self,
+        voice: str = "zh-TW-Wavenet-A",
+        language_code: str = "zh-TW",
+        speaking_rate: float = 1.0,
+        pitch: float = 0.0,
+        audio_encoding: str = "MP3",
+    ):
+        """voice 預設 zh-TW-Wavenet-A (女聲, 自然). 男聲用 -B 或 -C.
+        speaking_rate 0.25-4.0 (1.0=正常). pitch -20.0 ~ 20.0 (0=原調).
+        """
+        self.voice = voice
+        self.language_code = language_code
+        self.speaking_rate = float(speaking_rate)
+        self.pitch = float(pitch)
+        self.audio_encoding = audio_encoding
+        self._client = None
+
+    def _lazy_init(self):
+        """首次使用才 import + 建 client. 沒裝套件 → raise (caller 接 False)."""
+        if self._client is not None:
+            return
+        from google.cloud import texttospeech  # type: ignore[import-not-found]
+        self._client = texttospeech.TextToSpeechClient()
+        self._types = texttospeech  # 留 module ref 給 synthesize 用
+
+    async def synthesize(self, text: str, out_path: Path) -> bool:
+        text = normalize_text(text)
+        if not text.strip():
+            return False
+        try:
+            # 跟 F5 同 pattern: sync lib call 丟 to_thread 不阻塞 event loop
+            await asyncio.to_thread(self._lazy_init)
+            await asyncio.to_thread(self._sync_synthesize, text, out_path)
+            return True
+        except Exception as e:
+            print(f"[google-tts] failed: {e}")
+            return False
+
+    def _sync_synthesize(self, text: str, out_path: Path) -> None:
+        """純 sync 呼叫. 由 synthesize() 透過 to_thread 包起來."""
+        tts = self._types
+        input_text = tts.SynthesisInput(text=text)
+        voice_params = tts.VoiceSelectionParams(
+            language_code=self.language_code,
+            name=self.voice,
+        )
+        audio_config = tts.AudioConfig(
+            audio_encoding=getattr(tts.AudioEncoding, self.audio_encoding),
+            speaking_rate=self.speaking_rate,
+            pitch=self.pitch,
+        )
+        response = self._client.synthesize_speech(
+            input=input_text, voice=voice_params, audio_config=audio_config,
+        )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes(response.audio_content)
+
+
 # ---------- Fallback wrapper ----------
 class FallbackTTS(TTSBackend):
     """主 backend 失敗時,自動改用 fallback(通常是 edge)"""
@@ -353,6 +428,18 @@ def load_tts_backend(config_path: Path | None = None) -> TTSBackend:
             cfg_strength=float(f5cfg.get("cfg_strength", 2.0)),
             cross_fade_duration=float(f5cfg.get("cross_fade_duration", 0.15)),
             nfe_step=int(f5cfg.get("nfe_step", 32)),
+        )
+        return FallbackTTS(primary, edge)
+    if backend_name == "google":
+        # iter 92: Google Cloud TTS (Wavenet zh-TW). 失敗 fallback edge.
+        # 認證走 GOOGLE_APPLICATION_CREDENTIALS env, 跟 GCP 規範一致.
+        gcfg = cfg.get("google", {}) or {}
+        primary = GoogleTTS(
+            voice=gcfg.get("voice", "zh-TW-Wavenet-A"),
+            language_code=gcfg.get("language_code", "zh-TW"),
+            speaking_rate=float(gcfg.get("speaking_rate", 1.0)),
+            pitch=float(gcfg.get("pitch", 0.0)),
+            audio_encoding=gcfg.get("audio_encoding", "MP3"),
         )
         return FallbackTTS(primary, edge)
     return edge

@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-17"
-next_milestone: "iter 91 中文 wrap 標點 + 孤字後處理 — 短影片實測「Skill 的本質與差/異」孤字落單 issue 治本, _balance_wrap_lines 三輪修整 (開頭標點推下 / 收尾標點拉回 / 末行借字), 改 _wrap_text 全 caller (cover/outro/short_video_slide/normal slide) 自動受惠. 1030 tests (+8 test_wrap_balance), 5 jobs 全綠. 等用戶下一輪實機測試發現 / C2 TTS 樣本."
+next_milestone: "iter 92 三軸升級: (1) 講者頭像 talking_head 三段選項 (always/long_form_only/off, 短影片自動 skip); (2) scriptor 教學風格 L2 5 preset (academic/storyteller/wuxia/dialogue/comedy) + L3 persona scaffold (jliu v1); (3) Google Cloud TTS provider (zh-TW Wavenet, $16/1M, FallbackTTS 機制). 1071 tests (+41 in 3 new test files). 等用戶實機測試各 preset 觀感 + GCP API key 啟用."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -228,6 +228,51 @@ key_metrics: |
   - 1022 tests passed
   - lessons learned: 從本機 1007 passed 到 CI 紅 30 commit, 表示 CI
     workflow 該有 deps changelog audit, 加新 test 要驗 CI 跑得起來
+
+  iter 92 (2026-05-17) 用戶實測三軸反饋 — 內容品質升級:
+
+  用戶看完 iter 88-91 後三個 ask:
+    (1) 右下角講者頭像短影片不需要, 該變選項
+    (2) TTS 該考慮付費方案以解 zh-TW 品質
+    (3) AI 內容該有更多風格 + 比喻 / 幽默
+
+  解法:
+  - **talking_head 三段選項** (always / long_form_only / off, 預設後者):
+    - core/photo_overlay.py 加 talking_head_override context manager
+    - runner._run_render 包進 video_dimensions_override 內側
+    - 短影片判定: aspect="9:16" OR length_mode="ultra_quick" OR
+      short_video_layout=True 任一
+    - UI dropdown + schema field, +13 tests
+  - **L2 narration_style 5 preset** (academic / storyteller / wuxia /
+    dialogue / comedy, 預設 storyteller 跟 iter 82 一致):
+    - prompts/styles/*.txt 5 個風格檔
+    - scriptor.py _get_style_directive lru cache 載入
+    - scriptor_repo_section / scriptor_longform_section 兩 prompt 加
+      {style_directive} {persona_directive} placeholder
+    - runner 透傳 rec.options.narration_style + persona 進 script()
+    - UI dropdown
+  - **L3 persona scaffold** (jliu v1):
+    - prompts/persona/jliu.txt 基於 CLAUDE.md 已知資訊寫: 副教授背景、
+      口頭禪 (對吧 / 你會發現 / 白話說就是)、舉例偏好 (風能 / SCADA /
+      材料力學 / 工業現場)、避免事項 (不過度自貶 / 不流行語梗)
+    - 標 v1 scaffold, 等用戶實機看再調
+  - **Google Cloud TTS provider** (FallbackTTS 機制):
+    - tts_backend.py 加 GoogleTTS class — zh-TW-Wavenet-A 預設
+    - load_tts_backend(backend="google") 分支 → FallbackTTS(GoogleTTS,EdgeTTS)
+    - lazy import + to_thread + 認證走 GOOGLE_APPLICATION_CREDENTIALS
+    - docs/GOOGLE_TTS_SETUP.md 完整啟用指南 (GCP project / service
+      account JSON / pip install / tts_config.json schema / 試聲音範本)
+    - +12 tests (全 mock client, 不真 call API)
+
+  測試: 1030 → 1071 (+41 in 3 new test files)
+  影響: 通過 4 個既有 test fix (補 style_directive/persona_directive
+  placeholder 到既有 prompt format 測試)
+
+  剩等用戶介入:
+  - 試 4-5 個 narration style 找適合的
+  - 看 jliu persona 跑出來像不像他, 回給樣本調 v2
+  - 開 GCP API + service account 啟用 Wavenet
+  - 之前列的 C2 樣本 / D1 v2 outline gate / image_panel portrait
 
   iter 91 (2026-05-17) 短影片實測反饋 — 中文 wrap 後處理:
   - 用戶 9:16 短影片實測截圖: 「Skill 的本質與差/異」標題斷字, 孤字

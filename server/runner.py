@@ -164,7 +164,10 @@ async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, moc
         if rec.options.ai_generate_mermaid:
             await _generate_mermaid_for_outline(outline, raw, job_dir)
         deck = await asyncio.to_thread(
-            script_repo, outline, raw, length_mode=length_mode,
+            script_repo, outline, raw,
+            length_mode=length_mode,
+            narration_style=rec.options.narration_style,  # iter 92 L2
+            persona=rec.options.persona,  # iter 92 L3 hook
         )
 
     # iter 62: 封面頁 prepend (opt-in), 插在 sections[0]
@@ -430,7 +433,10 @@ async def _run_ingest_long_form(store: JobStore, rec: JobRecord, deck_path: Path
         if rec.options.ai_generate_mermaid:
             await _generate_mermaid_for_outline(outline, raw, job_dir)
         deck = await asyncio.to_thread(
-            script_long_form, outline, raw, length_mode=length_mode,
+            script_long_form, outline, raw,
+            length_mode=length_mode,
+            narration_style=rec.options.narration_style,  # iter 92 L2
+            persona=rec.options.persona,  # iter 92 L3 hook
         )
 
     # iter 62: 封面頁 prepend (opt-in), 插在 sections[0]
@@ -491,11 +497,22 @@ async def _run_render(
         deck_to_exam_schema_pptx,
         deck_to_exam_schema_slides,
     )
+    from core.photo_overlay import talking_head_override
 
     aspect = rec.options.aspect_ratio or "16:9"
     resolution = rec.options.resolution or "1080p"
+    # iter 92: talking_head 三段策略.
+    #   "long_form_only" (預設): 短影片自動 skip 頭像.
+    # 短影片判斷: 9:16 / ultra_quick / short_video_layout 任一就算
+    th_mode = rec.options.talking_head or "long_form_only"
+    is_short = (
+        aspect == "9:16"
+        or (rec.options.length_mode or "") == "ultra_quick"
+        or bool(rec.options.short_video_layout)
+    )
     with video_dimensions_override(aspect, resolution):
-        await _run_render_inner(store, rec, section_id=section_id)
+        with talking_head_override(th_mode, is_short_form=is_short):
+            await _run_render_inner(store, rec, section_id=section_id)
 
 
 async def _run_render_inner(

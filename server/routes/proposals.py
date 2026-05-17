@@ -128,6 +128,9 @@ class ProposalApproveRequest(BaseModel):
     aspect_ratio: Literal["16:9", "9:16"] | None = None # iter 83: 長寬比
     resolution: Literal["1080p", "1440p", "4K"] | None = None  # iter 83: 解析度
     short_video_layout: bool | None = None              # iter 88: 短影片 layout
+    talking_head: Literal["always", "long_form_only", "off"] | None = None  # iter 92
+    narration_style: Literal["academic", "storyteller", "wuxia", "dialogue", "comedy"] | None = None  # iter 92 L2
+    persona: str | None = None                        # iter 92 L3 hook
 
 
 class ScanFolderRequest(BaseModel):
@@ -315,6 +318,12 @@ async def approve_proposal(
             opts_kwargs["resolution"] = body.resolution
         if body.short_video_layout is not None:
             opts_kwargs["short_video_layout"] = body.short_video_layout
+        if body.talking_head is not None:
+            opts_kwargs["talking_head"] = body.talking_head
+        if body.narration_style is not None:
+            opts_kwargs["narration_style"] = body.narration_style
+        if body.persona is not None:
+            opts_kwargs["persona"] = body.persona
 
     req = CreateJobRequest(
         source_type=source_type,

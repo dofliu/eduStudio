@@ -252,6 +252,27 @@ class JobOptions(BaseModel):
                     "給 Shorts / TikTok / Reels 即時震撼用. ultra_quick mode "
                     "UI 預設自動勾, 用戶可手動取消. cover/outro 不受影響.",
     )
+    talking_head: str | None = Field(
+        default=None,
+        description="iter 92: 右下角講者頭像顯示策略. "
+                    "'always' = 永遠畫, 'long_form_only' = 預設 (短影片/9:16/"
+                    "ultra_quick/short_video_layout 自動 skip, 其他都畫), "
+                    "'off' = 永不畫. None = 不覆寫, 走 pipeline_config.json "
+                    "預設行為 (向後相容).",
+    )
+    narration_style: str | None = Field(
+        default=None,
+        description="iter 92 (L2): scriptor 教學風格 preset. "
+                    "'academic' / 'storyteller' (預設) / 'wuxia' / 'dialogue' / "
+                    "'comedy'. None → storyteller (跟 iter 82 行為一致). "
+                    "對應 prompts/styles/<name>.txt.",
+    )
+    persona: str | None = Field(
+        default=None,
+        description="iter 92 (L3): scriptor 個人風格 persona. 對應 "
+                    "prompts/persona/<name>.txt — 'default' 或 None / 空 = "
+                    "不注入個人風格. 等用戶提供樣本後啟用 (現階段 hook 留空).",
+    )
 
     model_config = ConfigDict(extra="allow")
 

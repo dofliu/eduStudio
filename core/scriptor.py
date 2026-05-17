@@ -50,23 +50,85 @@ SECTION_PROMPT = _get_section_prompt()
 LONGFORM_SECTION_PROMPT = _get_longform_section_prompt()
 
 
+# iter 92 (L2): 教學風格 preset 載入 — prompts/styles/<name>.txt
+# 5 種風格: academic / storyteller (預設) / wuxia / dialogue / comedy
+_VALID_STYLES = {"academic", "storyteller", "wuxia", "dialogue", "comedy"}
+_STYLE_CACHE: dict[str, str] = {}
+
+
+def _get_style_directive(style: str | None) -> str:
+    """讀 prompts/styles/<style>.txt 內容. 未知 style → fallback storyteller.
+
+    None / 空字串 → storyteller (跟 iter 82 行為一致).
+    cache 避免每 section 重讀檔.
+    """
+    name = (style or "storyteller").strip().lower()
+    if name not in _VALID_STYLES:
+        name = "storyteller"
+    if name in _STYLE_CACHE:
+        return _STYLE_CACHE[name]
+    style_path = Path(__file__).resolve().parent.parent / "prompts" / "styles" / f"{name}.txt"
+    if not style_path.exists():
+        # 不該發生 (5 個 file 該 ship 在 repo), 但保險 fallback 空字串
+        _STYLE_CACHE[name] = ""
+        return ""
+    content = style_path.read_text(encoding="utf-8").strip()
+    _STYLE_CACHE[name] = content
+    return content
+
+
+# iter 92 (L3 hook): persona 注入 — 暫時空字串 placeholder
+# 將來接劉老師個人風格 few-shot (需用戶提供 5-10 段「會這樣講」樣本).
+def _get_persona_directive(persona: str | None = None) -> str:
+    """L3 persona placeholder. None / "default" → 空字串.
+
+    將來支援讀 prompts/persona/<name>.txt — 收用戶提供的口頭禪 / 範例.
+    """
+    name = (persona or "").strip().lower()
+    if not name or name == "default":
+        return ""
+    persona_path = Path(__file__).resolve().parent.parent / "prompts" / "persona" / f"{name}.txt"
+    if not persona_path.exists():
+        return ""
+    return persona_path.read_text(encoding="utf-8").strip()
+
+
 # ---------- Public API ----------
 
-def script(outline: dict, raw_content: dict, *, length_mode: str | None = None) -> dict:
+def script(
+    outline: dict, raw_content: dict, *,
+    length_mode: str | None = None,
+    narration_style: str | None = None,
+    persona: str | None = None,
+) -> dict:
     """Source-agnostic scriptor — 依 source_kind dispatch。
 
     PR-3b: source_kind in {"repo", "document", "url"}。
     iter 43: 接 length_mode kwarg (lecture / quick), 透傳.
+    iter 92 (L2): 接 narration_style — academic / storyteller (預設) /
+                  wuxia / dialogue / comedy.
+    iter 92 (L3 hook): persona — None / "default" 空字串, 未來接個人化檔.
     """
     kind = raw_content.get("source_kind")
     if kind == "repo":
-        return script_repo(outline, raw_content, length_mode=length_mode)
+        return script_repo(
+            outline, raw_content,
+            length_mode=length_mode, narration_style=narration_style, persona=persona,
+        )
     if kind in ("document", "url"):
-        return script_long_form(outline, raw_content, length_mode=length_mode)
+        return script_long_form(
+            outline, raw_content,
+            length_mode=length_mode, narration_style=narration_style, persona=persona,
+        )
     raise ValueError(f"未支援的 source_kind: {kind!r}")
 
 
-def script_repo(outline: dict, raw_content: dict, *, length_mode: str | None = None) -> dict:
+def script_repo(
+    outline: dict, raw_content: dict, *,
+    length_mode: str | None = None,
+    narration_style: str | None = None,
+    persona: str | None = None,
+) -> dict:
     """outline + raw_content (repo) → 完整 deck.json。
 
     每個 section 各自呼叫一次 Gemini, 失敗的 section 會留下佔位 slide
@@ -112,6 +174,9 @@ def script_repo(outline: dict, raw_content: dict, *, length_mode: str | None = N
             slides_per_section_range=p["slides_per_section_range"],
             narration_chars_range=p["narration_chars_range"],
             narration_seconds_range=p["narration_seconds_range"],
+            # iter 92: L2 風格 + L3 persona (預設 storyteller, persona 空)
+            style_directive=_get_style_directive(narration_style),
+            persona_directive=_get_persona_directive(persona),
         )
 
         section_dict = _call_with_retry(client, types, prompt, section_id, sec_outline)
@@ -141,7 +206,10 @@ def script_repo(outline: dict, raw_content: dict, *, length_mode: str | None = N
 
 
 def script_long_form(
-    outline: dict, raw_content: dict, *, length_mode: str | None = None,
+    outline: dict, raw_content: dict, *,
+    length_mode: str | None = None,
+    narration_style: str | None = None,
+    persona: str | None = None,
 ) -> dict:
     """outline + raw_content (document / url) → 完整 deck.json。
 
@@ -191,6 +259,9 @@ def script_long_form(
             slides_per_section_range=p["slides_per_section_range"],
             narration_chars_range=p["narration_chars_range"],
             narration_seconds_range=p["narration_seconds_range"],
+            # iter 92: L2 風格 + L3 persona (預設 storyteller, persona 空)
+            style_directive=_get_style_directive(narration_style),
+            persona_directive=_get_persona_directive(persona),
         )
 
         section_dict = _call_with_retry(client, types, prompt, section_id, sec_outline)

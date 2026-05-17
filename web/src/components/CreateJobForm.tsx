@@ -98,6 +98,12 @@ export function CreateJobForm({ onCreated }: Props) {
       setShortVideoLayout(lengthMode === 'ultra_quick');
     }
   }, [lengthMode, shortLayoutManual]);
+  // iter 92: 講者頭像策略 (預設 long_form_only: 短影片自動 skip, 長片畫)
+  const [talkingHead, setTalkingHead] = useState<'always' | 'long_form_only' | 'off'>('long_form_only');
+  // iter 92 L2: scriptor 教學風格 (預設 storyteller, 跟 iter 82 行為一致)
+  const [narrationStyle, setNarrationStyle] = useState<'academic' | 'storyteller' | 'wuxia' | 'dialogue' | 'comedy'>('storyteller');
+  // iter 92 L3: persona (預設 none = 不注入個人風格, 之後可加 jliu / 其他)
+  const [persona, setPersona] = useState<'default' | 'jliu'>('default');
   const [submitting, setSubmitting] = useState(false);
 
   // source_type 改變時自動切到合適的 input mode
@@ -169,6 +175,12 @@ export function CreateJobForm({ onCreated }: Props) {
     ...(resolution !== '1080p' ? { resolution: resolution } : {}),
     // iter 88: 短影片 layout
     ...(showLengthMode && shortVideoLayout ? { short_video_layout: true } : {}),
+    // iter 92: 講者頭像策略 (預設 long_form_only 不送, 其他都送)
+    ...(talkingHead !== 'long_form_only' ? { talking_head: talkingHead } : {}),
+    // iter 92 L2: scriptor 教學風格 (預設 storyteller 不送, 其他都送)
+    ...(showLengthMode && narrationStyle !== 'storyteller' ? { narration_style: narrationStyle } : {}),
+    // iter 92 L3: persona (預設 default 不送, 其他都送)
+    ...(showLengthMode && persona !== 'default' ? { persona } : {}),
   });
 
   const submit = async () => {
@@ -495,6 +507,58 @@ export function CreateJobForm({ onCreated }: Props) {
           </select>
         </div>
       </div>
+
+      {/* iter 92: 講者頭像策略 */}
+      <div className="mt-3">
+        <label className="field-label">右下角講者頭像</label>
+        <select
+          className="field-input"
+          value={talkingHead}
+          onChange={(e) => setTalkingHead(e.target.value as 'always' | 'long_form_only' | 'off')}
+        >
+          <option value="long_form_only">🎯 長片才畫 (預設, 短影片自動 skip)</option>
+          <option value="always">👤 永遠顯示</option>
+          <option value="off">🚫 不顯示</option>
+        </select>
+        <div className="text-[10px] text-ink-faint mt-0.5">
+          短影片 / 9:16 / ultra_quick / 短影片 layout 任一觸發「短片」判定
+        </div>
+      </div>
+
+      {/* iter 92 L2: scriptor 教學風格 (只 repo/document/url 用 scriptor) */}
+      {showLengthMode && (
+        <div className="mt-3 flex gap-3">
+          <div className="flex-1">
+            <label className="field-label">narration 教學風格</label>
+            <select
+              className="field-input"
+              value={narrationStyle}
+              onChange={(e) => setNarrationStyle(e.target.value as typeof narrationStyle)}
+            >
+              <option value="storyteller">📖 storyteller — 先舉例多比喻 (預設)</option>
+              <option value="academic">🎓 academic — 嚴謹學術腔, 先定義後例</option>
+              <option value="wuxia">⚔️ wuxia — 武俠風 (招式 / 心法 / 內功類比)</option>
+              <option value="dialogue">💬 dialogue — 自問自答 (你會問 → 答)</option>
+              <option value="comedy">😆 comedy — 穿插自嘲 / 反差吐槽</option>
+            </select>
+          </div>
+          {/* iter 92 L3: persona */}
+          <div className="flex-1">
+            <label className="field-label">個人風格 (persona)</label>
+            <select
+              className="field-input"
+              value={persona}
+              onChange={(e) => setPersona(e.target.value as typeof persona)}
+            >
+              <option value="default">(無) — 純風格 preset</option>
+              <option value="jliu">🧑‍🏫 jliu — 劉老師 v1 (口頭禪+背景)</option>
+            </select>
+            <div className="text-[10px] text-ink-faint mt-0.5">
+              疊加在風格 preset 之上, v1 scaffold 等實機反饋迭代
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-4 mt-3 text-sm flex-wrap">
         <label className="flex items-center gap-1.5 cursor-pointer">

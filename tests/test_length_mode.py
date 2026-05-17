@@ -167,6 +167,8 @@ class TestPromptIntegration:
             slides_per_section_range=p["slides_per_section_range"],
             narration_chars_range=p["narration_chars_range"],
             narration_seconds_range=p["narration_seconds_range"],
+            style_directive="",  # iter 92 L2
+            persona_directive="",  # iter 92 L3 hook
         )
         assert p["narration_chars_range"] in filled
 
@@ -190,6 +192,8 @@ class TestPromptIntegration:
             slides_per_section_range=p["slides_per_section_range"],
             narration_chars_range=p["narration_chars_range"],
             narration_seconds_range=p["narration_seconds_range"],
+            style_directive="",  # iter 92 L2
+            persona_directive="",  # iter 92 L3 hook
         )
         assert p["narration_chars_range"] in filled
 

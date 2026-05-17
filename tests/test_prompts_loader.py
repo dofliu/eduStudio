@@ -82,6 +82,9 @@ def test_format_compat_with_scriptor_keys():
         slides_per_section_range="5~10",
         narration_chars_range="100~200",
         narration_seconds_range="30~60",
+        # iter 92: L2 風格 + L3 persona placeholder
+        style_directive="",
+        persona_directive="",
     )
     assert "測試 deck" in filled
     assert "{deck_title}" not in filled  # 已替換

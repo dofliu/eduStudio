@@ -139,3 +139,18 @@ iter 86 後用戶實機測試發現新需求 / bug, 排入 backlog 並完成:
     `_balance_wrap_lines` 三輪修整: 開頭標點推下、收尾標點拉回、
     末行 < 3 字借字. 改 `_wrap_text` 全 caller 自動受惠 (cover / outro /
     short_video_slide / normal slide). +8 tests (test_wrap_balance).
+- [x] **iter 92 內容品質三軸升級** (用戶實測三 ask)
+  - **talking_head 三段選項**: always / long_form_only (預設) / off.
+    短影片 (9:16 / ultra_quick / short_video_layout) 自動 skip.
+    core/photo_overlay.py 加 context manager, runner 包進去, UI dropdown.
+  - **L2 narration_style 5 preset**: academic / storyteller (預設) /
+    wuxia / dialogue / comedy. prompts/styles/*.txt 各風格檔, scriptor
+    自動載入注入 prompt. 解 C3 用戶 ask「更多風格 + 比喻 / 幽默」.
+  - **L3 persona scaffold**: jliu v1 (基於 CLAUDE.md 寫). prompts/persona/
+    jliu.txt — 副教授背景 + 口頭禪 + 舉例偏好 + 避免事項. 等實機反饋
+    迭代 v2.
+  - **Google Cloud TTS provider**: GoogleTTS class, FallbackTTS 機制.
+    zh-TW-Wavenet-A 預設, $16/1M chars (個人月用 ~$1-2). docs/
+    GOOGLE_TTS_SETUP.md 完整啟用指南. 解 C2 用戶 ask「付費方案」.
+  - +41 tests (test_talking_head_override 13 / test_narration_style 16
+    / test_google_tts 12), 1071 total passed.

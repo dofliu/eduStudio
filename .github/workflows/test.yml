@@ -32,17 +32,35 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # iter 87: Ubuntu runner 預設沒中文 + Noto Sans CJK 字型,
+      # iter 64 起 cover/outro/theme tests 會實際 render (Pillow 開字型),
+      # 字型缺就 OSError. Windows runner 自帶 msjh.ttc 故不需要這步.
+      # 加 fonts-noto-cjk + fonts-dejavu 兩套, 並 export 環境變數讓
+      # core/config.py 找到. fonts-noto-cjk 約 70MB 但裝 1 次 cache 之後 < 5s.
+      - name: Install CJK fonts (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-dejavu fonts-dejavu-extra
+          # 列字型路徑給後續 step 用
+          fc-list | grep -i "noto sans cjk tc\|dejavu sans\b" | head -5
+          echo "CLAUDE_FONT_PATH=/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc" >> $GITHUB_ENV
+          echo "CLAUDE_FALLBACK_FONT_PATH=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf" >> $GITHUB_ENV
+          echo "CLAUDE_MONO_FONT_PATH=/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf" >> $GITHUB_ENV
+
       # 裝執行測試所需的依賴: pytest + 我們程式碼會 import 的核心 lib.
       # Pillow / fontTools 因 PR-5a (theme) 需要, 還算輕量。
       # mutagen: pipeline.py 頂部 import, test_slide_renderer / test_visuals
       # 透過 import pipeline 會拉到, 純 Python ~600KB, 加進來避免 importorskip 蔓延。
       # python-multipart: FastAPI Form/File 上傳, test_upload.py TestClient 用。
+      # qrcode: iter 67 outro QR codes 渲染需要. ~10KB pure Python, 輕量.
       # 不裝 pymupdf / google-genai / f5-tts 等重型 + 平台相依的東西, 因為
-      # 純函式測試用不到, 也避免 Windows runner 卡 wheel build。
+      # 純函式測試用不到 (相關 test 有 importorskip / skipif), 也避免 Windows
+      # runner 卡 wheel build。
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen
+          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode
           pip install -r requirements-dev.txt
 
       - name: Run pytest

@@ -3,8 +3,8 @@ name_zh: 教學影片自動生成平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-05-16"
-next_milestone: "影片內容品質為主 (主題 / 格式 / narration 等). v4 worker RFC 已寫 (docs/V4_WORKER_RFC.md), 2026-05-16 劉老師決定暫緩 — 個人使用情境不痛, 等對外開放 / 多 job 並發 / Cloud Run 部署等場景再啟動."
+last_updated: "2026-05-17"
+next_milestone: "影片內容品質 roadmap (docs/CONTENT_QUALITY_ROADMAP.md) A/B/C/D 自動化能做的全做完 (iter 73-85). 剩 C2 (TTS 中文發音, 等用戶提供樣本) + D1 v2 outline edit/approve gate (用戶實機反饋後再做). v4 worker 暫緩決策維持 — 等對外開放 / 多 job 並發再啟動."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -178,3 +178,34 @@ key_metrics: |
 
   測試覆蓋: 695 tests / 14+ modules (含 test_cover_gen 13, test_cover_meta_override
   10, test_pptx_themes 121 含 15 主題 contrast 護網).
+
+  iter 63~72 (2026-05-16) 主題系統 + 封面 / 結尾頁收尾:
+  - iter 63 outro 結尾頁 + iter 63a hotfix (pipeline _RENDERERS 漏登錄
+    cover/outro) + iter 63b (long_form outro + intro_rewriter skip)
+  - iter 64 cover/outro 主題差異化 (reverse 主題粗框 + 5 主題 signature
+    在 cover/outro 也畫)
+  - iter 65 封面 narration 可從 UI 覆寫
+  - iter 66 outro 個人影片串接 + iter 67 結尾頁 QR codes
+  - iter 68 bullets layout dispatch (classic / numbered / centered) +
+    字幕條 palette 化 (claude design 01 + 02)
+  - iter 69 補 10 主題 signature decor (claude design 03)
+  - iter 71 補 5 個 layout 變體 (offset / arcade_hud / notebook_lined /
+    shinobi_vertical / risograph_offset)
+  - iter 72 主題預覽長廊 modal (15 主題 thumbnail grid)
+  - 1006+ tests, 主題系統徹底成熟
+
+  iter 73~85 (2026-05-16~17) 內容品質 roadmap (docs/CONTENT_QUALITY_ROADMAP.md):
+  - 2026-05-16 劉老師決策: v4 worker 暫緩 (個人使用不痛), 改做內容品質
+  - A1 字級 / 行距 per-theme (iter 74) + A2 margin per-theme (iter 75) +
+    A3 自訂主題色票 UI (iter 76, claude design 04+05 收尾)
+  - B3 ultra_quick 3-5 min Shorts/Reels mode (iter 77)
+  - C1 narration 長度驗證 + prompt 強化 (iter 79)
+  - D2 字幕風格樣式 (字級/字色/描邊色 hex, iter 80)
+  - D1 v1 outline 預覽 modal (iter 81, 唯讀)
+  - C3 narration 教學風格 (先舉例 + 多比喻, iter 82)
+  - B1+B2 動態影片尺寸 (Option B monkey-patch, iter 83 + iter 84 portrait
+    title 多行居中 + iter 85 pipeline.CONTENT_BOTTOM 漏 patch hotfix)
+  - 1007 tests passed, A/B/C/D 自動化部分全做完
+
+  剩等用戶介入: C2 TTS 中文發音 (要樣本) / D1 v2 outline edit/approve
+  gate (實機反饋後再做) / image_panel portrait 適配 (實機 broken 才修)

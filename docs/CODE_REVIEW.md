@@ -314,3 +314,47 @@ Track A 沒踩是因為 Flask 多 process: web UI 跟 CLI render 是兩個 proce
 
 這些假設在當下都看起來合理, 但**跨多個 commit / 多個層級才會浮現衝突**。靜態 review (Round 1) 抓不到, 要實戰跑或寫 integration test 才會炸。值得在 v4 規劃時想想能不能把這幾個假設明文化 (e.g., `core/visuals.py` 集中所有 layout 常數, `core/async_safe.py` 包所有 sync I/O 強制 `to_thread`)。
 
+---
+
+# Round 3 + 4 Lessons (iter 53-85, 2026-05-09 ~ 17)
+
+新主題系統 + cover/outro + portrait/4K 動態尺寸又踩兩條, 列下來給未來自己 (或 Kiwi / Christian) 看。
+
+## 4. 雙層 dispatch 設計, 內外都要查 (iter 63a)
+
+**iter 62 cover + iter 63 outro 連兩次踩同坑**. `PptxStyleRenderer.render()` 內部依 `step.bg_type` 切 layout (cover/outro/pptx_slide), `pipeline._RENDERERS` 也依 `bg_type` 選 renderer 實例. 改了內層 dispatch 但忘改外層 → `_RENDERERS.get("cover")` 回 None → 拋「未知的 bg_type」.
+
+iter 62 + iter 63 commit message 都自誇「實機 smoke 過」, 但實際只測 PptxStyleRenderer 直接 call 寫 PNG, 沒走 `pipeline.main → render_frame` 完整路徑. **兩層 dispatch 設計把 bug 藏在中間, 只測一層完全看不到**.
+
+**修法** (commit 676f603): `pipeline._RENDERERS` 加 `"cover"` + `"outro"` 兩個 key 都指 PptxStyleRenderer instance. regression test `test_pipeline_bg_type_dispatch.py` 釘住所有 bg_type 該認得.
+
+**下次加新 bg_type / layout 變體 / dispatch token**:
+- [ ] 內層 dispatch (renderer 內部 if/elif) 跟外層 dispatch (pipeline `_RENDERERS` / `THEME_BANNER_STYLES` / `THEME_CONTENT_LAYOUTS` 等) 都要同步更新
+- [ ] regression test 釘住 dispatch 表結構 (e.g., `len(_RENDERERS) == 5` / 所有 bg_type 都要 lookup 到非 None)
+- [ ] commit message 別寫 「實機 smoke 過」除非真的走完 `pipeline.main`, 不是只測 inner function
+
+## 5. `from X import Y` 跨 module reference 要同步 patch (iter 85)
+
+**iter 83 B1+B2 動態影片尺寸踩的 subtle bug**. `core.visuals.VIDEO_WIDTH = 1080` 改了, 但 `pptx_style.py` 開頭 `from core.visuals import VIDEO_WIDTH` 在 import 時已經把 `VIDEO_WIDTH` **複製**進 `pptx_style.VIDEO_WIDTH`. 後續 monkey-patch `core.visuals.VIDEO_WIDTH` 不會影響 `pptx_style.VIDEO_WIDTH`.
+
+`video_dimensions_override._PATCH_TARGETS` 第一版只 patch 3 個 module (core.config / core.visuals / pipeline), 漏了 `core.render.pptx_style`. **初次測試 portrait smoke 失敗** (回的還是 1920×1080), 才發現要 patch 第 4 個 module.
+
+CR4 (iter 85) 又抓一個漏: `pipeline.CONTENT_BOTTOM` (line 23 `from core.visuals import CONTENT_BOTTOM`) 也沒 patch. Portrait 用 forest pptx 路徑 OK (走 pptx_style 內部 patch 過的 CONTENT_BOTTOM), 但用 exam_pdf / slides_pdf 走 BlackboardRenderer / SlideRenderer 就用 stale 900 切 slide 底部.
+
+**修法** (commit e3ca25e): `_set_all` 的 CONTENT_BOTTOM patch list 加 `"pipeline"`. `_PATCH_TARGETS` 4 module 都列. `test_pipeline_content_bottom_patched` 釘住.
+
+**下次寫 module-level state monkey-patch (或考慮其他全域狀態切換)**:
+- [ ] `grep -rn "from <module> import <attr>" --include="*.py"` 找完整下游清單
+- [ ] 每個下游 module 都要 patch (不只 source module)
+- [ ] 寫 regression test 確認下游 module 內的值真的有變
+- [ ] 考慮設計上能不能避開 module attr (例: lazy lookup via property / 傳 context dict). 但 refactor 是大手術 — 短期 monkey-patch 加完整 patch list 也 OK
+
+## 通則 (round 3 + 4): 「測試覆蓋率」≠「測試覆蓋深度」
+
+兩條 bug 共通點: **單元測試覆蓋完整, 整合測試漏掉**.
+
+- iter 62/63 cover/outro: `test_cover_gen.py` / `test_outro_gen.py` 等單元測試把 build_section / draw_slide 都驗了, 但沒一個測「走完 pipeline.main」的 integration
+- iter 83 portrait: `test_video_dimensions.py` 把 context manager 各種 edge case 都測了, 但沒測「portrait + 走完 pipeline render exam_pdf」的整合
+
+每加新 dispatch / 全域狀態切換, 應該配一個 minimum integration test 走完完整 pipeline. 哪怕用 mock pipeline 跑一遍空 deck, 只要確認 dispatch 鏈接得起來就行.
+

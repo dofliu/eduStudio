@@ -423,6 +423,11 @@ def render_frame(data, step_idx, out_p, q_work):
 
 def build_clip(f_p, a_p, dur, out_p, q_work):
     cfg = _get_pipeline_config(); dyn, sfx = cfg.get("dynamic_avatar",{}), cfg.get("chalk_sfx",{})
+    # iter 94: dynamic_avatar 走 ffmpeg overlay 第二影片軌, 不經 overlay_teacher_photo,
+    # iter 92 的 talking_head_override 攔不到. 在這多加一道 check.
+    from core.photo_overlay import _should_skip_by_runtime_override
+    if _should_skip_by_runtime_override():
+        dyn = {}  # runtime 要 skip → 強制 disable dynamic avatar 這條路
     total = dur + PAUSE_AFTER_EACH
     inputs = ["-loop", "1", "-t", f"{total:.3f}", "-i", str(f_p), "-i", str(a_p)]
     sfx_idx, ava_idx, next_idx = -1, -1, 2

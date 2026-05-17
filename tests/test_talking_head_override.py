@@ -106,3 +106,64 @@ class TestOverlayShortCircuit:
         with talking_head_override("long_form_only", is_short_form=True):
             overlay_teacher_photo(None)  # type: ignore[arg-type]
         assert called == [], "short_form + long_form_only 該 skip"
+
+
+class TestBuildClipDynamicAvatar:
+    """iter 94: dynamic_avatar 走 build_clip / ffmpeg overlay 不經
+    overlay_teacher_photo. override 也要擋這條路徑."""
+
+    def test_build_clip_skips_dynamic_avatar_when_off(self, monkeypatch, tmp_path):
+        """talking_head=off 時, ffmpeg 命令不該有 avatar concat input."""
+        from pathlib import Path
+        import pipeline as pl
+
+        # mock pipeline_config 把 dynamic_avatar 開到 enabled=True
+        monkeypatch.setattr(
+            pl, "_get_pipeline_config",
+            lambda: {
+                "dynamic_avatar": {"enabled": True, "size": 220, "margin": 40, "border_width": 3},
+                "chalk_sfx": {"enabled": False},
+            },
+        )
+        # 假裝 avatar_closed.png 已存在 (走 dynamic 路徑的必要條件)
+        avatar_png = pl.WORK_DIR / "avatar_closed.png"
+        pl.WORK_DIR.mkdir(parents=True, exist_ok=True)
+        avatar_png.write_bytes(b"fake_png_for_test")
+
+        # 攔截 ffmpeg subprocess + _build_avatar_concat (不真跑)
+        captured_cmd = []
+        monkeypatch.setattr(pl.subprocess, "run", lambda cmd, **kw: captured_cmd.append(cmd))
+        monkeypatch.setattr(pl, "_build_avatar_concat", lambda *a, **kw: None)
+
+        f_p = tmp_path / "frame.png"
+        f_p.write_bytes(b"x")
+        a_p = tmp_path / "audio.mp3"
+        a_p.write_bytes(b"x")
+        out_p = tmp_path / "clip.mp4"
+
+        try:
+            # 1. 不開 override → 應該有 avatar concat input
+            captured_cmd.clear()
+            pl.build_clip(f_p, a_p, 5.0, out_p, tmp_path)
+            cmd1 = captured_cmd[0]
+            assert "concat" in cmd1, "預設應該接 dynamic avatar concat"
+
+            # 2. override=off → ffmpeg 命令不該再有 avatar concat
+            captured_cmd.clear()
+            with talking_head_override("off"):
+                pl.build_clip(f_p, a_p, 5.0, out_p, tmp_path)
+            cmd2 = captured_cmd[0]
+            assert "concat" not in cmd2, (
+                f"override=off 該 skip dynamic avatar, 但 cmd 仍含 concat: {cmd2}"
+            )
+
+            # 3. override=long_form_only + 短片 → 也該 skip
+            captured_cmd.clear()
+            with talking_head_override("long_form_only", is_short_form=True):
+                pl.build_clip(f_p, a_p, 5.0, out_p, tmp_path)
+            cmd3 = captured_cmd[0]
+            assert "concat" not in cmd3, (
+                "short_form + long_form_only 該 skip dynamic avatar"
+            )
+        finally:
+            avatar_png.unlink(missing_ok=True)

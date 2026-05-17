@@ -81,11 +81,13 @@ export default function ProposalsList() {
   const [scanMaxPerFile, setScanMaxPerFile] = useState(3);
   const [scanStatus, setScanStatus] = useState<ScanStatusResponse | null>(null);
   const pollTimerRef = useRef<number | null>(null);
+  // iter 89: 顯示已處理 toggle (APPROVED / IGNORED 也列出, 可複製為新 PENDING)
+  const [viewAll, setViewAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.listProposals(true);
+      const r = await api.listProposals(!viewAll);
       setProposals(r.proposals);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
@@ -94,7 +96,7 @@ export default function ProposalsList() {
     } finally {
       setLoading(false);
     }
-  }, [show]);
+  }, [show, viewAll]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -246,6 +248,22 @@ export default function ProposalsList() {
     }
   };
 
+  // iter 89: 複製已處理 proposal 為新 PENDING. 給「同檔多影片」場景用 —
+  // 例 ultra_quick 短版 done 後想再做 lecture 長版.
+  const handleDuplicate = async (p: Proposal) => {
+    setBusyId(p.id);
+    try {
+      const newProp = await api.duplicateProposal(p.id);
+      show(`已複製為新提案「${newProp.suggested_title}」 (id=${newProp.id})`, 'info');
+      await load();  // refresh 拉新 PENDING 進來
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : String(e);
+      show(`複製失敗: ${msg}`, 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <Topbar
@@ -254,6 +272,14 @@ export default function ProposalsList() {
         subtitle="Gemini Vision 掃過你資料夾裡的新檔案,挑出值得拍的題材排好排程。你的工作只剩下 yes / no。"
         right={
           <>
+            <Btn
+              kind={viewAll ? "primary" : "ghost"}
+              size="md"
+              onClick={() => setViewAll(v => !v)}
+              title="顯示已 approved / ignored 的 proposal, 可複製為新 pending"
+            >
+              {viewAll ? '✓ 全部' : '◌ 全部'}
+            </Btn>
             <Btn kind="ghost" size="md" onClick={load}>↻ 重新載入</Btn>
             <Btn kind="secondary" size="md" onClick={() => setScanModal(true)}>⌕ 掃資料夾</Btn>
           </>
@@ -310,6 +336,7 @@ export default function ProposalsList() {
                   onToggle={() => setOpenCfg(openCfg === p.id ? null : p.id)}
                   onApprove={() => handleApprove(p)}
                   onIgnore={() => handleIgnore(p)}
+                  onDuplicate={() => handleDuplicate(p)}
                   onThemeChange={(v) => setThemeByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onLengthChange={(v) => setLengthModeByProposal(prev => ({ ...prev, [p.id]: v }))}
                   onIntroChange={(v) => setPrependIntroByProposal(prev => ({ ...prev, [p.id]: v }))}
@@ -395,6 +422,7 @@ interface CardProps {
   onToggle: () => void;
   onApprove: () => void;
   onIgnore: () => void;
+  onDuplicate: () => void;   // iter 89
   onThemeChange: (v: ThemeName) => void;
   onLengthChange: (v: 'ultra_quick' | 'quick' | 'lecture') => void;
   onIntroChange: (v: boolean) => void;
@@ -420,7 +448,7 @@ function ProposalCard({
   coverSpeakerValue, coverOrgValue, coverDateValue, coverNarrationValue,
   outroValue, outroThanksValue, outroUrlValue, outroNarrationValue,
   outroVideoValue, qrValue, outroYoutubeValue,
-  onToggle, onApprove, onIgnore,
+  onToggle, onApprove, onIgnore, onDuplicate,
   onThemeChange, onLengthChange, onIntroChange, onAiGenChange, onAiMermaidChange, onCoverChange,
   onCoverSpeakerChange, onCoverOrgChange, onCoverDateChange, onCoverNarrationChange,
   onOutroChange, onOutroThanksChange, onOutroUrlChange, onOutroNarrationChange,
@@ -461,13 +489,36 @@ function ProposalCard({
         </div>
 
         <div className="shrink-0 flex flex-col gap-2 w-[140px]">
-          <Btn kind="primary" size="md" className="!w-full !justify-center" onClick={onApprove} disabled={busy}>
-            {busy ? '處理中…' : '✓ 核准'}
-          </Btn>
-          <Btn kind="ghost" size="md" className="!w-full !justify-center" onClick={onToggle} disabled={busy}>
-            {open ? '收合 ↑' : '⚙ 進階'}
-          </Btn>
-          <Btn kind="quiet" size="md" className="!w-full !justify-center" onClick={onIgnore} disabled={busy}>✗ 忽略</Btn>
+          {p.status === 'pending' ? (
+            <>
+              <Btn kind="primary" size="md" className="!w-full !justify-center" onClick={onApprove} disabled={busy}>
+                {busy ? '處理中…' : '✓ 核准'}
+              </Btn>
+              <Btn kind="ghost" size="md" className="!w-full !justify-center" onClick={onToggle} disabled={busy}>
+                {open ? '收合 ↑' : '⚙ 進階'}
+              </Btn>
+              <Btn kind="quiet" size="md" className="!w-full !justify-center" onClick={onIgnore} disabled={busy}>✗ 忽略</Btn>
+            </>
+          ) : (
+            // iter 89: 非 pending (已 approved / ignored / done) — 顯示狀態 + 複製按鈕
+            <>
+              <div className="text-center text-[11px] text-ink-muted py-1 px-2 border border-paper-edge rounded-sm bg-paper-warm">
+                {p.status === 'approved' && '✓ 已核准'}
+                {p.status === 'ignored' && '✗ 已忽略'}
+                {p.status === 'expired' && '⌛ 已過期'}
+              </div>
+              <Btn
+                kind="secondary"
+                size="md"
+                className="!w-full !justify-center"
+                onClick={onDuplicate}
+                disabled={busy}
+                title="複製成新 PENDING 提案 — 同檔可做多支不同設定的影片"
+              >
+                {busy ? '處理中…' : '📋 複製'}
+              </Btn>
+            </>
+          )}
         </div>
       </div>
 

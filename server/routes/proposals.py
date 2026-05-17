@@ -62,6 +62,10 @@ class ProposalResponse(BaseModel):
     estimated_duration_min: int
     status: str
     job_id: str | None = None
+    # iter 89: 從 duplicate endpoint 來的 proposal 帶原 id (audit trail)
+    from_: str | None = Field(default=None, alias="_from")
+
+    model_config = {"populate_by_name": True}
 
 
 class ProposalListResponse(BaseModel):
@@ -441,3 +445,37 @@ async def ignore_proposal(proposal_id: str) -> ProposalResponse:
     target["status"] = ProposalStatus.IGNORED.value
     _persist(proposals)
     return ProposalResponse(**target)
+
+
+@router.post("/{proposal_id}/duplicate", response_model=ProposalResponse)
+async def duplicate_proposal(proposal_id: str) -> ProposalResponse:
+    """iter 89: 把現有 proposal (任何 status) 複製成新 PENDING.
+
+    用戶場景: 同一份 PDF 想做多支不同設定的影片 (例 ultra_quick 短版 +
+    lecture 長版 + 不同主題). 現有 dedup 邏輯 (ideate.dedupe_against_jobs)
+    + approve 一次性限制讓「同檔多 job」不順. 這 endpoint 給用戶手動
+    繞過 — 從 APPROVED / IGNORED 的 proposal 複製出新 PENDING, 可改設定
+    再 approve.
+
+    複製規則:
+    - 全 fields 複製 (source_file / source_type / suggested_title 等)
+    - 換新 id (時間戳)
+    - status 一律新 PENDING (不繼承原 APPROVED / IGNORED / DONE)
+    - 清掉 job_id 欄位 (新 proposal 還沒建 job)
+    - 加 _from 欄位記原 proposal id (debug / audit 用)
+    """
+    import time
+    proposals = _load_all()
+    src = _find_proposal(proposals, proposal_id)
+
+    # 複製除 status / job_id 外全部欄位
+    new_id = f"prop_{time.time_ns()}_dup"
+    new_proposal = dict(src)  # shallow copy 即可 (內層只有 list[str] 安全)
+    new_proposal["id"] = new_id
+    new_proposal["status"] = ProposalStatus.PENDING.value
+    new_proposal.pop("job_id", None)
+    new_proposal["_from"] = proposal_id  # audit trail
+
+    proposals.append(new_proposal)
+    _persist(proposals)
+    return ProposalResponse(**new_proposal)

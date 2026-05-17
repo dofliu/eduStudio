@@ -209,6 +209,13 @@ export const api = {
       { method: 'PATCH' },
     ),
 
+  // iter 89: 複製 proposal 為新 PENDING (任何 status → 新 PENDING)
+  duplicateProposal: (proposalId: string) =>
+    call<Proposal>(
+      `/proposals/${encodeURIComponent(proposalId)}/duplicate`,
+      { method: 'POST' },
+    ),
+
   /** 觸發 ideate 掃單一資料夾 (UI 模式, iter 27 取代 yaml). 同步等完成. */
   scanFolder: (req: ScanFolderRequest) =>
     call<ScanResponse>(`/proposals/scan-folder`, {

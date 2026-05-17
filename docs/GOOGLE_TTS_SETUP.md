@@ -51,7 +51,7 @@ pip install google-cloud-texttospeech
 {
   "backend": "google",
   "google": {
-    "voice": "zh-TW-Wavenet-A",
+    "voice": "cmn-TW-Wavenet-A",
     "language_code": "zh-TW",
     "speaking_rate": 1.0,
     "pitch": 0.0,
@@ -66,17 +66,43 @@ pip install google-cloud-texttospeech
 
 GCP 失敗時自動 fallback 到 `edge` (跟 F5 一樣的 FallbackTTS 機制).
 
-## 可選 zh-TW 聲音
+## 可選 voice
+
+⚠ **命名注意**: 2026 GCP 把中文 prefix 改成 `cmn-` (Mandarin), 舊的
+`zh-TW-Wavenet-A` 已經 404. `language_code` 仍可用 `zh-TW` (alias OK)
+但 voice name 必須是 `cmn-*`.
+
+### 台灣腔 (`cmn-TW`, 6 個)
 
 | voice | 性別 | 風格 |
 |---|---|---|
-| `zh-TW-Wavenet-A` | 女 | 自然 (預設) |
-| `zh-TW-Wavenet-B` | 男 | 中性 |
-| `zh-TW-Wavenet-C` | 男 | 深沉 |
-| `zh-TW-Standard-A` | 女 | 標準 (便宜, $4/1M) |
-| `zh-TW-Standard-B/C/D` | — | Standard 系列 |
+| `cmn-TW-Wavenet-A` | 女 | 自然 (預設) |
+| `cmn-TW-Wavenet-B` | 男 | 中性 |
+| `cmn-TW-Wavenet-C` | 男 | 深沉 |
+| `cmn-TW-Standard-A` | 女 | 標準 (便宜 $4/1M) |
+| `cmn-TW-Standard-B/C` | 男 | Standard 系列 |
 
-Note: zh-TW 沒有 Neural2 (那是 en-US 系列). 想要更高品質用 Studio 但要 $160/1M 太貴.
+⚠ 台灣腔目前**沒有** Chirp3-HD 跟 Studio. 想要 SOTA 品質只能用對岸腔 (下方).
+
+### 對岸腔 Chirp3-HD (`cmn-CN`, 32+ voices)
+
+2025 新一代 SOTA, 品質明顯高過 Wavenet, 但**腔調是大陸普通話**.
+教學講書面語時差別小, 講閩南語人名 / 台式口語就會聽起來怪.
+
+代表 voices (語氣自取):
+- `cmn-CN-Chirp3-HD-Aoede` (女, 溫暖)
+- `cmn-CN-Chirp3-HD-Charon` (男, 沉穩)
+- `cmn-CN-Chirp3-HD-Zephyr` (女, 明亮)
+- `cmn-CN-Chirp3-HD-Puck` (男, 活潑)
+- 完整 32 個名字跑 `python tests/list_voices.py` 看
+
+### 查當前清單
+
+GCP 偶爾會 ship 新 voice / 砍舊 voice, 隨時可以查:
+
+```powershell
+python tests/list_voices.py
+```
 
 ## 試聲音 (跳過 pipeline)
 

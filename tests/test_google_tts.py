@@ -34,15 +34,15 @@ def _run(coro):
 class TestGoogleTTSConstruction:
     def test_default_voice_is_zh_tw_wavenet_a(self):
         g = GoogleTTS()
-        assert g.voice == "zh-TW-Wavenet-A"
+        assert g.voice == "cmn-TW-Wavenet-A"
         assert g.language_code == "zh-TW"
         assert g.speaking_rate == 1.0
         assert g.pitch == 0.0
         assert g.audio_encoding == "MP3"
 
     def test_custom_voice_param(self):
-        g = GoogleTTS(voice="zh-TW-Wavenet-B", speaking_rate=0.9, pitch=-2.0)
-        assert g.voice == "zh-TW-Wavenet-B"
+        g = GoogleTTS(voice="cmn-TW-Wavenet-B", speaking_rate=0.9, pitch=-2.0)
+        assert g.voice == "cmn-TW-Wavenet-B"
         assert g.speaking_rate == 0.9
         assert g.pitch == -2.0
 
@@ -126,7 +126,7 @@ class TestLoadTTSBackend:
         """tts_config.json backend=google → FallbackTTS(GoogleTTS, EdgeTTS)."""
         cfg = {
             "backend": "google",
-            "google": {"voice": "zh-TW-Wavenet-B", "speaking_rate": 0.95},
+            "google": {"voice": "cmn-TW-Wavenet-B", "speaking_rate": 0.95},
         }
         cfg_path = tmp_path / "tts_config.json"
         cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
@@ -134,7 +134,7 @@ class TestLoadTTSBackend:
         assert isinstance(backend, FallbackTTS)
         assert isinstance(backend.primary, GoogleTTS)
         assert isinstance(backend.fallback, EdgeTTS)
-        assert backend.primary.voice == "zh-TW-Wavenet-B"
+        assert backend.primary.voice == "cmn-TW-Wavenet-B"
         assert backend.primary.speaking_rate == 0.95
 
     def test_backend_google_with_no_google_section_uses_defaults(self, tmp_path):
@@ -143,7 +143,7 @@ class TestLoadTTSBackend:
         cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
         backend = load_tts_backend(cfg_path)
         assert isinstance(backend.primary, GoogleTTS)
-        assert backend.primary.voice == "zh-TW-Wavenet-A"
+        assert backend.primary.voice == "cmn-TW-Wavenet-A"
 
     def test_backend_edge_unchanged(self, tmp_path):
         """既有 backend=edge / 未指定 → 不該有 wrapper."""

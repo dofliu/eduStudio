@@ -321,13 +321,16 @@ class GoogleTTS(TTSBackend):
 
     def __init__(
         self,
-        voice: str = "zh-TW-Wavenet-A",
+        voice: str = "cmn-TW-Wavenet-A",
         language_code: str = "zh-TW",
         speaking_rate: float = 1.0,
         pitch: float = 0.0,
         audio_encoding: str = "MP3",
     ):
-        """voice 預設 zh-TW-Wavenet-A (女聲, 自然). 男聲用 -B 或 -C.
+        """voice 預設 cmn-TW-Wavenet-A (台灣女聲, 自然). 男聲用 -B 或 -C.
+        2026 GCP 命名: cmn-TW (台灣) / cmn-CN (對岸), 不是 zh-TW.
+        zh-TW 仍可當 language_code (GCP 內部 alias), 但 voice name 必須是
+        cmn-* 否則 400 'Voice does not exist'.
         speaking_rate 0.25-4.0 (1.0=正常). pitch -20.0 ~ 20.0 (0=原調).
         """
         self.voice = voice
@@ -431,11 +434,12 @@ def load_tts_backend(config_path: Path | None = None) -> TTSBackend:
         )
         return FallbackTTS(primary, edge)
     if backend_name == "google":
-        # iter 92: Google Cloud TTS (Wavenet zh-TW). 失敗 fallback edge.
+        # iter 92: Google Cloud TTS (Wavenet cmn-TW). 失敗 fallback edge.
         # 認證走 GOOGLE_APPLICATION_CREDENTIALS env, 跟 GCP 規範一致.
+        # 2026 命名: cmn-TW (台灣) / cmn-CN (對岸 Chirp3-HD 可選), 不是 zh-TW.
         gcfg = cfg.get("google", {}) or {}
         primary = GoogleTTS(
-            voice=gcfg.get("voice", "zh-TW-Wavenet-A"),
+            voice=gcfg.get("voice", "cmn-TW-Wavenet-A"),
             language_code=gcfg.get("language_code", "zh-TW"),
             speaking_rate=float(gcfg.get("speaking_rate", 1.0)),
             pitch=float(gcfg.get("pitch", 0.0)),

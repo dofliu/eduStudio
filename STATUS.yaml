@@ -4,17 +4,17 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-17"
-next_milestone: "iter 92 三軸升級: (1) 講者頭像 talking_head 三段選項 (always/long_form_only/off, 短影片自動 skip); (2) scriptor 教學風格 L2 5 preset (academic/storyteller/wuxia/dialogue/comedy) + L3 persona scaffold (jliu v1); (3) Google Cloud TTS provider (zh-TW Wavenet, $16/1M, FallbackTTS 機制). 1071 tests (+41 in 3 new test files). 等用戶實機測試各 preset 觀感 + GCP API key 啟用."
+next_milestone: "iter 92-94 完成 — 講者頭像 talking_head 三段選項 (off/long_form_only/always, dynamic_avatar 也接管), L2 narration_style 5 preset + L3 persona/jliu v1 scaffold, GCP TTS 接通 cmn-TW-Wavenet-A. iter 93 TTS 公式 normalize (backtick/uP(t)/Kp/e(t)). 接著移交 hourly routine 自主推 backlog, 等用戶實機反饋."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
   - Pydantic v2
   - React 18 + TypeScript + Vite + Tailwind CSS
   - Flask (legacy v1 review UI, 已 redirect, 過渡期保留)
-  - Gemini 2.5 Flash (Vision + Text)
+  - Gemini 2.5 Flash (Vision + Text + Image)
   - PyMuPDF
   - BeautifulSoup4 (URL adapter)
-  - Edge TTS / F5-TTS (聲音複製, 預切句修中文邊界)
+  - Edge TTS / F5-TTS / Google Cloud TTS (cmn-TW Wavenet)
   - Pillow / FFmpeg (含 hardsub subtitles filter)
   - Google YouTube Data API v3 + OAuth 2.0
   - pytest + GitHub Actions CI
@@ -24,268 +24,68 @@ outputs:
   - course
   - presentation
   - api
-description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini -> human review -> MP4 + SRT -> YouTube. v3.1 platform consolidation done; v3.2 infrastructure done; Track A retired on the workflow level."
-description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。v3.1 平台合一 + v3.2 基礎建設完成,Track A 工作流上正式退場。"
+description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini -> human review -> MP4 + SRT -> YouTube. Production-ready, content quality roadmap iterating."
+description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
+
 key_metrics: |
-  v3.0 平台基礎完成 (PR-1 ~ PR-3e):
-  - 5 種 source: exam_pdf / slides_pdf / repo / document / url
-  - 3 種 renderer: 黑板 / 簡報原圖 / Forest pptx (Pillow, 0 LibreOffice 依賴)
-  - REST API + React UI (port 8000) + 既有 Flask review UI (port 5000)
-  - CLI: scripts/submit_job.py 給排程端用
+  測試覆蓋: 1090 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  frontend-typecheck 全綠.
 
-  v3.1 平台合一 完成 (PR-3f ~ PR-3m):
-  - PR-3f: Track B 接 YouTube 上傳通道 (per-artifact upload + meta 預填 + 章節時間軸)
-  - PR-3g: 考卷 v1 schema 接 React UI (取代 Flask /edit)
-  - PR-3h: slides_pdf 升 deck schema, React UI 顯示投影片縮圖
-  - PR-3i: Track A redirect (預設 / → :8000/ui/, KEEP_TRACK_A=1 可關)
-  - PR-3j: FAILED 狀態可編輯 + retry render
-  - PR-3k: Track B 加 PDF multipart 上傳
-  - PR-3l: 聲音切換 picker + 試聽 sample
-  - PR-3m: 跨 job 影片 Library 頁
+  --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
 
-  v3.2 基礎建設 完成 (PR-4a ~ PR-4c):
-  - PR-4a: 單章 / 單題重 render (省 30+ 分鐘整份重跑)
-  - PR-4b: pytest 基底 + GitHub Actions CI (140 tests, 4 組 matrix)
-  - PR-4c: per-job structured logging + React UI tail panel
+  iter 94 (2026-05-17, commit 0ca58e5) — talking_head hotfix:
+  - 用戶實測 talking_head=off 影片仍有頭像
+  - 根因: pipeline_config.json dynamic_avatar.enabled=true 走 build_clip
+    ffmpeg overlay 路徑, 完全不經過 overlay_teacher_photo
+  - 修: build_clip 開頭 import _should_skip_by_runtime_override, 命中
+    強制 dyn={} disable. +1 整合測試 (mock subprocess + 驗 ffmpeg cmd)
 
-  v3.2 加分項目 完成 (PR-5a ~ PR-5c):
-  - PR-5a: Navy pptx 主題 (forest / navy 切換)
-  - PR-5b: F5-TTS 中文預切句 (修「處」+「理與應用」mid-word 切錯)
-  - PR-5c: 燒字幕進 MP4 選項 (UI checkbox + ffmpeg subtitles filter)
+  iter 93 (2026-05-17, commit a72b1b7) — TTS 公式 normalize:
+  - 用戶實測 GCP Wavenet 念糟: backtick 念「上句點」, uP(t) 念 "up t",
+    e(t) 念 "et"
+  - 後處理 (tts_backend.normalize_text 全 backend 受惠):
+    剝 markdown / 兩字母拆字 / 函式記法轉 "of"
+  - 前處理 (scriptor_*.txt 兩 prompt): 嚴禁 narration 用 backtick/星號
+  - +18 tests/test_normalize_text_formula
 
-  v3.3 Phase 4 split-left layout 完成 (Option A 靜態版, 2026-05-10):
-  - SlideRenderer.render() 依 step.layout dispatch _render_full / _render_split_left
-  - 左半 940 寬投影片, 右半 920 寬 title + bullets, 字幕黑帶 180px
-  - core.deck.deck_to_exam_schema_slides 透傳 title + bullets (full 不讀, 保 schema 一致)
-  - SlideEditor 加 layout <select>, split-left 才顯示 bullets 編輯器
+  iter 92b (2026-05-17, commit 448b0b7) — GCP voice 命名 hotfix:
+  - 實測 zh-TW-Wavenet-A 已 404, 2026 GCP 改 cmn-* prefix
+  - 修 tts_backend / docs / tests 一致
+  - 新增 tests/list_voices.py 供將來查清單
 
-  測試覆蓋: 309 tests / 13 modules (text_utils 22 / deck 27 / youtube 17 /
-  jobs_store 32 / voices 13 / pptx_themes 20 / f5_split 13 / hardsub 10 /
-  slide_renderer 5 / visuals 7 / upload 7 / ideate 57 (含 detect/propose/
-  dedupe auto-detect) / prompts_loader 16 (含 cache invalidation) /
-  ideate_runner 3 / proposals_route 17 / diagram_gen 42 (含 AST allowlist +
-  dunder + render sandbox + generate_diagram 整合)) + GitHub Actions CI
-  4 組 matrix 全綠。
+  iter 92 (2026-05-17, commit d1da48f) — 內容品質三軸升級:
+  - talking_head 三段選項 (always / long_form_only / off)
+  - L2 narration_style 5 preset + L3 persona jliu v1
+  - Google Cloud TTS provider (FallbackTTS 機制)
+  - +41 tests
 
-  Code review Round 1 (2026-05-09): P0 4 + P1 3 條全數修完 (2026-05-10):
-  P0: logging lock / utc_now tz-aware / /upload size limit / sys.exit → raise
-  P1: PptxStyle 越界 / F5 seg cleanup / publish 雙擊
-  P2 (logger import / SRT 浮點 / tts_config gitignore) 評估後接受不修.
+  iter 91 (2026-05-17, commit eac3ec2) — 中文 wrap 標點 + 孤字後處理:
+  - 短影片實測「Skill 的本質與差/異」孤字落單
+  - _balance_wrap_lines 三輪修整 (開頭標點推下 / 收尾標點拉回 / 末行借字)
+  - +8 tests
 
-  Code review Round 2 (2026-05-10) — Round 1 漏抓 + 實戰才踩出的三條:
-  - AwareDatetime AfterValidator (P0 #4 沒做 schema migration, 既存 naive
-    state.json 與新 aware datetime 共存時 sorted() TypeError → GET /jobs 500)
-  - F5._lazy_init to_thread (1.35GB safetensors download 阻 event loop,
-    GET /jobs 全部 hang. Track A 多 process 沒踩, Track B 單一 process 踩)
-  - _render_full letterbox 進 visible_h = HEIGHT - 180 (slide 底部 16.7%
-    一直被字幕帶蓋掉, PR-3h 引入 SlideRenderer 就有, Phase 4 才注意到)
-  Lessons learned 三通則寫進 docs/CODE_REVIEW.md (改 schema type / sync I/O /
-  letterbox-fit), 給未來 v4 規劃參考.
+  --- Major milestones ---
 
-  v4 暖身完成 (2026-05-11, commit 8abfb2e):
-  - core/visuals.py 集中 layout 常數 (SUBTITLE_BAND_HEIGHT / CONTENT_BOTTOM /
-    SUBTITLE_STRIP_COLOR), pipeline.py + pptx_style.py 7 處 magic number 改 import
-  - tests/test_visuals.py 7 tests 鎖值 + cross-module import 一致性
-  - 148 → 155 tests
-  - 解 Round 2 lessons-learned #3 「magic number 散一份, 改一處忘改另一處」根因
+  - v3.0 (PR-1 ~ PR-3e): 平台基礎, 5 種 source, 3 種 renderer, REST API + React UI
+  - v3.1 (PR-3f ~ PR-3m): 平台合一, YouTube 上傳 / 考卷編輯 / Library
+  - v3.2 (PR-4a ~ PR-4c): pytest + CI / per-job logging / 單章重 render
+  - v3.3 (PR-5a ~ 5c): Navy 主題 / F5 預切句 / 燒字幕
+  - v4 暖身 (iter 1~22): Docker + ideate + 工程圖 AI scaffold
+  - 內容品質 roadmap A→D (iter 73~91): 主題系統 / 9:16 短影片 / 自訂色票 /
+    narration 長度驗證 / outline preview / 字幕風格
+  - 用戶實測反饋三輪 (iter 87~94): CI 全綠修復 / 短影片 layout / proposal
+    duplicate / wrap 後處理 / 三軸內容升級 (頭像/風格/GCP TTS) / TTS 公式
 
-  P0 結構性弱點 (2026-05-11 辨識, 待 v4 各階段解決):
-  - #1 無 job 持久化 (asyncio.create_task 即起即忘, 重啟丟所有 job)
-  - #2 單一 process sync I/O 仍是炸雷 (F5 已踩, 沒 enforcement)
-  - #3 schema migration 無框架 (Round 2 P0 #4 已踩, 下次改型別還踩)
-  - #4 無 review gate 強制機制 (require_review flag 可繞)
+  --- 等用戶介入 (詳細 backlog 見 TODO.md) ---
 
-  v4 規劃 (按投報率排序, 詳見 ROADMAP.md / TODO.md):
-  - 階段 1: C Claude Code skill 包裝 → A Docker (1~2 週) ✅ server-side 全完成
-  - 階段 2: B ideate.py 自動企劃 + E 工程圖 AI (2~3 週) ✅ server-side 全完成
-  - 階段 3: D 持久化 worker (雲端化前置, 等真需要才做) 📋 RFC 階段
+  - 詞句 / 發音對照 (待用戶列念錯詞)
+  - narration_style 5 preset 選定
+  - persona/jliu v2 樣本
+  - voice clone (ElevenLabs Instant) 決定
+  - C2 F5 pronunciation (主軌已換 GCP, 看是否還維護 F5)
 
-  2026-05-12~14 /advance 自動化迭代進度 (32 個 iter, 全部 CI 綠):
+  --- Routine handoff (2026-05-17) ---
 
-  iter 1~22 基礎 + 第一波收尾 (見 commit history db1a732 之前):
-  - Docker (Dockerfile / docker-compose / .env.example)
-  - ideate 完整 server-side (scan / propose / dedupe / save / route / UI / CLI)
-  - 工程圖 AI scaffold + AST sandbox + subprocess render
-  - 技術債大量清理 (deps / prompts / 死碼)
-  - 補完 CR 已知測試盲點 + 修 CI 紅 2 條
-
-  iter 23~31 真實踩雷修補 + UX 翻轉:
-  - iter 23: CLI scripts/run_ideate.py
-  - iter 24: 修 retry path (state=FAILED + 無 deck.json 走 schedule_job)
-  - iter 25: ideate 自動判斷 source_type (Gemini Vision 看前 2 頁分類)
-    + hotfix {{ }} 雙花括號 bug (commit db1a732)
-  - iter 26 → 27: yaml 設定 + 自動排程 (user 反饋 UX 太繁瑣) → 砍掉,
-    全 ad-hoc UI modal 取代 (commit 4577675)
-  - iter 28: pptx 主題 + 3 (Frieren / Naruto / Journal,
-    從 pptx-jliu-style 移植, commit 894ae78)
-  - iter 29: AST allowlist 補 dunder attribute (review 抓的 🟡, commit 403ffc4)
-  - iter 30: prompts_loader cache invalidation (commit 439e540)
-  - iter 31: 工程圖 AI 收尾 — generate_diagram + _propose_matplotlib_code
-    + prompts/diagram_matplotlib.txt 完整鏈 (commit 5c4d899)
-
-  P0 結構性弱點 (review iter 22 抓的) 全修:
-  - #1 proposal id collision (秒級→納秒級)
-  - #2 prompt {{ }} 雙花括號
-  - #3 retry 路徑 (ingest fail 時走錯)
-  - #4 AST dunder attribute 繞道
-
-  剩下的 (低優先, 等 user 互動再做):
-  - F5 中國腔治本 (需實機跑樣本)
-  - Gemini narration 截斷率 22% (需實跑驗證)
-  - Pronunciation map 缺漏 (需實聽錄音)
-  - pipeline.py 拆檔 (中大型 refactor)
-  - 階段 3 D 持久化 worker (要先 RFC 對齊技術選型)
-
-  iter 32~62b 自動化迭代 (2026-05-14~16, 全部 CI 綠):
-
-  iter 41~50 串接 / quick 長度 / TTS 修補:
-  - iter 41: prepend_intro 個人 intro 串開場
-  - iter 43: length_mode (quick 8~15min / lecture 20~40min) 預設
-  - iter 45: multi-section concat (每 section 獨立 mp4 → final.mp4)
-  - iter 46: quick 真的「快」(sections 3~4 / slides 4~5 / chars 80~120)
-  - iter 47~50: 雜項修補 (跳 narration / SRT 對齊 / log)
-
-  iter 51~54 Option A — PDF figures 自動配圖 (4 phases):
-  - iter 51: PyMuPDF 抽 figures + figure schema 統一
-  - iter 52: scriptor 看 figures 選 image_path (跨 section dedupe)
-  - iter 52b: image_path 去重 + intro_rewriter regex boundary 修
-  - iter 53: split-image-right layout (影片實際看到圖)
-  - iter 54: SlideEditor figure picker (UI 替換 / 移除)
-
-  iter 55~57b Option B + D — AI 配圖 (生圖 + Mermaid):
-  - iter 55: done 狀態加「重新渲染整支」入口
-  - iter 56: Gemini 2.5 Flash Image 生架構圖 (opt-in, 會計費)
-  - iter 56b: 補回 UI redesign 蓋掉的功能按鈕
-  - iter 56c: model name → gemini-2.5-flash-image (GA, -preview 去掉)
-  - iter 56d: AI 生圖自動 attach 到 section 第一張 slide
-  - iter 57: repo .md 內 mermaid blocks → mermaid.ink 渲染
-  - iter 57b: AI 生 mermaid syntax fallback (text gen 較便宜)
-
-  iter 58~61 Option 2 — 主題真的有區隔感 (4 phases):
-  - iter 58: banner_style 4 種 (rectangle / hairline / reverse / neon)
-  - iter 59: title_decor 4 種 (underline / block / hairline / reverse)
-  - iter 60: font_role per theme (serif/sans, NotoSerifTC-VF 動態載)
-  - iter 61: 5 主題簽名裝飾 (shinobi 徽章 / elven 寶石 / arcade 像素 /
-    brutalist 警示 / editorial section mark)
-
-  iter 62 + 62a + 62b — 封面頁:
-  - iter 62: 插入封面頁 (intro 之後 / 主內容前), 主題 + 講者 + 日期 +
-    單位, 配模板開場口白. opt-in, 走 multi-section concat 路徑.
-  - iter 62a: meta 文字色 contrast-aware (Rec. 601 luma 差值 < 80 fallback
-    到 primary, brutalist 螢光綠 + supergraphic 白配白 都修)
-  - iter 62b: 封面 meta per-job UI override (講者 / 單位 / 日期),
-    空白 fallback env / 今天, +10 tests.
-
-  測試覆蓋: 695 tests / 14+ modules (含 test_cover_gen 13, test_cover_meta_override
-  10, test_pptx_themes 121 含 15 主題 contrast 護網).
-
-  iter 63~72 (2026-05-16) 主題系統 + 封面 / 結尾頁收尾:
-  - iter 63 outro 結尾頁 + iter 63a hotfix (pipeline _RENDERERS 漏登錄
-    cover/outro) + iter 63b (long_form outro + intro_rewriter skip)
-  - iter 64 cover/outro 主題差異化 (reverse 主題粗框 + 5 主題 signature
-    在 cover/outro 也畫)
-  - iter 65 封面 narration 可從 UI 覆寫
-  - iter 66 outro 個人影片串接 + iter 67 結尾頁 QR codes
-  - iter 68 bullets layout dispatch (classic / numbered / centered) +
-    字幕條 palette 化 (claude design 01 + 02)
-  - iter 69 補 10 主題 signature decor (claude design 03)
-  - iter 71 補 5 個 layout 變體 (offset / arcade_hud / notebook_lined /
-    shinobi_vertical / risograph_offset)
-  - iter 72 主題預覽長廊 modal (15 主題 thumbnail grid)
-  - 1006+ tests, 主題系統徹底成熟
-
-  iter 73~85 (2026-05-16~17) 內容品質 roadmap (docs/CONTENT_QUALITY_ROADMAP.md):
-  - 2026-05-16 劉老師決策: v4 worker 暫緩 (個人使用不痛), 改做內容品質
-  - A1 字級 / 行距 per-theme (iter 74) + A2 margin per-theme (iter 75) +
-    A3 自訂主題色票 UI (iter 76, claude design 04+05 收尾)
-  - B3 ultra_quick 3-5 min Shorts/Reels mode (iter 77)
-  - C1 narration 長度驗證 + prompt 強化 (iter 79)
-  - D2 字幕風格樣式 (字級/字色/描邊色 hex, iter 80)
-  - D1 v1 outline 預覽 modal (iter 81, 唯讀)
-  - C3 narration 教學風格 (先舉例 + 多比喻, iter 82)
-  - B1+B2 動態影片尺寸 (Option B monkey-patch, iter 83 + iter 84 portrait
-    title 多行居中 + iter 85 pipeline.CONTENT_BOTTOM 漏 patch hotfix)
-  - 1007 tests passed, A/B/C/D 自動化部分全做完
-
-  iter 87~89 (2026-05-17) CI 修復 + 用戶實測反饋:
-  - 用戶 screenshot 反映 CI 從 iter 57 起連紅 30 commit
-  - iter 87/87b/87c/87d 修 4 條獨立根因:
-    - 87 (302c6a7): test_document_adapter/test_mermaid_render/test_diagram_image_gen
-      加 importorskip / skipif (fitz / google.genai 未裝)
-    - 87b (4ac0218): CI workflow 加 apt-get fonts-noto-cjk + qrcode pip,
-      Linux Pillow 缺中文字型導致 OSError: cannot open resource
-    - 87c (6b689a0): 視覺採點 threshold 放寬 — Windows msjh 跟 Linux
-      NotoSansCJK 字寬差異, 嚴格 threshold 誤判
-    - 87d (b0016ee): 補上 web/src/components/ui/ 9 個檔案 — 從 UI redesign
-      起未 commit, HEAD broken state, frontend-typecheck job 一直紅
-  - 用戶反饋兩個 issue:
-    - iter 88 (a8db669): 短影片獨立 layout (bg_type=short_video_slide) —
-      ultra_quick 預設只改字數預算沒改 rendering, 加巨大字居中 + 圖片
-      滿版下半 + 5 主題 reverse 主題仍有粗框. ultra_quick mode UI 自動勾
-    - iter 89 (db5742b): proposal「複製為新 PENDING」按鈕, 解「同檔多
-      影片」場景 — 同份 PDF 想做 ultra_quick + lecture + 不同主題等
-      多支不同設定, 原本被 dedupe + APPROVED status 鎖死
-  - 1022 tests passed
-  - lessons learned: 從本機 1007 passed 到 CI 紅 30 commit, 表示 CI
-    workflow 該有 deps changelog audit, 加新 test 要驗 CI 跑得起來
-
-  iter 92 (2026-05-17) 用戶實測三軸反饋 — 內容品質升級:
-
-  用戶看完 iter 88-91 後三個 ask:
-    (1) 右下角講者頭像短影片不需要, 該變選項
-    (2) TTS 該考慮付費方案以解 zh-TW 品質
-    (3) AI 內容該有更多風格 + 比喻 / 幽默
-
-  解法:
-  - **talking_head 三段選項** (always / long_form_only / off, 預設後者):
-    - core/photo_overlay.py 加 talking_head_override context manager
-    - runner._run_render 包進 video_dimensions_override 內側
-    - 短影片判定: aspect="9:16" OR length_mode="ultra_quick" OR
-      short_video_layout=True 任一
-    - UI dropdown + schema field, +13 tests
-  - **L2 narration_style 5 preset** (academic / storyteller / wuxia /
-    dialogue / comedy, 預設 storyteller 跟 iter 82 一致):
-    - prompts/styles/*.txt 5 個風格檔
-    - scriptor.py _get_style_directive lru cache 載入
-    - scriptor_repo_section / scriptor_longform_section 兩 prompt 加
-      {style_directive} {persona_directive} placeholder
-    - runner 透傳 rec.options.narration_style + persona 進 script()
-    - UI dropdown
-  - **L3 persona scaffold** (jliu v1):
-    - prompts/persona/jliu.txt 基於 CLAUDE.md 已知資訊寫: 副教授背景、
-      口頭禪 (對吧 / 你會發現 / 白話說就是)、舉例偏好 (風能 / SCADA /
-      材料力學 / 工業現場)、避免事項 (不過度自貶 / 不流行語梗)
-    - 標 v1 scaffold, 等用戶實機看再調
-  - **Google Cloud TTS provider** (FallbackTTS 機制):
-    - tts_backend.py 加 GoogleTTS class — zh-TW-Wavenet-A 預設
-    - load_tts_backend(backend="google") 分支 → FallbackTTS(GoogleTTS,EdgeTTS)
-    - lazy import + to_thread + 認證走 GOOGLE_APPLICATION_CREDENTIALS
-    - docs/GOOGLE_TTS_SETUP.md 完整啟用指南 (GCP project / service
-      account JSON / pip install / tts_config.json schema / 試聲音範本)
-    - +12 tests (全 mock client, 不真 call API)
-
-  測試: 1030 → 1071 (+41 in 3 new test files)
-  影響: 通過 4 個既有 test fix (補 style_directive/persona_directive
-  placeholder 到既有 prompt format 測試)
-
-  剩等用戶介入:
-  - 試 4-5 個 narration style 找適合的
-  - 看 jliu persona 跑出來像不像他, 回給樣本調 v2
-  - 開 GCP API + service account 啟用 Wavenet
-  - 之前列的 C2 樣本 / D1 v2 outline gate / image_panel portrait
-
-  iter 91 (2026-05-17) 短影片實測反饋 — 中文 wrap 後處理:
-  - 用戶 9:16 短影片實測截圖: 「Skill 的本質與差/異」標題斷字, 孤字
-    「異」單字落單第二行. 標題下「Skill 是可重用的「工作流/程包」」
-    後引號也可能行尾孤立.
-  - 病根: _wrap_text 純貪婪斷字, 沒孤字 / 標點規則. 影響所有 caller
-    (cover / outro / short_video / normal slide title / bullets).
-  - 解: 新增 _balance_wrap_lines post-process, 三輪修整:
-    1) 開頭標點 (「『( 等) 不該行尾, 推到下一行頭 (允許 ×1.05 超寬)
-    2) 收尾標點 (」』。, 等) 不該行首, 拉回上一行尾 (允許 ×1.08)
-    3) 末行 < 3 字孤字, 從上一行尾借字下來 (最多 3 字, 不掏空上行)
-  - 改 _wrap_text 自動 post-process, 所有 caller 自動受惠.
-  - +8 tests (test_wrap_balance), 1030 total passed.
-
-  剩等用戶介入: C2 TTS 中文發音 (要樣本) / D1 v2 outline edit/approve
-  gate (實機反饋後再做) / image_panel portrait 適配 (實機 broken 才修)
+  iter 95+ 開始, 移交 Anthropic 雲端 routine 每小時 fire 一次自主推 backlog.
+  SOP: docs/ROUTINE_ADVANCE_PROMPT.md
+  STOP 條件 + 硬規則寫進 SOP, 不可繞.

@@ -3,8 +3,8 @@ name_zh: 教學影片自動生成平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-05-17"
-next_milestone: "iter 92-94 完成 — 講者頭像 talking_head 三段選項 (off/long_form_only/always, dynamic_avatar 也接管), L2 narration_style 5 preset + L3 persona/jliu v1 scaffold, GCP TTS 接通 cmn-TW-Wavenet-A. iter 93 TTS 公式 normalize (backtick/uP(t)/Kp/e(t)). 接著移交 hourly routine 自主推 backlog, 等用戶實機反饋."
+last_updated: "2026-05-22"
+next_milestone: "iter 96 完成 — docs/skills.md 補上, 把 .claude/skills/ 的設計理念 / 流程 / 硬規則寫成 README 給 Kiwi / Christian 看. 下一輪可推 video-to-youtube skill 設計 (但 OAuth 安全模型仍是 STOP), 或挑 TODO Round 2 #1 _render_split_left bullets 溢出 pre-render 檢查."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -32,6 +32,13 @@ key_metrics: |
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 96 (2026-05-22, hourly routine 首輪) — docs/skills.md 新增:
+  - 把 .claude/skills/ 設計理念 (跟 repo 走, 不在 ~/.claude/skills/)
+    + 現況索引表 (pdf-to-video ✅ / video-to-youtube ⛔)
+    + pdf-to-video 流程 + 硬規則 + video-to-youtube 為何沒做 (OAuth
+    安全模型 3 方案 trade-off) + 自寫 skill 給 Kiwi/Christian 指引
+    寫進一份 README. 純 docs 不動 code, tests 不變 (1090 pass).
 
   iter 94 (2026-05-17, commit 0ca58e5) — talking_head hotfix:
   - 用戶實測 talking_head=off 影片仍有頭像

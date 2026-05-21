@@ -36,7 +36,7 @@
 - [ ] skill 自動 poll 流程實作 (現在是文字指引, 改 Bash 包成 helper)
 - [ ] `video-to-youtube` skill: 已 review 的 JSON → publish
   - 動 OAuth → 需先跟用戶討論安全模型, STOP 條件
-- [ ] skill 整合 README + 範例 PDF (放 docs/skills.md)
+- [x] skill README 整合 (放 docs/skills.md, iter 96) — 範例 PDF 留下次
 
 **A. Docker + docker-compose** ✨ 進行中
 - [ ] user 本機 `docker compose up --build` 實測, 修可能踩到的問題

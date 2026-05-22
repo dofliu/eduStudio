@@ -106,6 +106,8 @@ def deck_to_exam_schema_slides(deck: dict) -> dict:
                 "bullets": list(slide.get("bullets") or []),
                 # iter 100 (E2-4): icon_overlay 透傳, slides_pdf 路徑也吃 (review UI 共用)
                 "icon_overlay": slide.get("icon_overlay"),
+                # iter 101 (E1-1): image_frames 透傳, slides_pdf 也吃 (review UI 共用)
+                "image_frames": slide.get("image_frames"),
             })
         if not steps:
             continue
@@ -171,6 +173,9 @@ def deck_to_exam_schema_pptx(deck: dict, *, short_video_layout: bool = False) ->
                 # iter 100 (E2-4): icon_overlay list[dict] | None — 動態視覺素材 RFC.
                 # E2-5 renderer 走 PIL alpha_composite 疊 icon. 此處純透傳, 不檢驗.
                 "icon_overlay": slide.get("icon_overlay"),
+                # iter 101 (E1-1): image_frames list[dict] | None — 動態視覺素材 RFC E1.
+                # 流程圖 frame 序列, 渲染端 (E1-2) 偵測 list 走多 PNG 順序. 此處純透傳.
+                "image_frames": slide.get("image_frames"),
             }
             # iter 62: cover 專屬 meta 欄位 (其他 layout 不會讀)
             if bg_type == "cover":
@@ -270,6 +275,11 @@ def normalize_deck(deck: dict) -> dict:
             # 每個 dict 預期欄位: path / position / size_ratio /
             # 選擇性的 start_ms / duration_ms (None = 整 slide). 此處不檢驗
             # 內部結構 — E2-5 renderer 接時用 .get() 容錯.
+            sl.setdefault("image_frames", None)  # iter 101 (E1-1): list[dict] | None
+            # 動態視覺素材 RFC Phase 1 — E1 PNG frame 序列 (流程圖/架構圖漸進顯示).
+            # 每個 dict 預期欄位: path (str, PNG 絕對/相對) + display_ratio
+            # (float 0.0~1.0 累進佔比). 渲染端 (E1-2) 偵測 list 走多 PNG 順序模式,
+            # 配 narration 時長均分. 舊 deck 沒這欄 → 用既有 image_path 單張流程.
 
     return deck
 

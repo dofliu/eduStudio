@@ -130,6 +130,23 @@ class TestNormalizeDeck:
         normalize_deck(deck)
         assert deck["sections"][0]["slides"][0]["icon_overlay"] == overlay
 
+    def test_image_frames_defaults_to_none(self):
+        """iter 101 (E1-1): image_frames 預設 None — 動態視覺素材 RFC E1, 舊 deck 不該炸."""
+        deck = {"sections": [{"id": "s1", "slides": [{}]}]}
+        normalize_deck(deck)
+        assert deck["sections"][0]["slides"][0]["image_frames"] is None
+
+    def test_preserves_existing_image_frames(self):
+        """已有 image_frames 該被保留 (normalize 只補不蓋)."""
+        frames = [
+            {"path": "frames/flow_1.png", "display_ratio": 0.33},
+            {"path": "frames/flow_2.png", "display_ratio": 0.66},
+            {"path": "frames/flow_3.png", "display_ratio": 1.0},
+        ]
+        deck = {"sections": [{"slides": [{"image_frames": frames}]}]}
+        normalize_deck(deck)
+        assert deck["sections"][0]["slides"][0]["image_frames"] == frames
+
 
 # ---------- assert_deck_minimum ----------
 
@@ -313,6 +330,43 @@ class TestDeckToExamSchemaPptx:
         exam = deck_to_exam_schema_pptx(deck)
         assert exam["problems"][0]["steps"][0]["icon_overlay"] is None
 
+    def test_image_frames_passed_through_to_step(self):
+        """iter 101 (E1-1): pptx 路徑該把 slide.image_frames 帶到 step."""
+        frames = [
+            {"path": "frames/pid_step1.png", "display_ratio": 0.25},
+            {"path": "frames/pid_step2.png", "display_ratio": 0.5},
+            {"path": "frames/pid_step3.png", "display_ratio": 0.75},
+            {"path": "frames/pid_step4.png", "display_ratio": 1.0},
+        ]
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [
+                    {"id": "s1_1", "title": "x", "bullets": ["a"],
+                     "narration": "n", "image_frames": frames},
+                    {"id": "s1_2", "title": "y", "bullets": ["b"],
+                     "narration": "n", "image_frames": None},
+                ],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        steps = exam["problems"][0]["steps"]
+        assert steps[0]["image_frames"] == frames
+        assert steps[1]["image_frames"] is None
+
+    def test_image_frames_missing_defaults_to_none(self):
+        """slide 沒 image_frames key → step 該補 None (不該 KeyError, 舊 deck 相容)."""
+        deck = {
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [{"id": "s1_1", "title": "x", "bullets": ["a"],
+                            "narration": "n"}],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        assert exam["problems"][0]["steps"][0]["image_frames"] is None
+
 
 # ---------- deck_to_exam_schema_slides (PR-3h, 簡報原圖) ----------
 
@@ -451,6 +505,41 @@ class TestDeckToExamSchemaSlides:
         }
         exam = deck_to_exam_schema_slides(deck)
         assert exam["problems"][0]["steps"][0]["icon_overlay"] is None
+
+    def test_image_frames_passed_through_to_step_slides(self):
+        """iter 101 (E1-1): slides_pdf 路徑也要把 image_frames 透傳 (review UI 共用)."""
+        frames = [
+            {"path": "frames/diagram_a.png", "display_ratio": 0.5},
+            {"path": "frames/diagram_b.png", "display_ratio": 1.0},
+        ]
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1", "title": "x", "bullets": [],
+                    "narration": "n", "bg_image": "p.png", "layout": "full",
+                    "image_frames": frames,
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        assert exam["problems"][0]["steps"][0]["image_frames"] == frames
+
+    def test_image_frames_missing_defaults_to_none_slides(self):
+        """slide 沒 image_frames → slides 路徑 step 該補 None."""
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1", "title": "x", "bullets": [],
+                    "narration": "n", "bg_image": "p.png",
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        assert exam["problems"][0]["steps"][0]["image_frames"] is None
 
     def test_bullets_independent_copy(self):
         # 透傳 bullets 不能跟原 slide 共用 list, 不然 caller mutate 會污染原 deck

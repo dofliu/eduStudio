@@ -104,6 +104,8 @@ def deck_to_exam_schema_slides(deck: dict) -> dict:
                 # bullets 是 split-left 右半文字
                 "title": slide_title,
                 "bullets": list(slide.get("bullets") or []),
+                # iter 100 (E2-4): icon_overlay 透傳, slides_pdf 路徑也吃 (review UI 共用)
+                "icon_overlay": slide.get("icon_overlay"),
             })
         if not steps:
             continue
@@ -166,6 +168,9 @@ def deck_to_exam_schema_pptx(deck: dict, *, short_video_layout: bool = False) ->
                 # iter 53: figure id (or None). 此時還是 deck.json 的 id
                 # (例如 "fig_p3_1"), runner 會在 render 前轉成絕對路徑.
                 "image_path": slide.get("image_path"),
+                # iter 100 (E2-4): icon_overlay list[dict] | None — 動態視覺素材 RFC.
+                # E2-5 renderer 走 PIL alpha_composite 疊 icon. 此處純透傳, 不檢驗.
+                "icon_overlay": slide.get("icon_overlay"),
             }
             # iter 62: cover 專屬 meta 欄位 (其他 layout 不會讀)
             if bg_type == "cover":
@@ -260,6 +265,11 @@ def normalize_deck(deck: dict) -> dict:
             sl.setdefault("narration", "")
             sl.setdefault("notes", None)
             sl.setdefault("image_path", None)   # iter 52: figure 配圖 id (or None)
+            sl.setdefault("icon_overlay", None)  # iter 100 (E2-4): list[dict] | None
+            # 動態視覺素材 RFC Phase 1, 給 icon_picker / review UI / slide_renderer 共用.
+            # 每個 dict 預期欄位: path / position / size_ratio /
+            # 選擇性的 start_ms / duration_ms (None = 整 slide). 此處不檢驗
+            # 內部結構 — E2-5 renderer 接時用 .get() 容錯.
 
     return deck
 

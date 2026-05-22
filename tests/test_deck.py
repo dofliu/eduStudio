@@ -114,6 +114,22 @@ class TestNormalizeDeck:
         normalize_deck(deck)
         assert deck["sections"][0]["slides"][0]["image_path"] == "fig_p3_1"
 
+    def test_icon_overlay_defaults_to_none(self):
+        """iter 100 (E2-4): icon_overlay 預設 None — 動態視覺素材 RFC, 舊 deck 不該炸."""
+        deck = {"sections": [{"id": "s1", "slides": [{}]}]}
+        normalize_deck(deck)
+        assert deck["sections"][0]["slides"][0]["icon_overlay"] is None
+
+    def test_preserves_existing_icon_overlay(self):
+        """已有 icon_overlay 該被保留 (normalize 只補不蓋)."""
+        overlay = [
+            {"path": "generic/question.svg", "position": "top-right",
+             "size_ratio": 0.12, "start_ms": None, "duration_ms": None},
+        ]
+        deck = {"sections": [{"slides": [{"icon_overlay": overlay}]}]}
+        normalize_deck(deck)
+        assert deck["sections"][0]["slides"][0]["icon_overlay"] == overlay
+
 
 # ---------- assert_deck_minimum ----------
 
@@ -262,6 +278,41 @@ class TestDeckToExamSchemaPptx:
         exam = deck_to_exam_schema_pptx(deck)
         assert exam["problems"][0]["steps"][0]["image_path"] is None
 
+    def test_icon_overlay_passed_through_to_step(self):
+        """iter 100 (E2-4): pptx 路徑該把 slide.icon_overlay 帶到 step."""
+        overlay = [
+            {"path": "domain_wind/wind_turbine.svg", "position": "bottom-right",
+             "size_ratio": 0.18},
+        ]
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [
+                    {"id": "s1_1", "title": "x", "bullets": ["a"],
+                     "narration": "n", "icon_overlay": overlay},
+                    {"id": "s1_2", "title": "y", "bullets": ["b"],
+                     "narration": "n", "icon_overlay": None},
+                ],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        steps = exam["problems"][0]["steps"]
+        assert steps[0]["icon_overlay"] == overlay
+        assert steps[1]["icon_overlay"] is None
+
+    def test_icon_overlay_missing_defaults_to_none(self):
+        """slide 沒 icon_overlay key → step 該補 None (不該 KeyError, 舊 deck 相容)."""
+        deck = {
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [{"id": "s1_1", "title": "x", "bullets": ["a"],
+                            "narration": "n"}],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        assert exam["problems"][0]["steps"][0]["icon_overlay"] is None
+
 
 # ---------- deck_to_exam_schema_slides (PR-3h, 簡報原圖) ----------
 
@@ -365,6 +416,41 @@ class TestDeckToExamSchemaSlides:
         assert step["bullets"] == ["定義", "用途", "實例"]
         # display 仍保持向後相容 (= title 或 "投影片")
         assert step["display"] == "傅立葉頻譜分析"
+
+    def test_icon_overlay_passed_through_to_step_slides(self):
+        """iter 100 (E2-4): slides_pdf 路徑也要把 icon_overlay 透傳 (review UI 共用)."""
+        overlay = [
+            {"path": "generic/lightbulb.svg", "position": "top-right",
+             "size_ratio": 0.10},
+        ]
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1", "title": "x", "bullets": [],
+                    "narration": "n", "bg_image": "p.png", "layout": "full",
+                    "icon_overlay": overlay,
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        assert exam["problems"][0]["steps"][0]["icon_overlay"] == overlay
+
+    def test_icon_overlay_missing_defaults_to_none_slides(self):
+        """slide 沒 icon_overlay → slides 路徑 step 該補 None."""
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1", "title": "x", "bullets": [],
+                    "narration": "n", "bg_image": "p.png",
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        assert exam["problems"][0]["steps"][0]["icon_overlay"] is None
 
     def test_bullets_independent_copy(self):
         # 透傳 bullets 不能跟原 slide 共用 list, 不然 caller mutate 會污染原 deck

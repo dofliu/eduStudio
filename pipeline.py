@@ -283,12 +283,21 @@ class SlideRenderer(Renderer):
         修正前 letterbox 用整個 1920×1080, 再蓋黑帶在 y=900..1080, 會把 slide
         底部 16.7% 切掉 (例: x 軸標籤 / footer / 穩定區域字 全消失).
         現在 letterbox 進 1920×900, 並居中於該區, slide 完整可見.
+
+        iter 104 (E1-2): step.image_frames 若有有效 frame, 終端 frame 的 path
+        覆蓋 bg_image — build_clip 還沒接 frame 序列前的過渡, 拿最終 frame 當
+        靜態圖. 真 frame 序列渲染等 E1-3 + build_clip refactor.
         """
         canvas = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
         # 可視區 = 整個畫面扣字幕帶, 常數由 core.visuals 集中提供
         visible_h = CONTENT_BOTTOM   # 900
 
         bg_rel = step.get("bg_image", "")
+        # iter 104 (E1-2): image_frames 終端 frame 覆蓋 bg_image
+        from core.image_frames import terminal_frame
+        tf = terminal_frame(step.get("image_frames"))
+        if tf is not None:
+            bg_rel = tf["path"]
         bg_path = _resolve_asset(bg_rel) if bg_rel else None
         if bg_path and bg_path.exists():
             slide = Image.open(bg_path).convert("RGB")
@@ -332,6 +341,11 @@ class SlideRenderer(Renderer):
         left_h = LEFT_Y2 - LEFT_Y1
 
         bg_rel = step.get("bg_image", "")
+        # iter 104 (E1-2): image_frames 終端 frame 覆蓋 bg_image (split-left 一致)
+        from core.image_frames import terminal_frame
+        tf = terminal_frame(step.get("image_frames"))
+        if tf is not None:
+            bg_rel = tf["path"]
         bg_path = _resolve_asset(bg_rel) if bg_rel else None
         if bg_path and bg_path.exists():
             slide = Image.open(bg_path).convert("RGB")

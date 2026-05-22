@@ -50,12 +50,24 @@
 - [ ] **iter 21**: 整合 pipeline.py step image 欄位 (取代或補圖)
 - 設計細節見 [docs/engineering-diagram-design.md](docs/engineering-diagram-design.md)
 
-**G. 動態視覺素材** ✨ 待 RFC 決議 (2026-05-22 用戶提議)
-- [ ] **E1 SVG 流程圖 / 架構圖漸進動畫**: 不要靜態一頁一頁切, 改成
-  「逐步揭露」效果 (流程圖 / 架構圖隨 narration 一格一格出現)
-- [ ] **E2 內容感知 icon overlay**: 維護 `assets/icon_library/`,
-  narration 講「疑問 / 風力機 / 監控」時自動建議疊對應 icon (人工確認後渲)
-- 設計細節 / 三條候選 trade-off 見 [docs/dynamic-visual-assets-design.md](docs/dynamic-visual-assets-design.md)
+**G. 動態視覺素材** ✨ RFC approved, routine 可推 (2026-05-22 用戶決議)
+- 決議: E1 走候選 A (PNG frame 序列), E2 走候選 A (keyword grep),
+  icon library 風能/自動控制/材力各 5 + generic 10 = 25 個扁平 SVG,
+  SVG 全 Gemini 產
+- 建議推進順序 (見 design memo 末段):
+  - [ ] **E2-1**: `assets/icon_library/` 目錄 + manifest.json 框架
+  - [ ] **E2-2**: Gemini 一次性產 25 個扁平 SVG icon, commit 進 repo
+  - [ ] **E2-3**: `core/icon_picker.py` keyword grep 模組
+  - [ ] **E2-4**: schema 加 `slide.icon_overlay`
+  - [ ] **E2-5**: slide_renderer alpha_composite 疊 icon
+  - [ ] **E2-7**: +8~12 tests
+  - [ ] **E2-6**: review UI 自動建議 icon 勾選列
+  - [ ] **E1-1**: schema 加 `slide.image_frames`
+  - [ ] **E1-2**: slide_renderer 偵測 frame list 走多 PNG 順序
+  - [ ] **E1-3**: Gemini flow_diagram SVG prompt + cairosvg 渲 frame
+  - [ ] **E1-4**: review UI frame preview
+  - [ ] **E1-5**: +5~10 tests
+- 設計細節 + Gemini prompt 草稿見 [docs/dynamic-visual-assets-design.md](docs/dynamic-visual-assets-design.md)
 - 對應 `CONTENT_QUALITY_ROADMAP.md` E 軸 (E1 + E2)
 - 不可繞 require_review=True 硬規則 — 自動建議走 proposals 人工確認
 

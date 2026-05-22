@@ -1,6 +1,6 @@
 # dynamic-visual-assets — 動態視覺素材設計 memo
 
-> Status: **RFC draft** (2026-05-22 用戶提議, 等劉老師決議走哪條候選)
+> Status: **RFC approved** (2026-05-22 用戶提議 + 同日劉老師決議 — E1/E2 都走候選 A, 跟其他 backlog 排序動)
 > 對應 [CONTENT_QUALITY_ROADMAP.md](CONTENT_QUALITY_ROADMAP.md) E 軸 (E1 + E2).
 > 跟 [engineering-diagram-design.md](engineering-diagram-design.md) 屬性不同:
 > 那份是「材力 / 自動控制手畫圖 AI 生成」(靜態工程圖), 這份是
@@ -237,14 +237,127 @@ GIF 動圖 frame 取樣)
 
 ## 階段拆解
 
-### Phase 1: MVP (約 3-5 天, 跟劉老師 confirm 後再動)
+### Phase 1: MVP (約 3-5 天, 跟其他 backlog 排序, routine 可自主推)
 
-- [ ] **E1-1**: schema + slide_renderer frame list 支援
-- [ ] **E1-2**: scriptor / outliner 產生 SVG (或先用人工模板) + cairosvg 渲 frame
-- [ ] **E2-1**: `assets/icon_library/` 結構 + manifest.json 框架
-- [ ] **E2-2**: 10 個 generic icon (question / wind_turbine / dashboard /
-  warning / lightbulb / gear / checkmark / arrow / chart / network)
-- [ ] **E2-3**: keyword grep mapping + slide_renderer icon overlay
+**E1 frame 序列 (候選 A)**:
+- [ ] **E1-1**: schema 改動 — `slide.image_frames: list[dict] | None`
+  含 `path` + `display_ratio` (累進佔比 0.0~1.0) + 兼容舊 `image: str`
+- [ ] **E1-2**: `core/render/slide_renderer.py` 偵測 frame list, 走多
+  PNG 順序渲染, 配 narration 時長均分
+- [ ] **E1-3**: Gemini SVG flow_diagram prompt 設計 (見下方「prompt 設計
+  指引」) + cairosvg 渲每個 step 為 PNG
+- [ ] **E1-4**: review UI 加 frame preview (proposal 階段可見 frame 數量)
+- [ ] **E1-5**: +5~10 tests (test_image_frames_dispatch / test_frame_timing /
+  test_legacy_single_image_fallback)
+
+**E2 icon library + keyword grep (候選 A)**:
+- [ ] **E2-1**: `assets/icon_library/` 目錄結構 + `manifest.json` 框架
+- [ ] **E2-2**: 用 Gemini 一次性產 25 個扁平 SVG icon (10 generic + 15
+  domain), commit 進 repo (見下方「icon 清單」)
+- [ ] **E2-3**: `core/icon_picker.py` 新模組 — narration keyword grep →
+  manifest 對照 → 回傳 overlay 指令
+- [ ] **E2-4**: schema 加 `slide.icon_overlay: list[dict] | None` (path +
+  position + size_ratio + start_ms + duration_ms)
+- [ ] **E2-5**: `core/render/slide_renderer.py` PIL alpha_composite 疊 icon
+  (共用 photo_overlay.py 模式, 不動 ffmpeg overlay 鏈)
+- [ ] **E2-6**: review UI 顯示「自動建議 icon」列 + 勾選 / 改位置
+- [ ] **E2-7**: +8~12 tests (test_icon_keyword_match / test_icon_position /
+  test_multiple_icons_no_collision / test_icon_overlay_render)
+
+### Icon 清單 (劉老師 2026-05-22 決議)
+
+**樣式統一**: 扁平 (flat) SVG, 線條 + 純色填充, 不用 3D / 漸層 / 陰影.
+viewBox 256×256, stroke-width 2~4, 主色 forest #1e3a2e + 黃 #ffd96b.
+
+**Generic (10)** — 跨主題通用:
+1. `question.svg` — 問號 (?, ？, 為什麼, 怎麼會, 提問, 疑問)
+2. `exclamation.svg` — 驚嘆 (!, 注意, 重點, 強調)
+3. `lightbulb.svg` — 想法 (靈感, idea, 啟發, 想到)
+4. `gear.svg` — 流程 / 設定 (機制, 運作, 流程)
+5. `warning.svg` — 警示 (注意, 小心, 風險, 易錯)
+6. `checkmark.svg` — 完成 / 正確 (對, 正確, OK, 完成)
+7. `thinking.svg` — 思考 (思考, 想一想, 推理)
+8. `arrow_flow.svg` — 流向 / 步驟 (步驟, 接下來, 流程)
+9. `chart_bar.svg` — 數據 (數據, 統計, 比較)
+10. `network.svg` — 連結 / 系統 (系統, 網路, 串接)
+
+**Domain 風能 (5)**:
+11. `wind/wind_turbine.svg` — 風機側視 (風機, 風電, 葉片, 塔架)
+12. `wind/scada_dashboard.svg` — SCADA 儀表板 (監控, SCADA, 即時)
+13. `wind/iec61400.svg` — 風能標準 (IEC, 規範, 標準)
+14. `wind/nacelle.svg` — 機艙剖面 (機艙, 齒輪箱, 發電機)
+15. `wind/power_curve.svg` — 功率曲線 (功率, P-V, 出力)
+
+**Domain 自動控制 (5)**:
+16. `control/block_diagram.svg` — 方塊圖 (方塊圖, block, 系統圖)
+17. `control/pid_loop.svg` — PID 迴路 (PID, 回授, feedback, 控制器)
+18. `control/transfer_function.svg` — 轉移函數 (G(s), 轉移函數)
+19. `control/step_response.svg` — 階躍響應 (step, 階躍, 暫態)
+20. `control/bode_plot.svg` — 波德圖 (波德, Bode, 頻率響應)
+
+**Domain 材料力學 (5)**:
+21. `mechanics/free_body.svg` — 自由體圖 (FBD, 自由體, 受力)
+22. `mechanics/stress_strain.svg` — 應力應變 (σ-ε, 應力, 應變)
+23. `mechanics/mohr_circle.svg` — 莫爾圓 (Mohr, 莫爾, 主應力)
+24. `mechanics/beam_load.svg` — 梁負載 (梁, 桁架, 負載)
+25. `mechanics/shear_moment.svg` — 剪力彎矩 (剪力, 彎矩, V-x, M-x)
+
+### Gemini prompt 設計指引
+
+**SVG 來源**: 劉老師決議 — **全靠 Gemini 產**.
+
+**Icon 一次性產生 (E2-2, 設計時)**:
+```
+任務: 產 25 個扁平 SVG icon, 風格統一.
+
+每個 icon:
+- viewBox: 0 0 256 256
+- stroke: #1e3a2e (forest 主色), stroke-width 2~4
+- fill: 主體用 #ffd96b (chalk 黃) 或留空, 不用漸層 / 陰影 / 3D
+- 純線條 + 純色填充, 像 Material Icons 或 Feather Icons 那種扁平風
+- 不含任何文字 / label (icon 本身要 self-explanatory)
+
+[此處列每個 icon 的描述, 例: 11. wind_turbine = 一個三葉片風機側視
+圖, 塔架直立, 葉片呈 Y 形, 不畫雲 / 不畫地面]
+
+輸出: 25 個 .svg 檔, 用 ```svg 標籤包好, 一個 code block 一個檔.
+```
+
+人工 review 後 commit 進 `assets/icon_library/`.
+
+**Flow diagram per-job 動態產 (E1-3, 每影片)**:
+```
+任務: 從流程描述產 SVG, 含 step 標記讓 frame 序列可拆.
+
+輸入: 一段 narration 描述某 N 步驟的流程 (例「PID 控制流程: 量測誤差
+→ 比例計算 → 積分累加 → 微分預測 → 加總輸出」).
+
+要求:
+- viewBox 1920×1080 (對齊影片解析度)
+- 每個 step 包 <g class="step-N"> (N=1..K), 渲染端可逐個揭露
+- 節點: 圓角矩形 80×40, 純色 forest, 文字白色 18pt
+- 箭頭: 黑色 stroke 2, 含箭頭 marker
+- 整體 layout 自動水平 / 垂直流, 不用太花俏
+- 不含動畫 (CSS animation), 渲染端會切 frame
+
+輸出: 一個 SVG + 一個 step_count 數字.
+```
+
+渲染流程: SVG → 依 step_count 切 frame (frame 1 顯示 step 1, frame 2
+顯示 step 1+2, ...) → 每 frame cairosvg → PNG → 配 narration 時長均分.
+
+### Phase 2: 完整 (約 1-2 週, Phase 1 收 1-2 月實機反饋後啟動)
+
+- [ ] **E2-8**: 收集實機反饋 — 用戶常 reject 哪些自動建議 icon? 哪些
+  常希望換位置?
+- [ ] **E2-9**: 補 domain 第二批 (依用戶實際拍片頻率最高的領域)
+- [ ] **E1-6**: review UI 手動調 frame 數量 (預設均分, 可改 per-frame 秒數)
+- [ ] **E1-7**: SVG fallback PNG (Gemini 產 SVG 失敗時降級到單張 PNG)
+
+### Phase 3: 進階 (條件: Phase 2 結果好, 用戶想再投入)
+
+- [ ] **E1-5**: 候選 B (puppeteer SVG 動畫) 評估
+- [ ] **E2-7**: 候選 C (embedding) 評估
 
 ### Phase 2: 完整 (約 1-2 週)
 
@@ -272,13 +385,22 @@ GIF 動圖 frame 取樣)
 
 ---
 
-## 等劉老師決議
+## 劉老師決議 (2026-05-22)
 
-1. **E1 走哪條候選?** A (PNG frame 序列, MVP) / B (puppeteer) / C (人工切片) / 還沒決定
-2. **E2 走哪條候選?** A (keyword grep, MVP) / B (Gemini classify) / C (embedding) / 還沒決定
-3. **Phase 1 何時動?** 等 v4 worker / 跟其他 backlog 排序 / 直接優先
-4. **icon library 內容?** 劉老師專業 (風能 / 自動控制 / 材力) 各要幾個?
-   有特定樣式偏好嗎 (扁平 / 線條 / 等距視角)?
-5. **SVG 來源?** 全靠 Gemini 產 / 部分手工模板 / 用既有 mermaid 模板庫?
+| # | 問題 | 決議 |
+|---|---|---|
+| 1 | E1 走哪條候選? | **A** (PNG frame 序列 + ffmpeg concat) |
+| 2 | E2 走哪條候選? | **A** (keyword grep + manifest.json) |
+| 3 | Phase 1 何時動? | **跟其他 backlog 排序** (routine 在沒插隊事項時自主推) |
+| 4 | icon library 內容? | **風能 / 自動控制 / 材力各 5 個**, 共 15 domain + 10 generic = **25 個扁平 SVG** |
+| 5 | SVG 來源? | **全靠 Gemini 產** (icon 一次性產 commit; flow diagram per-job 動態產) |
 
-收到回饋後 routine 可開始接 Phase 1.
+**下一步**: routine 下輪有空可從 Phase 1 task list 挑起點. 建議順序:
+1. **E2-1 → E2-2** (icon library 框架 + Gemini 一次性產 25 個 SVG, 最
+   單純, 不動 schema)
+2. **E2-3 → E2-4 → E2-5 → E2-7** (icon_picker 模組 + schema + renderer
+   + tests, 端到端打通)
+3. **E2-6** (review UI, 涉及前端較多工)
+4. **E1-1 → E1-2** (frame 序列 schema + renderer, 不依賴 Gemini)
+5. **E1-3** (Gemini flow diagram, 最複雜 prompt 設計)
+6. **E1-4 → E1-5** (review UI + tests)

@@ -198,3 +198,171 @@ class TestSizeAndMultiple:
         assert canvas.getpixel((1750, 950)) == (255, 255, 255)
         # icon 範圍內 (y~750) 該紅
         assert canvas.getpixel((1750, 750))[0] > 200
+
+
+# ---------- iter 103: 渲染整合 (BlackboardRenderer + PptxStyleRenderer) ----------
+
+
+@pytest.fixture
+def real_icon_shared(tmp_path_factory):
+    """跨 class 共用的紅 RGBA PNG, 給渲染整合 test 用."""
+    p = tmp_path_factory.mktemp("icons") / "icon.png"
+    Image.new("RGBA", (256, 256), (255, 0, 0, 255)).save(p)
+    return p
+
+
+class TestBlackboardRendererIntegration:
+    """iter 103: BlackboardRenderer 接 compose_icons — 黑板 chalk 內容 + icon 共存.
+
+    跟 test_pptx_image_layout.py 同 pattern: 真畫 1920x1080 PNG, 驗指定位置
+    pixel 是 icon 紅. 不 mock compose_icons, 走完整 render path.
+    """
+
+    def _make_data(self, icon_path: str | None = None) -> dict:
+        step: dict = {
+            "display": "step 1 顯示", "narration": "n",
+        }
+        if icon_path:
+            step["icon_overlay"] = [{
+                "path": icon_path, "position": "top-right", "size_ratio": 0.1,
+            }]
+        return {
+            "title": "T", "subtitle": "S",
+            "problem": "問題", "image": None,
+            "steps": [step],
+        }
+
+    def test_blackboard_renders_with_icon(self, real_icon_shared, tmp_path):
+        pipeline = pytest.importorskip(
+            "pipeline", reason="pipeline.py 需要 PIL / mutagen",
+        )
+        renderer = pipeline.BlackboardRenderer()
+        out = tmp_path / "out.png"
+        renderer.render(
+            self._make_data(icon_path=str(real_icon_shared)),
+            1, out, tmp_path,
+        )
+        assert out.exists()
+        with Image.open(out) as png:
+            # icon 寬 1920*0.1=192, 邊距 40, top-right x: 1688..1880, y: 40..232
+            r, g, b = png.getpixel((1750, 100))[:3]
+            assert r > 200 and g < 80 and b < 80, (
+                f"top-right 該有紅 icon, 拿到 {(r, g, b)}"
+            )
+
+    def test_blackboard_no_icon_overlay_still_works(self, tmp_path):
+        """沒 icon_overlay 欄位也該正常渲染 (backwards compat)."""
+        pipeline = pytest.importorskip(
+            "pipeline", reason="pipeline.py 需要 PIL / mutagen",
+        )
+        renderer = pipeline.BlackboardRenderer()
+        out = tmp_path / "out.png"
+        renderer.render(self._make_data(icon_path=None), 1, out, tmp_path)
+        assert out.exists()
+
+    def test_blackboard_icon_canvas_h_respects_subtitle_band(
+        self, real_icon_shared, tmp_path,
+    ):
+        """bottom-right icon 不該掉到字幕黑帶 (y>=900)."""
+        pipeline = pytest.importorskip(
+            "pipeline", reason="pipeline.py 需要 PIL / mutagen",
+        )
+        renderer = pipeline.BlackboardRenderer()
+        data = self._make_data(icon_path=str(real_icon_shared))
+        data["steps"][0]["icon_overlay"][0]["position"] = "bottom-right"
+        out = tmp_path / "out_br.png"
+        renderer.render(data, 1, out, tmp_path)
+        with Image.open(out) as png:
+            # 字幕帶 (y=950) 該是字幕帶半透黑色 (alpha 180 over 黑板綠), 不該是紅
+            # 給足容差: 至少不該 R 通道 dominant
+            r, g, b = png.getpixel((1750, 950))[:3]
+            assert r < 100, f"字幕帶 (y=950) 不該有紅 icon, 拿到 {(r, g, b)}"
+
+
+class TestPptxStyleRendererIntegration:
+    """iter 103: PptxStyleRenderer 接 compose_icons — 4 路 layout (normal /
+    cover / outro / short_video) 都該疊 icon. 走完整 render path 驗 pixel."""
+
+    def _make_step(self, bg_type: str, icon_path: str | None) -> dict:
+        step: dict = {
+            "title": "T", "section_title": "S",
+            "bullets": ["b1"], "narration": "n",
+            "bg_type": bg_type, "image_path": None,
+            "code_snippet": None, "file_path": None,
+        }
+        if icon_path:
+            step["icon_overlay"] = [{
+                "path": icon_path, "position": "top-right", "size_ratio": 0.1,
+            }]
+        return step
+
+    def _data(self, step: dict) -> dict:
+        return {"title": "deck", "theme": "forest", "steps": [step]}
+
+    def test_normal_slide_renders_with_icon(self, real_icon_shared, tmp_path):
+        from core.render.pptx_style import PptxStyleRenderer
+        renderer = PptxStyleRenderer()
+        out = tmp_path / "out_normal.png"
+        renderer.render(
+            self._data(self._make_step("pptx_slide", str(real_icon_shared))),
+            1, out, tmp_path,
+        )
+        with Image.open(out) as png:
+            r, g, b = png.getpixel((1750, 100))[:3]
+            assert r > 200 and g < 80 and b < 80, (
+                f"normal slide top-right 該有紅 icon, 拿到 {(r, g, b)}"
+            )
+
+    def test_cover_slide_renders_with_icon(self, real_icon_shared, tmp_path):
+        from core.render.pptx_style import PptxStyleRenderer
+        renderer = PptxStyleRenderer()
+        out = tmp_path / "out_cover.png"
+        renderer.render(
+            self._data(self._make_step("cover", str(real_icon_shared))),
+            1, out, tmp_path,
+        )
+        with Image.open(out) as png:
+            r, g, b = png.getpixel((1750, 100))[:3]
+            assert r > 200 and g < 80 and b < 80, (
+                f"cover slide top-right 該有紅 icon, 拿到 {(r, g, b)}"
+            )
+
+    def test_outro_slide_renders_with_icon(self, real_icon_shared, tmp_path):
+        from core.render.pptx_style import PptxStyleRenderer
+        renderer = PptxStyleRenderer()
+        out = tmp_path / "out_outro.png"
+        renderer.render(
+            self._data(self._make_step("outro", str(real_icon_shared))),
+            1, out, tmp_path,
+        )
+        with Image.open(out) as png:
+            r, g, b = png.getpixel((1750, 100))[:3]
+            assert r > 200 and g < 80 and b < 80, (
+                f"outro slide top-right 該有紅 icon, 拿到 {(r, g, b)}"
+            )
+
+    def test_pptx_no_icon_overlay_still_works(self, tmp_path):
+        """沒 icon_overlay 欄位 — backwards compat, 既有 deck 不該炸."""
+        from core.render.pptx_style import PptxStyleRenderer
+        renderer = PptxStyleRenderer()
+        out = tmp_path / "out_no_icon.png"
+        renderer.render(
+            self._data(self._make_step("pptx_slide", None)),
+            1, out, tmp_path,
+        )
+        assert out.exists()
+
+    def test_pptx_icon_canvas_h_respects_subtitle_band(
+        self, real_icon_shared, tmp_path,
+    ):
+        """bottom-right icon 該停在 CONTENT_BOTTOM (=900) 上方, 不入字幕帶."""
+        from core.render.pptx_style import PptxStyleRenderer
+        renderer = PptxStyleRenderer()
+        step = self._make_step("pptx_slide", str(real_icon_shared))
+        step["icon_overlay"][0]["position"] = "bottom-right"
+        out = tmp_path / "out_br.png"
+        renderer.render(self._data(step), 1, out, tmp_path)
+        with Image.open(out) as png:
+            # forest 字幕帶 fill = SUBTITLE_STRIP_COLOR (~ 黑灰). 不該是紅
+            r, g, b = png.getpixel((1750, 950))[:3]
+            assert r < 100, f"字幕帶 (y=950) 不該有紅 icon, 拿到 {(r, g, b)}"

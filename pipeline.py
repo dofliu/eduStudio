@@ -244,6 +244,13 @@ class BlackboardRenderer(Renderer):
             if not svg_code:
                 draw.rectangle([px-10, py-10, px+p_img.width+10, py+p_img.height+10], fill="white", outline=CHALK_WHITE, width=4)
             img.paste(p_img, (px, py), mask=p_img.convert("RGBA").split()[-1] if p_img.mode in ("RGBA","LA") else None)
+        # iter 103 E2-5 ext: 疊 icon (跟 SlideRenderer 同 pattern). 取當前 step (newest visible)
+        # 的 icon_overlay; canvas_h 傳 CONTENT_BOTTOM 避免 bottom-* icon 掉到字幕黑帶
+        from core.icon_overlay import compose_icons
+        compose_icons(
+            img, data["steps"][step_idx - 1].get("icon_overlay"),
+            canvas_w=WIDTH, canvas_h=CONTENT_BOTTOM,
+        )
         _overlay_teacher_photo(img); img.save(out_p, "PNG")
 
 

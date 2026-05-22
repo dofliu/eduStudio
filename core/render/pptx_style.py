@@ -2388,6 +2388,7 @@ class PptxStyleRenderer:
                 draw, step, palette, body_font_path,
                 signature_decor=signature_decor, banner_style=banner_style,
             )
+            self._compose_icon_overlay(img, step)
             _draw_subtitle_strip(draw, palette)
             try:
                 from pipeline import _overlay_teacher_photo
@@ -2404,6 +2405,7 @@ class PptxStyleRenderer:
                 signature_decor=signature_decor, banner_style=banner_style,
                 img=img,
             )
+            self._compose_icon_overlay(img, step)
             _draw_subtitle_strip(draw, palette)
             try:
                 from pipeline import _overlay_teacher_photo
@@ -2419,6 +2421,7 @@ class PptxStyleRenderer:
             _draw_short_video_slide(
                 draw, img, step, palette, body_font_path,
             )
+            self._compose_icon_overlay(img, step)
             _draw_subtitle_strip(draw, palette)
             try:
                 from pipeline import _overlay_teacher_photo
@@ -2504,6 +2507,7 @@ class PptxStyleRenderer:
                 side_margin=theme_side_margin,
             )
 
+        self._compose_icon_overlay(img, step)
         _draw_subtitle_strip(draw, palette)
         try:
             from pipeline import _overlay_teacher_photo
@@ -2512,3 +2516,15 @@ class PptxStyleRenderer:
             pass
 
         img.save(out_p, "PNG")
+
+    def _compose_icon_overlay(self, img: Image.Image, step: dict) -> None:
+        """iter 103 E2-5 ext: 疊 step.icon_overlay 到 img (跟 SlideRenderer 同 pattern).
+
+        集中 4 路 layout (cover/outro/short_video/normal) 共用收尾, 避免重複 import.
+        canvas_h 傳 CONTENT_BOTTOM 避免 bottom-* icon 掉到字幕黑帶下方.
+        """
+        from core.icon_overlay import compose_icons
+        compose_icons(
+            img, step.get("icon_overlay"),
+            canvas_w=VIDEO_WIDTH, canvas_h=CONTENT_BOTTOM,
+        )

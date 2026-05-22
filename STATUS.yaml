@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 102 完成 — E2-5 icon_overlay PIL alpha_composite 疊 icon (動態視覺素材 RFC Phase 1 E2 端到端打通最後一步). 新增 core/icon_overlay.py — compose_icons + 五個 position + SVG/PNG fallback (graceful skip, 不依 cairosvg). 接到 SlideRenderer 兩 layout (_render_full / _render_split_left), canvas_h 傳 visible_h 避免 bottom-* icon 掉到字幕帶. +19 tests. 下一輪可推: E2-7 (PptxStyleRenderer / BlackboardRenderer 也接 compose_icons, 完整 renderer 覆蓋); E1-2 (slide_renderer 偵測 image_frames list 走多 PNG 順序); E2-2 (Gemini 一次性產 25 個扁平 SVG icon)."
+next_milestone: "iter 103 完成 — E2-5 ext compose_icons 擴展到 BlackboardRenderer + PptxStyleRenderer (cover/outro/short_video/normal 4 路 layout). iter 102 只接 SlideRenderer 兩 layout, 這輪三大 renderer 全覆蓋. PptxStyleRenderer 加私有 helper _compose_icon_overlay 集中收尾, 4 路 layout 不重複 import. canvas_h 統一 CONTENT_BOTTOM 避免 bottom-* icon 掉到字幕黑帶. +8 tests (3 BlackboardRendererIntegration + 5 PptxStyleRendererIntegration). 下一輪可推: E1-2 (slide_renderer 偵測 image_frames list 走多 PNG 順序); E2-2 (Gemini 一次性產 25 個扁平 SVG icon); E2-6 (review UI 自動建議 icon 勾選列)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,29 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1154 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1162 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 103 (2026-05-22, hourly routine) — E2-5 ext compose_icons 三大 renderer 全覆蓋:
+  - iter 102 只接 SlideRenderer (_render_full + _render_split_left), STATUS 留
+    「下輪可推 E2-7 (PptxStyleRenderer / BlackboardRenderer 也接)」. 這輪收尾.
+  - pipeline.py BlackboardRenderer.render — chalk 內容 + svg/image panel 畫完
+    後接 compose_icons(data["steps"][step_idx-1].get("icon_overlay")), 取當前
+    最新可見 step (跟 SlideRenderer 「只當前 step 的 icon」pattern 一致, 避免
+    多 step 累積 icon 視覺擁擠). canvas_h=CONTENT_BOTTOM.
+  - core/render/pptx_style.py PptxStyleRenderer.render — 4 路 layout (cover /
+    outro / short_video / normal) 都接 self._compose_icon_overlay(img, step).
+    新私有 helper 集中 import 跟 canvas_h=CONTENT_BOTTOM 一處, 4 路不重複.
+  - tests/test_icon_overlay.py +8 tests:
+    * TestBlackboardRendererIntegration 3: renders_with_icon (top-right 紅 pixel
+      驗) / no_icon_overlay_still_works (backwards compat) /
+      icon_canvas_h_respects_subtitle_band (字幕帶不被染紅)
+    * TestPptxStyleRendererIntegration 5: normal/cover/outro 3 路 layout 各驗
+      top-right 紅 pixel + no_icon_overlay backwards compat + bottom-right 不
+      入字幕帶. (short_video layout 因需更多 step 欄位暫不覆蓋, 結構一致風險低)
+  - 1154 → 1162 tests (+8)
 
   iter 102 (2026-05-22, hourly routine) — E2-5 icon_overlay PIL composite:
   - 動態視覺素材 RFC Phase 1 E2 端到端打通最後一步: iter 99 算 IconMatch list,

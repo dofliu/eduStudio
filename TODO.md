@@ -62,7 +62,7 @@
   - [ ] **E2-5**: slide_renderer alpha_composite 疊 icon
   - [ ] **E2-7**: +8~12 tests
   - [ ] **E2-6**: review UI 自動建議 icon 勾選列
-  - [ ] **E1-1**: schema 加 `slide.image_frames`
+  - [x] **E1-1**: schema 加 `slide.image_frames` (iter 101)
   - [ ] **E1-2**: slide_renderer 偵測 frame list 走多 PNG 順序
   - [ ] **E1-3**: Gemini flow_diagram SVG prompt + cairosvg 渲 frame
   - [ ] **E1-4**: review UI frame preview

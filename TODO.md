@@ -58,7 +58,7 @@
   - [x] **E2-1**: `assets/icon_library/` 目錄 + manifest.json 框架 (iter 98)
   - [ ] **E2-2**: Gemini 一次性產 25 個扁平 SVG icon, commit 進 repo
   - [x] **E2-3**: `core/icon_picker.py` keyword grep 模組 (iter 99)
-  - [ ] **E2-4**: schema 加 `slide.icon_overlay`
+  - [x] **E2-4**: schema 加 `slide.icon_overlay` (iter 100)
   - [ ] **E2-5**: slide_renderer alpha_composite 疊 icon
   - [ ] **E2-7**: +8~12 tests
   - [ ] **E2-6**: review UI 自動建議 icon 勾選列

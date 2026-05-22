@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 99 完成 — E2-3 core/icon_picker.py keyword grep 模組. narration → IconMatch list, graceful fallback (SVG 不存在跳過, 不噴 error), case-insensitive substring match, max_icons cap (預設 3), require_file_exists flag 給 review UI 提案階段用. +17 tests. 下一輪可推 E2-2 (Gemini 產 25 SVG, 25+ 檔案違反 ≤3 檔規則, 該分多 iter 或等用戶授權單次大 commit) 或 E2-4 (schema.slide.icon_overlay 加欄位, 2 檔範圍 OK)."
+next_milestone: "iter 100 完成 — E2-4 slide.icon_overlay schema 欄位. normalize_deck 預設 None (舊 deck 相容), deck_to_exam_schema_pptx 跟 _slides 都透傳到 step. 不檢驗 dict 結構 — 留 E2-5 renderer 接時用 .get() 容錯. +6 tests. 下一輪可推 E2-5 (slide_renderer PIL alpha_composite 疊 icon, 需先有 SVG 檔 → 但 E2-2 還沒做, 可先做 PNG 版測試 fallback, 或寫 stub renderer 不顯示 SVG 等 cairosvg) 或 E1-1 (image_frames schema, 跟 E2-4 對稱不依賴 SVG, 2 檔 OK)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,24 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1123 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1129 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 100 (2026-05-22, hourly routine) — E2-4 slide.icon_overlay schema 欄位:
+  - 動態視覺素材 RFC Phase 1 第三步, 接 iter 99 icon_picker. E2-3 算出 IconMatch
+    list, 但 deck schema 沒地方放 — 渲染端 (E2-5) / review UI (E2-6) 拿不到.
+  - core/deck.py normalize_deck: slide.icon_overlay 預設 None (舊 deck 相容,
+    既有 deck.json 不該炸)
+  - core/deck.py deck_to_exam_schema_pptx: step 透傳 icon_overlay (pptx 渲染主軌)
+  - core/deck.py deck_to_exam_schema_slides: step 也透傳 (slides_pdf 跟 pptx 共用
+    review UI, icon 自動建議邏輯一致)
+  - 純透傳, 不檢驗 dict 內部結構 — E2-5 renderer 接時用 .get() 容錯
+    (預期欄位: path / position / size_ratio / 選擇性 start_ms / duration_ms)
+  - tests/test_deck.py +6 tests: normalize 預設 None + 既有保留, pptx 透傳 +
+    缺欄位預設 None, slides 透傳 + 缺欄位預設 None
+  - 1123 → 1129 tests (+6)
 
   iter 99 (2026-05-22, hourly routine) — E2-3 icon_picker keyword grep 模組:
   - 動態視覺素材 RFC Phase 1 第二步, 接 iter 98 manifest 框架

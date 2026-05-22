@@ -9,6 +9,7 @@
     PUT    /jobs/{id}/draft               覆寫 deck.json (僅 awaiting_review)
     GET    /jobs/{id}/outline              取 outline.json (iter 81 D1 v1)
     GET    /jobs/{id}/icon-suggestions    批次 icon 建議 (iter 107 E2-6 backend)
+    GET    /jobs/{id}/image-frames        批次 image_frames summary (iter 109 E1-4 backend)
     POST   /jobs/{id}/approve             從 awaiting_review 進入 render
     GET    /jobs/{id}/artifacts/{name}    下載產物檔
 """
@@ -21,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, JSONResponse
 
 from core.icon_picker import suggest_for_deck
+from core.image_frames import summarize_for_deck
 
 from ..jobs import JobStore, get_default_store
 from ..runner import schedule_job, schedule_render, schedule_section_render
@@ -190,6 +192,43 @@ async def get_icon_suggestions(
         for slide_id, matches in suggestions.items()
     }
     return JSONResponse(content={"suggestions": payload})
+
+
+# ---------- Image frames summary (iter 109 E1-4 backend) ----------
+
+@router.get("/{job_id}/image-frames")
+async def get_image_frames_summary(
+    job_id: str,
+    require_file_exists: bool = True,
+    store: JobStore = Depends(get_default_store),
+) -> JSONResponse:
+    """E1-4 backend: 批次跑 image_frames.summarize_for_deck 回整 deck frame summary.
+
+    給 review UI「frame preview 縮圖列」一次拿完所有 slide 的 frame 資訊, 不必
+    每 slide 一個 API call. 純 Python / 0 PIL / 0 ffmpeg / 0 LLM. 對應 iter 107
+    icon-suggestions endpoint pattern.
+
+    Query params:
+        require_file_exists: True (預設) 走渲染端嚴格模式 (檔案不在的 frame
+            算 invalid, count 不算進去). False 給 review UI 提案階段預覽 —
+            frame 尚未產出來也要列在 summary.
+
+    回傳: {"summary": {slide_id: {"count": int, "terminal_path": str | None,
+        "has_frames": bool}}}
+    沒 image_frames 也保留 slide_id 對應 count=0 / terminal_path=None /
+    has_frames=False (跟「沒掃到」做出區別).
+    exam_pdf deck (problems schema) 沒 sections.slides → summary={}.
+    """
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "deck.json 尚未產生 (ingest 未完成或已失敗)",
+        )
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+
+    summary = summarize_for_deck(deck, require_file_exists=require_file_exists)
+    return JSONResponse(content={"summary": summary})
 
 
 @router.put("/{job_id}/draft", response_model=JobRecord)

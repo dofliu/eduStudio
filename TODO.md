@@ -65,7 +65,7 @@
   - [x] **E1-1**: schema 加 `slide.image_frames` (iter 101)
   - [~] **E1-2**: slide_renderer 偵測 frame list 走多 PNG 順序 (iter 104: parser + SlideRenderer 兩 layout 接 terminal frame fallback; 真 frame 序列拆 step + build_clip refactor 待 E1-3)
   - [ ] **E1-3**: Gemini flow_diagram SVG prompt + cairosvg 渲 frame (含 build_clip refactor 拆 step → 多 PNG 配 narration 時長均分)
-  - [ ] **E1-4**: review UI frame preview
+  - [~] **E1-4**: review UI frame preview (iter 108 backend slice `summarize_for_deck`; iter 109 API endpoint `GET /jobs/{id}/image-frames` 包 summarize_for_deck — 含 require_file_exists query param 跟 terminal_path JSON 序列化. 前端 UI 待後續 iter)
   - [ ] **E1-5**: +5~10 tests
 - 設計細節 + Gemini prompt 草稿見 [docs/dynamic-visual-assets-design.md](docs/dynamic-visual-assets-design.md)
 - 對應 `CONTENT_QUALITY_ROADMAP.md` E 軸 (E1 + E2)

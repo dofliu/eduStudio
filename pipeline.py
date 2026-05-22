@@ -294,6 +294,14 @@ class SlideRenderer(Renderer):
         else:
             print(f"[frame {step_idx:03d}] ⚠ slide 找不到: {bg_rel!r} (純黑底 fallback)")
 
+        # iter 102 E2-5: 疊 icon (人工 review 後勾選的). canvas_h 傳 visible_h
+        # 避免 bottom-* icon 掉到字幕帶下方
+        from core.icon_overlay import compose_icons
+        compose_icons(
+            canvas, step.get("icon_overlay"),
+            canvas_w=WIDTH, canvas_h=visible_h,
+        )
+
         draw = ImageDraw.Draw(canvas)
         draw.rectangle([0, CONTENT_BOTTOM, WIDTH, HEIGHT], fill=SUBTITLE_STRIP_COLOR)
         _overlay_teacher_photo(canvas)
@@ -383,6 +391,15 @@ class SlideRenderer(Renderer):
             # bullets 太多時截斷, 不壓到字幕區 (使用者要拆兩張投影片)
             if y > content_y_max:
                 break
+
+        # iter 102 E2-5: 疊 icon. split-left 內容區也是 0..CONTENT_BOTTOM
+        # (右半 bullets 也佔到 content_y_max=CONTENT_BOTTOM-30), 跟 _render_full
+        # 一致用 CONTENT_BOTTOM 當 canvas_h
+        from core.icon_overlay import compose_icons
+        compose_icons(
+            canvas, step.get("icon_overlay"),
+            canvas_w=WIDTH, canvas_h=CONTENT_BOTTOM,
+        )
 
         # 字幕黑帶, 與 _render_full / BlackboardRenderer 對齊
         draw.rectangle([0, CONTENT_BOTTOM, WIDTH, HEIGHT], fill=SUBTITLE_STRIP_COLOR)

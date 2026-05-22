@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 105 完成 — SlideRenderer._resolve_step_bg helper DRY + 整合測試. 抽 _render_full / _render_split_left 兩處重複的「terminal_frame 覆蓋 bg_image」5 行邏輯為 @staticmethod helper (lift import 到 module level), 並在覆蓋發生時印 debug log 行 (方便除錯時看出當前 bg 來源). 此前 iter 104 兩 layout 各 copy 一份, 日後新增 layout (例: split-right / center-stage) 漏接 image_frames 是個高機率 bug source. +9 tests (TestResolveStepBg: no_image_frames / empty_bg / missing_key / terminal_overrides / invalid_frames_falls_back / none_input / image_frames_only_no_bg / debug_log_emitted / no_override_no_log). 下一輪可推: E1-3 (Gemini flow_diagram SVG prompt + cairosvg — 新 dep STOP); build_clip 真 frame 序列拆 step; E2-2 (Gemini 25 SVG); E2-6 (review UI 自動建議 icon 勾選列)."
+next_milestone: "iter 106 完成 — E2-6 backend slice: `core.icon_picker.suggest_for_deck` 批次助手. 接受整個 deck dict, 內部對每張 slide narration call `pick_icons`, 回 `{slide_id: list[IconMatch]}` 給未來 review UI / API endpoint 一次拿全 deck 建議 (避免每 slide 一個 API call). 純 Python / 0 LLM call / 0 cost, 跟 pick_icons 同樣的 graceful fallback (SVG 不存在跳過). 透傳 max_icons / require_file_exists kwargs. 沒命中的 slide 仍保留 key=[], 跟「沒掃到」做出區別. +8 tests (TestSuggestForDeck: empty_deck / missing_sections / single_match / multi_section_multi_slide / slide_missing_id_skipped / empty_narration / kwargs_passthrough / empty_sections). 下一輪可推: E2-6 API endpoint (server/routes/proposals.py 新增 GET /icon-suggestions/{job_id} 包 suggest_for_deck); E2-6 frontend review UI checkbox 列; E2-2 (Gemini 25 SVG, 需用戶決議產出後手動 review); build_clip frame 序列拆 step (E1-3 前置)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,28 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1198 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1206 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 106 (2026-05-22, hourly routine) — E2-6 backend slice: icon_picker.suggest_for_deck:
+  - E2-6 (review UI 自動建議 icon 勾選列) 的 backend 第一步, 把 iter 99
+    pick_icons 的單 narration 介面拉到 deck 層級. 給未來 review UI / API
+    endpoint 一次拿全 deck 建議 (避免每 slide 一個 API call).
+  - 新增 `core.icon_picker.suggest_for_deck(deck, **kwargs)`:
+    * 內部對每 section / slide 跑 pick_icons, kwargs 全透傳
+    * 回 `{slide_id: list[IconMatch]}`, 沒命中也保留 key=[] (跟「沒掃到」
+      做出區別 — UI 可顯示「這 slide 沒建議」狀態)
+    * 缺 id 的 slide 跳過 (normalize_deck 後不該發生, 但 defensive)
+    * 空 sections / 缺 sections key / 空 slides 全 graceful, 0 KeyError
+    * 跟 pick_icons 同樣的 graceful fallback (SVG 不存在 → 該 entry 跳過)
+  - tests/test_icon_picker.py +8 tests (TestSuggestForDeck class):
+    * empty_deck / missing_sections / single_slide_with_match /
+      multi_section_multi_slide_preserves_all_ids / slide_missing_id_skipped /
+      empty_narration_slide_returns_empty_list / kwargs_passthrough_to_pick_icons /
+      section_with_no_slides_yields_no_entries
+  - 1198 → 1206 tests (+8)
 
   iter 105 (2026-05-22, hourly routine) — SlideRenderer _resolve_step_bg helper DRY:
   - iter 104 把 image_frames terminal_frame fallback 落地進 SlideRenderer 兩

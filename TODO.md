@@ -61,7 +61,7 @@
   - [x] **E2-4**: schema 加 `slide.icon_overlay` (iter 100)
   - [x] **E2-5**: slide_renderer alpha_composite 疊 icon (iter 102 SlideRenderer 兩 layout; iter 103 擴 BlackboardRenderer + PptxStyleRenderer 4 路 layout — 三大 renderer 全覆蓋)
   - [x] **E2-7**: +8~12 tests (iter 102 +19 含 NoOp/SVG/Position/Size; iter 103 +8 含 BlackboardRendererIntegration / PptxStyleRendererIntegration)
-  - [ ] **E2-6**: review UI 自動建議 icon 勾選列
+  - [~] **E2-6**: review UI 自動建議 icon 勾選列 (iter 106: backend slice — `core.icon_picker.suggest_for_deck` 批次跑全 deck → `{slide_id: IconMatch list}`. 前端 UI + API 端點待後續 iter)
   - [x] **E1-1**: schema 加 `slide.image_frames` (iter 101)
   - [~] **E1-2**: slide_renderer 偵測 frame list 走多 PNG 順序 (iter 104: parser + SlideRenderer 兩 layout 接 terminal frame fallback; 真 frame 序列拆 step + build_clip refactor 待 E1-3)
   - [ ] **E1-3**: Gemini flow_diagram SVG prompt + cairosvg 渲 frame (含 build_clip refactor 拆 step → 多 PNG 配 narration 時長均分)

@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 106 完成 — E2-6 backend slice: `core.icon_picker.suggest_for_deck` 批次助手. 接受整個 deck dict, 內部對每張 slide narration call `pick_icons`, 回 `{slide_id: list[IconMatch]}` 給未來 review UI / API endpoint 一次拿全 deck 建議 (避免每 slide 一個 API call). 純 Python / 0 LLM call / 0 cost, 跟 pick_icons 同樣的 graceful fallback (SVG 不存在跳過). 透傳 max_icons / require_file_exists kwargs. 沒命中的 slide 仍保留 key=[], 跟「沒掃到」做出區別. +8 tests (TestSuggestForDeck: empty_deck / missing_sections / single_match / multi_section_multi_slide / slide_missing_id_skipped / empty_narration / kwargs_passthrough / empty_sections). 下一輪可推: E2-6 API endpoint (server/routes/proposals.py 新增 GET /icon-suggestions/{job_id} 包 suggest_for_deck); E2-6 frontend review UI checkbox 列; E2-2 (Gemini 25 SVG, 需用戶決議產出後手動 review); build_clip frame 序列拆 step (E1-3 前置)."
+next_milestone: "iter 107 完成 — E2-6 backend API endpoint: `GET /jobs/{job_id}/icon-suggestions` 包 iter 106 `suggest_for_deck`. Review UI 一次拿全 deck icon 建議, 不必每 slide 一個 API call. Query params: `require_file_exists` (預設 true, false 給 UI 提案預覽 — 顯示「將會」建議的 icon) + `max_icons` (預設 3, 1~20 FastAPI Query 範圍驗證). IconMatch dataclass 序列化 Path → str 給前端拿 URL 用. exam_pdf schema (problems) 自然降級 suggestions={} — 跟 suggest_for_deck 對 sections 結構的設計一致. 沒命中也保留 slide_id=[] (跟「沒掃到」做出區別). 走 store.deck_path 既有 pattern, 缺檔 404. +9 tests (TestIconSuggestionsHappyPath 2 / ExamSchema 1 / Errors 4 / QueryParams 2). 下一輪可推: E2-6 frontend review UI checkbox 列 (要先看 web/ Editor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); build_clip frame 序列拆 step (E1-3 前置)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,45 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1206 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1215 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 107 (2026-05-22, hourly routine) — E2-6 backend API endpoint: GET /jobs/{id}/icon-suggestions:
+  - iter 106 開了 core.icon_picker.suggest_for_deck 批次助手, 這輪把它包成
+    REST endpoint, 給未來 review UI「自動建議 icon 勾選列」打一個 API 拿
+    全 deck 建議 (避免每 slide 一個 call). 純 Python / 0 LLM / 0 cost.
+  - server/routes/jobs.py 新增 `@router.get("/{job_id}/icon-suggestions")`:
+    * Query params: require_file_exists (預設 True, False 給 UI 提案預覽
+      — 顯示「將會」建議的 icon, 渲染前再過濾) + max_icons (預設 3,
+      ge=1 le=20 FastAPI Query 範圍驗證, 越界 422)
+    * 沒 deck.json → 404 (nonexistent job 同樣走這條, store.deck_path
+      不會炸, 路徑不存在跟 deck 沒生兩種情境合而為一)
+    * IconMatch dataclass 序列化: icon_path (PosixPath / WindowsPath) →
+      str 給前端拿 URL 用. 其他欄位 (key / matched_keyword / position /
+      size_ratio / domain / file_exists) 原樣透傳
+    * exam_pdf schema (problems, 沒 sections.slides) 自然降級 suggestions={}
+      — 跟 suggest_for_deck 對 sections 結構的設計一致 (不需特別 dispatch)
+    * 沒命中也保留 slide_id=[] (繼承 suggest_for_deck 設計, 給 UI「這
+      slide 沒建議」狀態, 跟「這 slide 沒掃到」做出區別)
+    * 回應格式: {"suggestions": {slide_id: [IconMatch dict, ...]}} —
+      外層 wrap 讓未來加 metadata (例: scan_timestamp / total_count) 不
+      破 API 兼容
+    * 走 store.deck_path 既有 pattern, 跟 GET /draft + GET /outline 一致
+  - tests/test_icon_suggestions_endpoint.py +9 tests:
+    * TestIconSuggestionsHappyPath 2: matching narration 命中正確 (key /
+      matched_keyword / file_exists / icon path 是 str) + slide 沒命中
+      仍保留 key=[] (區別測試)
+    * TestIconSuggestionsExamSchema 1: exam_pdf problems schema → {}
+    * TestIconSuggestionsErrors 4: no deck.json 404 / nonexistent job
+      404 / max_icons=0 422 / max_icons=21 422
+    * TestIconSuggestionsQueryParams 2: max_icons=1 caps 同 narration
+      多命中只回一個 + require_file_exists=false 仍回缺檔 entry 帶
+      file_exists=False
+  - fake_icon_library fixture 用 monkeypatch ICON_LIBRARY_ROOT +
+    MANIFEST_PATH, 隔離真 assets/icon_library/ 內容
+  - 1206 → 1215 tests (+9)
 
   iter 106 (2026-05-22, hourly routine) — E2-6 backend slice: icon_picker.suggest_for_deck:
   - E2-6 (review UI 自動建議 icon 勾選列) 的 backend 第一步, 把 iter 99

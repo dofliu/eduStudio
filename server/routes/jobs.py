@@ -8,6 +8,7 @@
     GET    /jobs/{id}/draft               取 deck.json (review / done 階段)
     PUT    /jobs/{id}/draft               覆寫 deck.json (僅 awaiting_review)
     GET    /jobs/{id}/outline              取 outline.json (iter 81 D1 v1)
+    GET    /jobs/{id}/icon-suggestions    批次 icon 建議 (iter 107 E2-6 backend)
     POST   /jobs/{id}/approve             從 awaiting_review 進入 render
     GET    /jobs/{id}/artifacts/{name}    下載產物檔
 """
@@ -16,8 +17,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, JSONResponse
+
+from core.icon_picker import suggest_for_deck
 
 from ..jobs import JobStore, get_default_store
 from ..runner import schedule_job, schedule_render, schedule_section_render
@@ -130,6 +133,63 @@ async def get_outline(job_id: str, store: JobStore = Depends(get_default_store))
         )
     outline = json.loads(outline_path.read_text(encoding="utf-8"))
     return JSONResponse(content=outline)
+
+
+# ---------- Icon suggestions (iter 107 E2-6 backend) ----------
+
+@router.get("/{job_id}/icon-suggestions")
+async def get_icon_suggestions(
+    job_id: str,
+    require_file_exists: bool = True,
+    max_icons: int = Query(default=3, ge=1, le=20),
+    store: JobStore = Depends(get_default_store),
+) -> JSONResponse:
+    """E2-6 backend: 批次跑 icon_picker.suggest_for_deck 回整 deck 建議.
+
+    給 review UI「自動建議 icon 勾選列」一次拿完所有 slide 建議, 不必每
+    slide 一個 API call. 純文字 grep, 0 LLM call.
+
+    Query params:
+        require_file_exists: True (預設) 過濾 SVG 缺檔 (E2-2 未產的 entry).
+            False 給 review UI 提案預覽用 — 顯示「將會」建議的 icon, 之後
+            渲染前再過濾.
+        max_icons: 同 slide 最多回幾個 icon (預設 3, 1~20).
+
+    回傳: {"suggestions": {slide_id: [{key, icon, matched_keyword, position,
+        size_ratio, domain, file_exists}, ...]}}
+    沒命中也保留 key=[] (跟「沒掃到」做出區別).
+    exam_pdf deck (problems schema) 沒 sections.slides → suggestions 為 {}.
+    """
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "deck.json 尚未產生 (ingest 未完成或已失敗)",
+        )
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+
+    suggestions = suggest_for_deck(
+        deck,
+        max_icons=max_icons,
+        require_file_exists=require_file_exists,
+    )
+    # IconMatch dataclass → JSON-friendly dict (Path → str, 給前端拿 URL 用)
+    payload = {
+        slide_id: [
+            {
+                "key": m.key,
+                "icon": str(m.icon_path),
+                "matched_keyword": m.matched_keyword,
+                "position": m.position,
+                "size_ratio": m.size_ratio,
+                "domain": m.domain,
+                "file_exists": m.file_exists,
+            }
+            for m in matches
+        ]
+        for slide_id, matches in suggestions.items()
+    }
+    return JSONResponse(content={"suggestions": payload})
 
 
 @router.put("/{job_id}/draft", response_model=JobRecord)

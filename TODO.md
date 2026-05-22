@@ -63,8 +63,8 @@
   - [x] **E2-7**: +8~12 tests (iter 102 +19 含 NoOp/SVG/Position/Size; iter 103 +8 含 BlackboardRendererIntegration / PptxStyleRendererIntegration)
   - [ ] **E2-6**: review UI 自動建議 icon 勾選列
   - [x] **E1-1**: schema 加 `slide.image_frames` (iter 101)
-  - [ ] **E1-2**: slide_renderer 偵測 frame list 走多 PNG 順序
-  - [ ] **E1-3**: Gemini flow_diagram SVG prompt + cairosvg 渲 frame
+  - [~] **E1-2**: slide_renderer 偵測 frame list 走多 PNG 順序 (iter 104: parser + SlideRenderer 兩 layout 接 terminal frame fallback; 真 frame 序列拆 step + build_clip refactor 待 E1-3)
+  - [ ] **E1-3**: Gemini flow_diagram SVG prompt + cairosvg 渲 frame (含 build_clip refactor 拆 step → 多 PNG 配 narration 時長均分)
   - [ ] **E1-4**: review UI frame preview
   - [ ] **E1-5**: +5~10 tests
 - 設計細節 + Gemini prompt 草稿見 [docs/dynamic-visual-assets-design.md](docs/dynamic-visual-assets-design.md)

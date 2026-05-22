@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 103 完成 — E2-5 ext compose_icons 擴展到 BlackboardRenderer + PptxStyleRenderer (cover/outro/short_video/normal 4 路 layout). iter 102 只接 SlideRenderer 兩 layout, 這輪三大 renderer 全覆蓋. PptxStyleRenderer 加私有 helper _compose_icon_overlay 集中收尾, 4 路 layout 不重複 import. canvas_h 統一 CONTENT_BOTTOM 避免 bottom-* icon 掉到字幕黑帶. +8 tests (3 BlackboardRendererIntegration + 5 PptxStyleRendererIntegration). 下一輪可推: E1-2 (slide_renderer 偵測 image_frames list 走多 PNG 順序); E2-2 (Gemini 一次性產 25 個扁平 SVG icon); E2-6 (review UI 自動建議 icon 勾選列)."
+next_milestone: "iter 104 完成 — E1-2 image_frames 解析器 + SlideRenderer 接終端 frame fallback. 新模組 core/image_frames.py (純函式 0 PIL/ffmpeg 依賴): valid_frames 過濾+排序 / select_frame 進度對應 / terminal_frame 終端 frame / frame_count. SlideRenderer._render_full + _render_split_left 兩 layout 都接 — step.image_frames 若有有效 frame, 終端 (display_ratio 最大) frame 的 path 覆蓋 bg_image. 過渡期路徑 (build_clip 還沒接 frame 序列前一張一張 ffmpeg concat 真正 frame 動畫等 E1-3). +27 tests (TestValidFrames 11 / TestSelectFrame 8 / TestTerminalFrame 4 / TestFrameCount 3 — 涵蓋 None / 非 list / 越界 ratio / 缺檔過濾 / 重複 ratio 後覆蓋 / 進度 clamp / require_file_exists toggle). 下一輪可推: E1-3 (Gemini flow_diagram SVG prompt + cairosvg 渲 frame); build_clip 真 frame 序列拆 step; E2-2 (Gemini 25 SVG); E2-6 (review UI 自動建議 icon 勾選列)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,34 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1162 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1189 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 104 (2026-05-22, hourly routine) — E1-2 image_frames 解析器 + SlideRenderer 終端 frame fallback:
+  - 動態視覺素材 RFC Phase 1 E1 落地最後一步前置. iter 101 開了
+    slide.image_frames schema 透傳 (E1-1), 這輪解析 + 起頭給 renderer 用.
+  - 新模組 core/image_frames.py (純函式, 0 PIL / 0 ffmpeg 依賴):
+    * valid_frames(): 過濾非 dict / 缺 path / ratio 越界 / 缺檔, 依
+      display_ratio 升冪排序, 同 ratio 後覆蓋
+    * select_frame(progress 0~1): 對應「(prev_ratio, current_ratio]」
+      半開區段; 給未來 build_clip 真 frame 序列用
+    * terminal_frame(): 取 display_ratio 最大那筆; 給「一步一張 PNG」
+      過渡期 SlideRenderer 拿最終 frame 當靜態圖 (敘述跑完留下完整圖)
+    * frame_count(): review UI 顯示「這頁有 N frame」用
+    * require_file_exists toggle: renderer True, review UI 預覽 False
+  - pipeline.py SlideRenderer 兩 layout (_render_full + _render_split_left)
+    都接 terminal_frame — step.image_frames 若有效, terminal frame 的
+    path 覆蓋 bg_image. build_clip 還沒接 frame 序列前的過渡 (E1-3 +
+    build_clip refactor 才動真 frame 動畫).
+  - 1162 → 1189 tests (+27):
+    * TestValidFrames 11: None / 非 list / 空 / 過濾 / 排序 / 越界 ratio /
+      缺 path / 非 dict / 非數值 ratio / 重複 / 缺檔 require=True/False
+    * TestSelectFrame 8: None / 各區段對應 / clamp 越界 progress / 邊界
+      inclusive
+    * TestTerminalFrame 4: None / 取最高 ratio / 單 frame / 全 invalid
+    * TestFrameCount 3: None / 過濾邏輯 / review 模式
 
   iter 103 (2026-05-22, hourly routine) — E2-5 ext compose_icons 三大 renderer 全覆蓋:
   - iter 102 只接 SlideRenderer (_render_full + _render_split_left), STATUS 留

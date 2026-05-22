@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 96 完成 — docs/skills.md 補上, 把 .claude/skills/ 的設計理念 / 流程 / 硬規則寫成 README 給 Kiwi / Christian 看. 下一輪可推 video-to-youtube skill 設計 (但 OAuth 安全模型仍是 STOP), 或挑 TODO Round 2 #1 _render_split_left bullets 溢出 pre-render 檢查."
+next_milestone: "iter 97 完成 — UI redesign 第二階段串接 + git tree 清理. 解 routine 卡在 dirty tree 多輪沒推進的 blocker (web/* 大改 6 檔 + .gitignore 補本機產物). 下一輪可推 TODO Round 2 #1 _render_split_left bullets 溢出 pre-render 檢查, 或繼續 video-to-youtube skill 設計 (OAuth 安全模型仍是 STOP)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -32,6 +32,23 @@ key_metrics: |
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 97 (2026-05-22, hourly routine 解 dirty tree blocker) — UI redesign 串接:
+  - 卡狀: 連續多輪 hourly routine 命中 SOP Step 1 STOP (dirty tree),
+    docs/ROUTINE_BLOCKED.md 累積 4 條紀錄沒推進
+  - 用戶授權處理. 改動分三類:
+    1) web/* 6 檔 UI redesign 第二階段串接 — App.tsx header → Sidebar
+       layout, JobsIndex.tsx 改兩欄 list+detail (邏輯保留 polling/filter),
+       Library.tsx grid/list view 切換, index.css 加 paper-grain /
+       chalk-surface / scrollbar-thin / .num / .font-display, tailwind
+       config 加 forest 50-900 色階 + paper/accent + Instrument Serif /
+       IBM Plex Sans / JetBrains Mono Google Fonts. 串接 iter 87d (b0016ee)
+       已 commit 的 ui/Sidebar/Topbar/Btn/Field/Meter 等元件.
+    2) tests/trst.py 個人 TTS 句子微調 → restore (不該進 main)
+    3) .gitignore 補本機產物: tts_samples/ / _scriptor_errors/ /
+       *.zip / *.rar / docs/*.mp4 (備份打包 / scriptor 失敗 dump / 影片產物)
+  - 驗證: tsc --noEmit 過, pytest 1090 全綠 (web only 不動 Python)
+  - 刪 docs/ROUTINE_BLOCKED.md, routine 下輪可繼續 backlog
 
   iter 96 (2026-05-22, hourly routine 首輪) — docs/skills.md 新增:
   - 把 .claude/skills/ 設計理念 (跟 repo 走, 不在 ~/.claude/skills/)

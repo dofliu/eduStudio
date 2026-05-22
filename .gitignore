@@ -71,3 +71,14 @@ ideate_config.yaml
 # iter 41/44: intro normalize cache (audio 轉檔結果), 由 video_concat.py
 # 依 intro mtime 自動產生 / invalidate, 不該 commit (可重建 + 跨機器路徑不同)
 assets/
+
+# iter 97: 本機產物 / 備份 / log — 不該進 repo
+# TTS 樣本 (tests/trst.py 跑出來給用戶試聽選聲音)
+tts_samples/
+# scriptor Gemini call 失敗時的 raw output dump
+_scriptor_errors/
+# 一次性備份 zip / rar (打包整個 web/ 或 repo)
+*.zip
+*.rar
+# 影片產物 (outro / demo / intro mp4) 不該追蹤, 走 OUTPUT_DIR 流程
+docs/*.mp4

@@ -5,6 +5,8 @@ import type {
   CreateJobRequest,
   CreateJobResponse,
   Deck,
+  IconSuggestionsResponse,
+  ImageFramesSummaryResponse,
   JobFiguresResponse,
   JobLogResponse,
   JobOptions,
@@ -73,6 +75,39 @@ export const api = {
 
   // iter 81 (D1 v1): outline.json — scriptor 前的中間產物, 用戶看 LLM 拆解
   getOutline: (jobId: string) => call<Record<string, unknown>>(`/jobs/${jobId}/outline`),
+
+  // iter 107 (E2-6 backend): 批次 icon 建議 — review UI 一次拿全 deck 建議
+  // require_file_exists=false 給提案階段預覽 (SVG 還沒進 repo 也列)
+  getIconSuggestions: (
+    jobId: string,
+    opts?: { maxIcons?: number; requireFileExists?: boolean },
+  ) => {
+    const params = new URLSearchParams();
+    if (opts?.maxIcons !== undefined) params.set('max_icons', String(opts.maxIcons));
+    if (opts?.requireFileExists !== undefined) {
+      params.set('require_file_exists', opts.requireFileExists ? 'true' : 'false');
+    }
+    const qs = params.toString();
+    return call<IconSuggestionsResponse>(
+      `/jobs/${jobId}/icon-suggestions${qs ? `?${qs}` : ''}`,
+    );
+  },
+
+  // iter 109 (E1-4 backend): 批次 image_frames summary — review UI 一次拿全 deck frame 列
+  // require_file_exists=false 給提案階段預覽 (frame 還沒產也列)
+  getImageFramesSummary: (
+    jobId: string,
+    opts?: { requireFileExists?: boolean },
+  ) => {
+    const params = new URLSearchParams();
+    if (opts?.requireFileExists !== undefined) {
+      params.set('require_file_exists', opts.requireFileExists ? 'true' : 'false');
+    }
+    const qs = params.toString();
+    return call<ImageFramesSummaryResponse>(
+      `/jobs/${jobId}/image-frames${qs ? `?${qs}` : ''}`,
+    );
+  },
 
   approve: (jobId: string) =>
     call<JobRecord>(`/jobs/${jobId}/approve`, { method: 'POST' }),

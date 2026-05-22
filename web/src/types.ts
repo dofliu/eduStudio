@@ -306,6 +306,34 @@ export interface ScanAsyncResponse {
   scan_id: string;
 }
 
+// ---------- E2-6 icon suggestions (iter 107 backend, iter 110 wrapper) ----------
+
+export interface IconSuggestion {
+  key: string;
+  icon: string;              // 絕對路徑 (Path → str), 給 <img src> 用前要拼 / 處理
+  matched_keyword: string;
+  position: string;          // top-left | top-right | bottom-left | bottom-right | center
+  size_ratio: number;
+  domain: string;            // generic | wind | control | mechanics
+  file_exists: boolean;      // E2-2 SVG 還沒進 repo 時 false, UI 該 grey-out
+}
+
+export interface IconSuggestionsResponse {
+  suggestions: Record<string, IconSuggestion[]>;
+}
+
+// ---------- E1-4 image frames summary (iter 109 backend, iter 110 wrapper) ----------
+
+export interface ImageFrameSummary {
+  count: number;
+  terminal_path: string | null;   // PNG 路徑 (Path → str), null 表沒 frame
+  has_frames: boolean;
+}
+
+export interface ImageFramesSummaryResponse {
+  summary: Record<string, ImageFrameSummary>;
+}
+
 export type ScanState = 'running' | 'done' | 'failed';
 
 export interface ScanStatusResponse {

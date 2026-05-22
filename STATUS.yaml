@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 109 完成 — E1-4 backend API endpoint: `GET /jobs/{id}/image-frames` 包 summarize_for_deck. 跟 iter 107 icon-suggestions endpoint 完全對稱 — 給未來 review UI frame preview 縮圖列一次 API call 拿全 deck frame summary, 不必每 slide 一個 endpoint. 純 Python / 0 PIL / 0 ffmpeg / 0 LLM call. Query param `require_file_exists` (預設 True 嚴格模式, False 給 UI 提案階段預覽). 沒 deck.json → 404. nonexistent job → 404. exam_pdf deck (problems schema) 自然降級 summary={}. 沒 image_frames 的 slide 仍保留 entry (count=0, terminal_path=None, has_frames=False) — 區別「沒 frame」跟「沒掃到」. 回應格式 `{\"summary\": {slide_id: {count, terminal_path, has_frames}}}` — 外層 wrap 讓未來加 metadata 不破 API 兼容. +8 tests (TestImageFramesHappyPath 3 / TestImageFramesExamSchema 1 / TestImageFramesErrors 2 / TestImageFramesQueryParams 2). 下一輪可推: E2-6 frontend review UI checkbox 列 (要先看 web/ Editor 結構); E1-4 frontend UI (frame preview 縮圖列); E2-2 (Gemini 25 SVG, 需用戶決議)."
+next_milestone: "iter 110 完成 — E2-6 + E1-4 frontend bridge: web/src/api.ts 加 getIconSuggestions / getImageFramesSummary 兩個 wrapper + web/src/types.ts 對應 4 個 interface (IconSuggestion / IconSuggestionsResponse / ImageFrameSummary / ImageFramesSummaryResponse). 不寫 UI 元件 — 純 API client 層橋接, 解耦未來 E2-6 / E1-4 UI iter 跟 backend schema. 純 TypeScript / 0 Python / 0 新 test (TS 是 fetch wrapper, backend 已有 17 tests 涵蓋 HTTP 行為). tsc --noEmit 過, 1232 Python tests 不變. URLSearchParams 處理 query params (require_file_exists / max_icons) — UI 不傳就走 backend default. 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -32,6 +32,25 @@ key_metrics: |
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 110 (2026-05-22, hourly routine) — E2-6 + E1-4 frontend bridge:
+  - iter 107 (icon-suggestions) + iter 109 (image-frames) 兩個新 endpoint 上線,
+    但 web/src/api.ts 還沒對應 wrapper. 未來 E2-6 / E1-4 UI iter 寫元件前,
+    要先有 API client 層 — 不然 UI 元件 + API call 混在一個 commit 太大.
+    這輪純橋接, 不寫 UI.
+  - web/src/types.ts +4 interface:
+    * IconSuggestion: 對應 backend payload 一個 IconMatch (key / icon /
+      matched_keyword / position / size_ratio / domain / file_exists)
+    * IconSuggestionsResponse: {suggestions: {slide_id: IconSuggestion[]}}
+    * ImageFrameSummary: {count / terminal_path / has_frames}
+    * ImageFramesSummaryResponse: {summary: {slide_id: ImageFrameSummary}}
+  - web/src/api.ts +2 method:
+    * getIconSuggestions(jobId, opts?: {maxIcons, requireFileExists}) —
+      URLSearchParams 動態組 query (undefined 就走 backend default)
+    * getImageFramesSummary(jobId, opts?: {requireFileExists}) — 同 pattern
+  - tsc --noEmit 過, Python 1232 tests 不變 (0 Python 改動)
+  - 不加新 web 測試 — 純 fetch wrapper, backend 端 (iter 107 +9 / iter 109 +8)
+    已涵蓋 HTTP 行為. tsc compile 失敗就是測試.
 
   iter 109 (2026-05-22, hourly routine) — E1-4 backend API endpoint: GET /jobs/{id}/image-frames:
   - iter 108 開了 core.image_frames.summarize_for_deck 批次助手, 這輪把它包成

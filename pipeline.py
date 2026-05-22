@@ -23,6 +23,7 @@ from core.visuals import (
     CONTENT_BOTTOM,
     SUBTITLE_STRIP_COLOR,
 )
+from core.image_frames import terminal_frame
 
 # ---------- 設定 ----------
 WIDTH, HEIGHT = 1920, 1080
@@ -277,28 +278,38 @@ class SlideRenderer(Renderer):
         else:
             self._render_full(step, step_idx, out_p)
 
+    @staticmethod
+    def _resolve_step_bg(step, step_idx):
+        """解析 step 的背景路徑 (rel, abs).
+
+        iter 104 (E1-2): step.image_frames 若有有效 frame, 取終端 (display_ratio
+        最大) frame 覆蓋 bg_image — build_clip 還沒接 frame 序列前的過渡, 拿最終
+        frame 當靜態圖. 真 frame 序列渲染等 E1-3 + build_clip refactor.
+
+        iter 105: 抽 helper 消 _render_full / _render_split_left 兩處重複, 並
+        在 image_frames 覆蓋時印 debug 行, 方便除錯時看出當前 bg 來源.
+        回 (bg_rel, bg_path | None). bg_path 為 None 表示 bg_rel 為空字串.
+        """
+        bg_rel = step.get("bg_image", "")
+        tf = terminal_frame(step.get("image_frames"))
+        if tf is not None:
+            bg_rel = tf["path"]
+            print(f"[frame {step_idx:03d}] 🎞 image_frames 終端 frame 覆蓋 bg_image: {bg_rel}")
+        bg_path = _resolve_asset(bg_rel) if bg_rel else None
+        return bg_rel, bg_path
+
     def _render_full(self, step, step_idx, out_p):
         """既有 layout: 投影片 letterbox-fit 進可視區 1920×900 (扣字幕帶 180px).
 
         修正前 letterbox 用整個 1920×1080, 再蓋黑帶在 y=900..1080, 會把 slide
         底部 16.7% 切掉 (例: x 軸標籤 / footer / 穩定區域字 全消失).
         現在 letterbox 進 1920×900, 並居中於該區, slide 完整可見.
-
-        iter 104 (E1-2): step.image_frames 若有有效 frame, 終端 frame 的 path
-        覆蓋 bg_image — build_clip 還沒接 frame 序列前的過渡, 拿最終 frame 當
-        靜態圖. 真 frame 序列渲染等 E1-3 + build_clip refactor.
         """
         canvas = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
         # 可視區 = 整個畫面扣字幕帶, 常數由 core.visuals 集中提供
         visible_h = CONTENT_BOTTOM   # 900
 
-        bg_rel = step.get("bg_image", "")
-        # iter 104 (E1-2): image_frames 終端 frame 覆蓋 bg_image
-        from core.image_frames import terminal_frame
-        tf = terminal_frame(step.get("image_frames"))
-        if tf is not None:
-            bg_rel = tf["path"]
-        bg_path = _resolve_asset(bg_rel) if bg_rel else None
+        bg_rel, bg_path = self._resolve_step_bg(step, step_idx)
         if bg_path and bg_path.exists():
             slide = Image.open(bg_path).convert("RGB")
             ratio = min(WIDTH / slide.width, visible_h / slide.height)
@@ -340,13 +351,7 @@ class SlideRenderer(Renderer):
         left_w = LEFT_X2 - LEFT_X1
         left_h = LEFT_Y2 - LEFT_Y1
 
-        bg_rel = step.get("bg_image", "")
-        # iter 104 (E1-2): image_frames 終端 frame 覆蓋 bg_image (split-left 一致)
-        from core.image_frames import terminal_frame
-        tf = terminal_frame(step.get("image_frames"))
-        if tf is not None:
-            bg_rel = tf["path"]
-        bg_path = _resolve_asset(bg_rel) if bg_rel else None
+        bg_rel, bg_path = self._resolve_step_bg(step, step_idx)
         if bg_path and bg_path.exists():
             slide = Image.open(bg_path).convert("RGB")
             ratio = min(left_w / slide.width, left_h / slide.height)

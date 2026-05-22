@@ -19,6 +19,7 @@ from core.icon_picker import (
     MANIFEST_PATH,
     load_manifest,
     pick_icons,
+    suggest_for_deck,
 )
 
 
@@ -305,3 +306,158 @@ class TestRealManifest:
         # 該包含 pid_loop / wind_turbine / block_diagram 之一
         keys = {m.key for m in result}
         assert keys & {"pid_loop", "wind_turbine", "block_diagram"}
+
+
+class TestSuggestForDeck:
+    """E2-6 backend slice: 對整個 deck 批次跑 pick_icons 給 review UI 用."""
+
+    def test_empty_deck_returns_empty_dict(self, fake_library):
+        manifest_path, library_root = fake_library
+        result = suggest_for_deck(
+            {"sections": []},
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert result == {}
+
+    def test_missing_sections_returns_empty_dict(self, fake_library):
+        """deck 連 sections key 都沒 (極端 defensive) → 空 dict, 不噴 KeyError."""
+        manifest_path, library_root = fake_library
+        result = suggest_for_deck(
+            {},
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert result == {}
+
+    def test_single_slide_with_match(self, fake_library):
+        manifest_path, library_root = fake_library
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {"id": "s1_1", "narration": "我們聊聊風機的運轉原理"},
+                    ],
+                }
+            ]
+        }
+        result = suggest_for_deck(
+            deck,
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert set(result.keys()) == {"s1_1"}
+        assert len(result["s1_1"]) == 1
+        assert result["s1_1"][0].key == "wind_turbine"
+
+    def test_multi_section_multi_slide_preserves_all_ids(self, fake_library):
+        """跨章節多 slide — 每個 slide_id 都該在 result 裡, 沒命中也保留空 list."""
+        manifest_path, library_root = fake_library
+        deck = {
+            "sections": [
+                {
+                    "id": "intro",
+                    "slides": [
+                        {"id": "intro_1", "narration": "風機是甚麼"},
+                        {"id": "intro_2", "narration": "沒有命中的詞"},
+                    ],
+                },
+                {
+                    "id": "deep",
+                    "slides": [
+                        {"id": "deep_1", "narration": "為什麼要這樣設計?"},
+                    ],
+                },
+            ]
+        }
+        result = suggest_for_deck(
+            deck,
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert set(result.keys()) == {"intro_1", "intro_2", "deep_1"}
+        assert result["intro_1"][0].key == "wind_turbine"
+        assert result["intro_2"] == []  # 沒命中, key 仍保留 (跟「沒掃到」做區別)
+        assert result["deep_1"][0].key == "question"
+
+    def test_slide_missing_id_is_skipped(self, fake_library):
+        """缺 id 的 slide 跳過 — normalize_deck 後不該發生, 但 defensive."""
+        manifest_path, library_root = fake_library
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {"id": "ok", "narration": "風機"},
+                        {"narration": "風機"},  # 缺 id
+                        {"id": "", "narration": "風機"},  # 空 id
+                    ],
+                }
+            ]
+        }
+        result = suggest_for_deck(
+            deck,
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert set(result.keys()) == {"ok"}
+
+    def test_empty_narration_slide_returns_empty_list(self, fake_library):
+        """slide.narration 空 → result[slide_id]=[], key 仍保留."""
+        manifest_path, library_root = fake_library
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {"id": "a", "narration": ""},
+                        {"id": "b"},  # 沒 narration key
+                    ],
+                }
+            ]
+        }
+        result = suggest_for_deck(
+            deck,
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert result == {"a": [], "b": []}
+
+    def test_kwargs_passthrough_to_pick_icons(self, fake_library):
+        """max_icons / require_file_exists 該透傳給每個 slide 的 pick_icons."""
+        manifest_path, library_root = fake_library
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        # 故意撞兩個 entry (風機 + 提問), 預期 max_icons=1 截到 1 個
+                        {"id": "both", "narration": "為什麼風機要這樣?"},
+                    ],
+                }
+            ]
+        }
+        result = suggest_for_deck(
+            deck,
+            manifest_path=manifest_path,
+            library_root=library_root,
+            max_icons=1,
+        )
+        assert len(result["both"]) == 1
+
+    def test_section_with_no_slides_yields_no_entries(self, fake_library):
+        """空 section (slides=[] / 缺 key) — 不該爆, 直接無 entry."""
+        manifest_path, library_root = fake_library
+        deck = {
+            "sections": [
+                {"id": "empty", "slides": []},
+                {"id": "noslideskey"},  # 缺 slides key
+            ]
+        }
+        result = suggest_for_deck(
+            deck,
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert result == {}

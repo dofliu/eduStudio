@@ -111,3 +111,45 @@ def pick_icons(
             break
 
     return matches
+
+
+def suggest_for_deck(
+    deck: dict,
+    *,
+    manifest_path: Path | None = None,
+    library_root: Path | None = None,
+    max_icons: int = 3,
+    require_file_exists: bool = True,
+) -> dict[str, list[IconMatch]]:
+    """掃整個 deck 所有 slide narration, 回傳 {slide_id: IconMatch list}.
+
+    給 E2-6 review UI「自動建議 icon 勾選列」批次預覽用 — 一次跑完所有 slide,
+    UI 不需要對每個 slide 分別打 API call. 跟 pick_icons 同樣 0 LLM call /
+    0 cost, 純文字 grep.
+
+    Args:
+        deck: 已 normalize_deck 過的 dict (有 sections[].slides[].narration).
+        manifest_path / library_root / max_icons / require_file_exists:
+            同 pick_icons, 一律透傳給每一個 slide 的 call.
+
+    Returns:
+        dict[str, list[IconMatch]]. Key 是 slide.id (normalize_deck 保證有);
+        Value 是該 slide narration 的建議 icon list. 沒命中也保留空 list —
+        給 UI 知道「這 slide 真的沒建議」, 跟「這 slide 沒掃到」做出區別.
+        Slide 缺 id 跳過 (防呆, normalize_deck 後不該發生).
+    """
+    result: dict[str, list[IconMatch]] = {}
+    for section in deck.get("sections", []) or []:
+        for slide in section.get("slides", []) or []:
+            slide_id = slide.get("id") or ""
+            if not slide_id:
+                continue
+            narration = slide.get("narration") or ""
+            result[slide_id] = pick_icons(
+                narration,
+                manifest_path=manifest_path,
+                library_root=library_root,
+                max_icons=max_icons,
+                require_file_exists=require_file_exists,
+            )
+    return result

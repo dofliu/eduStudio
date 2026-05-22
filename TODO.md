@@ -59,8 +59,8 @@
   - [ ] **E2-2**: Gemini 一次性產 25 個扁平 SVG icon, commit 進 repo
   - [x] **E2-3**: `core/icon_picker.py` keyword grep 模組 (iter 99)
   - [x] **E2-4**: schema 加 `slide.icon_overlay` (iter 100)
-  - [ ] **E2-5**: slide_renderer alpha_composite 疊 icon
-  - [ ] **E2-7**: +8~12 tests
+  - [x] **E2-5**: slide_renderer alpha_composite 疊 icon (iter 102, SlideRenderer 兩 layout; PptxStyle/Blackboard 下輪)
+  - [x] **E2-7**: +8~12 tests (iter 102, +19 含 NoOp/SVG/Position/Size)
   - [ ] **E2-6**: review UI 自動建議 icon 勾選列
   - [x] **E1-1**: schema 加 `slide.image_frames` (iter 101)
   - [ ] **E1-2**: slide_renderer 偵測 frame list 走多 PNG 順序

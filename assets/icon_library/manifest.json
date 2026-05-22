@@ -1,0 +1,188 @@
+{
+  "_schema_version": 1,
+  "_doc": "E2 icon library manifest. 對應 docs/dynamic-visual-assets-design.md 25 個扁平 SVG. SVG 檔案由 E2-2 (Gemini 一次性產) 之後 commit. 在 SVG 進來之前, core/icon_picker.py 該 graceful fallback: 命中 keyword 但 file 不存在就跳過 overlay.",
+  "_field_spec": {
+    "keywords": "list[str] — narration 內出現任一即視為命中. 案例少時保守, 加詞前看實機反饋",
+    "icon": "str — 相對 assets/icon_library/ 的路徑",
+    "position": "str — top-left | top-right | bottom-left | bottom-right | center",
+    "size_ratio": "float — icon 寬佔影片寬比例 (0.08~0.20 推薦)",
+    "domain": "str — generic | wind | control | mechanics, 給 UI 分組顯示"
+  },
+  "icons": {
+    "question": {
+      "keywords": ["疑問", "為什麼", "怎麼會", "提問", "?", "？", "問題是"],
+      "icon": "generic/question.svg",
+      "position": "top-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "exclamation": {
+      "keywords": ["注意", "重點", "強調", "務必", "!", "！"],
+      "icon": "generic/exclamation.svg",
+      "position": "top-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "lightbulb": {
+      "keywords": ["靈感", "想法", "idea", "啟發", "想到", "突破"],
+      "icon": "generic/lightbulb.svg",
+      "position": "top-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "gear": {
+      "keywords": ["機制", "運作原理", "設定", "配置"],
+      "icon": "generic/gear.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "warning": {
+      "keywords": ["小心", "風險", "易錯", "陷阱", "誤區"],
+      "icon": "generic/warning.svg",
+      "position": "top-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "checkmark": {
+      "keywords": ["完成", "正確", "答對", "OK", "通過"],
+      "icon": "generic/checkmark.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "thinking": {
+      "keywords": ["思考", "想一想", "推理", "推論", "推導"],
+      "icon": "generic/thinking.svg",
+      "position": "top-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "arrow_flow": {
+      "keywords": ["步驟", "接下來", "下一步", "首先", "其次", "最後"],
+      "icon": "generic/arrow_flow.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.10,
+      "domain": "generic"
+    },
+    "chart_bar": {
+      "keywords": ["數據", "統計", "比較", "趨勢", "圖表"],
+      "icon": "generic/chart_bar.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.12,
+      "domain": "generic"
+    },
+    "network": {
+      "keywords": ["系統", "網路", "串接", "整合", "架構"],
+      "icon": "generic/network.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.12,
+      "domain": "generic"
+    },
+    "wind_turbine": {
+      "keywords": ["風力機", "風機", "風電", "葉片", "塔架", "wind turbine"],
+      "icon": "wind/wind_turbine.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "wind"
+    },
+    "scada_dashboard": {
+      "keywords": ["SCADA", "監控", "即時", "儀表板", "dashboard"],
+      "icon": "wind/scada_dashboard.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "wind"
+    },
+    "iec61400": {
+      "keywords": ["IEC", "61400", "規範", "標準"],
+      "icon": "wind/iec61400.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.14,
+      "domain": "wind"
+    },
+    "nacelle": {
+      "keywords": ["機艙", "齒輪箱", "發電機", "nacelle"],
+      "icon": "wind/nacelle.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "wind"
+    },
+    "power_curve": {
+      "keywords": ["功率曲線", "P-V", "出力", "額定功率", "切入風速", "切出風速"],
+      "icon": "wind/power_curve.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "wind"
+    },
+    "block_diagram": {
+      "keywords": ["方塊圖", "block diagram", "系統圖", "信號流"],
+      "icon": "control/block_diagram.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "control"
+    },
+    "pid_loop": {
+      "keywords": ["PID", "回授", "feedback", "控制器", "閉迴路", "比例積分微分"],
+      "icon": "control/pid_loop.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "control"
+    },
+    "transfer_function": {
+      "keywords": ["G(s)", "轉移函數", "transfer function", "拉氏轉換"],
+      "icon": "control/transfer_function.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.14,
+      "domain": "control"
+    },
+    "step_response": {
+      "keywords": ["階躍", "step response", "暫態", "上升時間", "穩態"],
+      "icon": "control/step_response.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "control"
+    },
+    "bode_plot": {
+      "keywords": ["波德", "Bode", "頻率響應", "幅值", "相位"],
+      "icon": "control/bode_plot.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "control"
+    },
+    "free_body": {
+      "keywords": ["FBD", "自由體", "受力", "free body", "力分析"],
+      "icon": "mechanics/free_body.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "mechanics"
+    },
+    "stress_strain": {
+      "keywords": ["應力", "應變", "σ", "ε", "stress", "strain", "楊氏模數"],
+      "icon": "mechanics/stress_strain.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "mechanics"
+    },
+    "mohr_circle": {
+      "keywords": ["莫爾", "Mohr", "主應力", "剪應力轉換"],
+      "icon": "mechanics/mohr_circle.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "mechanics"
+    },
+    "beam_load": {
+      "keywords": ["梁", "桁架", "負載", "simply supported", "懸臂"],
+      "icon": "mechanics/beam_load.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "mechanics"
+    },
+    "shear_moment": {
+      "keywords": ["剪力", "彎矩", "V-x", "M-x", "shear", "moment"],
+      "icon": "mechanics/shear_moment.svg",
+      "position": "bottom-right",
+      "size_ratio": 0.16,
+      "domain": "mechanics"
+    }
+  }
+}

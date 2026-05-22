@@ -55,7 +55,7 @@
   icon library 風能/自動控制/材力各 5 + generic 10 = 25 個扁平 SVG,
   SVG 全 Gemini 產
 - 建議推進順序 (見 design memo 末段):
-  - [ ] **E2-1**: `assets/icon_library/` 目錄 + manifest.json 框架
+  - [x] **E2-1**: `assets/icon_library/` 目錄 + manifest.json 框架 (iter 98)
   - [ ] **E2-2**: Gemini 一次性產 25 個扁平 SVG icon, commit 進 repo
   - [ ] **E2-3**: `core/icon_picker.py` keyword grep 模組
   - [ ] **E2-4**: schema 加 `slide.icon_overlay`

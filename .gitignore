@@ -70,7 +70,10 @@ ideate_config.yaml
 
 # iter 41/44: intro normalize cache (audio 轉檔結果), 由 video_concat.py
 # 依 intro mtime 自動產生 / invalidate, 不該 commit (可重建 + 跨機器路徑不同)
-assets/
+# iter 98: 用 assets/* 不是 assets/, 才能用 !assets/icon_library/ 例外
+# (git 規則: 一旦目錄整個被 ignore, 內檔不可再 re-include)
+assets/*
+!assets/icon_library/
 
 # iter 97: 本機產物 / 備份 / log — 不該進 repo
 # TTS 樣本 (tests/trst.py 跑出來給用戶試聽選聲音)

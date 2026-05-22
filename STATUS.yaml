@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 97 完成 — UI redesign 第二階段串接 + git tree 清理. 解 routine 卡在 dirty tree 多輪沒推進的 blocker (web/* 大改 6 檔 + .gitignore 補本機產物). 下一輪可推 TODO Round 2 #1 _render_split_left bullets 溢出 pre-render 檢查, 或繼續 video-to-youtube skill 設計 (OAuth 安全模型仍是 STOP)."
+next_milestone: "iter 98 完成 — E2-1 icon_library manifest 框架 (動態視覺素材 RFC Phase 1 起點). 25 entry JSON (10 generic + 5 wind/control/mechanics) + README + 16 tests (schema/domain coverage/no-duplicate-keywords). 下一輪該推 E2-2 (Gemini 一次性產 25 個扁平 SVG commit 進 repo) — 該 task 需要 Gemini API call, routine 本機有 GEMINI_API_KEY 可跑."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,22 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1090 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1106 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 98 (2026-05-22, hourly routine) — E2-1 icon library manifest 框架:
+  - 動態視覺素材 RFC Phase 1 起點 (2026-05-22 用戶決議 E2 走候選 A keyword grep)
+  - 新增 assets/icon_library/manifest.json — 25 entry (10 generic + 5 wind +
+    5 control + 5 mechanics) 含 keywords / position / size_ratio / domain
+  - 新增 assets/icon_library/README.md — 欄位說明 + 加新 icon 流程
+  - 新增 tests/test_icon_library_manifest.py — 16 tests (schema / RFC 數量
+    對齊 / position 合法值 / size_ratio 範圍 / icon path 跟 domain 一致 /
+    無重複 keyword 跨 entry)
+  - SVG 檔尚未產 (E2-2 待 Gemini 一次性產, routine 下輪可推), 在 SVG 進來
+    之前 icon_picker 該 graceful fallback (E2-3 task)
+  - 1090 → 1106 tests (+16)
 
   iter 97 (2026-05-22, hourly routine 解 dirty tree blocker) — UI redesign 串接:
   - 卡狀: 連續多輪 hourly routine 命中 SOP Step 1 STOP (dirty tree),

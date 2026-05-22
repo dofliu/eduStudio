@@ -50,6 +50,15 @@
 - [ ] **iter 21**: 整合 pipeline.py step image 欄位 (取代或補圖)
 - 設計細節見 [docs/engineering-diagram-design.md](docs/engineering-diagram-design.md)
 
+**G. 動態視覺素材** ✨ 待 RFC 決議 (2026-05-22 用戶提議)
+- [ ] **E1 SVG 流程圖 / 架構圖漸進動畫**: 不要靜態一頁一頁切, 改成
+  「逐步揭露」效果 (流程圖 / 架構圖隨 narration 一格一格出現)
+- [ ] **E2 內容感知 icon overlay**: 維護 `assets/icon_library/`,
+  narration 講「疑問 / 風力機 / 監控」時自動建議疊對應 icon (人工確認後渲)
+- 設計細節 / 三條候選 trade-off 見 [docs/dynamic-visual-assets-design.md](docs/dynamic-visual-assets-design.md)
+- 對應 `CONTENT_QUALITY_ROADMAP.md` E 軸 (E1 + E2)
+- 不可繞 require_review=True 硬規則 — 自動建議走 proposals 人工確認
+
 ### 階段 3 — 遠期 (等真要上雲再做)
 
 **D. 持久化 job worker** (7~10 天, 要先列選型 RFC)

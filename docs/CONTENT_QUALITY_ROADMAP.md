@@ -82,6 +82,42 @@
 
 ---
 
+## E. 動態視覺素材 (2026-05-22 用戶提議, 等 RFC)
+
+> 目前影片是「一頁一頁靜態切換」, 缺乏視覺流動感. 兩條方向 — 設計細節
+> 看 [docs/dynamic-visual-assets-design.md](dynamic-visual-assets-design.md).
+
+### E1. SVG 流程圖 / 架構圖漸進顯示動畫
+
+**問題**: 流程圖 / 架構圖一張靜態 PNG 觀眾抓不到先後關係, 想要像手繪
+「逐步畫出來」的呈現效果.
+
+**範圍**: 不需要複雜動畫 (matplotlib.animation 級別), 只要「節點 / 箭頭
+依語意順序漸進揭露」的 stroke-reveal 效果. SVG 內容由 Gemini 產 (流程
+描述 → SVG) 或人工提供模板.
+
+**待 RFC 決議**: 三條候選 (見 design memo) — 預錄 frame 序列 / SVG
+stroke-dasharray CSS 動畫轉 mp4 / 既有 slide 切片漸顯.
+
+**估時**: MVP 1-2 天, 完整 3-5 天.
+
+### E2. 內容感知 icon / motif overlay
+
+**問題**: narration 內容若涉及特定主題 (疑問 / 風力機 / 監控 /
+警示...), 想自動疊一個對應 icon 或圖案 (劉老師專業領域: 風力機轉動 GIF
+/ SCADA 儀表板 / IEC61400 chart).
+
+**範圍**: 維護一份 `assets/icon_library/` + 對照 mapping (關鍵字 →
+icon path), scriptor 或新 module 在 narration 過 keyword 時建議 overlay.
+人工 review 階段可調.
+
+**待 RFC 決議**: 三條候選 (見 design memo) — 關鍵字 grep / Gemini
+classify / embedding similarity.
+
+**估時**: 框架 + 10 個 icon 1 天, 內容感知 mapping 1-2 天.
+
+---
+
 ## D. 其他 (機會性, 看狀況啟動)
 
 ### D1. 投影片 outline AI review 介面
@@ -117,6 +153,8 @@
 - [x] C3 narration AI 品質升級 (iter 82, scriptor prompts 加「先舉例 + 比喻」)
 - [x] D1 v1 outline 預覽 modal (iter 81, 唯讀) — v2 edit/approve gate 留下次
 - [x] D2 字幕風格樣式 (iter 80, 字級/字色/描邊色 hex)
+- [ ] E1 SVG 流程圖漸進動畫 (2026-05-22 提議, 等 RFC 決議候選)
+- [ ] E2 內容感知 icon overlay (2026-05-22 提議, 等 RFC 決議候選)
 
 ---
 

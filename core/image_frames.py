@@ -112,3 +112,47 @@ def frame_count(
 ) -> int:
     """回有效 frame 數 (review UI 顯示「這頁有 N frame」用)."""
     return len(valid_frames(image_frames, require_file_exists=require_file_exists))
+
+
+def summarize_for_deck(
+    deck: dict,
+    *,
+    require_file_exists: bool = True,
+) -> dict[str, dict]:
+    """掃整個 deck 所有 slide.image_frames, 回傳 {slide_id: summary}.
+
+    給 E1-4 review UI「frame preview 縮圖列」批次預覽用 — 一次跑完所有 slide,
+    UI 不需要對每個 slide 分別打 API call. 純函式 0 PIL / 0 ffmpeg 依賴, 結
+    果可序列化成 JSON 直接給前端. 對應 iter 106 icon_picker.suggest_for_deck
+    pattern.
+
+    Args:
+        deck: 已 normalize_deck 過的 dict (有 sections[].slides[].image_frames).
+        require_file_exists: True (預設) 走渲染端嚴格模式 (檔案不在的 frame
+            算 invalid). False 給 review UI 提案階段 (frame 尚未產出來也要
+            列在預覽).
+
+    Returns:
+        dict[str, dict]. Key 是 slide.id (normalize_deck 保證有);
+        Value = {"count": int, "terminal_path": str | None, "has_frames": bool}.
+        沒 image_frames 也保留 {"count": 0, "terminal_path": None,
+        "has_frames": False} — 給 UI 知道「這 slide 真的沒 frame」, 跟「這
+        slide 沒掃到」做出區別.
+        Slide 缺 id 跳過 (防呆, normalize_deck 後不該發生).
+    """
+    result: dict[str, dict] = {}
+    for section in deck.get("sections", []) or []:
+        for slide in section.get("slides", []) or []:
+            slide_id = slide.get("id") or ""
+            if not slide_id:
+                continue
+            frames = valid_frames(
+                slide.get("image_frames"),
+                require_file_exists=require_file_exists,
+            )
+            result[slide_id] = {
+                "count": len(frames),
+                "terminal_path": frames[-1]["path"] if frames else None,
+                "has_frames": bool(frames),
+            }
+    return result

@@ -11,6 +11,7 @@ import pytest
 from core.image_frames import (
     frame_count,
     select_frame,
+    summarize_for_deck,
     terminal_frame,
     valid_frames,
 )
@@ -231,3 +232,191 @@ class TestFrameCount:
         missing = str(tmp_path / "nope.png")
         frames = [{"path": missing, "display_ratio": 1.0}]
         assert frame_count(frames, require_file_exists=False) == 1
+
+
+class TestSummarizeForDeck:
+    """E1-4 backend slice: 對整個 deck 批次跑 valid_frames 給 review UI 用.
+
+    對應 iter 106 icon_picker.suggest_for_deck pattern — 給 UI 一次 API call
+    拿全 deck frame summary, 不必每 slide 一個 endpoint.
+    """
+
+    def test_empty_deck_returns_empty_dict(self):
+        assert summarize_for_deck({"sections": []}) == {}
+
+    def test_missing_sections_returns_empty_dict(self):
+        """deck 連 sections key 都沒 (極端 defensive) → 空 dict, 不噴 KeyError."""
+        assert summarize_for_deck({}) == {}
+
+    def test_single_slide_with_frames(self, existing_pngs):
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {
+                            "id": "s1_1",
+                            "image_frames": [
+                                {"path": existing_pngs[0], "display_ratio": 0.5},
+                                {"path": existing_pngs[1], "display_ratio": 1.0},
+                            ],
+                        },
+                    ],
+                }
+            ]
+        }
+        result = summarize_for_deck(deck)
+        assert set(result.keys()) == {"s1_1"}
+        assert result["s1_1"] == {
+            "count": 2,
+            "terminal_path": existing_pngs[1],
+            "has_frames": True,
+        }
+
+    def test_multi_section_preserves_all_ids(self, existing_pngs):
+        """跨章節多 slide — 每個 slide_id 都該在 result 裡, 沒 frame 也保留 summary."""
+        deck = {
+            "sections": [
+                {
+                    "id": "intro",
+                    "slides": [
+                        {
+                            "id": "intro_1",
+                            "image_frames": [
+                                {"path": existing_pngs[0], "display_ratio": 1.0},
+                            ],
+                        },
+                        {"id": "intro_2", "image_frames": None},
+                    ],
+                },
+                {
+                    "id": "deep",
+                    "slides": [
+                        {"id": "deep_1"},  # 連 image_frames key 都沒
+                    ],
+                },
+            ]
+        }
+        result = summarize_for_deck(deck)
+        assert set(result.keys()) == {"intro_1", "intro_2", "deep_1"}
+        assert result["intro_1"]["has_frames"] is True
+        assert result["intro_1"]["count"] == 1
+        assert result["intro_2"] == {
+            "count": 0,
+            "terminal_path": None,
+            "has_frames": False,
+        }
+        assert result["deep_1"] == {
+            "count": 0,
+            "terminal_path": None,
+            "has_frames": False,
+        }
+
+    def test_slide_missing_id_is_skipped(self, existing_pngs):
+        """缺 id 的 slide 跳過 — normalize_deck 後不該發生, 但 defensive."""
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {
+                            "id": "ok",
+                            "image_frames": [
+                                {"path": existing_pngs[0], "display_ratio": 1.0},
+                            ],
+                        },
+                        {"image_frames": [{"path": existing_pngs[0], "display_ratio": 1.0}]},  # 缺 id
+                        {"id": "", "image_frames": []},  # 空 id
+                    ],
+                }
+            ]
+        }
+        result = summarize_for_deck(deck)
+        assert set(result.keys()) == {"ok"}
+
+    def test_terminal_path_is_highest_ratio_frame(self, existing_pngs):
+        """terminal_path 該是 display_ratio 最大的 frame, 跟 caller 傳入順序無關."""
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {
+                            "id": "s1_1",
+                            "image_frames": [
+                                {"path": existing_pngs[2], "display_ratio": 1.0},
+                                {"path": existing_pngs[0], "display_ratio": 0.33},
+                                {"path": existing_pngs[1], "display_ratio": 0.66},
+                            ],
+                        },
+                    ],
+                }
+            ]
+        }
+        result = summarize_for_deck(deck)
+        assert result["s1_1"]["terminal_path"] == existing_pngs[2]
+        assert result["s1_1"]["count"] == 3
+
+    def test_require_file_exists_false_includes_missing(self, tmp_path):
+        """review UI 模式 — frame 檔還沒產出來也該列, file_exists=False 等渲染前過濾."""
+        missing_a = str(tmp_path / "nope_a.png")
+        missing_b = str(tmp_path / "nope_b.png")
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {
+                            "id": "preview",
+                            "image_frames": [
+                                {"path": missing_a, "display_ratio": 0.5},
+                                {"path": missing_b, "display_ratio": 1.0},
+                            ],
+                        },
+                    ],
+                }
+            ]
+        }
+        # 嚴格模式 (預設): 兩個都被過濾
+        strict = summarize_for_deck(deck)
+        assert strict["preview"]["count"] == 0
+        assert strict["preview"]["has_frames"] is False
+        # review 模式: 兩個都算
+        loose = summarize_for_deck(deck, require_file_exists=False)
+        assert loose["preview"]["count"] == 2
+        assert loose["preview"]["has_frames"] is True
+        assert loose["preview"]["terminal_path"] == missing_b
+
+    def test_section_with_no_slides_yields_no_entries(self):
+        """空 section (slides=[] / 缺 key) — 不該爆, 直接無 entry."""
+        deck = {
+            "sections": [
+                {"id": "empty", "slides": []},
+                {"id": "noslideskey"},  # 缺 slides key
+            ]
+        }
+        assert summarize_for_deck(deck) == {}
+
+    def test_filters_invalid_frame_entries(self, existing_pngs):
+        """單一 slide 內 invalid frame (缺 path / ratio 越界) 該被 valid_frames 過濾掉."""
+        deck = {
+            "sections": [
+                {
+                    "id": "s1",
+                    "slides": [
+                        {
+                            "id": "mixed",
+                            "image_frames": [
+                                {"path": existing_pngs[0], "display_ratio": 0.5},
+                                {"display_ratio": 0.8},  # 缺 path
+                                {"path": existing_pngs[1], "display_ratio": 1.5},  # 越界
+                                {"path": existing_pngs[2], "display_ratio": 1.0},
+                            ],
+                        },
+                    ],
+                }
+            ]
+        }
+        result = summarize_for_deck(deck)
+        assert result["mixed"]["count"] == 2
+        assert result["mixed"]["terminal_path"] == existing_pngs[2]

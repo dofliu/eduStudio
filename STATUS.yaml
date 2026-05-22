@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 107 完成 — E2-6 backend API endpoint: `GET /jobs/{job_id}/icon-suggestions` 包 iter 106 `suggest_for_deck`. Review UI 一次拿全 deck icon 建議, 不必每 slide 一個 API call. Query params: `require_file_exists` (預設 true, false 給 UI 提案預覽 — 顯示「將會」建議的 icon) + `max_icons` (預設 3, 1~20 FastAPI Query 範圍驗證). IconMatch dataclass 序列化 Path → str 給前端拿 URL 用. exam_pdf schema (problems) 自然降級 suggestions={} — 跟 suggest_for_deck 對 sections 結構的設計一致. 沒命中也保留 slide_id=[] (跟「沒掃到」做出區別). 走 store.deck_path 既有 pattern, 缺檔 404. +9 tests (TestIconSuggestionsHappyPath 2 / ExamSchema 1 / Errors 4 / QueryParams 2). 下一輪可推: E2-6 frontend review UI checkbox 列 (要先看 web/ Editor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); build_clip frame 序列拆 step (E1-3 前置)."
+next_milestone: "iter 108 完成 — E1-4 backend slice: `core.image_frames.summarize_for_deck` 批次助手. 跟 iter 106 icon_picker.suggest_for_deck 對稱 — 給未來 review UI frame preview 縮圖列一次 API call 拿全 deck frame summary, 不必每 slide 一個 endpoint. 純函式 0 PIL / 0 ffmpeg / 可直接 JSON 序列化. 回 `{slide_id: {count, terminal_path, has_frames}}`. 缺 image_frames key 也保留 summary (count=0, terminal_path=None, has_frames=False) — 區別「沒 frame」跟「沒掃到」. require_file_exists 透傳 valid_frames, 嚴格模式 (renderer) vs 寬鬆模式 (review UI 提案階段). slide 缺 id 跳過 (defensive). 空 section 不爆. invalid frame entry (缺 path / ratio 越界) 透過 valid_frames 自動過濾, summary count 反映過濾後結果. +9 tests (TestSummarizeForDeck: empty_deck / missing_sections / single_slide / multi_section_preserves_ids / slide_missing_id_skipped / terminal_path_is_highest_ratio / require_file_exists_false / section_no_slides / filters_invalid_entries). 下一輪可推: E1-4 API endpoint `GET /jobs/{id}/image-frames` 包 summarize_for_deck (iter 107 對稱); E2-6 frontend review UI checkbox 列 (要先看 web/ Editor 結構); E2-2 (Gemini 25 SVG, 需用戶決議)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,36 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1215 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1224 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 108 (2026-05-22, hourly routine) — E1-4 backend slice: image_frames.summarize_for_deck:
+  - E1-4 (review UI frame preview 縮圖列) 的 backend 第一步, 跟 iter 106
+    icon_picker.suggest_for_deck 對稱. 給未來 review UI / API endpoint 一
+    次拿全 deck frame summary (避免每 slide 一個 API call).
+  - 新增 `core.image_frames.summarize_for_deck(deck, *, require_file_exists=True)`:
+    * 內部對每 section / slide 跑 valid_frames, 取 len + terminal path
+    * 回 `{slide_id: {count, terminal_path, has_frames}}`, 純 JSON 友善
+    * 缺 image_frames key / image_frames=None / [] → 仍保留 summary 但
+      count=0 / terminal_path=None / has_frames=False (跟「沒掃到」做出
+      區別 — UI 可顯示「這 slide 沒 frame」狀態)
+    * 缺 id 的 slide 跳過 (normalize_deck 後不該發生, 但 defensive)
+    * 空 sections / 缺 sections key / 空 slides 全 graceful, 0 KeyError
+    * 跟 valid_frames 同樣的 graceful fallback (invalid entry / 缺檔 →
+      過濾, summary count 反映過濾後結果)
+    * require_file_exists 透傳 valid_frames: 嚴格模式 (renderer 用) vs
+      寬鬆模式 (review UI 提案階段顯示「將會」算進 frame 的 entry)
+  - tests/test_image_frames.py +9 tests (TestSummarizeForDeck class):
+    * empty_deck / missing_sections / single_slide_with_frames /
+      multi_section_preserves_all_ids (含 image_frames=None / 缺 key 場景) /
+      slide_missing_id_is_skipped (缺 id + 空 id 兩種) /
+      terminal_path_is_highest_ratio_frame (亂序輸入也排對) /
+      require_file_exists_false_includes_missing (嚴格 vs 寬鬆對照) /
+      section_with_no_slides_yields_no_entries /
+      filters_invalid_frame_entries (缺 path / ratio 越界透過 valid_frames 過濾)
+  - 1215 → 1224 tests (+9)
 
   iter 107 (2026-05-22, hourly routine) — E2-6 backend API endpoint: GET /jobs/{id}/icon-suggestions:
   - iter 106 開了 core.icon_picker.suggest_for_deck 批次助手, 這輪把它包成

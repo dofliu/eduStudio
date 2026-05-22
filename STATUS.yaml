@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 98 完成 — E2-1 icon_library manifest 框架 (動態視覺素材 RFC Phase 1 起點). 25 entry JSON (10 generic + 5 wind/control/mechanics) + README + 16 tests (schema/domain coverage/no-duplicate-keywords). 下一輪該推 E2-2 (Gemini 一次性產 25 個扁平 SVG commit 進 repo) — 該 task 需要 Gemini API call, routine 本機有 GEMINI_API_KEY 可跑."
+next_milestone: "iter 99 完成 — E2-3 core/icon_picker.py keyword grep 模組. narration → IconMatch list, graceful fallback (SVG 不存在跳過, 不噴 error), case-insensitive substring match, max_icons cap (預設 3), require_file_exists flag 給 review UI 提案階段用. +17 tests. 下一輪可推 E2-2 (Gemini 產 25 SVG, 25+ 檔案違反 ≤3 檔規則, 該分多 iter 或等用戶授權單次大 commit) 或 E2-4 (schema.slide.icon_overlay 加欄位, 2 檔範圍 OK)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,26 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1106 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1123 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 99 (2026-05-22, hourly routine) — E2-3 icon_picker keyword grep 模組:
+  - 動態視覺素材 RFC Phase 1 第二步, 接 iter 98 manifest 框架
+  - 新增 core/icon_picker.py — load_manifest() + pick_icons(narration, ...).
+    純 Python grep, 0 LLM call, 0 cost. 設計細節:
+    * IconMatch dataclass: key / icon_path / matched_keyword (給可解釋性) /
+      position / size_ratio / domain / file_exists
+    * graceful fallback: SVG 檔不存在 (E2-2 未產) 該 entry 跳過, 不噴 error
+    * case-insensitive substring match: "pid" 命中 manifest "PID"
+    * max_icons 預設 3 (避免畫面太雜), 同 entry dedup
+    * require_file_exists 預設 True; False 給 review UI 提案階段顯示用
+  - 新增 tests/test_icon_picker.py — 17 tests, 用 tmp_path 建假 manifest +
+    假 svg 隔離測試, 不依賴真 assets/icon_library/ 內容. cover: 空 narration
+    / None 防呆 / dedup / max_icons cap / graceful fallback (兩個方向) /
+    case-insensitive / IconMatch 欄位 / 真 manifest schema 不漂移
+  - 1106 → 1123 tests (+17)
 
   iter 98 (2026-05-22, hourly routine) — E2-1 icon library manifest 框架:
   - 動態視覺素材 RFC Phase 1 起點 (2026-05-22 用戶決議 E2 走候選 A keyword grep)

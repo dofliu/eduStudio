@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-22"
-next_milestone: "iter 104 完成 — E1-2 image_frames 解析器 + SlideRenderer 接終端 frame fallback. 新模組 core/image_frames.py (純函式 0 PIL/ffmpeg 依賴): valid_frames 過濾+排序 / select_frame 進度對應 / terminal_frame 終端 frame / frame_count. SlideRenderer._render_full + _render_split_left 兩 layout 都接 — step.image_frames 若有有效 frame, 終端 (display_ratio 最大) frame 的 path 覆蓋 bg_image. 過渡期路徑 (build_clip 還沒接 frame 序列前一張一張 ffmpeg concat 真正 frame 動畫等 E1-3). +27 tests (TestValidFrames 11 / TestSelectFrame 8 / TestTerminalFrame 4 / TestFrameCount 3 — 涵蓋 None / 非 list / 越界 ratio / 缺檔過濾 / 重複 ratio 後覆蓋 / 進度 clamp / require_file_exists toggle). 下一輪可推: E1-3 (Gemini flow_diagram SVG prompt + cairosvg 渲 frame); build_clip 真 frame 序列拆 step; E2-2 (Gemini 25 SVG); E2-6 (review UI 自動建議 icon 勾選列)."
+next_milestone: "iter 105 完成 — SlideRenderer._resolve_step_bg helper DRY + 整合測試. 抽 _render_full / _render_split_left 兩處重複的「terminal_frame 覆蓋 bg_image」5 行邏輯為 @staticmethod helper (lift import 到 module level), 並在覆蓋發生時印 debug log 行 (方便除錯時看出當前 bg 來源). 此前 iter 104 兩 layout 各 copy 一份, 日後新增 layout (例: split-right / center-stage) 漏接 image_frames 是個高機率 bug source. +9 tests (TestResolveStepBg: no_image_frames / empty_bg / missing_key / terminal_overrides / invalid_frames_falls_back / none_input / image_frames_only_no_bg / debug_log_emitted / no_override_no_log). 下一輪可推: E1-3 (Gemini flow_diagram SVG prompt + cairosvg — 新 dep STOP); build_clip 真 frame 序列拆 step; E2-2 (Gemini 25 SVG); E2-6 (review UI 自動建議 icon 勾選列)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,36 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1189 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1198 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 105 (2026-05-22, hourly routine) — SlideRenderer _resolve_step_bg helper DRY:
+  - iter 104 把 image_frames terminal_frame fallback 落地進 SlideRenderer 兩
+    layout (_render_full + _render_split_left), 兩處各 copy 一份「lift import
+    + tf = terminal_frame(...) + 若有蓋 bg_rel + _resolve_asset」5 行邏輯.
+    日後新增 layout (split-right / center-stage / 等) 漏接 image_frames 是個
+    高機率 bug source — 走 SlideRenderer 但沒 frame fallback 體驗會不一致.
+  - 抽 @staticmethod _resolve_step_bg(step, step_idx) → (bg_rel, bg_path | None).
+    集中 terminal_frame call + bg_rel 解析 + _resolve_asset, 兩 layout 從 5
+    行縮成 1 行 `bg_rel, bg_path = self._resolve_step_bg(step, step_idx)`.
+  - lift `from core.image_frames import terminal_frame` 進 module-level import
+    block (跟 core.visuals 同段), 不再每次 _render_* call 都 import.
+  - 過渡期 debug log: 當 image_frames 真正覆蓋 bg_image 時印一行
+    "[frame NNN] 🎞 image_frames 終端 frame 覆蓋 bg_image: <path>",
+    方便除錯時一眼看出當前 bg 來源是 bg_image 還是 frame.
+  - tests/test_slide_renderer.py +9 tests (TestResolveStepBg class):
+    * no_image_frames_uses_bg_image (基本透傳)
+    * empty_bg_image_returns_none_path (bg_image="" 防呆)
+    * missing_bg_image_key_returns_none_path (連 key 都沒, 預設 "")
+    * image_frames_terminal_overrides_bg_image (核心覆蓋路徑)
+    * invalid_image_frames_falls_back_to_bg_image (缺檔 + 越界全無效 → 退 bg_image)
+    * none_image_frames_uses_bg_image (image_frames=None 明確 noop)
+    * image_frames_only_no_bg_image (沒 bg_image 仍能拿 frame)
+    * override_prints_debug_line (capsys 驗 log 含 step_idx zfill 3 + path)
+    * no_override_no_debug_line (沒蓋時不噴 log, 避免 noise)
+  - 1189 → 1198 tests (+9)
 
   iter 104 (2026-05-22, hourly routine) — E1-2 image_frames 解析器 + SlideRenderer 終端 frame fallback:
   - 動態視覺素材 RFC Phase 1 E1 落地最後一步前置. iter 101 開了

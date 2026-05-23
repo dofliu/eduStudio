@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 113 完成 — server/routes/editor.py route 補測試覆蓋 (XSS safety lock 為主, 過渡期 server-side HTML route 一直裸奔). _html_escape 純函式 12 tests + _render_slide / _render_section 整合 11 tests + HTTP GET /editor + GET /editor/{job_id} 8 tests = 31 tests. 過程中揪出 _render_editor 把 deck 透過 json.dumps 直接注進 <script>const DECK = ...</script> block, deck_title / section.title 含 </script> 會打破 JS 邊界 — 已記到 docs/ROUTINE_FINDINGS.md, 不在 routine 路徑自行修 (硬規則 #3 修 bug 前先討論). 1264 → 1295 tests (+31). 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); themes.py / library.py / youtube.py 等 route 仍有 helper 沒覆蓋."
+next_milestone: "iter 114 完成 — server/routes/voices.py 三個 HTTP route (GET /voices / POST /voices / GET /voices/{id}/sample) 從 PR-3l 上線後一直裸奔, 補測 = 安全鎖. test_voices.py 已覆蓋 helper, 這輪補 HTTP 層. TestListVoices 5 + TestSetVoice 8 + TestVoiceSample 4 = 17 tests. 重點: f5:teacher 含冒號走 :path converter / extra fields 走 ConfigDict(extra='allow') / unknown voice 不該動 config / sample 檔缺要 404 不是 500 / 缺 config 該 fallback 不該炸. 1295 → 1312 tests (+17). 下一輪可推: themes.py / library.py 內未覆蓋 helper; youtube.py 整體 (要 mock OAuth, 較複雜); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,35 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1295 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1312 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 114 (2026-05-24, hourly routine) — voices.py HTTP route 補測試覆蓋:
+  - server/routes/voices.py helper (_read_current_voice / _write_current_voice)
+    在 test_voices.py 已有 13 個純函式測試, 但三個 HTTP route (GET /voices /
+    POST /voices / GET /voices/{id}/sample) 從 PR-3l 上線後沒對應測試 — 任何
+    refactor 不小心動 route 介面就直接上線. 補測 = 安全鎖, 跟 iter 111/112/113
+    同思路 (slide_images / upload helper / editor 都這條路).
+  - tests/test_voices_route.py +17 tests:
+    * TestListVoices 5: 6 voices / current 反映 config / VoiceInfo shape
+      (id / label / sample_url 該指向 /voices/{id}/sample) / config 缺檔
+      fallback 第一個 voice 不該 500 / backend=f5 時 current=f5:teacher
+    * TestSetVoice 8: 切 edge voice 落盤驗 backend=edge + edge.voice / 切
+      f5:teacher 落盤驗 backend=f5 / f5 切換不動 f5 子區塊 (preserve
+      ref_audio 等 user 設定) / unknown voice_id 400 + 不該動 config /
+      pydantic v2 缺必填 voice_id 422 / SetVoiceRequest model_config 設
+      extra='allow', 帶額外欄位不該 422 / POST→GET round-trip
+    * TestVoiceSample 4: serves audio/mpeg byte-perfect / f5:teacher 含
+      冒號透過 :path converter 解析 (普通 str converter 會把 : 視為違法,
+      正是該 endpoint 用 :path 的原因) / 未知 voice 404 帶 voice_id /
+      已知 voice 但 sample 檔不在 voices/samples/ 該 404 + 帶提示訊息
+      不該 500
+  - monkeypatch 用 server.routes.voices.{TTS_CONFIG_PATH, VOICE_SAMPLE_DIR}
+    (route module 內 from-import 已捕 reference, patch core.config.* 不會
+    生效, 跟 iter 111 slide_images_route 同坑)
+  - 0 production code 改動 (純測試). 1295 → 1312 tests (+17)
 
   iter 113 (2026-05-24, hourly routine) — editor.py route 補測試覆蓋 + 揪 JS-context XSS:
   - server/routes/editor.py 從 PR-3d 上線後沒對應測試. server-side HTML route,

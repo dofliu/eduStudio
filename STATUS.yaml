@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 112 完成 — uploads.py 內 _sanitize_filename + _unique_target_path 兩個 helper 補 21 個純函式 unit test (path injection 安全鎖). test_upload.py 只測 HTTP 層, helper 沒直接覆蓋, 任何 refactor 不小心放行 .. / 反斜線 / null byte 就上線. 0 production 改動, 1243 → 1264 tests (+21). 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); editor.py route (server-side HTML, 過渡期可選); 補 server.routes 其餘 helper (proposals / library / uploads 已大致覆蓋)."
+next_milestone: "iter 113 完成 — server/routes/editor.py route 補測試覆蓋 (XSS safety lock 為主, 過渡期 server-side HTML route 一直裸奔). _html_escape 純函式 12 tests + _render_slide / _render_section 整合 11 tests + HTTP GET /editor + GET /editor/{job_id} 8 tests = 31 tests. 過程中揪出 _render_editor 把 deck 透過 json.dumps 直接注進 <script>const DECK = ...</script> block, deck_title / section.title 含 </script> 會打破 JS 邊界 — 已記到 docs/ROUTINE_FINDINGS.md, 不在 routine 路徑自行修 (硬規則 #3 修 bug 前先討論). 1264 → 1295 tests (+31). 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); themes.py / library.py / youtube.py 等 route 仍有 helper 沒覆蓋."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,41 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1264 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1295 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 113 (2026-05-24, hourly routine) — editor.py route 補測試覆蓋 + 揪 JS-context XSS:
+  - server/routes/editor.py 從 PR-3d 上線後沒對應測試. server-side HTML route,
+    user-controlled (deck_title / section.title / slide.title / narration /
+    bullets / source.path) 全走原 string 拼接, 唯一防線是 _html_escape — 任何
+    refactor 不小心放行 <script> / </textarea> / " 就 XSS 上線.
+  - tests/test_editor_route.py +31 tests:
+    * TestHtmlEscape 12: 5 種 HTML entity (& < > " ') 各驗 + & 先轉避免雙重
+      escape + 空字串 / None / 0 (current behavior: falsy 一律回空) /
+      非 0 int str() / 繁中字 passthrough (避免 over-escape)
+    * TestRenderSlideEscape 7: XSS payload in title / narration (含
+      </textarea><script> 避免 textarea 提早截斷) / bullets / value attr
+      含 " / section_id 含 " (防 data-slide-id 屬性溢出) / 缺 id fallback
+      (section_id_idx+1) / code_snippet HTML escape
+    * TestRenderSectionEscape 4: section title XSS / section_id 含 " /
+      含 slides 各渲染 / 缺 id fallback (sec{idx+1})
+    * TestEditorIndex 3: empty list 走「尚無 job」 + 含 job 列表渲染
+      (badge-awaiting_review 該在) + source.path 含 < / " 走 _html_escape
+    * TestEditorPage 5: 不存在 job 404 / exam_pdf v1 schema 走 fallback 訊息 /
+      ingesting 沒 deck.json 走「deck.json 不存在」/ deck schema 渲染 sections /
+      deck XSS payload 走 HTML 渲染路徑該 escape (toolbar / section / bullet)
+  - 過程中揪出 _render_editor 把 deck 透過 json.dumps(deck, ensure_ascii=False)
+    直接注進 <script>const DECK = ...</script> block, 若 deck.json 任一字串
+    欄位含 </script> 會打破 JS 邊界 → XSS. 已記到 docs/ROUTINE_FINDINGS.md,
+    不在 routine 路徑自行修 (硬規則 #3 修 bug 前先討論). 攻擊面低 (editor.py
+    只在 localhost server 對自己人開), 但仍是真實風險. 建議修法: json.dumps
+    後做 `.replace("</", "<\\/")` 1 行 patch.
+  - 新增 docs/ROUTINE_FINDINGS.md (新檔, 累積 routine 過程「需用戶決策才能
+    修」的事項 — 不是 BLOCKED, 是「該由用戶在下個 review 視窗決定怎麼處理」
+    的清單. 跟 ROUTINE_BLOCKED.md 不同, 該檔是 STOP 條件命中時才寫).
+  - 0 production code 改動 (純測試 + 一份新 findings doc). 1264 → 1295 tests (+31)
 
   iter 112 (2026-05-24, hourly routine) — uploads.py helper unit test (path injection 安全鎖):
   - server/routes/uploads.py 內 _sanitize_filename + _unique_target_path 是

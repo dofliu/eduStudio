@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 117 完成 — server/routes/jobs.py 四個 HTTP endpoint 從 PR-3a~PR-4a 上線後沒對應 route-level 測試, 補安全鎖. test_jobs_approve_route.py 只覆蓋 approve, test_outline_endpoint.py 只覆蓋 outline, iter 107/109 covers icon-suggestions/image-frames, 剩 GET /draft (deck 讀) / PUT /draft (state guard awaiting_review/failed/done allow; pending/ingesting/rendering 409) / GET /log (tail 1~2000 bounds, jsonl parse, RAW fallback) / POST /sections/{sec}/render (PR-4a, _deck_has_section_id 雙 schema v1 problems + 新 sections lookup) / GET /artifacts/{name} (path traversal `..` / `\\` 防護 + dir target 不可下載) 全裸奔. 任何 refactor 不小心動 state machine / path 防護 / section lookup → 直接上線, 跟 iter 111-116 同思路 (route 安全鎖). TestGetDraftEndpoint 3 + TestUpdateDraftEndpoint 9 (含 unicode roundtrip 驗 ensure_ascii=False) + TestJobLogEndpoint 7 + TestSectionRenderEndpoint 7 (v1 problems + 新 sections 兩 schema 都驗) + TestArtifactDownload 6 = 32 tests. 0 production code 改動. 1354 → 1386 tests (+32). 下一輪可推: proposals.py route 邊角; figures.py 補測 (test_figures_route.py 已有但可能不全); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 118 完成 — server/routes/proposals.py POST /{id}/duplicate endpoint 從 iter 89 上線後一直沒對應 route-level 測試. test_proposals_route.py 已涵蓋 list(4)/approve(11)/ignore(3)/scan-folder(5)/scan-status(4), 唯獨 duplicate_proposal 從沒測 — 任何 refactor 不小心動 status reset (一律 PENDING, 不繼承原 APPROVED/IGNORED/EXPIRED) / job_id 清除 (dict.pop, 避免兩 proposal 指同 job) / _from audit trail → 直接上線, 同 iter 111-117 思路 (route 安全鎖). TestDuplicate 11 tests: 4 status 都能 dup (pending/approved/ignored/expired, 核心 use case 是 APPROVED proposal 想做不同設定第二支影片) + 404 missing id + job_id 清除 (response + proposals.json 雙重驗) + _from=p1 persist + 全 metadata 複製驗 (source_file/source_type/suggested_title/中文 chapters list/reason/estimated_duration_min) + 原 proposal 不變 (純複製非搬遷) + 同 id dup 兩次拿 distinct id + 整合驗 GET /proposals 撈到新 PENDING. 0 production code 改動. 1386 → 1397 tests (+11). 下一輪可推: figures.py 補 invalid JSON / jpeg content-type / dir target 邊角; jobs.py POST /jobs (建 job route) + GET /jobs (list) + DELETE /jobs/{id} 三個 endpoint 也沒對應 route-level 測試; E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,36 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1386 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1397 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 118 (2026-05-24, hourly routine) — proposals.py POST /{id}/duplicate route 補測試覆蓋 (iter 89 上線後一直裸奔):
+  - server/routes/proposals.py duplicate_proposal endpoint 從 iter 89 加進來
+    後沒對應 route-level 測試. test_proposals_route.py 已涵蓋 list / approve /
+    ignore / scan-folder / scan-status, 唯獨 POST /{id}/duplicate 從沒測 —
+    任何 refactor 不小心動 status reset (一律 PENDING, 不繼承原 APPROVED/
+    IGNORED/EXPIRED) / job_id 清除 (dict.pop, 避免兩 proposal 指同 job) /
+    _from audit trail → 直接上線, 同 iter 111-117 思路 (route 安全鎖).
+  - tests/test_proposals_route.py +11 tests (TestDuplicate class):
+    * pending / approved / ignored / expired 四種 status 都能 dup → 新
+      PENDING (核心 use case: APPROVED proposal 想做另一支不同設定的影片;
+      EXPIRED 也能驗 status 一律 reset, 不卡白名單)
+    * missing id 404
+    * job_id 清除 (response + proposals.json 雙重驗, 原 APPROVED 有
+      job_id 新 PENDING 該無)
+    * proposals.json 內驗 _from=p1 (audit trail, debug 用)
+    * 全 metadata 複製驗 (source_file / source_type=document /
+      suggested_title=中文 / suggested_chapters 含中文 list /
+      reason / estimated_duration_min=15)
+    * 原 proposal 不變 (status='approved' / job_id='job_xxx' 都該保留,
+      純複製非搬遷)
+    * 同 id duplicate 兩次拿 distinct id (各帶 _from=p1, proposals.json
+      內 3 entries: 原 + 兩 dup)
+    * 整合驗 dup 後 GET /proposals (only_pending=true 預設) 該撈到新
+      PENDING (空 listing → dup → 1 entry, status reset 真有效)
+  - 0 production code 改動 (純測試). 1386 → 1397 tests (+11)
 
   iter 117 (2026-05-24, hourly routine) — jobs.py 四個 HTTP route 補測試覆蓋 (PR-3a~PR-4a 上線後一直裸奔):
   - server/routes/jobs.py 內 GET /draft / PUT /draft / GET /log / POST

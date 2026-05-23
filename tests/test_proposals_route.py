@@ -298,6 +298,143 @@ class TestIgnore:
         assert resp.status_code == 409
 
 
+class TestDuplicate:
+    """POST /proposals/{id}/duplicate — 同檔多 job 用 (iter 89).
+
+    從 iter 89 上線後一直裸奔, 任何 refactor 不小心動 status reset / job_id
+    清除 / _from audit 邏輯 → 直接上線, 同 iter 111-117 思路 (route 安全鎖).
+    """
+
+    def test_duplicate_pending_creates_new_pending(self, client, proposals_file):
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+        resp = client.post("/proposals/p1/duplicate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "pending"
+        assert data["id"] != "p1"
+        assert data["id"].endswith("_dup")
+
+    def test_duplicate_approved_creates_new_pending(self, client, proposals_file):
+        """核心 use case: 已 APPROVED 的 proposal 想做另一支不同設定的影片."""
+        _write_proposals(proposals_file, [
+            _sample_proposal(id_="p1", status_val="approved", job_id="job_xxx"),
+        ])
+        resp = client.post("/proposals/p1/duplicate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "pending"
+        # 新 proposal 的 job_id 該被清掉 (不繼承原 approved 的 job_id)
+        assert data.get("job_id") is None
+
+    def test_duplicate_ignored_creates_new_pending(self, client, proposals_file):
+        """IGNORED 的 proposal 也能 dup (用戶反悔, 想重新考慮)."""
+        _write_proposals(proposals_file, [
+            _sample_proposal(id_="p1", status_val="ignored"),
+        ])
+        resp = client.post("/proposals/p1/duplicate")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "pending"
+
+    def test_duplicate_expired_creates_new_pending(self, client, proposals_file):
+        """EXPIRED 也能 dup (status 一律 reset, 不卡 status 白名單)."""
+        _write_proposals(proposals_file, [
+            _sample_proposal(id_="p1", status_val="expired"),
+        ])
+        resp = client.post("/proposals/p1/duplicate")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "pending"
+
+    def test_duplicate_missing_id_returns_404(self, client, proposals_file):
+        _write_proposals(proposals_file, [])
+        resp = client.post("/proposals/nope/duplicate")
+        assert resp.status_code == 404
+
+    def test_duplicate_clears_job_id(self, client, proposals_file):
+        """原 proposal 有 job_id → 新 proposal 該無 (避免兩 proposal 指同 job)."""
+        _write_proposals(proposals_file, [
+            _sample_proposal(id_="p1", status_val="approved", job_id="job_keep_orig"),
+        ])
+        resp = client.post("/proposals/p1/duplicate")
+        assert resp.status_code == 200
+        assert resp.json().get("job_id") is None
+        # proposals.json 內也驗
+        raw = json.loads(proposals_file.read_text(encoding="utf-8"))
+        new_p = [p for p in raw["proposals"] if p["id"] != "p1"][0]
+        # job_id 該被 pop 掉, 不存在 key 也算清掉
+        assert new_p.get("job_id") is None
+
+    def test_duplicate_persists_from_field(self, client, proposals_file):
+        """新 proposal 該帶 _from 欄位 (audit trail, debug 用)."""
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+        client.post("/proposals/p1/duplicate")
+        raw = json.loads(proposals_file.read_text(encoding="utf-8"))
+        new_p = [p for p in raw["proposals"] if p["id"] != "p1"][0]
+        assert new_p["_from"] == "p1"
+
+    def test_duplicate_copies_all_metadata(self, client, proposals_file):
+        """source_file / source_type / suggested_title / chapters / reason /
+        estimated_duration_min 該全保留."""
+        orig = _sample_proposal(id_="p1", source_file="/data/exam2024.pdf")
+        orig["source_type"] = "document"
+        orig["suggested_title"] = "材料力學第三章複習"
+        orig["suggested_chapters"] = ["應力", "應變", "胡克定律"]
+        orig["reason"] = "Gemini 判斷適合做 lecture"
+        orig["estimated_duration_min"] = 15
+        _write_proposals(proposals_file, [orig])
+
+        resp = client.post("/proposals/p1/duplicate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["source_file"] == "/data/exam2024.pdf"
+        assert data["source_type"] == "document"
+        assert data["suggested_title"] == "材料力學第三章複習"
+        assert data["suggested_chapters"] == ["應力", "應變", "胡克定律"]
+        assert data["reason"] == "Gemini 判斷適合做 lecture"
+        assert data["estimated_duration_min"] == 15
+
+    def test_duplicate_does_not_modify_original(self, client, proposals_file):
+        """原 proposal 的 status / job_id 該不變 (純複製非搬遷)."""
+        _write_proposals(proposals_file, [
+            _sample_proposal(id_="p1", status_val="approved", job_id="job_xxx"),
+        ])
+        client.post("/proposals/p1/duplicate")
+        raw = json.loads(proposals_file.read_text(encoding="utf-8"))
+        orig = [p for p in raw["proposals"] if p["id"] == "p1"][0]
+        assert orig["status"] == "approved"
+        assert orig["job_id"] == "job_xxx"
+
+    def test_duplicate_multiple_times_creates_distinct_ids(self, client, proposals_file):
+        """同 id duplicate 兩次, 兩 new proposal 並存 (各自獨立 id)."""
+        _write_proposals(proposals_file, [_sample_proposal(id_="p1")])
+        r1 = client.post("/proposals/p1/duplicate")
+        r2 = client.post("/proposals/p1/duplicate")
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        id1 = r1.json()["id"]
+        id2 = r2.json()["id"]
+        assert id1 != id2
+        # proposals.json 該有 3 entry (原 + 兩 dup)
+        raw = json.loads(proposals_file.read_text(encoding="utf-8"))
+        assert len(raw["proposals"]) == 3
+        # 兩 dup 都帶 _from=p1
+        dups = [p for p in raw["proposals"] if p["id"] != "p1"]
+        assert all(p["_from"] == "p1" for p in dups)
+
+    def test_duplicate_appears_in_pending_listing(self, client, proposals_file):
+        """dup 出來的新 PENDING 該被 GET /proposals 撈到 (整合驗 status reset 真有效)."""
+        _write_proposals(proposals_file, [
+            _sample_proposal(id_="p1", status_val="approved", job_id="job_xxx"),
+        ])
+        # 原 approved 不在 pending listing
+        assert client.get("/proposals").json()["proposals"] == []
+
+        client.post("/proposals/p1/duplicate")
+        listing = client.get("/proposals").json()["proposals"]
+        assert len(listing) == 1
+        assert listing[0]["status"] == "pending"
+        assert listing[0]["id"].endswith("_dup")
+
+
 class TestScanFolder:
     """POST /proposals/scan-folder — ad-hoc 掃單一資料夾 (iter 27)."""
 

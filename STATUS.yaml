@@ -3,8 +3,8 @@ name_zh: 教學影片自動生成平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-05-23"
-next_milestone: "iter 111 完成 — /slide_images/{stem}/{filename} endpoint 補測試覆蓋 (PR-3h 之後一直沒 regression 護網). 新增 tests/test_slide_images_route.py +11 tests: happy path (PNG 還原 byte-perfect / 同 stem 多頁) + 404 (缺 stem dir / 缺 filename / 命中目錄非檔) + path traversal security (..%2F / ..%5C 兩種編碼 + dotfile 前綴擋下 .env / .ssh 等敏感檔) + edge cases (empty filename / 特殊字元不該 500). monkeypatch server.routes.slides.SLIDES_DIR (route 內 from-import 捕 reference, 不可只 patch core.config). 0 production code 改動, 1232 → 1243 tests (+11). 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); 補其他 server route 測試覆蓋 (themes / library 已有, slides 補完, voices 已有)."
+last_updated: "2026-05-24"
+next_milestone: "iter 112 完成 — uploads.py 內 _sanitize_filename + _unique_target_path 兩個 helper 補 21 個純函式 unit test (path injection 安全鎖). test_upload.py 只測 HTTP 層, helper 沒直接覆蓋, 任何 refactor 不小心放行 .. / 反斜線 / null byte 就上線. 0 production 改動, 1243 → 1264 tests (+21). 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); editor.py route (server-side HTML, 過渡期可選); 補 server.routes 其餘 helper (proposals / library / uploads 已大致覆蓋)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,35 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1243 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1264 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 112 (2026-05-24, hourly routine) — uploads.py helper unit test (path injection 安全鎖):
+  - server/routes/uploads.py 內 _sanitize_filename + _unique_target_path 是
+    純函式 helper, 涉及路徑安全 (path injection / Windows 保留字 / 控制字
+    元). 但 test_upload.py 只測 HTTP 層 (size limit / source_type 白名單 /
+    options_json 解析 / 空檔), helper 沒直接覆蓋. 任何 refactor 不小心放行
+    .. / 反斜線 / null byte 就直接上線 — 安全鎖類型補測, 跟 iter 111
+    slide_images route 思路一致.
+  - tests/test_upload.py +21 tests:
+    * TestSanitizeFilenameHappyPath 4: normal pdf / 中文 (BMP 高位區不在
+      _FNAME_BAD) / 多 dot ext (archive.tar.gz rpartition 切最末) / 底線橫線
+    * TestSanitizeFilenamePathInjection 6: forward slash (../../etc/passwd
+      → etcpasswd) / backslash Windows-style / colon (drive letter) /
+      control chars (\\x00 null byte / \\x01\\x02 / \\t) / 連續 dot collapse
+      (foo..bar.pdf → foobar.pdf) / 頭尾 dot strip (...foo.pdf... → foo.pdf)
+    * TestSanitizeFilenameWindowsReserved 4: CON.pdf → _CON.pdf / case
+      insensitive (con.pdf / Aux.txt) / COM1-9 reserved 但 COM10+ 不在 set
+      (documented) / 無 ext 時 base="" 不命中 reserved 比對 (CON 原樣 —
+      documented passthrough, OS 寫檔還會擋, 不算 bug, 未來改該邏輯該主動
+      更新此 test)
+    * TestSanitizeFilenameFallback 3: '' / 純空白 / 只剩 dot 全 → 'upload'
+    * TestUniqueTargetPath 4: 不存在直接回傳 / 已存在加 _YYYYMMDD_HHMMSS
+      (驗檔名長度避免 collision) / 無 ext 走 fallback 分支整名加 _timestamp
+      (結尾不該有 dot) / 多 dot ext (archive.tar_TS.gz, rpartition 切點)
+  - 0 production code 改動 (純測試). 1243 → 1264 tests (+21)
 
   iter 111 (2026-05-23, hourly routine) — /slide_images route 補測試覆蓋:
   - server/routes/slides.py 從 PR-3h (簡報縮圖 endpoint) 上線後沒對應

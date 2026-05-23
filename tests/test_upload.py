@@ -133,3 +133,151 @@ class TestValidation:
             data={"source_type": "document", "options_json": "[1, 2, 3]"},
         )
         assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Helper unit tests — _sanitize_filename / _unique_target_path
+#
+# 這兩個是 uploads.py 內的純函式, HTTP 層測試 (上面) 不直接驗其行為.
+# 路徑安全 helper (path injection / Windows 保留字 / 控制字元) = 攻擊面,
+# 沒測試 = 未來 refactor 一不小心放行就直接上線. 補純函式測 = 安全鎖.
+# 純 Python, 不需 TestClient, 不需 multipart, 跑超快.
+# ---------------------------------------------------------------------------
+
+from pathlib import Path
+
+from server.routes.uploads import _sanitize_filename, _unique_target_path
+
+
+class TestSanitizeFilenameHappyPath:
+    """常見合法檔名不該被改 — 中文 / 多 dot ext / 底線橫線都保留。"""
+
+    def test_normal_pdf_unchanged(self):
+        assert _sanitize_filename("report.pdf") == "report.pdf"
+
+    def test_chinese_filename_preserved(self):
+        """中文字元不在 _FNAME_BAD 範圍 (BMP 高位區), 該原樣保留。"""
+        assert _sanitize_filename("報告.pdf") == "報告.pdf"
+
+    def test_multi_dot_extension_preserved(self):
+        """archive.tar.gz: rpartition 只取最末 dot, 前段保留。"""
+        assert _sanitize_filename("archive.tar.gz") == "archive.tar.gz"
+
+    def test_underscore_and_dash_preserved(self):
+        assert _sanitize_filename("my_report-v2.pdf") == "my_report-v2.pdf"
+
+
+class TestSanitizeFilenamePathInjection:
+    """path separator / dotdot 攻擊面 — 不該讓 caller 跳出 PDFS_DIR。"""
+
+    def test_forward_slash_path_traversal_stripped(self):
+        """../../etc/passwd.pdf: 斜線跟 dotdot 都該消, 結果落在 PDFS_DIR 不跳出。"""
+        out = _sanitize_filename("../../etc/passwd.pdf")
+        assert "/" not in out
+        assert ".." not in out
+        # 實際行為: ../ + .. 都被吃掉, 剩 "etcpasswd.pdf"
+        assert out == "etcpasswd.pdf"
+
+    def test_backslash_path_traversal_stripped(self):
+        """Windows-style ..\\..\\etc\\passwd.pdf 同理該擋下。"""
+        out = _sanitize_filename("..\\..\\etc\\passwd.pdf")
+        assert "\\" not in out
+        assert ".." not in out
+        assert out == "etcpasswd.pdf"
+
+    def test_colon_stripped(self):
+        """C:foo.pdf 含 Windows 磁碟機代號分隔符 ':' — 該消, 不該被當成 drive。"""
+        out = _sanitize_filename("C:foo.pdf")
+        assert ":" not in out
+        assert out == "Cfoo.pdf"
+
+    def test_control_chars_stripped(self):
+        """\\x00~\\x1f 控制字元 (含 null byte) 全該消 — 防 C 字串截斷攻擊。"""
+        assert _sanitize_filename("foo\x00bar.pdf") == "foobar.pdf"
+        assert _sanitize_filename("foo\x01\x02bar.pdf") == "foobar.pdf"
+        assert _sanitize_filename("tab\there.pdf") == "tabhere.pdf"
+
+    def test_consecutive_dots_collapsed(self):
+        """連續多個 dot 全消, 防 .. 路徑跳出 (即使 sep 已濾)。"""
+        assert _sanitize_filename("foo..bar.pdf") == "foobar.pdf"
+        assert _sanitize_filename("foo....bar") == "foobar"
+
+    def test_leading_trailing_dots_stripped(self):
+        """頭尾的 dot 全消 — Windows 系統不接受開頭 dot 的檔名 (隱藏)。"""
+        assert _sanitize_filename("...foo.pdf...") == "foo.pdf"
+
+
+class TestSanitizeFilenameWindowsReserved:
+    """CON / PRN / AUX / NUL / COM1-9 / LPT1-9 不可用作檔名 — 該加底線。"""
+
+    def test_con_pdf_prefixed_with_underscore(self):
+        assert _sanitize_filename("CON.pdf") == "_CON.pdf"
+
+    def test_reserved_name_case_insensitive(self):
+        """大小寫不敏感比對, 但原 case 保留 (只加前置底線)。"""
+        assert _sanitize_filename("con.pdf") == "_con.pdf"
+        assert _sanitize_filename("Aux.txt") == "_Aux.txt"
+
+    def test_com1_to_com9_reserved(self):
+        """COM1-COM9 是 reserved, COM10+ 不在保留字 set 內。"""
+        assert _sanitize_filename("COM1.txt") == "_COM1.txt"
+        assert _sanitize_filename("LPT9.txt") == "_LPT9.txt"
+        # COM10 是 documented behavior: 不在 reserved set, 該原樣保留
+        assert _sanitize_filename("COM10.txt") == "COM10.txt"
+
+    def test_reserved_name_without_extension_passthrough(self):
+        """無副檔名時 rpartition 找不到 dot, base="" 不命中 reserved 比對 —
+        documented behavior (helper 沒處理這 corner, 但 OS 寫檔還會擋, 不算 bug)."""
+        # 純鎖 documented behavior, 未來若改該邏輯該主動更新此 test
+        assert _sanitize_filename("CON") == "CON"
+
+
+class TestSanitizeFilenameFallback:
+    """空字串 / 只剩空白或 dot → fallback 'upload', 不能回 ''。"""
+
+    def test_empty_string_returns_upload(self):
+        assert _sanitize_filename("") == "upload"
+
+    def test_only_whitespace_returns_upload(self):
+        assert _sanitize_filename("   ") == "upload"
+
+    def test_only_dots_returns_upload(self):
+        """連續 dots 被吃掉後剩 '' → fallback。"""
+        assert _sanitize_filename("....") == "upload"
+        assert _sanitize_filename("   ...  ") == "upload"
+
+
+class TestUniqueTargetPath:
+    """同名加時間戳, 不覆蓋既有檔。"""
+
+    def test_returns_input_path_when_file_absent(self, tmp_path):
+        """target 不存在 → 直接回傳, 不加時間戳。"""
+        out = _unique_target_path(tmp_path, "foo.pdf")
+        assert out == tmp_path / "foo.pdf"
+
+    def test_adds_timestamp_suffix_to_base_when_file_exists(self, tmp_path):
+        """target 已存在 → base 加時間戳, ext 保留位置。"""
+        (tmp_path / "foo.pdf").write_text("existing")
+        out = _unique_target_path(tmp_path, "foo.pdf")
+        assert out != tmp_path / "foo.pdf"
+        assert out.name.startswith("foo_") and out.name.endswith(".pdf")
+        # 時間戳格式 YYYYMMDD_HHMMSS (15 字元 + 底線), 確保 collision 不太可能
+        # foo_YYYYMMDD_HHMMSS.pdf = 4 + 15 + 4 = 23
+        assert len(out.name) == len("foo_20260524_000000.pdf")
+
+    def test_file_without_extension_appends_timestamp_to_full_name(self, tmp_path):
+        """無 ext (rpartition 找不到 dot) → 走 fallback 分支, 整名加 _timestamp。"""
+        (tmp_path / "noext").write_text("x")
+        out = _unique_target_path(tmp_path, "noext")
+        assert out.name.startswith("noext_")
+        # 沒 ext 結尾不該有 dot
+        assert "." not in out.name
+
+    def test_multi_dot_extension_only_last_dot_split(self, tmp_path):
+        """archive.tar.gz 已存在 → 時間戳插在最末 dot 前 (rpartition 切點)。"""
+        (tmp_path / "archive.tar.gz").write_text("x")
+        out = _unique_target_path(tmp_path, "archive.tar.gz")
+        # documented behavior: rpartition('.') 取最末 dot
+        # → base="archive.tar", ext="gz" → "archive.tar_TS.gz"
+        assert out.name.startswith("archive.tar_")
+        assert out.name.endswith(".gz")

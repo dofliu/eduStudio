@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 118 完成 — server/routes/proposals.py POST /{id}/duplicate endpoint 從 iter 89 上線後一直沒對應 route-level 測試. test_proposals_route.py 已涵蓋 list(4)/approve(11)/ignore(3)/scan-folder(5)/scan-status(4), 唯獨 duplicate_proposal 從沒測 — 任何 refactor 不小心動 status reset (一律 PENDING, 不繼承原 APPROVED/IGNORED/EXPIRED) / job_id 清除 (dict.pop, 避免兩 proposal 指同 job) / _from audit trail → 直接上線, 同 iter 111-117 思路 (route 安全鎖). TestDuplicate 11 tests: 4 status 都能 dup (pending/approved/ignored/expired, 核心 use case 是 APPROVED proposal 想做不同設定第二支影片) + 404 missing id + job_id 清除 (response + proposals.json 雙重驗) + _from=p1 persist + 全 metadata 複製驗 (source_file/source_type/suggested_title/中文 chapters list/reason/estimated_duration_min) + 原 proposal 不變 (純複製非搬遷) + 同 id dup 兩次拿 distinct id + 整合驗 GET /proposals 撈到新 PENDING. 0 production code 改動. 1386 → 1397 tests (+11). 下一輪可推: figures.py 補 invalid JSON / jpeg content-type / dir target 邊角; jobs.py POST /jobs (建 job route) + GET /jobs (list) + DELETE /jobs/{id} 三個 endpoint 也沒對應 route-level 測試; E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 119 完成 — server/routes/jobs.py 四個 CRUD endpoint (POST / GET / GET/{id} / DELETE/{id}) 從 PR-3a 上線後一直沒對應 route-level 測試. iter 117 已補 draft/log/section_render/artifacts 五個 endpoint, iter 118 補 proposals duplicate, 但 CRUD 本身仍裸奔. 任何 refactor 不小心動 source_type 早期驗證分支 (url scheme http(s) 白名單 / path 存在檢查 / 缺欄位攔截) / created_at desc 排序 / cache+disk 同步 cleanup → 直接上線, 跟 iter 111-118 思路 (route 安全鎖). TestCreateJobEndpoint 11 tests: document/exam_pdf/slides_pdf/url 全 source_type 各驗 + exam_pdf require_review 預設 True (硬規則 #1) / slides_pdf 預設 False / url http/https 都接受 / ftp invalid scheme 400 / empty/whitespace url 400 / document 缺 path 400 / 不存在 path 400 / schedule_job 觸發驗 (mock 收 job_id). TestListJobsEndpoint 4 tests: empty list / 單 job 命中 / 3 job desc 排序 (顯式 created_at 各差 1 分鐘避免 Windows microsecond 退化成 stable order) / 跨 source_type 混合該全出現. TestGetJobEndpoint 2 tests: existing 200 + JobRecord 全欄位 (id/state/source_type/timestamps/youtube_uploads={}) / nonexistent 404. TestDeleteJobEndpoint 6 tests: existing 204 空 body / nonexistent 404 / delete 後 GET 404 (cache 清乾淨) / delete 後 list 不該有 / disk dir rmtree / double delete 第二次 404. 0 production code 改動 (純測試). 1397 → 1420 tests (+23). 下一輪可推: figures.py 補 invalid JSON / jpeg content-type / dir target 邊角; library 內 _read_deck_title 邊角 (gibberish JSON / 純 bytes); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,35 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1397 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1420 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 119 (2026-05-24, hourly routine) — jobs.py 四個 CRUD endpoint 補測試覆蓋 (PR-3a 上線後一直裸奔):
+  - server/routes/jobs.py 內 POST /jobs / GET /jobs / GET /jobs/{id} /
+    DELETE /jobs/{id} 四個 CRUD endpoint 從 PR-3a 上線後沒對應 route-
+    level 測試 (iter 117 補了 draft/log/section_render/artifacts 五個,
+    但 CRUD 本身仍裸奔). 任何 refactor 不小心動 source_type 早期驗證 /
+    created_at desc 排序 / cache+disk 同步 cleanup → 直接上線, 同
+    iter 111-118 思路 (route 安全鎖).
+  - tests/test_jobs_crud_route.py +23 tests:
+    * TestCreateJobEndpoint 11: document/exam_pdf/slides_pdf/url 全
+      source_type 各驗 + exam_pdf require_review 預設 True (硬規則 #1) /
+      slides_pdf 預設 False / url http/https 都接受 / ftp invalid scheme
+      400 / empty/whitespace url 400 / document 缺 path 400 / 不存在 path
+      400 / schedule_job 觸發驗 (mock 收 job_id 進 list)
+    * TestListJobsEndpoint 4: empty list / 單 job 命中 / 3 job desc 排序
+      (顯式 created_at 各差 1 分鐘避免 Windows microsecond 退化成 stable
+      order — sorted reverse=True 對 equal key 不會反轉) / 跨 source_type
+      混合該全出現
+    * TestGetJobEndpoint 2: existing 200 + JobRecord 全欄位 (id/state/
+      source_type/created_at/updated_at/youtube_uploads={}) / nonexistent
+      404 + 訊息含「不存在」
+    * TestDeleteJobEndpoint 6: existing 204 空 body / nonexistent 404 /
+      delete 後 GET 404 (cache 清乾淨) / delete 後 list 不該有該 job /
+      disk dir rmtree (jobs/<id>/ 整個清掉) / double delete 第二次 404
+  - 0 production code 改動 (純測試). 1397 → 1420 tests (+23)
 
   iter 118 (2026-05-24, hourly routine) — proposals.py POST /{id}/duplicate route 補測試覆蓋 (iter 89 上線後一直裸奔):
   - server/routes/proposals.py duplicate_proposal endpoint 從 iter 89 加進來

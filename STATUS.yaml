@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 114 完成 — server/routes/voices.py 三個 HTTP route (GET /voices / POST /voices / GET /voices/{id}/sample) 從 PR-3l 上線後一直裸奔, 補測 = 安全鎖. test_voices.py 已覆蓋 helper, 這輪補 HTTP 層. TestListVoices 5 + TestSetVoice 8 + TestVoiceSample 4 = 17 tests. 重點: f5:teacher 含冒號走 :path converter / extra fields 走 ConfigDict(extra='allow') / unknown voice 不該動 config / sample 檔缺要 404 不是 500 / 缺 config 該 fallback 不該炸. 1295 → 1312 tests (+17). 下一輪可推: themes.py / library.py 內未覆蓋 helper; youtube.py 整體 (要 mock OAuth, 較複雜); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 115 完成 — server/routes/library.py 補 _read_deck_title helper + LibraryItem 各欄位 + YoutubeUpload 透傳 三軸測試覆蓋. 既有 test_library_route.py 只測 final.mp4 priority (6 tests), 沒覆蓋 deck_title fallback chain / artifact_url 格式 / srt_exists 偵測 / youtube state 透傳. 任何 refactor 不小心把 URL pattern 改錯 / deck.json 壞掉沒退 job_id / srt 偵測寫死路徑 → 直接上線. TestReadDeckTitle 7 (deck.json 不存在 / JSON 壞 / exam_title 優先 / deck_title fallback / 兩缺退 job_id / strip 空白 / 空 exam_title falsy 退 deck_title) + TestLibraryItemFields 9 (artifact_url / publish_url 格式 / size / source_type / deck_title 兩條路 / srt True/False / total 對齊) + TestLibraryYoutubeField 5 (None / done+video_id+url / failed+error / uploading+progress / multi-artifact 跨 key 隔離). 0 production 改動. 1312 → 1333 tests (+21). 下一輪可推: themes.py 已有 31 tests 不缺; youtube.py 整體 (要 mock OAuth, 較複雜); jobs.py 內 route 邊角 (POST/GET draft / outline / approve / artifacts); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,34 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1312 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1333 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 115 (2026-05-24, hourly routine) — library.py route 補測試覆蓋 (helper + fields + youtube):
+  - server/routes/library.py 既有 test_library_route.py 只覆蓋 iter 47
+    final.mp4 priority 邏輯 (6 tests), 沒覆蓋 _read_deck_title helper
+    fallback chain, 也沒覆蓋 LibraryItem 各欄位 (artifact_url / publish_url
+    URL pattern / srt_exists / source_type 透傳 / mp4_size_bytes) 跟
+    YoutubeUpload 透傳 (None / done / failed / uploading + multi-artifact
+    跨 key 隔離). 任何 refactor 不小心把 URL pattern 改錯 / deck.json 壞
+    沒退 job_id / srt 偵測寫死路徑 → 直接上線, 跟 iter 111-114 同思路.
+  - tests/test_library_route.py +21 tests:
+    * TestReadDeckTitle 7: no deck.json → job_id / invalid JSON → job_id
+      (Exception swallow) / exam_title 優先 / deck_title fallback (repo) /
+      兩 title key 都缺 → job_id / strip 前後空白 (Gemini 偶吐) / 空
+      exam_title falsy 退 deck_title (current `or` chain 設計)
+    * TestLibraryItemFields 9: artifact_url 格式 `/jobs/{id}/artifacts/{n}` /
+      publish_url 格式 `/ui/jobs/{id}/publish/{n}` / mp4_size_bytes 透傳 /
+      source_type 透傳 (document) / deck_title 從 deck.json exam_title 抓 /
+      沒 deck.json 退 job_id / srt_exists True (寫 .srt 檔) / False (沒 .srt) /
+      total = len(items)
+    * TestLibraryYoutubeField 5: 沒上傳 → None / DONE state 透傳 video_id+url+
+      title / FAILED state 透傳 error / UPLOADING state 透傳 progress_percent /
+      multi-artifact 跨 key 隔離 (q1 有上傳 q2 該 None, dict[artifact_name]
+      不該漏氣)
+  - 0 production code 改動 (純測試). 1312 → 1333 tests (+21)
 
   iter 114 (2026-05-24, hourly routine) — voices.py HTTP route 補測試覆蓋:
   - server/routes/voices.py helper (_read_current_voice / _write_current_voice)

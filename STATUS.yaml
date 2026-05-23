@@ -3,8 +3,8 @@ name_zh: 教學影片自動生成平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-05-22"
-next_milestone: "iter 110 完成 — E2-6 + E1-4 frontend bridge: web/src/api.ts 加 getIconSuggestions / getImageFramesSummary 兩個 wrapper + web/src/types.ts 對應 4 個 interface (IconSuggestion / IconSuggestionsResponse / ImageFrameSummary / ImageFramesSummaryResponse). 不寫 UI 元件 — 純 API client 層橋接, 解耦未來 E2-6 / E1-4 UI iter 跟 backend schema. 純 TypeScript / 0 Python / 0 新 test (TS 是 fetch wrapper, backend 已有 17 tests 涵蓋 HTTP 行為). tsc --noEmit 過, 1232 Python tests 不變. URLSearchParams 處理 query params (require_file_exists / max_icons) — UI 不傳就走 backend default. 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議)."
+last_updated: "2026-05-23"
+next_milestone: "iter 111 完成 — /slide_images/{stem}/{filename} endpoint 補測試覆蓋 (PR-3h 之後一直沒 regression 護網). 新增 tests/test_slide_images_route.py +11 tests: happy path (PNG 還原 byte-perfect / 同 stem 多頁) + 404 (缺 stem dir / 缺 filename / 命中目錄非檔) + path traversal security (..%2F / ..%5C 兩種編碼 + dotfile 前綴擋下 .env / .ssh 等敏感檔) + edge cases (empty filename / 特殊字元不該 500). monkeypatch server.routes.slides.SLIDES_DIR (route 內 from-import 捕 reference, 不可只 patch core.config). 0 production code 改動, 1232 → 1243 tests (+11). 下一輪可推: E2-6 / E1-4 UI 元件 (要看 JobEditor / SlideEditor 結構); E2-2 (Gemini 25 SVG, 需用戶決議); 補其他 server route 測試覆蓋 (themes / library 已有, slides 補完, voices 已有)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,32 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1232 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1243 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 111 (2026-05-23, hourly routine) — /slide_images route 補測試覆蓋:
+  - server/routes/slides.py 從 PR-3h (簡報縮圖 endpoint) 上線後沒對應
+    regression 測試. endpoint 本身有 path traversal 防護 + _safe_part
+    過濾, 但無測試 = 任何 refactor 不小心放行 dotfile / dotdot 就直接
+    上線. 補測試 = 安全鎖.
+  - tests/test_slide_images_route.py +11 tests:
+    * TestHappyPath 2: serves_png (byte-perfect 還原 + content-type
+      image/png) + serves_multiple_pages_same_stem (同 stem 多 page
+      不互相干擾)
+    * TestNotFound 3: missing_stem_dir / missing_file_in_existing_stem /
+      directory_instead_of_file (filename 解到目錄該 404 不該回 listing)
+    * TestPathTraversalSecurity 4: dotdot_in_filename (..%2F encoded) /
+      dotdot_in_stem (整段 ..%2Fetc) / backslash_in_filename (..%5C
+      Windows-style) / hidden_file_dotfile_rejected (寫真 .secret_stem +
+      .env 試圖讀, 仍 400 — 防 .ssh / .env 被當 slide 撈)
+    * TestEdgeCases 2: empty_filename (trailing slash → 404/405/307 都
+      算擋住) + special_chars_in_filename (URL %20 → 404 不該 500)
+  - 純測試 (0 production 改動). monkeypatch 用
+    server.routes.slides.SLIDES_DIR (route module 內 from-import 捕 reference,
+    patch core.config.SLIDES_DIR 不會生效)
+  - 1232 → 1243 tests (+11)
 
   iter 110 (2026-05-22, hourly routine) — E2-6 + E1-4 frontend bridge:
   - iter 107 (icon-suggestions) + iter 109 (image-frames) 兩個新 endpoint 上線,

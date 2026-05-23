@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 116 完成 — server/routes/youtube.py 三個 HTTP route 從 PR-3f 上線後沒對應測試, 補 route-level 覆蓋. test_youtube_helper.py 只測 core.youtube auto_youtube_meta / _seconds_to_hhmmss 純函式, 沒覆蓋 GET /youtube_meta (DONE 短路 / deck.json 404 / existing pending overwrite) / POST /publish (UPLOADING 409 / DONE 409 / FAILED 可 retry / minimal 走預設 / 422 缺 title) / GET /youtube_status (沒上傳回 pending 空白 / 透傳 state / job 404 / 不檢 artifact / multi-artifact 跨 key 隔離) / _require_artifact path 防護 + 副檔限制. 任何 refactor 不小心動 state machine / path 防護 / DONE 短路 → 直接上線, 跟 iter 111-115 同思路 (route 安全鎖). monkeypatch _do_publish 成 noop async 避免真打 OAuth + YouTube API. TestYoutubeMetaEndpoint 5 + TestRequireArtifactValidation 4 + TestPublishEndpoint 7 + TestYoutubeStatusEndpoint 5 = 21 tests. 0 production code 改動. 1333 → 1354 tests (+21). 下一輪可推: themes.py 已 31 tests 不缺; jobs.py 內 route 邊角 (POST/GET draft / outline / approve / artifacts); proposals.py route 邊角; E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 117 完成 — server/routes/jobs.py 四個 HTTP endpoint 從 PR-3a~PR-4a 上線後沒對應 route-level 測試, 補安全鎖. test_jobs_approve_route.py 只覆蓋 approve, test_outline_endpoint.py 只覆蓋 outline, iter 107/109 covers icon-suggestions/image-frames, 剩 GET /draft (deck 讀) / PUT /draft (state guard awaiting_review/failed/done allow; pending/ingesting/rendering 409) / GET /log (tail 1~2000 bounds, jsonl parse, RAW fallback) / POST /sections/{sec}/render (PR-4a, _deck_has_section_id 雙 schema v1 problems + 新 sections lookup) / GET /artifacts/{name} (path traversal `..` / `\\` 防護 + dir target 不可下載) 全裸奔. 任何 refactor 不小心動 state machine / path 防護 / section lookup → 直接上線, 跟 iter 111-116 同思路 (route 安全鎖). TestGetDraftEndpoint 3 + TestUpdateDraftEndpoint 9 (含 unicode roundtrip 驗 ensure_ascii=False) + TestJobLogEndpoint 7 + TestSectionRenderEndpoint 7 (v1 problems + 新 sections 兩 schema 都驗) + TestArtifactDownload 6 = 32 tests. 0 production code 改動. 1354 → 1386 tests (+32). 下一輪可推: proposals.py route 邊角; figures.py 補測 (test_figures_route.py 已有但可能不全); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,41 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1354 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1386 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 117 (2026-05-24, hourly routine) — jobs.py 四個 HTTP route 補測試覆蓋 (PR-3a~PR-4a 上線後一直裸奔):
+  - server/routes/jobs.py 內 GET /draft / PUT /draft / GET /log / POST
+    /sections/{sec}/render / GET /artifacts/{name} 五個 endpoint 從 PR-3a
+    ~PR-4a 上線後沒對應 route-level 測試 (test_jobs_approve_route.py 只覆蓋
+    approve / test_outline_endpoint.py 只覆蓋 outline / iter 107+109 已覆蓋
+    icon-suggestions+image-frames). 任何 refactor 不小心動 state machine
+    guard / path traversal 防護 / _deck_has_section_id 雙 schema lookup →
+    直接上線, 跟 iter 111-116 同思路 (route 安全鎖).
+  - tests/test_jobs_route.py +32 tests:
+    * TestGetDraftEndpoint 3: deck.json 在 → JSON 回傳 / 沒檔 → 404 (ingest
+      未完成情境) / nonexistent job 也 404 (route 不檢 job 存在, 直接看 deck_path)
+    * TestUpdateDraftEndpoint 9: nonexistent 404 / awaiting_review 落盤驗證 /
+      failed (PR-3j retry) 落盤 / done (PR-4a section render) 落盤 / pending
+      409 不該落盤 (race condition 防護) / ingesting 409 / rendering 409 /
+      缺 deck body 422 (pydantic UpdateDeckRequest deck 必填) / 中文 ensure_ascii=
+      False 驗 raw 不含 \\uXXXX (避免日後 ensure_ascii=True 偷偷被改回)
+    * TestJobLogEndpoint 7: nonexistent 404 / log.jsonl 不存在 → 200 空 entries
+      (read_job_log 該回 [] 而非 404) / 兩行合法 jsonl parse OK / 壞行退 RAW
+      fallback (不該炸 server) / tail=2 限末 2 筆 / tail=0 / tail=2001 邊界 400
+    * TestSectionRenderEndpoint 7: nonexistent 404 / awaiting_review 409 (還沒
+      render 過不該重 render) / rendering 409 / done 但 deck.json 不存在 (人工
+      刪掉) 404 不該 500 / done 但 section_id 找不到 404 / done deck schema
+      (sections[].id) 命中該 schedule_section_render(jid, sec) / failed v1 exam
+      schema (problems[].id) 也命中 (_deck_has_section_id 雙 schema lookup)
+    * TestArtifactDownload 6: nonexistent 404 / `..` 子串 400 (寬鬆比放行安全,
+      ..mp4 也擋) / Windows-style `\\` (URL %5C) 400 / 檔不在 404 / target 是目錄
+      404 不該回 listing 也不該 500 / 合法 mp4 byte-perfect 還原 (含 \\x00 \\xff)
+  - schedule_section_render / schedule_render / schedule_job 全 monkeypatch noop
+    避免真跑 ffmpeg / Gemini.
+  - 0 production code 改動 (純測試). 1354 → 1386 tests (+32)
 
   iter 116 (2026-05-24, hourly routine) — youtube.py 三個 HTTP route 補測試覆蓋:
   - server/routes/youtube.py 三個 HTTP endpoint (GET /youtube_meta /

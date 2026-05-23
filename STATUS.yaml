@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 115 完成 — server/routes/library.py 補 _read_deck_title helper + LibraryItem 各欄位 + YoutubeUpload 透傳 三軸測試覆蓋. 既有 test_library_route.py 只測 final.mp4 priority (6 tests), 沒覆蓋 deck_title fallback chain / artifact_url 格式 / srt_exists 偵測 / youtube state 透傳. 任何 refactor 不小心把 URL pattern 改錯 / deck.json 壞掉沒退 job_id / srt 偵測寫死路徑 → 直接上線. TestReadDeckTitle 7 (deck.json 不存在 / JSON 壞 / exam_title 優先 / deck_title fallback / 兩缺退 job_id / strip 空白 / 空 exam_title falsy 退 deck_title) + TestLibraryItemFields 9 (artifact_url / publish_url 格式 / size / source_type / deck_title 兩條路 / srt True/False / total 對齊) + TestLibraryYoutubeField 5 (None / done+video_id+url / failed+error / uploading+progress / multi-artifact 跨 key 隔離). 0 production 改動. 1312 → 1333 tests (+21). 下一輪可推: themes.py 已有 31 tests 不缺; youtube.py 整體 (要 mock OAuth, 較複雜); jobs.py 內 route 邊角 (POST/GET draft / outline / approve / artifacts); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 116 完成 — server/routes/youtube.py 三個 HTTP route 從 PR-3f 上線後沒對應測試, 補 route-level 覆蓋. test_youtube_helper.py 只測 core.youtube auto_youtube_meta / _seconds_to_hhmmss 純函式, 沒覆蓋 GET /youtube_meta (DONE 短路 / deck.json 404 / existing pending overwrite) / POST /publish (UPLOADING 409 / DONE 409 / FAILED 可 retry / minimal 走預設 / 422 缺 title) / GET /youtube_status (沒上傳回 pending 空白 / 透傳 state / job 404 / 不檢 artifact / multi-artifact 跨 key 隔離) / _require_artifact path 防護 + 副檔限制. 任何 refactor 不小心動 state machine / path 防護 / DONE 短路 → 直接上線, 跟 iter 111-115 同思路 (route 安全鎖). monkeypatch _do_publish 成 noop async 避免真打 OAuth + YouTube API. TestYoutubeMetaEndpoint 5 + TestRequireArtifactValidation 4 + TestPublishEndpoint 7 + TestYoutubeStatusEndpoint 5 = 21 tests. 0 production code 改動. 1333 → 1354 tests (+21). 下一輪可推: themes.py 已 31 tests 不缺; jobs.py 內 route 邊角 (POST/GET draft / outline / approve / artifacts); proposals.py route 邊角; E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,42 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1333 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1354 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 116 (2026-05-24, hourly routine) — youtube.py 三個 HTTP route 補測試覆蓋:
+  - server/routes/youtube.py 三個 HTTP endpoint (GET /youtube_meta /
+    POST /publish / GET /youtube_status) 從 PR-3f 上線後沒對應 route-level
+    測試. test_youtube_helper.py 只覆蓋 core.youtube auto_youtube_meta /
+    _seconds_to_hhmmss 純函式 — 任何 refactor 不小心動 _require_artifact
+    path 防護 / state machine 409 衝突 / DONE 短路 / metadata 覆蓋邏輯 →
+    直接上線, 跟 iter 111-115 同思路 (route 安全鎖).
+  - Mock 策略: monkeypatch server.routes.youtube._do_publish 成 noop async,
+    避免 publish endpoint 走 asyncio.create_task(_do_publish(...)) 真打
+    OAuth + YouTube API. route handler 在 create_task 之前已 set UPLOADING,
+    可驗 state 寫入而不依賴外部 service.
+  - tests/test_youtube_route.py +21 tests:
+    * TestYoutubeMetaEndpoint 5: valid artifact 走 auto_youtube_meta 回 5 key
+      dict / 已 DONE 直接回 existing model_dump (不重 call auto_youtube_meta,
+      不該被 deck 編輯蓋掉 user 在 YT 上改過的標題) / 沒 deck.json 404 /
+      pending state 帶 user 編過的 title/tags/privacy 覆蓋 auto 產物 /
+      FAILED state 跟 PENDING 一樣走 overwrite (不卡 DONE 短路)
+    * TestRequireArtifactValidation 4: nonexistent job 404 / `..` path
+      traversal 400 / 合法 name 但檔不存在 404 / 非 .mp4 副檔 400 (q1.srt
+      真存在仍擋, suffix check)
+    * TestPublishEndpoint 7: 第一次 publish 202 + UPLOADING state 落盤 +
+      title/tags 透傳 / UPLOADING 409 + progress 在訊息 / DONE 409 +
+      video_id 在訊息 (學術影片不可逆) / FAILED 可 retry (蓋掉 FAILED,
+      error 清空) / 只給 title 走預設 (desc='' / tags=[] / unlisted / 27) /
+      缺 title 422 / path traversal `%2F` 不該 202
+    * TestYoutubeStatusEndpoint 5: 從沒 publish 過回 pending 空白 (不 404,
+      讓 UI 顯示 pending) / 有 record 透傳所有 field / job 404 (route 內
+      直接 store.get, 不走 _require_artifact) / 不檢 artifact 檔存在 (
+      documented: 前端在 publish 觸發瞬間就輪詢, 即使 artifact 暫時不在
+      disk 仍回 pending) / multi-artifact 跨 key 隔離
+  - 0 production code 改動 (純測試). 1333 → 1354 tests (+21)
 
   iter 115 (2026-05-24, hourly routine) — library.py route 補測試覆蓋 (helper + fields + youtube):
   - server/routes/library.py 既有 test_library_route.py 只覆蓋 iter 47

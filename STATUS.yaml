@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 124 完成 — server/runner.py _rewrite_deck_intros_inplace 補測試覆蓋 (iter 42 上線後一直裸奔). 核心 rewrite_deck_intros 純函式在 tests/test_intro_rewriter.py 已有覆蓋, 但 runner 內這層 IO wrapper (deck.json 讀 → rewrite → 寫回) 從沒打 — 任何 refactor 不小心動檔不存在防呆 / ensure_ascii=False / indent=2 / source_type 透傳就直接上線, 跟 iter 111-123 同思路 (route / helper safety lock). TestNoOpPath 1: 沒 deck.json 不該炸不該建檔. TestSchemaDispatch 2: v1 problems schema (q1 hash 對應 STUDENT_VARIANTS[1]=來看這題, 避開 p1 hash collision 干擾) 第一 step rewrite 第二 step 不動 / deck sections schema 第一 slide rewrite. TestSourceTypeMapping 3: exam_pdf → STUDENT_VARIANTS 命中 / document → GENERAL_VARIANTS 命中 / 未知 source_type → AUDIENCE_BY_SOURCE_TYPE.get fallback student 不該炸. TestWriteFormat 2: ensure_ascii=False (raw 不含 \\u + 中文字仍是原字驗) / indent=2 (raw 含 \\n + 至少一行 2-space 開頭驗). TestUnknownSchema 1: deck 既無 problems 又無 sections, rewrite 原樣回, IO wrapper 仍 write_back (不該因為「沒改」skip write, 避免 indent 不一致). TestLogging 1: caplog INFO 含 source_type 字串. 過程中發現 _problems_deck 預設 id='p1' 觸發 md5('p1') % 8 = 0 hash collision (替換變體 = 原 greeting, 看似沒 rewrite), 已記到 helper docstring 提醒未來 fixture 設計. 0 production code 改動 (純測試). 1449 → 1459 tests (+10). 下一輪可推: 其他 runner helper (_log_deck_duration_estimate / _merge_sections_to_final / _apply_intro_postprocess) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 125 完成 — server/runner.py _log_deck_duration_estimate 補測試覆蓋 (iter 48 上線後一直裸奔). 核心 estimate_deck_duration / check_deck_narration_lengths / format_validation_report 三函式各自 module 都有覆蓋, 但 runner 內這層 IO + log dispatch wrapper (deck.json 讀 → estimate → 兩段 logger.info / warning 分流 → validator 例外吞) 從沒打 — 任何 refactor 不小心動「沒檔不該炸」防呆 / over_budget → warning 被偷改 / narration_validator 例外擋流程 / length_mode 寫死 quick 就直接上線, 跟 iter 111-124 同思路 (route / helper safety lock). TestNoOpPath 1: 沒 deck.json 不該炸不該建檔不該噴 log (跟 deck 寫過後做出區別). TestUnderBudget 1: 短 narration 走 logger.info 不該誤紅 warning + msg 含 'quick'/'1 sections'/'1 slides'. TestOverBudget 1: ultra_quick 2000 字 走 logger.warning + 含 ⚠ + 含「超出預算」百分比. TestLengthModePassthrough 2: 同 1500 字 ultra_quick warning vs lecture info (驗 budget 真切換, 不是寫死 quick) / None length_mode fallback 走 'quick' 標籤不該顯示 'None mode'. TestSchemaDispatch 2: v1 problems schema 算 steps / deck sections schema 算 slides (兩 schema dispatch 透過 wrapper 都跑得到). TestNarrationValidatorIntegration 2: per-slide 超 (ultra_quick 200 字, 在整份 budget 900 內但超 per-slide 80 字) → 第二段 validator 獨立跑 warning 不被合進 estimate / per-slide 內走 info 不誤紅. TestValidatorExceptionDoesNotPropagate 1: monkeypatch core.narration_validator.check_deck_narration_lengths raise RuntimeError → 該被 try/except 吞 + logger.exception 留紀錄含「不擋流程」字串, 不該 raise 出去擋 ingest 主流程. 0 production code 改動 (純測試). 1459 → 1469 tests (+10). 下一輪可推: 其他 runner helper (_merge_sections_to_final / _apply_intro_postprocess / _prepare_outro_for_problems / _prepare_intro_for_problems / _append_outro_to_deck / _prepend_cover_to_deck) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,42 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1459 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1469 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 125 (2026-05-24, hourly routine) — runner.py _log_deck_duration_estimate 補測試覆蓋 (iter 48 上線後一直裸奔):
+  - server/runner.py _log_deck_duration_estimate 從 iter 48 上線後沒對應直接
+    測試. 核心 estimate_deck_duration / check_deck_narration_lengths /
+    format_validation_report 三函式各自 module 都有覆蓋, 但 runner 內這層 IO +
+    log dispatch wrapper (deck.json 讀 → estimate → 兩段 logger.info / warning
+    分流 → validator 例外吞) 從沒打 — 任何 refactor 不小心動「沒檔不該炸」防呆 /
+    over_budget → warning 被偷改 / narration_validator 例外擋流程 / length_mode
+    寫死 quick 就直接上線. 跟 iter 111-124 同思路 (route / helper safety lock).
+  - tests/test_runner_duration_log.py +10 tests:
+    * TestNoOpPath 1: 沒 deck.json 不該炸不該建檔不該噴 log (caplog 沒「deck
+      估算」字串, 跟 deck 寫過後做出區別)
+    * TestUnderBudget 1: quick 短 narration 走 logger.info 不該誤紅 warning,
+      msg 含 'quick'/'1 sections'/'1 slides' (鎖訊息格式不被偷改)
+    * TestOverBudget 1: ultra_quick 2000 字 走 logger.warning + 含 ⚠ 圖示 +
+      含「超出預算」百分比 (顯眼但不擋流程是 iter 48 設計意圖)
+    * TestLengthModePassthrough 2: 同 1500 字 ultra_quick 該 warning vs lecture
+      該 info (驗 budget 真依 length_mode 切換, 不是寫死 quick) / length_mode=None
+      fallback 走 'quick' 標籤 + msg 不該顯示 'None mode' (preset() 該回 quick)
+    * TestSchemaDispatch 2: v1 problems schema 該算 steps (1 sections / 2 slides)
+      / deck sections schema 該算 slides (1 sections / 3 slides) — 透過 wrapper
+      驗 estimate_deck_duration 的 schema dispatch 真透傳, 沒被 IO 層壓平
+    * TestNarrationValidatorIntegration 2: per-slide 超 (ultra_quick 200 字,
+      在整份 budget 900 內但超 per-slide 80 字) → 第一段 estimate info + 第二段
+      validator 獨立跑 warning (鎖兩段獨立邏輯, 不該被合進同一個 log) /
+      per-slide 內走 info (不誤紅, narration 長度驗證 + deck 估算 兩段都 info)
+    * TestValidatorExceptionDoesNotPropagate 1: monkeypatch
+      core.narration_validator.check_deck_narration_lengths raise RuntimeError →
+      該被 try/except 吞 + logger.exception 留紀錄含「narration 長度驗證失敗」
+      跟「不擋流程」字串, 不該 raise 出去擋 ingest 主流程 (graceful degrade —
+      validator 故障不該擋整批渲染)
+  - 0 production code 改動 (純測試). 1459 → 1469 tests (+10)
 
   iter 124 (2026-05-24, hourly routine) — runner.py _rewrite_deck_intros_inplace 補測試覆蓋 (iter 42 上線後一直裸奔):
   - server/runner.py _rewrite_deck_intros_inplace 從 iter 42 上線後沒對應直接

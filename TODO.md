@@ -28,6 +28,33 @@
 
 ---
 
+## 🏁 Routine closeout backlog (2026-05-24 設定, 做完停 hourly)
+
+> **背景**: iter 111-133 連 23 iter 全在補 wrapper / route / helper safety
+> lock, 沒抓到真 bug, 邊際效益遞減. 用戶 (2026-05-24) 決議設明確終點 →
+> 4 項全完成後 routine 自動 STOP + 寫 `docs/ROUTINE_CLOSEOUT.md`, 等用戶
+> 用 `/schedule` 切 daily 5pm summary 模式. 細則見
+> [docs/ROUTINE_ADVANCE_PROMPT.md](docs/ROUTINE_ADVANCE_PROMPT.md) Closeout
+> phase 段落.
+
+按順序做 (一輪一項):
+
+- [ ] **iter 134**: `_run_ingest_repo` (server/runner.py:110) 補測試覆蓋
+- [ ] **iter 135**: `_run_ingest_long_form` (server/runner.py:362) 補測試覆蓋
+- [ ] **iter 136**: `_run_render_inner` (server/runner.py:518) schema dispatch 補測試
+- [ ] **iter 137**: `run_job` (server/runner.py:971) 主流程串接補測試 (ingest →
+  review 分支 → render)
+- [ ] **iter 138 (closeout commit)**: 寫 `docs/ROUTINE_CLOSEOUT.md` + STATUS
+  next_milestone 改「等用戶切 daily 模式」+ 報告 STOP
+
+**不該做的** (邊際效益太低, 別偷塞進來):
+- `schedule_job` / `schedule_render` / `schedule_section_render` — 全 1 行
+  asyncio.create_task, 沒 wrapper value-add
+- 找 module test < 5 個的補 — 都已過保護線
+- 任何 production code 改 / 新 feature
+
+---
+
 ## 🌟 Active backlog (routine 可自主推進)
 
 ### 階段 1 — 短期 (1~2 週內)

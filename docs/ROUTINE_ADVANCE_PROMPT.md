@@ -157,12 +157,43 @@ git push origin main
 
 ---
 
+## Closeout phase (2026-05-24 加, 已逼近終點)
+
+**用戶決策 (2026-05-24)**: iter 111-133 連 23 個 iter 全在補 wrapper / route /
+helper safety lock, 沒抓到真 bug, 邊際效益遞減. 設定明確 closeout backlog,
+做完 → hourly routine 該停, 用戶會手動把 schedule 改成 daily 5pm summary only.
+
+**Closeout backlog (按順序做)**:
+1. `_run_ingest_repo` (server/runner.py:110) 補測試
+2. `_run_ingest_long_form` (server/runner.py:362) 補測試
+3. `_run_render_inner` (server/runner.py:518) schema dispatch 補測試
+4. `run_job` (server/runner.py:971) 主流程串接補測試 (ingest → review 分支 →
+   render 串接)
+
+**不該做的 (邊際效益太低)**:
+- `schedule_job` / `schedule_render` / `schedule_section_render` 三 entry —
+  全是 1 行 `asyncio.create_task(...)`, 沒 value-add 可鎖
+- 補 module test < 5 個的小檔 — 都已過保護線, 再補純消耗 API
+- 大型 refactor / 拆 pipeline.py / 新功能
+
+**Closeout 完成判定 (4 項全打勾) → 自動 STOP, 寫 docs/ROUTINE_CLOSEOUT.md**:
+- 標題「Routine closeout 完成 — 等用戶切 daily 模式」
+- 列每 iter 對應 commit hash
+- 提醒: 用戶該用 `/schedule` 把 hourly task 改成 daily 5pm summary, 或刪掉
+  重建一個 summary-only 版本
+- STATUS.yaml `next_milestone` 改成「等用戶切 schedule 模式 + 給新方向」
+
+closeout 後若 routine 仍每小時被觸發, 該 STOP 不該硬找事做.
+
+---
+
 ## STOP 條件 (該停下等用戶決策)
 
 任一條命中 → **不繼續做下一輪**, 改成在 STATUS / TODO 留一條訊息給用戶:
 
 | 觸發 | 該停 |
 |---|---|
+| **Closeout backlog 4 項全完成** (見上一節) | ✅ |
 | baseline test 紅 (不是你弄壞的) | ✅ |
 | 連續 2 輪沒進度 (找不到該做的事) | ✅ |
 | 要做的事需要新 API key / secret / 外部資源 | ✅ |

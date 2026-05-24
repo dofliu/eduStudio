@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 123 完成 — server/routes/themes.py GET /themes endpoint 契約鎖 (THEME_LIST 順序 / unique / URL slug / 跨來源同源). THEME_LIST 在 backend 寫死 15 主題順序, frontend ProposalsList.tsx THEME_OPTIONS 寫死同樣順序 (lines 24-38), 改一邊忘改另一邊 = 用戶選的 theme idx 跟 gallery 顯示錯位的靜默 bug. 既有 TestListThemes 3 tests 只驗 (數量 / id+label 存在 / forest 第一), 沒鎖完整 order 跟 ID 唯一性跟 URL slug 安全. TestListThemesContract 6 tests: 完整 15 id 順序寫死鎖 (EXPECTED_THEME_ID_ORDER 跟 frontend 對齊) / set==len 唯一性 / URL-safe slug regex [a-z0-9-] (避免 path-segment 危險字元觸發 traversal 防護) / label non-empty string (避免 gallery 空白格子) / list_themes 回的 ids set 跟 TestAllThemesPreview.ALL_THEME_IDS 同源 (鎖兩處 hardcode 列表不裂縫) / THEME_LIST module constant 對齊 endpoint (鎖 single source of truth 不被改成從別處讀). 0 production code 改動 (純測試). 1443 → 1449 tests (+6). 下一輪可推: E2-6 / E1-4 UI 元件 (要動 web/, 風險中) / E2-2 (需用戶決議 Gemini SVG) / 其他 route 內部 helper 還可補 (例: themes _render_preview 的 lazy import pipeline 是否真省 startup time / cache 統計 endpoint)."
+next_milestone: "iter 124 完成 — server/runner.py _rewrite_deck_intros_inplace 補測試覆蓋 (iter 42 上線後一直裸奔). 核心 rewrite_deck_intros 純函式在 tests/test_intro_rewriter.py 已有覆蓋, 但 runner 內這層 IO wrapper (deck.json 讀 → rewrite → 寫回) 從沒打 — 任何 refactor 不小心動檔不存在防呆 / ensure_ascii=False / indent=2 / source_type 透傳就直接上線, 跟 iter 111-123 同思路 (route / helper safety lock). TestNoOpPath 1: 沒 deck.json 不該炸不該建檔. TestSchemaDispatch 2: v1 problems schema (q1 hash 對應 STUDENT_VARIANTS[1]=來看這題, 避開 p1 hash collision 干擾) 第一 step rewrite 第二 step 不動 / deck sections schema 第一 slide rewrite. TestSourceTypeMapping 3: exam_pdf → STUDENT_VARIANTS 命中 / document → GENERAL_VARIANTS 命中 / 未知 source_type → AUDIENCE_BY_SOURCE_TYPE.get fallback student 不該炸. TestWriteFormat 2: ensure_ascii=False (raw 不含 \\u + 中文字仍是原字驗) / indent=2 (raw 含 \\n + 至少一行 2-space 開頭驗). TestUnknownSchema 1: deck 既無 problems 又無 sections, rewrite 原樣回, IO wrapper 仍 write_back (不該因為「沒改」skip write, 避免 indent 不一致). TestLogging 1: caplog INFO 含 source_type 字串. 過程中發現 _problems_deck 預設 id='p1' 觸發 md5('p1') % 8 = 0 hash collision (替換變體 = 原 greeting, 看似沒 rewrite), 已記到 helper docstring 提醒未來 fixture 設計. 0 production code 改動 (純測試). 1449 → 1459 tests (+10). 下一輪可推: 其他 runner helper (_log_deck_duration_estimate / _merge_sections_to_final / _apply_intro_postprocess) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,39 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1449 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1459 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 124 (2026-05-24, hourly routine) — runner.py _rewrite_deck_intros_inplace 補測試覆蓋 (iter 42 上線後一直裸奔):
+  - server/runner.py _rewrite_deck_intros_inplace 從 iter 42 上線後沒對應直接
+    測試. 核心 rewrite_deck_intros 純函式在 tests/test_intro_rewriter.py 已有
+    覆蓋, 但 runner 內這層 IO wrapper (deck.json 讀 → rewrite → 寫回) 從沒打 —
+    任何 refactor 不小心動檔不存在防呆 / ensure_ascii=False / indent=2 /
+    source_type 透傳就直接上線. 跟 iter 111-123 同思路 (route / helper safety
+    lock).
+  - tests/test_runner_intro_rewrite.py +10 tests:
+    * TestNoOpPath 1: 沒 deck.json 不該炸不該建檔 (ingest 半失敗情境)
+    * TestSchemaDispatch 2: v1 problems schema 第一 step rewrite 第二 step
+      不動 / deck sections schema 第一 slide rewrite (兩 schema 各驗 dispatch)
+    * TestSourceTypeMapping 3: exam_pdf → STUDENT_VARIANTS 命中 / document
+      → GENERAL_VARIANTS 命中 / 未知 source_type 走 AUDIENCE_BY_SOURCE_TYPE.get
+      fallback student 不該炸 (日後新加 source_type 但忘更新 map 仍跑得動)
+    * TestWriteFormat 2: ensure_ascii=False 鎖 (raw 不含 \\u + 中文字仍是原字
+      驗 — 不只是檢 prefix) / indent=2 鎖 (raw 含 \\n + 至少一行 2-space 開頭
+      驗 — pretty JSON 給人讀 + git diff 友善)
+    * TestUnknownSchema 1: deck 既無 problems 又無 sections, rewrite_deck_intros
+      原樣回, IO wrapper 仍 write_back (不該因為「沒改」skip write, 避免下次
+      read 拿到不一致 indent / encoding 的舊檔)
+    * TestLogging 1: caplog INFO level 含 source_type 字串 (debug / 用戶閱讀
+      log 找得到改寫紀錄)
+  - 過程中發現 _problems_deck 預設 id='p1' 觸發 md5('p1') % 8 = 0 hash
+    collision (STUDENT_VARIANTS[0]='各位同學好', 替換結果 = 原 greeting, 看似
+    沒 rewrite 其實有跑只是 idempotent). 已切到 id='q1' (對應
+    STUDENT_VARIANTS[1]='來看這題') 避開, 並在 helper docstring 寫明原因
+    給未來 fixture 設計參考.
+  - 0 production code 改動 (純測試). 1449 → 1459 tests (+10)
 
   iter 123 (2026-05-24, hourly routine) — themes.py GET /themes 契約鎖 (順序 + 唯一 + URL slug + 同源):
   - server/routes/themes.py THEME_LIST 寫死 15 主題順序, frontend ProposalsList.tsx

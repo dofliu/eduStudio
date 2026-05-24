@@ -206,6 +206,82 @@ class TestReadDeckTitle:
         assert _read_deck_title(store, rec.id) == "fallback 標題"
 
 
+class TestReadDeckTitleEdgeCases:
+    """iter 121: _read_deck_title 三層防呆 + 邊角型別補測 — 保 try/except Exception
+    swallow 對 UnicodeDecodeError / 0-byte 檔 / null title 都能 graceful 退 job_id,
+    不該炸 500. 跟 iter 111-120 思路 (route 安全鎖)."""
+
+    def test_binary_bytes_non_utf8_falls_back(self, tmp_path):
+        """deck.json 是 binary (非 UTF-8) → read_text 該 UnicodeDecodeError,
+        但 try/except Exception 仍吞, 退 job_id. 防 disk 損毀 / 誤寫 bin 進來."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        # \xff\xfe 是 UTF-16 BOM, 後面接 BMP 無法 UTF-8 解碼的 byte
+        store.deck_path(rec.id).write_bytes(b"\xff\xfe\x00\x01\x02\x03binary garbage")
+        assert _read_deck_title(store, rec.id) == rec.id
+
+    def test_zero_byte_file_falls_back(self, tmp_path):
+        """deck.json 是 0-byte 空檔 → json.loads('') JSONDecodeError → 退 job_id.
+        ingest 中途斷電 / 半寫入情境."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        store.deck_path(rec.id).write_bytes(b"")
+        assert _read_deck_title(store, rec.id) == rec.id
+
+    def test_both_titles_null_falls_back_to_job_id(self, tmp_path):
+        """exam_title / deck_title 都明確 null → None 是 falsy, or 鏈走到 job_id."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        store.deck_path(rec.id).write_text(
+            json.dumps({"exam_title": None, "deck_title": None}),
+            encoding="utf-8",
+        )
+        assert _read_deck_title(store, rec.id) == rec.id
+
+    def test_whitespace_only_title_strips_to_empty(self, tmp_path):
+        """全空白 title (空格 / tab / newline) — `"   "` 在 Python 是 truthy 不會被 or 跳過,
+        然後 .strip() 變空字串. 文檔行為 (UI 顯示空白 deck_title, 不該炸).
+        future 真要修可考慮: 把 falsy 從 truthy check 改成 .strip() 後 truthy check."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        store.deck_path(rec.id).write_text(
+            json.dumps({"exam_title": "   \n\t  "}),
+            encoding="utf-8",
+        )
+        assert _read_deck_title(store, rec.id) == ""
+
+    def test_utf8_bom_prefix_is_handled(self, tmp_path):
+        """deck.json 帶 UTF-8 BOM (\\xef\\xbb\\xbf) — read_text(encoding='utf-8')
+        會保留 BOM 進 json string, json.loads 該 raise → except 退 job_id.
+        (要支援 BOM 應用 encoding='utf-8-sig', 目前不支援 — graceful 退就好不該炸.)"""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        # BOM + valid JSON. read_text 把 BOM 當成字元留進 string, json.loads 該炸.
+        store.deck_path(rec.id).write_bytes(
+            b"\xef\xbb\xbf" + json.dumps({"exam_title": "BOM 開頭"}).encode("utf-8")
+        )
+        # 不檢具體值 — 行為要嘛 graceful 退 job_id (json.loads fail), 要嘛 BOM 解出
+        # 進 exam_title; 都不該炸 500. 鎖「不會 raise」這條最小契約.
+        result = _read_deck_title(store, rec.id)
+        assert isinstance(result, str)
+        assert result  # 非空 (job_id fallback 或合法 title)
+
+
 class TestLibraryItemFields:
     """iter 115: LibraryItem 各欄位 — URL 格式 / srt_exists / source_type /
     mp4_size_bytes / deck_title 從 deck.json 抓. 補測試 = 安全鎖防 PR-3m 後

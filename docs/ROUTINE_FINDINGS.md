@@ -48,3 +48,55 @@ Christian) 可能跑別人的 deck, 仍有風險.
 **STOP 原因**: 動行為的 bug fix, 硬規則 #3「修 bug 前先跟用戶討論」. routine
 不該自行 patch, 留筆等用戶決定. test_editor_route 28 個 HTML-escape 測試已
 鎖住 _html_escape 部分, JS-context 那條留給用戶定案.
+
+---
+
+## 2026-05-24 (iter 121) — library.py `_read_deck_title` 對非 str 型別 title 會炸
+
+**來源**: 補 `server/routes/library.py::_read_deck_title` 邊角測試 (test_library_route.py
+TestReadDeckTitleEdgeCases) 時, 邊看 code 邊推. 已寫的 5 個 test 都是 graceful
+退 job_id 路徑 (binary / 0-byte / null / whitespace / BOM), 但發現另兩條沒護住.
+
+**問題**:
+
+```python
+# server/routes/library.py:53-58
+try:
+    import json
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+except Exception:
+    return job_id
+return (deck.get("exam_title") or deck.get("deck_title") or job_id).strip()
+```
+
+`try/except` 只包到 `json.loads`. 後面 `.get(...).strip()` 沒護住, 兩條 raise 路徑:
+
+1. **deck 不是 dict** (例 deck.json 頂層是 list `[]` 或 string `"hi"`): `deck.get` AttributeError
+2. **title 是 non-str truthy 值** (例 `{"exam_title": 42}` 或 `{"exam_title": ["a"]}`):
+   `or` 鏈回 truthy 42 / list, 然後 `.strip()` AttributeError
+
+兩條都會 500 而非 graceful 退 job_id, 跟既有設計 (deck.json 壞掉就退 job_id) 不一致.
+
+**攻擊面**: 低. deck.json 都是 Gemini 產 (schema 化, 不該吐 int) 或用戶手寫.
+但 Gemini 偶爾偏差 / 用戶手改錯, 仍可能踩 — 而且 500 對 Library 頁是整頁掛
+不只一筆 job 影響, 不像 editor.py XSS 那麼集中.
+
+**建議修法** (1 行, 任選):
+
+1. 把 `try/except` 範圍擴大包到最後 return:
+   ```python
+   try:
+       deck = json.loads(deck_path.read_text(encoding="utf-8"))
+       return (deck.get("exam_title") or deck.get("deck_title") or job_id).strip()
+   except Exception:
+       return job_id
+   ```
+2. 型別守: `title = deck.get("exam_title") if isinstance(deck, dict) else None;
+   title = title if isinstance(title, str) and title.strip() else ...`
+
+第 1 種 1 行縮排, 跟既有 graceful-degrade pattern 一致, 最省事. 第 2 種更
+顯式但 4 行起跳.
+
+**STOP 原因**: 硬規則 #3「修 bug 前先跟用戶討論」. 現有 5 個新 test 已鎖住
+graceful-degrade 三條路徑 (binary / 0-byte / null), 等用戶定案再補非 str /
+非 dict 的修法跟對應 test.

@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 120 完成 — server/routes/jobs.py figures section (list_figures + download_figure, iter 54 上線) 既有 test_figures_route.py 9 tests 沒覆蓋 raw_content.json invalid/non-UTF8 邊角 / figures field None or missing / path 空字串 / jpeg content-type / 目錄目標 等三層防呆 (try/except Exception swallow / `or []` / isinstance + path falsy 過濾). 補測 = 任何 refactor 不小心動 graceful degrade 三道防線 → 直接上線, 跟 iter 111-119 思路 (route 安全鎖). TestListFiguresMalformedRawContent 5 tests: invalid JSON 退空 / binary non-UTF8 退空 (read_text 該炸 try/except 仍吞) / figures=None 該走 `or []` / figures key 完全缺 / path 空字串或 None 該被 `not f.get('path')` 過濾. TestDownloadFigureEdgeCases 5 tests: jpeg 該帶 image/jpeg content-type (Starlette mimetypes 推斷) / jpg 同 / 子目錄 target 該 404 不該 dir listing / `..foo.png` 寬鬆 dotdot 比擋 400 / encoded forward slash %2F 跨段該擋 400/404/405. 0 production code 改動 (純測試). 1420 → 1430 tests (+10). 下一輪可推: library 內 _read_deck_title 邊角 (binary bytes / title 非 str 型別); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG); themes.py route 補測."
+next_milestone: "iter 121 完成 — server/routes/library.py _read_deck_title 三層防呆邊角補測 (iter 115 已蓋 7 主軸, 但 binary bytes / 0-byte 檔 / null title / whitespace-only / BOM 五條沒打). 補測 = 鎖住 try/except Exception swallow 對 UnicodeDecodeError 跟 JSONDecodeError 都能 graceful 退 job_id, 不該炸 500. TestReadDeckTitleEdgeCases 5 tests: binary 非 UTF-8 / 0-byte / 兩 title 都 null / whitespace-only (document 行為: strip 後變空字串) / UTF-8 BOM (要嘛 graceful 退要嘛解出, 鎖不 raise 最小契約). 同時揪出 _read_deck_title 對 deck 非 dict (頂層是 list/string) + title 非 str truthy (int/list) 會 AttributeError 500 — try/except 只包到 json.loads 不護 .get/.strip — 記到 docs/ROUTINE_FINDINGS.md, 留用戶決策. 0 production code 改動 (純測試 + 1 findings 條目). 1430 → 1435 tests (+5). 下一輪可推: themes.py route preview cache 隔離 / E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,36 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1430 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1435 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 121 (2026-05-24, hourly routine) — library.py _read_deck_title 邊角補測 + 揪 non-str title bug:
+  - server/routes/library.py _read_deck_title 既有 iter 115 TestReadDeckTitle
+    7 tests 主軸覆蓋 (no deck / invalid JSON / exam_title 優先 / deck_title
+    fallback / 兩 title 缺 / strip / empty exam_title 退 deck_title), 但
+    binary bytes / 0-byte 檔 / null title / whitespace-only / UTF-8 BOM 五條
+    沒打. 任何 refactor 不小心動 try/except Exception swallow → JSONDecodeError
+    跟 UnicodeDecodeError 都會炸 500. 同 iter 111-120 思路 (route 安全鎖).
+  - tests/test_library_route.py +5 tests (TestReadDeckTitleEdgeCases class):
+    * binary 非 UTF-8 (\\xff\\xfe + 後續 BMP 無法解碼 byte) → read_text 該
+      UnicodeDecodeError, except 仍吞退 job_id
+    * 0-byte 空檔 → json.loads('') JSONDecodeError → 退 job_id (ingest 半
+      寫入情境)
+    * 兩 title 都明確 null → None falsy or 鏈走到 job_id
+    * whitespace-only title (空格/tab/newline) → "   " 是 truthy 不會被 or
+      跳過, 然後 .strip() 變空字串 (document 行為: UI 顯示空白 deck_title 不該炸)
+    * UTF-8 BOM 前綴 → 要嘛 graceful 退 job_id (json.loads fail 於 BOM 字元)
+      要嘛 BOM 解出進 exam_title; 鎖「不會 raise」最小契約 (read_text 預設
+      不認 BOM, 該用 utf-8-sig 才會 strip 掉)
+  - 過程中揪出 _read_deck_title 對 deck 非 dict (頂層 list/string) + title
+    非 str truthy (int/list) 會 AttributeError 500 — try/except 只包到
+    json.loads 不護 .get/.strip. 攻擊面低 (Gemini schema 化 + 用戶手寫,
+    不該吐 int 但偶爾偏差仍可踩, 500 影響整 Library 頁不只一筆 job).
+    建議修法: try/except 範圍擴大包到最後 return, 1 行縮排即可. 記到
+    docs/ROUTINE_FINDINGS.md, 不在 routine 路徑自行修 (硬規則 #3).
+  - 0 production code 改動 (純測試 + 1 findings 條目). 1430 → 1435 tests (+5)
 
   iter 120 (2026-05-24, hourly routine) — figures.py route 三層防呆邊角補測試覆蓋:
   - server/routes/jobs.py figures section (list_figures + download_figure,

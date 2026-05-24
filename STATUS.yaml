@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 125 完成 — server/runner.py _log_deck_duration_estimate 補測試覆蓋 (iter 48 上線後一直裸奔). 核心 estimate_deck_duration / check_deck_narration_lengths / format_validation_report 三函式各自 module 都有覆蓋, 但 runner 內這層 IO + log dispatch wrapper (deck.json 讀 → estimate → 兩段 logger.info / warning 分流 → validator 例外吞) 從沒打 — 任何 refactor 不小心動「沒檔不該炸」防呆 / over_budget → warning 被偷改 / narration_validator 例外擋流程 / length_mode 寫死 quick 就直接上線, 跟 iter 111-124 同思路 (route / helper safety lock). TestNoOpPath 1: 沒 deck.json 不該炸不該建檔不該噴 log (跟 deck 寫過後做出區別). TestUnderBudget 1: 短 narration 走 logger.info 不該誤紅 warning + msg 含 'quick'/'1 sections'/'1 slides'. TestOverBudget 1: ultra_quick 2000 字 走 logger.warning + 含 ⚠ + 含「超出預算」百分比. TestLengthModePassthrough 2: 同 1500 字 ultra_quick warning vs lecture info (驗 budget 真切換, 不是寫死 quick) / None length_mode fallback 走 'quick' 標籤不該顯示 'None mode'. TestSchemaDispatch 2: v1 problems schema 算 steps / deck sections schema 算 slides (兩 schema dispatch 透過 wrapper 都跑得到). TestNarrationValidatorIntegration 2: per-slide 超 (ultra_quick 200 字, 在整份 budget 900 內但超 per-slide 80 字) → 第二段 validator 獨立跑 warning 不被合進 estimate / per-slide 內走 info 不誤紅. TestValidatorExceptionDoesNotPropagate 1: monkeypatch core.narration_validator.check_deck_narration_lengths raise RuntimeError → 該被 try/except 吞 + logger.exception 留紀錄含「不擋流程」字串, 不該 raise 出去擋 ingest 主流程. 0 production code 改動 (純測試). 1459 → 1469 tests (+10). 下一輪可推: 其他 runner helper (_merge_sections_to_final / _apply_intro_postprocess / _prepare_outro_for_problems / _prepare_intro_for_problems / _append_outro_to_deck / _prepend_cover_to_deck) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 126 完成 — server/runner.py _apply_intro_postprocess 補測試覆蓋 (iter 41 上線後一直裸奔). 核心 video_concat.concat_videos / video_concat.offset_srt 純函式在 test_video_concat.py 各自有覆蓋, 但 runner 內這層 IO wrapper (主影片不存在防呆 / merged.replace(main) / SRT exists + duration > 0 雙閘 / concat 失敗吞例外 / SRT 失敗吞例外) 從沒打 — 任何 refactor 不小心動防呆順序 / SRT 雙閘條件 / 例外傳播 (被改成 raise) 就直接上線, 跟 iter 111-125 同思路 (route / helper safety lock). 例外吞掉是 design intent (intro 是 nice-to-have, 主影片成品已存在不該因這個整 job 死), 該被測試鎖住. TestNoOpPath 1: 主 mp4 不在 → warning 含「主影片不存在」+ 不該 call concat (counter=0) + 不該 call offset_srt. TestHappyPath 3: parts 順序鎖 [intro, main] (顛倒 = intro 變結尾) / merged.replace(main) 後主檔內容 = 假 MERGED_SENTINEL + 過渡檔 q1.with_intro.mp4 該被搬掉不留在 OUTPUT_DIR / offset_srt 被叫一次, text + seconds 透傳 + 寫回內容 startswith '[+3.5]' (鎖 read → offset → write 三段). TestSrtSkipBranches 3: SRT 不存在 concat OK 但 offset_srt counter=0 / intro_duration=0.0 SRT 存在仍 skip + SRT 內容保留原樣 (沒被無謂寫回) / intro_duration=-1.0 defensive skip (條件是 > 0 不是 != 0). TestFailureSwallowed 3: concat raise RuntimeError → 函式不 raise + logger.exception 含「intro 串接失敗」+「保留無 intro 版本」+ 主 mp4 保留 ORIGINAL_MAIN_MP4 沒被 replace 掉 / concat 失敗早 return → SRT 該完全沒被 offset 動 (鎖 try/except 內 return 不可被改成 fall-through) / offset_srt raise ValueError → 不 propagate + logger.exception 含「SRT 偏移失敗」+ 主 mp4 仍為 concat 後 MERGED_SENTINEL (證明 concat 段已成功). 0 production code 改動 (純測試). 1469 → 1479 tests (+10). 下一輪可推: 其他 runner helper (_merge_sections_to_final / _prepare_intro_for_problems) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,45 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1469 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1479 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 126 (2026-05-24, hourly routine) — runner.py _apply_intro_postprocess 補測試覆蓋 (iter 41 上線後一直裸奔):
+  - server/runner.py _apply_intro_postprocess 從 iter 41 上線後沒對應直接
+    測試. 核心 video_concat.concat_videos / video_concat.offset_srt 純函式在
+    test_video_concat.py 各自有覆蓋, 但 runner 內這層 IO wrapper (主影片不
+    存在防呆 / merged.replace(main) / SRT exists + duration > 0 雙閘 /
+    concat 失敗吞例外 / SRT 失敗吞例外) 從沒打 — 任何 refactor 不小心動防呆
+    順序 / SRT 雙閘條件 / 例外傳播 (被改成 raise) 就直接上線, 跟 iter
+    111-125 同思路 (route / helper safety lock). 例外吞掉是 design intent
+    (intro 是 nice-to-have, 主影片成品已存在不該因這個整 job 死), 該被測試鎖住.
+  - tests/test_runner_intro_postprocess.py +10 tests:
+    * TestNoOpPath 1: 主 mp4 不在 → warning 含「主影片不存在」+ 不該 call
+      concat (counter=0) + 不該 call offset_srt (鎖防呆順序, 早期 if return
+      不可被 refactor 改成 fall-through)
+    * TestHappyPath 3: parts 順序鎖 [intro, main] (顛倒 = intro 變結尾) /
+      merged.replace(main) 後主檔內容 = 假 MERGED_SENTINEL + 過渡檔
+      q1.with_intro.mp4 該被搬掉不留在 OUTPUT_DIR (rename 而非 copy) /
+      offset_srt 被叫一次, text + seconds 透傳 + 寫回內容 startswith
+      '[+3.5]' (鎖 read → offset → write 三段串起來)
+    * TestSrtSkipBranches 3: SRT 不存在 concat OK 但 offset_srt counter=0
+      (鎖 main_srt.exists() 閘) / intro_duration=0.0 SRT 存在仍 skip + SRT
+      內容保留原樣 (沒被無謂寫回) / intro_duration=-1.0 defensive skip
+      (鎖條件是 > 0 不是 != 0, 防 negative 走 noop offset 浪費 IO)
+    * TestFailureSwallowed 3: concat raise RuntimeError → 函式不 raise +
+      logger.exception 含「intro 串接失敗」+「保留無 intro 版本」+ 主 mp4
+      保留 ORIGINAL_MAIN_MP4 沒被 replace 掉 (鎖 except 不該變 raise) /
+      concat 失敗早 return → SRT 該完全沒被 offset 動 (鎖 try/except 內
+      return 不可被改成 fall-through, 否則會對沒 shift base 的 SRT 偏移
+      變雙重 shift) / offset_srt raise ValueError → 不 propagate +
+      logger.exception 含「SRT 偏移失敗」+ 主 mp4 仍為 concat 後
+      MERGED_SENTINEL (證明 concat 段已成功, SRT 失敗只該 log 不該擋成品)
+  - fixture 設計: output_dir 把 core.config.OUTPUT_DIR monkeypatch 到 tmp_path
+    (runner 內 function-local import 每次重 import, patch 直接生效);
+    stub_video_concat 用 counters dict 記 concat / offset 呼叫 (避免真打 ffmpeg).
+  - 0 production code 改動 (純測試). 1469 → 1479 tests (+10)
 
   iter 125 (2026-05-24, hourly routine) — runner.py _log_deck_duration_estimate 補測試覆蓋 (iter 48 上線後一直裸奔):
   - server/runner.py _log_deck_duration_estimate 從 iter 48 上線後沒對應直接

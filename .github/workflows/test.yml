@@ -4,9 +4,12 @@
 # 矩陣: Python 3.10 / 3.12 × Ubuntu / Windows (專案實際環境是 Win, Linux 為了
 # 排除作業系統相依問題 — 例如 path 用 / 還是 \ 寫死).
 #
-# 不裝重型依賴 (PIL / pymupdf / google-genai / f5-tts), 因為 tests/ 全部是
-# 純函式測試. 如果之後加 integration test 要走 TestClient + 真 pipeline,
-# 再考慮分 jobs 處理。
+# 裝 pytest + 純函式測試需要的庫. 不裝 google-genai / f5-tts (重型 + 平台相依).
+# pymupdf (~10MB wheel) iter 132 起加進來 — iter 131 的
+# tests/test_runner_ingest_dispatch.py 用 monkeypatch.setattr(core, "solve_pdf",
+# ...) 觸發 core/__init__.py lazy __getattr__ → import solve → solve 頂層
+# import fitz, 沒裝就 ModuleNotFoundError. 之後加 integration test 走 TestClient
+# + 真 pipeline 時再考慮分 jobs 處理。
 
 name: tests
 
@@ -54,13 +57,17 @@ jobs:
       # 透過 import pipeline 會拉到, 純 Python ~600KB, 加進來避免 importorskip 蔓延。
       # python-multipart: FastAPI Form/File 上傳, test_upload.py TestClient 用。
       # qrcode: iter 67 outro QR codes 渲染需要. ~10KB pure Python, 輕量.
-      # 不裝 pymupdf / google-genai / f5-tts 等重型 + 平台相依的東西, 因為
-      # 純函式測試用不到 (相關 test 有 importorskip / skipif), 也避免 Windows
-      # runner 卡 wheel build。
+      # pymupdf (iter 132 加): ~10MB wheel, 都有 prebuilt (Linux/Win/Mac wheel
+      # 都齊), 不卡 wheel build. iter 131 test_runner_ingest_dispatch.py 用
+      # monkeypatch.setattr(core, "solve_pdf", ...) 透過 core.__getattr__ lazy
+      # import solve → solve 頂層 import fitz 踩到, 之後越來越多 test 會貼近
+      # production import path, 早晚要裝.
+      # 不裝 google-genai / f5-tts 等更重型 + 平台相依的東西, 因為純函式測試
+      # 用不到 (相關 test 有 importorskip / skipif)。
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode
+          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode pymupdf
           pip install -r requirements-dev.txt
 
       - name: Run pytest

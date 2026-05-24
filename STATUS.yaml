@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 126 完成 — server/runner.py _apply_intro_postprocess 補測試覆蓋 (iter 41 上線後一直裸奔). 核心 video_concat.concat_videos / video_concat.offset_srt 純函式在 test_video_concat.py 各自有覆蓋, 但 runner 內這層 IO wrapper (主影片不存在防呆 / merged.replace(main) / SRT exists + duration > 0 雙閘 / concat 失敗吞例外 / SRT 失敗吞例外) 從沒打 — 任何 refactor 不小心動防呆順序 / SRT 雙閘條件 / 例外傳播 (被改成 raise) 就直接上線, 跟 iter 111-125 同思路 (route / helper safety lock). 例外吞掉是 design intent (intro 是 nice-to-have, 主影片成品已存在不該因這個整 job 死), 該被測試鎖住. TestNoOpPath 1: 主 mp4 不在 → warning 含「主影片不存在」+ 不該 call concat (counter=0) + 不該 call offset_srt. TestHappyPath 3: parts 順序鎖 [intro, main] (顛倒 = intro 變結尾) / merged.replace(main) 後主檔內容 = 假 MERGED_SENTINEL + 過渡檔 q1.with_intro.mp4 該被搬掉不留在 OUTPUT_DIR / offset_srt 被叫一次, text + seconds 透傳 + 寫回內容 startswith '[+3.5]' (鎖 read → offset → write 三段). TestSrtSkipBranches 3: SRT 不存在 concat OK 但 offset_srt counter=0 / intro_duration=0.0 SRT 存在仍 skip + SRT 內容保留原樣 (沒被無謂寫回) / intro_duration=-1.0 defensive skip (條件是 > 0 不是 != 0). TestFailureSwallowed 3: concat raise RuntimeError → 函式不 raise + logger.exception 含「intro 串接失敗」+「保留無 intro 版本」+ 主 mp4 保留 ORIGINAL_MAIN_MP4 沒被 replace 掉 / concat 失敗早 return → SRT 該完全沒被 offset 動 (鎖 try/except 內 return 不可被改成 fall-through) / offset_srt raise ValueError → 不 propagate + logger.exception 含「SRT 偏移失敗」+ 主 mp4 仍為 concat 後 MERGED_SENTINEL (證明 concat 段已成功). 0 production code 改動 (純測試). 1469 → 1479 tests (+10). 下一輪可推: 其他 runner helper (_merge_sections_to_final / _prepare_intro_for_problems) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 127 完成 — server/runner.py _merge_sections_to_final 補測試覆蓋 (iter 45 上線後一直裸奔). 核心 video_concat.concat_videos / video_concat.merge_srts 純函式在 test_video_concat.py 各自有覆蓋, 但 runner 內這層合成 wrapper (parts 順序組裝 [intro?, ch1, ch2, ..., outro?] / SRT padding `(path is not None) AND (duration > 0)` 雙閘 / merge_srts 回空字串 skip 寫檔 / concat 失敗早 return / merge_srts 失敗吞例外) 從沒打 — 任何 refactor 不小心動 parts 順序 (顛倒 = intro 變結尾) / 雙閘條件 / 例外傳播 (被改成 raise) 就直接上線, 跟 iter 111-126 同思路 (route / helper safety lock). 例外吞掉是 design intent (final.mp4 是 nice-to-have 統一交付, 各章 mp4 仍是有效成品), 該被測試鎖住. TestHappyPath 4: parts 順序鎖 [intro, ch1, ch2, outro] / intro=None outro=None 只 sections (不該硬塞 None 進 parts) / intro only no outro / final.srt 寫進 artifacts_dir 用 UTF-8 + 內容 == merged_srt 回傳值. TestSrtPaddingGate 3: intro 存在 + duration>0 → srt_parts[0] == ('', 3.5) + 後接 section_srts (順序鎖) / intro_path 存在但 duration=0.0 → 不該塞 padding (條件是 > 0 不是 path is not None 單獨判斷) / outro 同款 duration=0.0 skip. TestEmptyMergedSrt 1: merge_srts 回 '' → final.srt 不該寫進磁碟 (避免空檔誤導 UI 認為有字幕) + final.mp4 仍存在. TestFailureSwallowed 2: concat raise RuntimeError → 函式不 raise + logger.exception 含「final.mp4 合成失敗」+「各章 mp4 仍可用」+ merge_srts 完全沒被叫 (鎖 try/except 內 return 不可被改成 fall-through) + final.mp4/final.srt 都不存在 / merge_srts raise ValueError → 不 propagate + logger.exception 含「final.srt 合併失敗」+「final.mp4 已存在」+ final.mp4 仍存在 (concat 段成功). 0 production code 改動 (純測試). 1479 → 1489 tests (+10). 下一輪可推: 其他 runner helper (_prepare_intro_for_problems / _prepare_outro_for_problems / _resolve_step_image_paths) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,46 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1479 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1489 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 127 (2026-05-24, hourly routine) — runner.py _merge_sections_to_final 補測試覆蓋 (iter 45 上線後一直裸奔):
+  - server/runner.py _merge_sections_to_final 從 iter 45 上線後沒對應直接
+    測試. 核心 video_concat.concat_videos / video_concat.merge_srts 純函式在
+    test_video_concat.py 各自有覆蓋, 但 runner 內這層合成 wrapper (parts 順序
+    組裝 [intro?, ch1, ch2, ..., outro?] / SRT padding `(path is not None)
+    AND (duration > 0)` 雙閘 / merge_srts 回空字串 skip 寫檔 / concat 失敗早
+    return / merge_srts 失敗吞例外) 從沒打 — 任何 refactor 不小心動 parts
+    順序 (顛倒 = intro 變結尾) / 雙閘條件 / 例外傳播 (被改成 raise) 就直接上線,
+    跟 iter 111-126 同思路 (route / helper safety lock). 例外吞掉是 design
+    intent (final.mp4 是 nice-to-have 統一交付, 各章 mp4 仍是有效成品), 該被
+    測試鎖住.
+  - tests/test_runner_merge_sections.py +10 tests:
+    * TestHappyPath 4: parts 順序鎖 [intro, ch1, ch2, outro] (顛倒 = intro
+      變結尾) + output == artifacts_dir/final.mp4 / intro=None outro=None
+      只 sections (不該硬塞 None 進 parts) / intro only no outro / final.srt
+      寫進 artifacts_dir 用 UTF-8 + 內容 == merged_srt 回傳值
+    * TestSrtPaddingGate 3: intro 存在 + duration>0 → srt_parts[0] ==
+      ('', 3.5) + 後接 section_srts (順序鎖) / intro_path 存在但
+      duration=0.0 → 不該塞 padding (鎖條件是 > 0 不是 path is not None
+      單獨判斷, 否則 SRT cue 對齊會錯 0 秒看似無害但 cumulative 跨章累加) /
+      outro 同款 duration=0.0 skip
+    * TestEmptyMergedSrt 1: merge_srts 回 '' → final.srt 不該寫進磁碟 (避免
+      空檔誤導 UI 認為有字幕) + final.mp4 仍存在 (concat 段成功)
+    * TestFailureSwallowed 2: concat raise RuntimeError → 函式不 raise +
+      logger.exception 含「final.mp4 合成失敗」+「各章 mp4 仍可用」+
+      merge_srts 完全沒被叫 (鎖 try/except 內 return 不可被改成 fall-through,
+      否則對沒生成的 final.mp4 還繼續處理 SRT 是浪費且誤導) + final.mp4 /
+      final.srt 都不存在 / merge_srts raise ValueError → 不 propagate +
+      logger.exception 含「final.srt 合併失敗」+「final.mp4 已存在」+
+      final.mp4 仍存在 (證明 concat 段已成功, merge 失敗只該 log 不該擋成品)
+  - fixture 設計: stub_video_concat 用 counters dict 記 concat_calls /
+    merge_calls 引數 (避免真打 ffmpeg + 純字串 regex). runner 用
+    `from core import video_concat` (function-local), monkeypatch
+    core.video_concat.X 直接生效, 不需 patch 已 capture 的 reference.
+  - 0 production code 改動 (純測試). 1479 → 1489 tests (+10)
 
   iter 126 (2026-05-24, hourly routine) — runner.py _apply_intro_postprocess 補測試覆蓋 (iter 41 上線後一直裸奔):
   - server/runner.py _apply_intro_postprocess 從 iter 41 上線後沒對應直接

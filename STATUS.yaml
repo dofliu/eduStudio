@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 121 完成 — server/routes/library.py _read_deck_title 三層防呆邊角補測 (iter 115 已蓋 7 主軸, 但 binary bytes / 0-byte 檔 / null title / whitespace-only / BOM 五條沒打). 補測 = 鎖住 try/except Exception swallow 對 UnicodeDecodeError 跟 JSONDecodeError 都能 graceful 退 job_id, 不該炸 500. TestReadDeckTitleEdgeCases 5 tests: binary 非 UTF-8 / 0-byte / 兩 title 都 null / whitespace-only (document 行為: strip 後變空字串) / UTF-8 BOM (要嘛 graceful 退要嘛解出, 鎖不 raise 最小契約). 同時揪出 _read_deck_title 對 deck 非 dict (頂層是 list/string) + title 非 str truthy (int/list) 會 AttributeError 500 — try/except 只包到 json.loads 不護 .get/.strip — 記到 docs/ROUTINE_FINDINGS.md, 留用戶決策. 0 production code 改動 (純測試 + 1 findings 條目). 1430 → 1435 tests (+5). 下一輪可推: themes.py route preview cache 隔離 / E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 122 完成 — server/routes/themes.py _PREVIEW_CACHE 命中行為 + 失敗不污染 cache 補測 (iter 72 上線後既有 test_repeat_request_same_bytes 只驗 bytes 一致, render_frame determinism 也會過, 沒真鎖 cache short-circuit). TestCacheIsolation 4 tests (counter 鎖 render_frame 第二次該不被叫 / cross-theme 不互污染 / cross-kind 不互污染 / cache 活 module-level 跨 TestClient) + TestRenderFailureHandling 2 (render_frame raise → 500 不該 unhandled / 失敗不該塞 cache, retry 該重試 — 鎖住 try/except 在 cache assign 之前不被 refactor 倒置) + TestRenderPreviewUnit 2 (unknown kind defensive ValueError / 640×360 縮圖維度寫死值不被改). 新 clear_preview_cache fixture (opt-in, 不 autouse — 不影響既有 40 test) 解決 cache 跨測累積 (前置 TestAllThemesPreview 已塞 30 entry) 干擾後面 cache miss 測試. 0 production code 改動 (純測試). 1435 → 1443 tests (+8). 下一輪可推: E2-6 / E1-4 UI 元件 (要動 web/ 不止 1 檔, 風險中) / E2-2 (需用戶決議 Gemini SVG) / themes.py route 還可加 list_themes order stability 鎖 / 更多 module-level cache 行為 (例: cache eviction 若未來加 LRU)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,36 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1435 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1443 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 122 (2026-05-24, hourly routine) — themes.py _PREVIEW_CACHE 命中 + 失敗不污染補測:
+  - server/routes/themes.py 從 iter 72 上線後, _PREVIEW_CACHE module-level
+    dict 缺真的 cache short-circuit 鎖 (既有 test_repeat_request_same_bytes
+    只驗 bytes 一致, render_frame determinism 也會過, 沒法擋未來有人把 cache
+    assign 拿掉的 refactor). 失敗路徑 (render_frame raise) 也沒測 — try/except
+    在 cache assign 之前的順序若被倒置, 失敗會被 cache 變永久 500. 跟
+    iter 111-121 同思路 (route 安全鎖).
+  - tests/test_themes_route.py +8 tests:
+    * TestCacheIsolation 4: counter 鎖 render_frame 第二次該不被叫 (monkeypatch
+      pipeline.render_frame wrap counting closure) / cross-theme forest vs navy
+      不互污染 (key tuple 含 theme) / cross-kind forest slide vs cover 不互污染
+      (key tuple 含 kind) / cache 活 module-level 跨 TestClient (新 create_app
+      該命中 cache, 防有人把 cache 改成 app.state.*)
+    * TestRenderFailureHandling 2: pipeline.render_frame raise RuntimeError →
+      endpoint 該 HTTPException 500 with detail="render failed" (不該炸
+      unhandled 給用戶 stack trace) / 失敗不該塞 cache, retry 該重試 — 用
+      call_count flaky_render (n=1 fail / n=2 succeed) 驗 r1 500 r2 200
+      + cache miss after fail 確保 try/except 在 _PREVIEW_CACHE[key]=... 之前
+    * TestRenderPreviewUnit 2: unknown kind defensive ValueError (type hint
+      Literal["slide", "cover"] 擋編譯期, runtime 仍可繞, else branch 是最後
+      防線) / 640×360 縮圖維度寫死值不被改 (PIL Image.open + .size 驗)
+  - 新 clear_preview_cache fixture (opt-in, 不 autouse — 不影響既有 40 test):
+    解決 cache 跨測累積干擾 (前置 TestAllThemesPreview 已塞 30 entry, cache
+    miss 測試會被無聲 short-circuit). yield 前後都 .clear() 確保不污染後續 test.
+  - 0 production code 改動 (純測試). 1435 → 1443 tests (+8)
 
   iter 121 (2026-05-24, hourly routine) — library.py _read_deck_title 邊角補測 + 揪 non-str title bug:
   - server/routes/library.py _read_deck_title 既有 iter 115 TestReadDeckTitle

@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 132 完成 — server/runner.py _run_render iter 83 wrapper 補測試覆蓋. _run_render 從 iter 83 上線後沒對應直接測試. 核心 video_dimensions_override (core.config) / talking_head_override (core.photo_overlay) context manager 各自 module 都有覆蓋, 但 runner 內這層 wrapper 的 value-add (aspect_ratio None → '16:9' / resolution None → '1080p' / talking_head None → 'long_form_only' 三 fallback + is_short 三條件 OR (9:16 / ultra_quick / short_video_layout 任一即觸發) + video_dimensions_override(aspect, resolution) OUTER context + talking_head_override(th_mode, is_short_form=is_short) INNER context 巢狀 + section_id 透傳) 從沒打 — 任何 refactor 動 fallback 字串 / OR 變 AND / 兩 context 沒 nest / section_id 沒透傳就直接上線, 跟 iter 111-131 同思路 (route / helper safety lock). TestDefaultFallbacks 3: aspect_ratio=None → VIDEO_WIDTH=1920 (16:9 1080p, 鎖橫向預設不被偷改 9:16) / resolution=None → height=1080 (鎖 1440p/4K 渲染慢 2-3x 不被當預設) / talking_head=None → 'long_form_only' (iter 92 設計意圖, 不被改 'always'/'off' 預設). TestIsShortComputation 6: 9:16 / ultra_quick / short_video_layout 各自單獨能觸發 is_short=True + 三個全 False 該 is_short=False + 三個全 True 仍 True (OR 不被改 XOR / AND, 三 test 合力擋 OR→AND refactor) + length_mode=None 走 `or ''` 防呆不 AttributeError. TestExplicitOptionsHonored 3: 9:16 + 1440p → (1440, 2560) 直向 1440p (鎖 args 不弄反, 給反走 fallback 1920×1080) + talking_head='off' / 'always' 都該透傳 (非空字串不被 `or` 替換). TestContextRestoreAfterReturn 3: 9:16 1080p 渲染後 VIDEO_WIDTH/HEIGHT 該回 16:9 1080p 預設 (鎖 __exit__ 真叫) + talking_head='off' 後 _RUNTIME_TALKING_HEAD_MODE 該回 None (鎖 finally restore) + inner 執行瞬間兩 module state 同時看到 override 值 (鎖 nesting, 不被改成先後序). TestSectionIdPassthrough 3: 不傳 → None 透傳 + 'q1' 原值透傳 (不被 lowercase/strip) + store 跟 rec 兩 positional id check 原物件 (鎖不被 deepcopy). 策略 = monkeypatch runner_mod._run_render_inner 成 async stub, 在 stub 內 snapshot core.config.VIDEO_WIDTH/HEIGHT + core.photo_overlay._RUNTIME_TALKING_HEAD_MODE/IS_SHORT_FORM, 證明兩 context 都 active. 不真跑渲染 / ffmpeg / TTS. function-local `from core.config import video_dimensions_override` / `from core.photo_overlay import talking_head_override` 每次 _run_render 進來都重新 lookup, monkeypatch runner_mod._run_render_inner 直接生效 (跟 iter 126/127/128/130 同 pattern). _run_render 本身只透傳 store/rec, 不對 store 做任何 call, 測試傳 store_sentinel=object() 即可. 0 production code 改動 (純測試). 1542 → 1560 tests (+18). 下一輪可推: 其他 runner orchestrator 安全鎖 (_run_render_inner schema dispatch / _run_render_phase / runner 主流程 process_pending 等) / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 133 完成 — server/runner.py _run_render_phase (PR-3j / PR-4a / PR-4c orchestrator) 補測試覆蓋. _run_render_phase 是 awaiting_review → render → done 主入口 (也供 /approve + schedule_section_render 共用), 從 PR-3a 上線後沒對應直接測試. value-add 全在這層 wrapper: PR-3j 進入時 store.update(state=RENDERING, error=None) 把 FAILED retry 留下的 stale error 清掉 (不清會讓成功後 record.error 仍掛上次失敗訊息, UI 誤判又紅) / PR-4a stage_name = 'render-section-{section_id}' if section_id else 'render' (UI / log filter 分得出哪一章在跑) / PR-4c own_log gate — schedule_section_render 進來時 current_job_id 還沒 set 自己 attach log file, run_job 已 attach 過則不重 attach (避免 handler 重複 + double-write log.jsonl 每行兩次) / 例外吞 _run_render 任一 raise → state FAILED + error='render 失敗: {msg}' + _end_stage_fail, **不該** propagate 出 task 讓 asyncio 噴未捕捉錯誤 / 成功 refresh_artifacts → state DONE + error=None (清掉之前 retry) + output_dir='jobs/{id}/artifacts' forward slash / finally own_log=True 才 reset contextvar + detach (重複 detach 不安全, FileHandler 累積 FD 洩漏). 任何 refactor 動 state 字串 / 例外傳播 / stage_name 模板 / own_log 條件就直接上線, 跟 iter 111-132 同思路 (route / helper safety lock). TestSuccessPath 6: state PENDING→DONE / output_dir = 'jobs/{job_id}/artifacts' 鎖 forward slash (前端 / YT description 拼 URL, 反斜線會 escape 亂) / stale error 清 (PR-3j) — 起 FAILED+error='上次 ffmpeg 炸' 進來, mid-call snapshot 證明 _run_render 看到 state=RENDERING + error=None, done 後仍 None / done 二次清 error 雙閘 (entry + done 兩段都該 set error=None, 鎖不被改成只 set state) / stage[0] name='render' state='done' error=None / _run_render 透傳 (store / rec.id / section_id=None default). TestFailurePath 4: RuntimeError caught 不 propagate + state=FAILED / error='render 失敗: {orig msg}' 前綴鎖 (debug grep + UI badge 依賴格式, 不被偷改前綴或 truncate) / ValueError 也吞 (鎖 except Exception 範圍不被改成 except RuntimeError 只擋特定型別) / stage[-1] state='failed' + stage.error 原 msg (不被 'render 失敗' prefix 污染 — _end_stage_fail 收 str(e) 而非 record.error). TestStageName 3: section_id=None → 'render' / section_id='q1' → 'render-section-q1' (鎖 f-string 模板不被改成 'render-{q1}' / 'section-q1' 變體, UI 解析依此前綴) / section_id 該以 kwarg 透傳 _run_render (不被改 positional / 拿掉). TestLoggerDispatch 3: 整份路徑 caplog 含 'render 開始 (整份)' + 'render 完成' (INFO level) / section 路徑 caplog 含 'section_id=q1' + 嚴格排除 '(整份)' (防被合併成同一條訊息) / 例外路徑 caplog ERROR level 含 'render 失敗' (logger.exception). TestOwnLogGate 4: contextvar 預設 None → attach 該被叫一次 + log_path = jobs/<id>/log.jsonl + finally detach 一次 / contextvar 已 set 同 job_id (run_job 路徑) → 不該 attach 不該 detach (run_job 那層 finally 自己 detach) / contextvar set 不同 job_id (理論不該發生, 防呆) → own_log=True 仍 attach (鎖條件是 != job_id 不被改 is None) / _run_render raise → 仍走 finally → detach (失敗 job 累積 FileHandler 不 close FD 洩漏). 策略 = monkeypatch server.runner._run_render 成 async stub, 在 stub 內 snapshot store.get(job_id) 證明 entry 時 error 已被清; monkeypatch attach_job_log / detach_job_log 計次驗 own_log gate. 不真跑渲染 / ffmpeg / TTS. 0 production code 改動 (純測試). 1560 → 1580 tests (+20). 下一輪可推: 其他 runner orchestrator 安全鎖 (_run_render_inner schema dispatch / run_job 主流程 ingest→awaiting_review→render 串接 / schedule_job/schedule_render/schedule_section_render 三 entry) / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,65 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1560 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1580 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 133 (2026-05-24, hourly routine) — runner.py _run_render_phase (PR-3j / PR-4a / PR-4c orchestrator) 補測試覆蓋:
+  - server/runner.py _run_render_phase 是 awaiting_review → render → done 主入口
+    (也供 /approve + schedule_section_render 共用), 從 PR-3a 上線後沒對應直接
+    測試. value-add 全在這層 wrapper:
+    * PR-3j: 進入時 store.update(state=RENDERING, error=None) 把 FAILED retry
+      留下的 stale error 清掉. 不清會讓成功後 record.error 仍掛上次失敗訊息,
+      UI 誤判又紅
+    * PR-4a: stage_name = 'render-section-{section_id}' if section_id else 'render'
+      讓 UI / log filter 分得出哪一章在跑
+    * PR-4c: own_log gate — schedule_section_render 進來時 current_job_id 還沒
+      set, 自己 attach log file; run_job 已 attach 過則不重 attach (避免 handler
+      重複 + double-write log.jsonl 每行寫兩次)
+    * 例外吞: _run_render 任一 raise → state FAILED + error='render 失敗: {msg}'
+      + _end_stage_fail, **不該** propagate 出 task 讓 asyncio 噴未捕捉錯誤
+    * 成功: refresh_artifacts → state DONE + error=None (清掉之前 retry) +
+      output_dir='jobs/{id}/artifacts' forward slash
+    * finally: own_log=True 才 reset contextvar + detach (重複 detach 不安全,
+      FileHandler 累積 FD 洩漏)
+  - 任何 refactor 動 state 字串 / 例外傳播 / stage_name 模板 / own_log 條件就
+    直接上線, 跟 iter 111-132 同思路 (route / helper safety lock).
+  - tests/test_runner_render_phase.py +20 tests:
+    * TestSuccessPath 6: state PENDING→DONE / output_dir = 'jobs/{job_id}/artifacts'
+      鎖 forward slash (前端 / YT description 拼 URL, 反斜線會 escape 亂) /
+      stale error 清 (PR-3j) — 起 FAILED+error='上次 ffmpeg 炸' 進來, mid-call
+      snapshot 證明 _run_render 看到 state=RENDERING + error=None, done 後仍
+      None / done 二次清 error 雙閘 (entry + done 兩段都該 set error=None, 鎖
+      不被改成只 set state) / stage[0] name='render' state='done' error=None /
+      _run_render 透傳 (store / rec.id / section_id=None default)
+    * TestFailurePath 4: RuntimeError caught 不 propagate + state=FAILED /
+      error='render 失敗: {orig msg}' 前綴鎖 (debug grep + UI badge 依賴格式,
+      不被偷改前綴或 truncate) / ValueError 也吞 (鎖 except Exception 範圍不被
+      改成 except RuntimeError 只擋特定型別) / stage[-1] state='failed' +
+      stage.error 原 msg (不被 'render 失敗' prefix 污染 — _end_stage_fail 收
+      str(e) 而非 record.error)
+    * TestStageName 3: section_id=None → 'render' / section_id='q1' →
+      'render-section-q1' (鎖 f-string 模板不被改成 'render-{q1}' / 'section-q1'
+      變體, UI 解析依此前綴) / section_id 該以 kwarg 透傳 _run_render (不被改
+      positional / 拿掉)
+    * TestLoggerDispatch 3: 整份路徑 caplog 含 'render 開始 (整份)' + 'render
+      完成' (INFO level) / section 路徑 caplog 含 'section_id=q1' + 嚴格排除
+      '(整份)' (防被合併成同一條訊息) / 例外路徑 caplog ERROR level 含
+      'render 失敗' (logger.exception)
+    * TestOwnLogGate 4: contextvar 預設 None → attach 該被叫一次 + log_path =
+      jobs/<id>/log.jsonl + finally detach 一次 / contextvar 已 set 同 job_id
+      (run_job 路徑) → 不該 attach 不該 detach (run_job 那層 finally 自己
+      detach) / contextvar set 不同 job_id (理論不該發生, 防呆) → own_log=True
+      仍 attach (鎖條件是 != job_id 不被改 is None) / _run_render raise →
+      仍走 finally → detach (失敗 job 累積 FileHandler 不 close FD 洩漏)
+  - 策略 = monkeypatch server.runner._run_render 成 async stub, 在 stub 內
+    snapshot store.get(job_id) 證明 entry 時 error 已被清; monkeypatch
+    attach_job_log / detach_job_log 計次驗 own_log gate. 不真跑渲染 / ffmpeg /
+    TTS. attach/detach module-level import 從 core.logging_setup, monkeypatch
+    server.runner.attach_job_log / detach_job_log 直接生效.
+  - 0 production code 改動 (純測試). 1560 → 1580 tests (+20)
 
   iter 132 (2026-05-24, hourly routine) — runner.py _run_render iter 83 wrapper 補測試覆蓋 (video_dimensions_override + talking_head_override 兩 context manager 巢狀包裹):
   - server/runner.py _run_render 從 iter 83 上線後沒對應直接測試. 核心

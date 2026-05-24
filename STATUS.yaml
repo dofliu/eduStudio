@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 128 完成 — server/runner.py _prepare_intro_for_problems (iter 41) + _prepare_outro_for_problems (iter 66) 補測試覆蓋. 核心 video_concat.normalize_intro_audio / video_concat.get_video_duration 純函式 test_video_concat.py 有覆蓋, 但 runner 內這層 helper (檔不存在防呆 + AudioSpec(96000, 1, 'aac') 寫死 + normalize 透傳 ASSETS_DIR + get_video_duration 接 normalize 後 path + 例外吞例) 從沒打 (outro 僅 test_outro_video_qr.py 1 個 None tuple test, 沒鎖訊息 / AudioSpec / normalize / duration 沒被叫). 任何 refactor 動 AudioSpec 參數 / 防呆早期 return / 例外傳播 (被改成 raise) 就直接上線, 跟 iter 111-127 同思路 (route / helper safety lock). 例外吞掉是 design intent (intro/outro 串接 nice-to-have, 不該擋主影片成品). intro vs outro 訊息「前/後」字方向不同 — 鎖住兩段對比, 防被合併或被偷改. TestIntroNoOpPath 1: intro 檔不存在 → (None, 0.0) + warning「intro 檔不存在」+「跳過 intro 串接」+ normalize/duration counter=0 (鎖 early return 不被改成 fall-through). TestIntroHappyPath 3: 正常 → (normalized_path, duration) + AudioSpec(96000/1/aac) 規格寫死 + duration 收 normalize 後 path (鎖 normalize→probe 順序, 不是對原 intro probe) / get_video_duration 回 0.0 該透傳不被當作失敗 (caller 用 > 0 雙閘做 SRT padding gating, 本層該透傳, 否則 iter 127 鎖的雙閘失去作用) / logger.info 含「intro 已 normalize」+ N 字串化 +「前」字 (vs outro「後」). TestIntroFailureSwallowed 2: normalize raise RuntimeError → (None, 0.0) + logger.exception「intro 準備失敗」+「跳過」+ get_video_duration 完全沒被叫 (鎖 normalize 失敗早 return, 不對不存在 normalized 路徑做 probe 否則炸 FileNotFoundError 又被吞噴雙段誤導 log) / get_video_duration raise ValueError → 同樣 (None, 0.0) (鎖 except 範圍含 probe, corrupt mp4 / ffprobe missing 很實際). TestOutroNoOpPath 1: outro 檔不存在 → (None, 0.0) + warning「outro 檔不存在」+「跳過 outro 串接」(跟既有 test_outro_video_qr.py 1 test 概念重疊但補強訊息字串 + normalize counter=0). TestOutroHappyPath 2: AudioSpec 跟 intro 完全一致 (96000/1/aac, 鎖兩 helper 同 spec — 不一致 ffmpeg concat filter 會重採樣或炸) / logger.info 含「outro 已 normalize」+「後」字 (vs intro「前」, 鎖方向不被偷改, UX 不混淆). TestOutroFailureSwallowed 1: normalize raise → (None, 0.0) + logger.exception. 0 production code 改動 (純測試). 1489 → 1499 tests (+10). 下一輪可推: 其他 runner helper (_finalize_artifact_layout / _append_outro_to_deck 等) safety lock / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 129 完成 — server/runner.py _start_stage / _end_stage_ok / _end_stage_fail (iter 41 trio) 補測試覆蓋. JobStore.add_stage / update_last_stage 在 test_jobs_store.py TestStages 已有覆蓋, 但 runner 內這三個 wrapper 的 value-add (state literal 'running'/'done'/'failed' 寫死 + started_at/ended_at 由 utc_now() 塞 tz-aware UTC + error 透傳) 從沒打 — 任何 refactor 不小心動 state 字串 / 漏設 timestamp / truncate error 訊息就直接上線, 跟 iter 111-128 同思路 (route / helper safety lock). stage 狀態機是 UI awaiting_review badge / final.mp4 progress bar / log filter dispatch 共用 source of truth, 任一 wrapper behaviour drift 都會讓監控失準. TestStartStage 5: state 寫死 'running' (鎖 refactor 改 enum / 別字串該 fail) / started_at 由 utc_now() 塞 tz-aware (鎖不被改成 datetime.utcnow() naive 或漏設, 範圍 ±1 秒) / name 不被 normalize / lowercased 透傳 (傳 'INGEST_REPO' 存 'INGEST_REPO') / 剛 start ended_at + error 該 None (鎖 wrapper 不偷早期填值, 否則 UI 看到 ended_at 誤以為已結束) / 連續 start 多 stage 順序保留 ingest→render→publish (鎖 append 不插中間 / 倒序). TestEndStageOk 3: state→'done' + ended_at ±1 秒 (鎖 wrapper value-add) / 不動 name / started_at / error=None (鎖 model_copy 部分更新, refactor 改成 model_dump+rebuild 會偷洗掉沒在 fields 的欄位) / 沒 stage raise ValueError 透傳 (鎖 wrapper 不 swallow JobStore 行為, 否則 caller 漏叫 _start_stage 被靜默吃掉). TestEndStageFail 4: state→'failed' + ended_at + error 三件事缺一不可 / 不動 name / started_at / error 多行 + 中文 + Traceback 文字原樣存進 state.json (鎖不被 truncate / strip / re-encode, UI / log 要完整 debug) / 沒 stage raise ValueError. TestStageSequence 2: start1→end_ok→start2→end_fail 後 stages[0] 仍 'done' (不被第二 stage fail 污染) + stages[1] 'failed' + error 對 (鎖 update_last_stage 只動 stages[-1], 不誤動 stages[:-1]) / started_at ≤ ended_at (鎖 utc_now() 不被換掉成假時間源 / 順序倒置). 0 production code 改動 (純測試). 1499 → 1513 tests (+14). 下一輪可推: 其他 runner helper safety lock (_run_render_phase / _run_ingest dispatch / _generate_ai_diagrams_for_outline 等) / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,47 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1499 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1513 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 129 (2026-05-24, hourly routine) — runner.py _start_stage / _end_stage_ok / _end_stage_fail (iter 41 trio) 補測試覆蓋:
+  - JobStore.add_stage / update_last_stage 在 test_jobs_store.py TestStages
+    已覆蓋, 但 runner 內這三個 wrapper 的 value-add (state literal "running"
+    / "done" / "failed" 寫死 + started_at/ended_at 由 utc_now() 塞 tz-aware
+    UTC + error 透傳) 從沒打 — 任何 refactor 不小心動 state 字串 / 漏設
+    timestamp / truncate error 訊息就直接上線, 跟 iter 111-128 同思路
+    (route / helper safety lock). stage 狀態機是 UI awaiting_review badge
+    / final.mp4 progress bar / log filter dispatch 共用 source of truth,
+    任一 wrapper behaviour drift 都會讓監控失準.
+  - tests/test_runner_stage_helpers.py +14 tests:
+    * TestStartStage 5: state 寫死 "running" (鎖 refactor 改 enum / 別字串
+      該 fail) / started_at 由 utc_now() 塞 tz-aware UTC ±1 秒 (鎖不被改成
+      datetime.utcnow() naive 或漏設) / name 不被 normalize / lowercased 透傳
+      (傳 "INGEST_REPO" 存 "INGEST_REPO", 鎖 caller 傳什麼存什麼) / 剛 start
+      ended_at + error 該 None (鎖 wrapper 不偷早期填值, 否則 UI 看到
+      ended_at 誤以為已結束) / 連續 start 多 stage 順序保留 ingest→render→
+      publish (鎖 append 不插中間 / 倒序, UI timeline 依賴此順序)
+    * TestEndStageOk 3: state→"done" + ended_at ±1 秒 (鎖 wrapper value-add) /
+      不動 name / started_at / error 仍 None (鎖 update_last_stage 用
+      model_copy(update=...) 只改傳入欄位, refactor 改成 model_dump+rebuild
+      會偷洗掉沒在 fields 的欄位) / 沒 stage raise ValueError 透傳 (鎖
+      wrapper 不 swallow JobStore 行為, 否則 caller 漏叫 _start_stage 被
+      靜默吃掉)
+    * TestEndStageFail 4: state→"failed" + ended_at + error 三件事缺一不可 /
+      不動 name / started_at / error 多行 + 中文 + Traceback 文字原樣存進
+      state.json (鎖不被 truncate / strip / re-encode, UI / log 要完整 debug) /
+      沒 stage raise ValueError
+    * TestStageSequence 2: start1→end_ok→start2→end_fail 後 stages[0] 仍
+      "done" + error=None (不被第二 stage fail 污染) + stages[1] "failed" +
+      error 對 (鎖 update_last_stage 只動 stages[-1], 不誤動 stages[:-1]) /
+      started_at ≤ ended_at (鎖 utc_now() 不被換掉成假時間源 / 順序倒置)
+  - fixture 設計: store fixture monkeypatch jobs_mod.JOBS_DIR (跟
+    test_jobs_store.py 同 pattern, JobStore 內部 helpers 用 module-level
+    JOBS_DIR 不是 self.root). job_id fixture 建 PENDING EXAM_PDF job 拿 id,
+    給 stage 操作 wrapper 用 — 不走 runner 主流程避免 ffmpeg / Gemini.
+  - 0 production code 改動 (純測試). 1499 → 1513 tests (+14)
 
   iter 128 (2026-05-24, hourly routine) — runner.py _prepare_intro_for_problems (iter 41) + _prepare_outro_for_problems (iter 66) 補測試覆蓋:
   - server/runner.py _prepare_intro_for_problems (iter 41) 從上線後沒對應

@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 119 完成 — server/routes/jobs.py 四個 CRUD endpoint (POST / GET / GET/{id} / DELETE/{id}) 從 PR-3a 上線後一直沒對應 route-level 測試. iter 117 已補 draft/log/section_render/artifacts 五個 endpoint, iter 118 補 proposals duplicate, 但 CRUD 本身仍裸奔. 任何 refactor 不小心動 source_type 早期驗證分支 (url scheme http(s) 白名單 / path 存在檢查 / 缺欄位攔截) / created_at desc 排序 / cache+disk 同步 cleanup → 直接上線, 跟 iter 111-118 思路 (route 安全鎖). TestCreateJobEndpoint 11 tests: document/exam_pdf/slides_pdf/url 全 source_type 各驗 + exam_pdf require_review 預設 True (硬規則 #1) / slides_pdf 預設 False / url http/https 都接受 / ftp invalid scheme 400 / empty/whitespace url 400 / document 缺 path 400 / 不存在 path 400 / schedule_job 觸發驗 (mock 收 job_id). TestListJobsEndpoint 4 tests: empty list / 單 job 命中 / 3 job desc 排序 (顯式 created_at 各差 1 分鐘避免 Windows microsecond 退化成 stable order) / 跨 source_type 混合該全出現. TestGetJobEndpoint 2 tests: existing 200 + JobRecord 全欄位 (id/state/source_type/timestamps/youtube_uploads={}) / nonexistent 404. TestDeleteJobEndpoint 6 tests: existing 204 空 body / nonexistent 404 / delete 後 GET 404 (cache 清乾淨) / delete 後 list 不該有 / disk dir rmtree / double delete 第二次 404. 0 production code 改動 (純測試). 1397 → 1420 tests (+23). 下一輪可推: figures.py 補 invalid JSON / jpeg content-type / dir target 邊角; library 內 _read_deck_title 邊角 (gibberish JSON / 純 bytes); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 120 完成 — server/routes/jobs.py figures section (list_figures + download_figure, iter 54 上線) 既有 test_figures_route.py 9 tests 沒覆蓋 raw_content.json invalid/non-UTF8 邊角 / figures field None or missing / path 空字串 / jpeg content-type / 目錄目標 等三層防呆 (try/except Exception swallow / `or []` / isinstance + path falsy 過濾). 補測 = 任何 refactor 不小心動 graceful degrade 三道防線 → 直接上線, 跟 iter 111-119 思路 (route 安全鎖). TestListFiguresMalformedRawContent 5 tests: invalid JSON 退空 / binary non-UTF8 退空 (read_text 該炸 try/except 仍吞) / figures=None 該走 `or []` / figures key 完全缺 / path 空字串或 None 該被 `not f.get('path')` 過濾. TestDownloadFigureEdgeCases 5 tests: jpeg 該帶 image/jpeg content-type (Starlette mimetypes 推斷) / jpg 同 / 子目錄 target 該 404 不該 dir listing / `..foo.png` 寬鬆 dotdot 比擋 400 / encoded forward slash %2F 跨段該擋 400/404/405. 0 production code 改動 (純測試). 1420 → 1430 tests (+10). 下一輪可推: library 內 _read_deck_title 邊角 (binary bytes / title 非 str 型別); E2-6 / E1-4 UI 元件; E2-2 (需用戶決議 Gemini SVG); themes.py route 補測."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,32 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1420 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1430 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 120 (2026-05-24, hourly routine) — figures.py route 三層防呆邊角補測試覆蓋:
+  - server/routes/jobs.py figures section (list_figures + download_figure,
+    iter 54 上線) 既有 test_figures_route.py 9 tests 主軸覆蓋 (empty / lists /
+    skips malformed / path traversal / 404 / serves png), 但沒直接打 graceful
+    degrade 三道防線: try/except Exception swallow (invalid JSON / binary
+    bytes 該退空) / `or []` (figures=None or 缺 key 該退空) / `not f.get('path')`
+    過濾 (空字串 or None path 該被 skip). FileResponse 推斷 content-type
+    對 .jpeg/.jpg 也沒測 — 任何 refactor 不小心動三道防線 → 直接上線,
+    跟 iter 111-119 思路 (route 安全鎖).
+  - tests/test_figures_route.py +10 tests:
+    * TestListFiguresMalformedRawContent 5: invalid JSON 退空 / binary
+      non-UTF8 (\\xff\\xfe...) 退空 (read_text UTF-8 該炸但 try/except
+      仍吞) / figures=None 走 `or []` / figures key 完全缺 (raw.get 回 None)
+      也走 `or []` / path 空字串 + None 該被 `not f.get('path')` 過濾
+    * TestDownloadFigureEdgeCases 5: jpeg 該帶 image/jpeg content-type
+      (Starlette mimetypes 推斷, 不該退到 octet-stream) / jpg 同副檔同推斷 /
+      子目錄 target (figures/sub_dir/ 真目錄存在) 該 404 不該 500 不該
+      dir listing (target.is_file() 防呆) / `..foo.png` 寬鬆 dotdot 比擋
+      400 (跟 artifact endpoint 同設計) / encoded forward slash %2F 跨段
+      該擋 400/404/405 三選一 (httpx encoding behavior 不保證)
+  - 0 production code 改動 (純測試). 1420 → 1430 tests (+10)
 
   iter 119 (2026-05-24, hourly routine) — jobs.py 四個 CRUD endpoint 補測試覆蓋 (PR-3a 上線後一直裸奔):
   - server/routes/jobs.py 內 POST /jobs / GET /jobs / GET /jobs/{id} /

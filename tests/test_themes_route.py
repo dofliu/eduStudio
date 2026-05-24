@@ -258,3 +258,84 @@ class TestRenderPreviewUnit:
         assert r.status_code == 200
         img = Image.open(BytesIO(r.content))
         assert img.size == (640, 360)
+
+
+class TestListThemesContract:
+    """iter 123: GET /themes 契約鎖 — order / unique / URL slug / 跨來源同源.
+
+    THEME_LIST 在 backend 寫死 15 主題順序, frontend ProposalsList.tsx
+    THEME_OPTIONS 寫死同樣順序 (lines 24-38). 兩處對應的 theme idx 該一致 —
+    若有人偷改 backend 順序忘改 frontend, gallery 顯示會跟用戶選擇的 idx
+    錯位, 結果是「我選的是 forest, render 出來是 navy」這類靜默 bug.
+    """
+
+    EXPECTED_THEME_ID_ORDER = [
+        "forest", "navy", "frieren", "naruto", "journal",
+        "dof-editorial", "dof-podium", "dof-notebook", "dof-shinobi", "dof-elven",
+        "dof-zine", "dof-arcade", "dof-risograph", "dof-supergraphic", "dof-brutalist",
+    ]
+
+    def test_full_id_order_locked(self, client):
+        """完整 15 id 順序寫死鎖 — 跟 frontend ProposalsList.tsx 對齊."""
+        r = client.get("/themes")
+        assert r.status_code == 200
+        ids = [t["id"] for t in r.json()["themes"]]
+        assert ids == self.EXPECTED_THEME_ID_ORDER
+
+    def test_no_duplicate_ids(self, client):
+        """ID 唯一性 — 複製貼上 typo 會造成 theme dispatch 拿到第一個命中, 不是預期的."""
+        r = client.get("/themes")
+        ids = [t["id"] for t in r.json()["themes"]]
+        assert len(ids) == len(set(ids))
+
+    def test_ids_are_url_safe_slugs(self, client):
+        """ID 必須是 URL-safe slug — 只 [a-z0-9-], 不含空白 / 大寫 / dot.
+
+        ID 直接拼進 /themes/preview/{theme} path segment, 含空白或 dot 會被
+        URL encode / 觸發 path traversal 防護 / 跟其他 endpoint route 衝突.
+        """
+        import re
+        slug_pattern = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
+        r = client.get("/themes")
+        for t in r.json()["themes"]:
+            tid = t["id"]
+            assert slug_pattern.match(tid), f"{tid!r} 不是合法 URL slug"
+
+    def test_labels_are_non_empty_strings(self, client):
+        """label 該是 non-empty str — None / 空字串 / 純空白都該擋下.
+
+        前端 gallery 顯示 label, 空 label 會出現空白格子, UX 異常.
+        """
+        r = client.get("/themes")
+        for t in r.json()["themes"]:
+            label = t["label"]
+            assert isinstance(label, str)
+            assert label
+            assert label.strip()
+
+    def test_list_matches_all_themes_preview_param(self, client):
+        """list_themes 回的 id 集合 == TestAllThemesPreview.ALL_THEME_IDS.
+
+        兩處 hardcode 列表 (THEME_LIST 跟 ALL_THEME_IDS) 是 backend 內部
+        兩個來源, 改一邊忘改另一邊會讓「list endpoint 列了但 preview 跑不了」
+        或「preview 跑得了但 list 沒列」這種裂縫上線. 這條鎖兩處同源.
+        """
+        r = client.get("/themes")
+        list_ids = sorted(t["id"] for t in r.json()["themes"])
+        param_ids = sorted(TestAllThemesPreview.ALL_THEME_IDS)
+        assert list_ids == param_ids
+
+    def test_theme_list_module_constant_matches_endpoint(self, client):
+        """THEME_LIST module-level constant 跟 list_themes endpoint 該對齊.
+
+        鎖 list_themes() 沒被某個 refactor 改成從別處讀 (例改用 settings.toml
+        或硬 hardcode 在 handler 內), 確保 THEME_LIST 仍是 single source of truth.
+        """
+        from server.routes.themes import THEME_LIST
+        r = client.get("/themes")
+        endpoint_ids = [t["id"] for t in r.json()["themes"]]
+        endpoint_labels = [t["label"] for t in r.json()["themes"]]
+        const_ids = [tid for tid, _ in THEME_LIST]
+        const_labels = [label for _, label in THEME_LIST]
+        assert endpoint_ids == const_ids
+        assert endpoint_labels == const_labels

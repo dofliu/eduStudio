@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-24"
-next_milestone: "iter 129 完成 — server/runner.py _start_stage / _end_stage_ok / _end_stage_fail (iter 41 trio) 補測試覆蓋. JobStore.add_stage / update_last_stage 在 test_jobs_store.py TestStages 已有覆蓋, 但 runner 內這三個 wrapper 的 value-add (state literal 'running'/'done'/'failed' 寫死 + started_at/ended_at 由 utc_now() 塞 tz-aware UTC + error 透傳) 從沒打 — 任何 refactor 不小心動 state 字串 / 漏設 timestamp / truncate error 訊息就直接上線, 跟 iter 111-128 同思路 (route / helper safety lock). stage 狀態機是 UI awaiting_review badge / final.mp4 progress bar / log filter dispatch 共用 source of truth, 任一 wrapper behaviour drift 都會讓監控失準. TestStartStage 5: state 寫死 'running' (鎖 refactor 改 enum / 別字串該 fail) / started_at 由 utc_now() 塞 tz-aware (鎖不被改成 datetime.utcnow() naive 或漏設, 範圍 ±1 秒) / name 不被 normalize / lowercased 透傳 (傳 'INGEST_REPO' 存 'INGEST_REPO') / 剛 start ended_at + error 該 None (鎖 wrapper 不偷早期填值, 否則 UI 看到 ended_at 誤以為已結束) / 連續 start 多 stage 順序保留 ingest→render→publish (鎖 append 不插中間 / 倒序). TestEndStageOk 3: state→'done' + ended_at ±1 秒 (鎖 wrapper value-add) / 不動 name / started_at / error=None (鎖 model_copy 部分更新, refactor 改成 model_dump+rebuild 會偷洗掉沒在 fields 的欄位) / 沒 stage raise ValueError 透傳 (鎖 wrapper 不 swallow JobStore 行為, 否則 caller 漏叫 _start_stage 被靜默吃掉). TestEndStageFail 4: state→'failed' + ended_at + error 三件事缺一不可 / 不動 name / started_at / error 多行 + 中文 + Traceback 文字原樣存進 state.json (鎖不被 truncate / strip / re-encode, UI / log 要完整 debug) / 沒 stage raise ValueError. TestStageSequence 2: start1→end_ok→start2→end_fail 後 stages[0] 仍 'done' (不被第二 stage fail 污染) + stages[1] 'failed' + error 對 (鎖 update_last_stage 只動 stages[-1], 不誤動 stages[:-1]) / started_at ≤ ended_at (鎖 utc_now() 不被換掉成假時間源 / 順序倒置). 0 production code 改動 (純測試). 1499 → 1513 tests (+14). 下一輪可推: 其他 runner helper safety lock (_run_render_phase / _run_ingest dispatch / _generate_ai_diagrams_for_outline 等) / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
+next_milestone: "iter 130 完成 — server/runner.py _generate_ai_diagrams_for_outline (iter 56) + _generate_mermaid_for_outline (iter 57b) 兩 async helper 補測試覆蓋. 兩 helper 自 iter 56/57b 上線後沒對應直接測試 — 核心 core.diagram_image_gen / core.mermaid_render module 各自有測, 但 runner 內這層 IO + log dispatch wrapper (figures_dir = job_dir / 'figures' 寫死 + `if ai_figs:` 防呆 + `raw.get('figures') or []` 補空 + raw['figures'] in-place 追加 + raw_content.json 寫回 ensure_ascii=False / indent=2 + try/except 吞例外只 log) 從沒打, 任何 refactor 動 figures_dir 子目錄名 / 防呆 fall-through / existing+new 改成 new 覆蓋 (吃掉 caller adapter 早抽好的 PDF figures) / 例外 swallow 改成 raise 擋 ingest 就上線. 跟 iter 111-129 同思路 (route / helper safety lock). 兩 helper 結構對稱, log image 走「AI 生圖完成」/ mermaid 走「AI mermaid 生圖完成」分流關鍵字, 鎖住兩段對比防被合併或偷改. TestImageHappyPath 6: empty figures 追加 [fig1,fig2] / existing pdf_fig 不被覆蓋 (順序 existing+new) / 缺 figures key 走 `or []` fallback / figures=None 同 fallback / raw_content.json 寫回 ensure_ascii=False (中文不 escape) + indent=2 (2-space 開頭) + JSON parsing 還原 / logger.info 含「AI 生圖完成: 3 張」+ 不含 mermaid 字串. TestImageEmptyResult 1: ai_figs=[] → 不該寫 raw_content.json + 不該 logger.info + raw['figures'] 保留 existing. TestImageExceptionSwallowed 2: RuntimeError raise → 不該 propagate + logger.exception 含「AI 生圖失敗」+「不擋 ingest」+ exc_info 帶 traceback + raw 不動 / ValueError 也吞 (鎖 except Exception 範圍夠寬, 不被改成 except RuntimeError). TestMermaidHappyPath 2: 對稱驗 figures_dir = job_dir / 'figures' (兩 helper 共用 figure 介面, 不該分開到 mermaid/ 子目錄) / logger.info 含「AI mermaid 生圖完成: 2 張」. TestMermaidEmptyAndException 2: 空 list skip write / RuntimeError 吞 + logger.exception 含「AI mermaid 生圖失敗」(對比 image 例外訊息該各帶/不帶 mermaid 關鍵字). TestSymmetricBehavior 1: image+mermaid 串連跑 raw['figures']=[img,mer] 順序保留 + raw_content.json 最後版本含兩張 (鎖兩 helper 都用 existing+new, 一前一後不互相覆蓋, 是 ingest_long_form 真實流程 user 兩 option 都開的情境). 0 production code 改動 (純測試). 1513 → 1527 tests (+14). 下一輪可推: 其他 runner helper safety lock (_append_outro_to_deck / _prepend_cover_to_deck / _resolve_step_image_paths 等) / E2-6 / E1-4 UI 元件 / E2-2 (需用戶決議 Gemini SVG)."
 technologies:
   - Python 3.10+
   - FastAPI / uvicorn
@@ -28,10 +28,65 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1513 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1527 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  iter 130 (2026-05-24, hourly routine) — runner.py _generate_ai_diagrams_for_outline (iter 56) + _generate_mermaid_for_outline (iter 57b) 兩 async helper 補測試覆蓋:
+  - 兩 helper 自 iter 56/57b 上線後沒對應直接測試. 核心
+    core.diagram_image_gen / core.mermaid_render module 各自有覆蓋,
+    但 runner 內這層 IO + log dispatch wrapper (figures_dir = job_dir /
+    "figures" 寫死 + `if ai_figs:` 防呆 + `raw.get("figures") or []` 補空 +
+    raw["figures"] in-place 追加 + raw_content.json 寫回 ensure_ascii=False
+    / indent=2 + try/except 吞例外只 log) 從沒打 — 任何 refactor 不小心
+    動 figures_dir 子目錄名 / 防呆改 fall-through / existing+new 改成 new
+    覆蓋 (吃掉 caller adapter 早抽好的 PDF figures) / 例外 swallow 改成
+    raise 擋 ingest 就直接上線, 跟 iter 111-129 同思路 (route / helper
+    safety lock).
+  - 兩 helper 結構對稱, log 字串 image 走「AI 生圖完成」/ mermaid 走
+    「AI mermaid 生圖完成」分流關鍵字 — 鎖住兩段對比, 防被合併或被偷改,
+    維運 grep log 找問題不該混淆「走哪一支」.
+  - tests/test_runner_ai_figures.py +14 tests:
+    * TestImageHappyPath 6: empty figures 追加 [fig1,fig2] + figures_dir
+      == tmp_path/"figures" + outline 透傳不 normalize / existing pdf_fig
+      不被覆蓋 (順序 existing+new — refactor 改成 new 覆蓋會吃掉
+      caller adapter 抽好的 PDF figures, scriptor 拿到的就少了 PDF 圖,
+      是真實會踩的 bug) / 缺 figures key 走 `or []` fallback 不該 KeyError /
+      figures=None 同 fallback (對 None / [] 兩種都該走同一條) /
+      raw_content.json 寫回 ensure_ascii=False (中文不該變 \uXXXX) +
+      indent=2 (2-space 開頭) + JSON parsing 還原 figures (scriptor 從
+      disk 讀 raw_content.json, 不從 in-memory dict 拿, 漏寫整批失蹤) /
+      logger.info 含「AI 生圖完成: 3 張」+ 嚴格不含 mermaid 字串 (對比鎖)
+    * TestImageEmptyResult 1: ai_figs=[] → raw["figures"] 保留 existing
+      不被覆蓋成 [] 也不被追加 + raw_content.json 該 skip 不寫 +
+      logger 該靜默不該噴「AI 生圖完成」(鎖 `if ai_figs:` 防呆不被改成
+      fall-through, 否則空 list 也寫無謂 disk IO)
+    * TestImageExceptionSwallowed 2: RuntimeError raise → 不該 propagate
+      (不擋 ingest 主流程) + logger.exception 含「AI 生圖失敗」+
+      「不擋 ingest」+ exc_info 帶 traceback + raw["figures"] 保留
+      existing / ValueError 也吞 (鎖 except Exception 範圍夠寬, 不被
+      偷改成 except RuntimeError 只擋特定型別)
+    * TestMermaidHappyPath 2: 對稱驗 figures_dir = job_dir / "figures"
+      (兩 helper 共用 figure 介面是 design intent, 不該分開到 mermaid/
+      子目錄) / logger.info 含「AI mermaid 生圖完成: 2 張」 (鎖 mermaid
+      字串 vs image 的「AI 生圖完成」嚴格分流)
+    * TestMermaidEmptyAndException 2: 空 list skip write 對稱於 image /
+      RuntimeError 吞 + logger.exception 含「AI mermaid 生圖失敗」+
+      「不擋 ingest」(對比 image 例外訊息該各帶 / 不帶 mermaid 關鍵字,
+      維運看 log 該分得出哪一支失敗)
+    * TestSymmetricBehavior 1: image+mermaid 串連跑 raw["figures"]=[img,mer]
+      順序保留 (先跑 image → 先進 list, 後跑 mermaid → 後進 list,
+      caller 控制順序) + raw_content.json 最後版本含兩張 (鎖兩 helper
+      都用 existing+new 而非覆蓋, 一前一後跑兩支 helper 是
+      ingest_long_form 真實流程 ai_generate_diagrams + ai_generate_mermaid
+      兩 option 用戶都可開, 任一被改成覆蓋就丟掉前一支成果)
+  - patching pattern: function-local import `from core.diagram_image_gen
+    import generate_diagrams_for_outline` 每次呼叫都重新 lookup module
+    attribute, monkeypatch core.diagram_image_gen.generate_diagrams_for_outline
+    直接生效 (跟 iter 126/127/128 pattern 一致). asyncio.to_thread 收
+    function reference 是 call-time 解析, patching 仍工作.
+  - 0 production code 改動 (純測試). 1513 → 1527 tests (+14)
 
   iter 129 (2026-05-24, hourly routine) — runner.py _start_stage / _end_stage_ok / _end_stage_fail (iter 41 trio) 補測試覆蓋:
   - JobStore.add_stage / update_last_stage 在 test_jobs_store.py TestStages

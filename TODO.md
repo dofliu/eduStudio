@@ -39,7 +39,7 @@
 
 按順序做 (一輪一項):
 
-- [ ] **iter 134**: `_run_ingest_repo` (server/runner.py:110) 補測試覆蓋
+- [x] **iter 134**: `_run_ingest_repo` (server/runner.py:110) 補測試覆蓋 (2026-05-25, +20 tests, 1580→1600)
 - [ ] **iter 135**: `_run_ingest_long_form` (server/runner.py:362) 補測試覆蓋
 - [ ] **iter 136**: `_run_render_inner` (server/runner.py:518) schema dispatch 補測試
 - [ ] **iter 137**: `run_job` (server/runner.py:971) 主流程串接補測試 (ingest →

@@ -1,0 +1,824 @@
+{
+  "_comment": "N2 可重現 eval fixture (offline-first). 從既有 jobs 抽 4 個代表性 deck, body section 取前 ~10 slide, narration / title / bullet / code / 路徑 全經 length-preserving 匿名化 (CJK→文, ASCII 字母→x, 數字→0, 保留 。！？!? 與標點 與空白) — cue 切分與字數跟原 deck 逐字相同, 故截斷率測量結果具代表性且可在 CI (無 Gemini / 無 jobs 資料) 逐字重現. _cover / _outro section 刻意保留以鎖 measure_deck 跳過 _ 前綴 section 的行為. 不含真實教材內容. 重生方式見 tests/test_measure_narration_truncation.py 的 N2 段註解.",
+  "fixtures": [
+    {
+      "name": "lecture_storyteller",
+      "source": "jobs/792a4cd4483d/deck.json (subset + length-preserving anonymized)",
+      "options": {
+        "length_mode": "lecture",
+        "narration_style": null
+      },
+      "deck": {
+        "deck_title": "xxx 文文文文文 × xxxxxxx 文文文文文文",
+        "source_type": "document",
+        "source_meta": {
+          "title": "xx0_x0_xxxxxxxxxx",
+          "format": "xxx",
+          "url": null,
+          "chars": 19093
+        },
+        "sections": [
+          {
+            "id": "intro",
+            "title": "文文文文文",
+            "slides": [
+              {
+                "id": "intro_1",
+                "title": "xxx文文文xxxxxxx文文文文",
+                "bullets": [
+                  "文文文文：xxx文文文xxxxxxx文文",
+                  "文文文文文文文，文文文文文文文",
+                  "文文文文文文文文文文文文",
+                  "文文文文，文文文文xxx文文、文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文，文文文文「xxx文文文文文 × xxxxxxx 文文文文文文」文文。文文文文文。文文文文文文文文文文文文，文文文文文文文文，文文文文文文文文文文文文文文文，文文「文文文、文文文」。文文文文文文文文文xxx文文文文文文文文文，文文文文文文文xxxxxxx文文文文文，文文文文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文文文文文文文。文文文文文文文，文文文文文文xxx文文文文文文xxxxxxx文文文文；文文文文文文xxxxxxx–xxxxxxx文文文文文文文文文；文文文文文文文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_2",
+                "title": "文文文文文文文文",
+                "bullets": [
+                  "文文xxx文文文文文文文文",
+                  "文文文文文文文文xxxxxxx xxx文文",
+                  "文文xxxxxxx–xxxxxxx文文文文文",
+                  "文文文文文文文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文，文文文文文文文文文文文文文。文文，文文文文文文文文文xxx文文文文文文文，文文文文文xx、xx、xx文文文文文文文文文文文文文文，文文文文文、文文文文文文文文文文文文。文文，文文文文文文文文文文文文文文文文文文文文文文文xxxxxxx xxx文文文，文文文文xxxxxx xxxxxxx文文文文文文文文。文文，文文文文文xxxxxxx–xxxxxxx文文文文文，文文文文文文文文文文文文文xxx文文文文文文文，文文文文文文文文文文文文文。文文，文文文文文文文文文文文文文、文文、文文文文，文文文文文文文文文文文，文文文文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_3",
+                "title": "文文文文文文文：文文文文",
+                "bullets": [
+                  "文文：文文文文文、文文文",
+                  "文文文：xx00文文文文文",
+                  "文文文：xx-xx00文文文",
+                  "文文文：xxxxxxx xxx文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文：文文文文文文文文文文文文文，文文文文文文文文文文文文文。文文文文文文文文？文文文文文文文文文文文文文文文文文文，文文文文文文文。文文文文文文文文，文文文文文文文文文文文文文：文文xx00文文文文文文文文文文文文文文文文文；文文xx-xx00文文文文文文文文文文文文文文文；文文文文xxxxxxx xxx文文文文文文文文文文，文文文文文文。文文文文文文文文文，文文文文文文文文文文文文文文文文，文文文文文文xxx文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_4",
+                "title": "文文文文文文文文xxx文文文文",
+                "bullets": [
+                  "文文文文文文文文文文文文文文文",
+                  "文文文文文文文文文文文文文",
+                  "文文文文文文文文文文文文文文",
+                  "xxx文文x、x、x文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文文文文文文文，文文文文xxx，文文文文文文文文文？文文文文文文文文：「文文文文，文文文文文文文文。」文文文文文文文，文文？文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文，文文文文文文文，文文文文文文文。文文文文文文文文文，文文文文文，文文文文文文文，文文文文文，文文文文文文文文文文文，文文文文文文。文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文，文文文文文文文。文文文文文文，文文文文文文文文文文文，文文文文x文文文文文文、x文文文文文文，文文x文文文文文文，文文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_5",
+                "title": "文文文文文文：文文文文文",
+                "bullets": [
+                  "文文文文文：文文文→文文文→文文文→文文文→文文文→文文文",
+                  "文文文：文文文文文文文文文文文文文文文文",
+                  "文文文文：文文文文文文文文文文文",
+                  "文文文文：文文文文文、文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文文，文文文文文文文文文文文文文文文文——文文文文文文文。文文文文文文文文文文文文文文文：文文文文文文文文文文，xxx文文文文文文文文文文文文文文文，文文文文文文文，文文xx00文文文文文文文文文，文文文文文文文文。xx-xx00文文文文文文文文文文文文，文文文文文文文文文文文。文文，文文文文文文文文文文文文文文。文文文「文文文」，文文文文文文文文文文文文文文文文文。文文文「文文文文」，xx-xx00文文文文文，xx00文文文文文文。文文文文「文文文文」，文文文文文文文文，文文文文文文文文文文文文文。文文文文文文文文文xxx文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_6",
+                "title": "xxx文文文：文文文文",
+                "bullets": [
+                  "文文文(x)：文文文文文文文文",
+                  "文文文(x)：文文文文文文文文文文文",
+                  "文文文(x)：文文文文文文，文文文文",
+                  "x(x) = xx·x(x) + xx∫x(文)x文 + xx·xx(x)/xx"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文文，文文xxx文文文文文文文文文文文文文文？文文文文文文文文文文文文文文文文文文文文文文文文文。文文文「文文文x」，文文文文文文文文文文文文文，文文文文，文文文文文，文文文文文文文文文。文文文「文文文x」，文文文文文文文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文，文文文文文文文文。文文文「文文文x」，文文文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文，文文文文文文文文文，文文文文文文文文文文文。文文文，x、x、x，文文文「文文文文文」、「文文文文文」文「文文文文文」文文文文，文文文文文文文文文文文xxx文文文。",
+                "image_path": null,
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "s1_pid_core",
+            "title": "xxx 文文文文",
+            "slides": [
+              {
+                "id": "s1_pid_core_1",
+                "title": "xxx 文文文文文文",
+                "bullets": [
+                  "文文 xxx 文文文文文",
+                  "文文 x、x、x 文文文文",
+                  "文文 xxxxxxx 文文文文",
+                  "文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文，文文文文文。文文文文文文「xxx 文文文文文」文文文文文文：「xxx 文文文文」。文文文文，文文文文文文文 xxx 文文文文文文文文文文文文文。文文，文文文文 xxx 文文文文文文文文文文，文文文文文文文文 x、文文文 x 文文文文 x 文文文文文文文文文文文文文文文文文文文文文。文文，文文文文文文文文 xxxxxxx 文文文 xxx 文文文文，文文文文文文文文文文文文文，文文文文文文文文文，文文文文文文文文。文文文文文文文文文文 xxx 文文文文文文文文文文文，文文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "s1_pid_core_2",
+                "title": "xxx 文文文：文文文文",
+                "bullets": [
+                  "xxx 文文文文",
+                  "文文 x(x) = 文文文 − 文文文",
+                  "文文文文 x(x) = x + x + x",
+                  "x、x、x 文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文，文文文 xxx 文文文文文文文文文。x(x) 文文文文文文文文，文文文文文文文文文文文文，文文文文文文文文文文文。x(x) 文文文文，文文文文文 x(x) 文文文文文 x(x)。文文文文文文 x(x) 文文文文文文文：文文文 x、文文文 x 文文文文 x。文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文，文文文文文文文文文文文文。文文文文文文文文文文文 xxx 文文文文，文文文文文文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "s1_pid_core_3",
+                "title": "文文文 x：文文文文文文文文文",
+                "bullets": [
+                  "文文文文：x_x(x) = xx × x(x)",
+                  "文文文文，文文文文",
+                  "文文文文，文文文文文文",
+                  "xx 文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文 x。文文文文文文文文文文：x_x(x) 文文文文文文 xx 文文文文文文 x(x)。文文文文文文文「文文」文文文文文文文文文文，文文文文，文文文文文文文文。文文文文文文文，文文文文文文文文文文。x 文文文文文，文文文文文文文，文文文文文文文文文文文文文，文文文文文文文文，文文文文文文文文文文文文文文文文。文文 xx 文文文文文，文文文文文文文，文文文文文文文，文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "s1_pid_core_4",
+                "title": "文文文 x：文文文文文文文文",
+                "bullets": [
+                  "文文文文：x_x(x) = xx × ∫x(文)x文",
+                  "文文文文文文，文文文文文文",
+                  "文文文文文，文文文文文",
+                  "xx 文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文 x。文文文文文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文文文文文。文文文文文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文。文文，文文文文文文 xx 文文文文文，文文文文文文文，文文文文文文文文文文文，文文文文文文文文。文文文文文文文文文文文「文文文文」文文文文文。",
+                "image_path": null,
+                "notes": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "quick_comedy_with_cover_outro",
+      "source": "jobs/ae25e4c1d049/deck.json (subset + length-preserving anonymized)",
+      "options": {
+        "length_mode": "quick",
+        "narration_style": "comedy"
+      },
+      "deck": {
+        "deck_title": "文文文_xxx文文文文文",
+        "source_type": "document",
+        "source_meta": {
+          "title": "文文文_xxx文文文文文",
+          "format": "xxx",
+          "url": null,
+          "chars": 18493
+        },
+        "sections": [
+          {
+            "id": "_cover",
+            "title": "文文文_xxx文文文文文",
+            "slides": [
+              {
+                "id": "_cover_1",
+                "title": "文文文_xxx文文文文文",
+                "bullets": [],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "image_path": null,
+                "narration": "文文文, 文文文文文。文文文文文文文文文文文文「文文文_xxx文文文文文」。文文文文文文文文文文文文 文文文文文文文文文文, 文文文文文。",
+                "bg_type": "cover",
+                "section_title": "",
+                "cover_speaker": "文文文",
+                "cover_org": "文文文文文文文文 文文文文文文文文",
+                "cover_date": "0000/00/00"
+              }
+            ]
+          },
+          {
+            "id": "intro",
+            "title": "xxx文文文文",
+            "slides": [
+              {
+                "id": "intro_1",
+                "title": "文x文文文文文文文文",
+                "bullets": [
+                  "文文文文文文文文文",
+                  "文文文文文文文文文",
+                  "文文文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文。文文文文文文文文文文文文文。文文文文文文文文文，文文文文文文，文文文文文文文文。文文文文文文文文文文文文，文文文文文文文。文文文文文文文文文文文文文：文文文文文文文文文。文文文文文文 xx 文文文文，文文文文文文文文。文文文文文文文文文文文文文文文文，文文文文文文文，文文文文：文文文文文文文。",
+                "image_path": "xxx_x0_0",
+                "notes": null
+              },
+              {
+                "id": "intro_2",
+                "title": "文文文文x/x文文文",
+                "bullets": [
+                  "文文文文文文文文文",
+                  "文文文文文文文",
+                  "文文文文文文文文",
+                  "文文文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文文文文，文文文文文 xx 文文文文文文文文文文？文文文文文文文文文。文文 xx 文文文文文文文文：文文文文、文文文文、文文文文文文文文文。文文文文文文文文文文，文文文文文文文文文，文文文文文文文，文文文文文文！文文，文文文文文文文文文「文文文文」，文文文「文文文文」。",
+                "image_path": "xxx_x0_0",
+                "notes": null
+              },
+              {
+                "id": "intro_3",
+                "title": "xxx文文文文文文",
+                "bullets": [
+                  "文文文文文文文文",
+                  "文文文：文文文文文文",
+                  "文文文：文文文文文文",
+                  "文文文：文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文，文文文文文 xxx 文文文文文。文文文文文文文文文，文文文文文文文文文文文文。文文文文文文文文，文文文文文文文文文。文文文文文文文 xx、文文文文 xx 文文文文文 xx 文文文文文。文文文文文文文文「文文」、「文文」文「文文」文文文文文。x 文文文文，x 文文文文，x 文文文文。文文文文文文文文文文文文，文文文文文文文文文文！",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_4",
+                "title": "文文文文：文文文文文",
+                "bullets": [
+                  "x：文文文文文文文文文文",
+                  "x：文文文文文文，文文文文文文",
+                  "x：文文文文文文文文，文文文文",
+                  "xxx：文文、文文、文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文 xxx，文文文文文文文文。文文文 x 文文文文文文文文文文。文文文 x 文文文文文文，文文文文文文。文文文 x 文文文文文文文文，文文文文文文文。文文 x 文文文文文，x 文 x 文文文文文文文文文，x 文 x 文 x 文文文文文文文。文文文 xxx 文文文文文文文文文，文文文文文文文文文文文文文！",
+                "image_path": null,
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "tuning_siso",
+            "title": "文文文文文xxxx文文",
+            "slides": [
+              {
+                "id": "tuning_siso_1",
+                "title": "xxx文文文文文文文文文文",
+                "bullets": [
+                  "文文文文文文文文、文文文",
+                  "文文文文文文文文、文文文文",
+                  "x/x/x文文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文,文文xxx文文文，文文文文文x、x、x文文文文文，文文文文文文文文文文。文文文文文文文文文文、文文文、文文文文文文文文文。文文文文，文文文文文文，文文文文文文文文文文，文文文文文文文文。文文文文文文文文文文文，文文文文文、文文文、文文文文文文文文文文文文。文文文文文文文文文文，文文文文文文，文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "tuning_siso_2",
+                "title": "xxxxxxx-xxxxxxx文文文",
+                "bullets": [
+                  "文文文文文文文x文文",
+                  "文文文文文文x_x文文文文文文",
+                  "文文文文文文x_xx文文文文文x_xx",
+                  "文文文文xxx文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文，文文文文文文文文文文文？xxxxxxx-xxxxxxx文文文文文文文文文文文文文文文。文文文文文文文：文文文文文文文文文x文文，文文文文文文文文文文x_x，文文文文文文文文文文文文文文。文文文文，文文文文文文文x_xx文文文文文x_xx。文文文文文文，文文文文文文文文文文xxx文文文文文文。文文文文文文文文文文，文文文文文文文文文文文文文，文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "tuning_siso_3",
+                "title": "x-x文文文文文文文文文",
+                "bullets": [
+                  "x-x文文文0/0文文文，文文文文文",
+                  "文文文文文文文文文文文文文",
+                  "x-x文文文文文，文文文文",
+                  "文文文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文xxxxxxx-xxxxxxx文文文文，文文文文文文文。文文文文文文文文文0/0文文文，文文文文文文文文文文00%文文文文文文，文文文文文文文文文文文文文文文。文文，文文文文文文文文文文文文，x-x文文文文文文文文文文。文文，文文文文文：x-x文文文文文文文文文文文文文，文文文文文文文。文文文文文文文文文文文，文文文xxxxxx文xxxxxx文文文文文，文文文文文文文文文文文，文文文文文文文。文文，文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "tuning_siso_4",
+                "title": "xxxx文文文文：文文文文文",
+                "bullets": [
+                  "文x文文文文文文文文文文文",
+                  "文文x文文文文文文文文文文文文文文",
+                  "文文x文文文文文文文文文文文",
+                  "文文文文文文x/xx/xxx文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文，文文文文xxxx文文文文文文文，文文文文文文文文。文文文文文文文文x文文文文文，文文文文文文文文文文文。文文，文文x文文文文文文文文文文文文，文文文文文文文文文文文。文文，文文x文文文，文文文文文文文文文文文文，文文文文文、文文文文，文文文文文文文文。文文x文xx文文xxx文文文文文，文文文文文文文文文文文文文文文文文文文文文文文文文文，文文文xxxxxx文文文文文文文文文。",
+                "image_path": "xxx_x0_0",
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "advanced_practical",
+            "title": "文文文文文文文文文",
+            "slides": [
+              {
+                "id": "advanced_practical_1",
+                "title": "xxxx 文文：文文文文文文文文",
+                "bullets": [
+                  "xxxx 文文：文文文文文文",
+                  "文文文文：文文文文文文文",
+                  "文文文 xxx：文文文文 xxxx",
+                  "文文文文：文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文,文文文文文文文文文文文文文文文文 xxxx 文文。文文文文文文，文文文文文文 xxxx，文文文文文文文文文。文文文文文文文文文文，x 文文 x 文文文文文文文文文文文。文文文文文文文，文文文文文文文文『文文文文』。文文文文文文文文文文文文文文文文文文文文，文文文文文文文 xxxx 文文，文文文文文文文文 xxxx 文文，文文文文 xxx 文文文。文文文文文文文文文文文文文，文文文文文，文文文文文文文。文文文 xxx 文文文文文文文文 xxxx 文文文文 xxxx 文文，文文文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "advanced_practical_2",
+                "title": "文文文文：文文文文文文文文",
+                "bullets": [
+                  "文文文文文：文文文文文、文文文文",
+                  "文文文文：文文文文文文文文文文文",
+                  "文文文：文文文文文 (文)",
+                  "文文文：文文文文文 (文)"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文，文文文文文文文文文文文文：文文 xxx 文文。文文文文文文『文文文文』文文文文『文文』，文文文文文，文文文文，文文文文文文文文文。文文文文文文文文文文文文文，文文文文文文文文文文文文文文，文文文文文文。文文文文文文文文『文文文文』文『文文文文文文』。文文文文文文『文文文』文『文文文』。文文文文文文，文文文文文文，文文文文；文文文文文文文文文文，文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文。",
+                "image_path": "xxx_x0_0",
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "_outro",
+            "title": "文文文文",
+            "slides": [
+              {
+                "id": "_outro_1",
+                "title": "文文文文",
+                "bullets": [],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "image_path": null,
+                "narration": "文文文文文文文文文文文, 文文文文文文文。文文文文文, 文文文文文文文文文文 文文文文文文文文。文文文文文文文 xxxxxx.xx 文文, 文文文文文。",
+                "bg_type": "outro",
+                "section_title": "",
+                "outro_speaker": "文文文",
+                "outro_org": "文文文文文文文文 文文文文文文文文",
+                "outro_url": "xxxxxx.xx",
+                "outro_show_qr": true,
+                "outro_youtube_url": "xxxxx://xxx.xxxxxxx.xxx/@xxxxxx"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "quick_storyteller",
+      "source": "jobs/c6c82ea51d07/deck.json (subset + length-preserving anonymized)",
+      "options": {
+        "length_mode": "quick",
+        "narration_style": null
+      },
+      "deck": {
+        "deck_title": "xxxxxxx xx 文文文文文文文文",
+        "source_type": "url",
+        "source_meta": {
+          "title": "xxxxxxx xx xxxxxxx xxxx & xxxx xxxx x xxxxxxxxx xxxx xxxxx xxxxx xxxxx xxx - xxxxxxx",
+          "format": null,
+          "url": "xxxxx://xxx.xxxxxxx.xxx/xxxxx?x=xxx0-xxx-xx",
+          "chars": 78
+        },
+        "sections": [
+          {
+            "id": "intro",
+            "title": "文文文文文文",
+            "slides": [
+              {
+                "id": "intro_1",
+                "title": "文文文文：文文文文",
+                "bullets": [
+                  "文文文文文文文文",
+                  "文文文文文文文文",
+                  "文文文文文文文文",
+                  "文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文,文文文文文。文文文文文文文「xxxxxxx xx 文文文文文文文文」文文文文，文文文「文文文文文文」。文文文文文文文，文文文文文文文文文文文文文文文文文，文文文文文文文文文文文。文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。",
+                "notes": null
+              },
+              {
+                "id": "intro_2",
+                "title": "文文文文：文文文文",
+                "bullets": [
+                  "文文文文文文文",
+                  "文文文文文文文",
+                  "文文文文文文文",
+                  "文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文文文，文文文文文文文文文文文文。文文文文，文文文文文文文文文文文，文文文文文文文文，文文文文文文文文文文。文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文，文文文文文文文文文。文文文文文文文文文，文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文。",
+                "notes": null
+              },
+              {
+                "id": "intro_3",
+                "title": "文文文文文文文文",
+                "bullets": [
+                  "文文文文文文文",
+                  "文文文文文文文",
+                  "文文文文文文文",
+                  "文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文。文文，文文文文文文文文文文文文文文文文文文文。文文，文文文文文文文文文文，文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文文文文，文文文文。文文，文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文。",
+                "notes": null
+              },
+              {
+                "id": "intro_4",
+                "title": "文文文文文文文文文",
+                "bullets": [
+                  "文文文文文文文",
+                  "文文文文文文",
+                  "文文文文文文",
+                  "文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文文，文文文文文文文文文文，文文文文文文文文文文文文文文文文文文文。文文，文文文文文文文文、文文文文文文文，文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文、文文文文文文文文文。文文文文文文，文文文文文文文文文文文文文文文 xxxxxxx 文 xx 文文文文文文。",
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "core_tech",
+            "title": "xx 文文文 xxx",
+            "slides": [
+              {
+                "id": "core_tech_1",
+                "title": "文文文文：文文文文文文",
+                "bullets": [
+                  "xx 文文：文文文文文",
+                  "xxxx 文文：文文文文文",
+                  "xxx 文文：文文文文文文",
+                  "xxxxxxx 文文：文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文,文文文文文文文：xx 文文文 xxx。文文文文，文文文文文文文文文文文文文文文文文文文文文文文文文文。文文文文文文 xx 文文文文文文文文文文文文文文，文文文文 xxxx 文文文文文文文文文文文文文，文文 xxx 文文文文文 xxxx 文文文文文文文文文文文文文文文。文文，文文文文文文文文 xxxxxxx 文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文。",
+                "notes": null
+              },
+              {
+                "id": "core_tech_2",
+                "title": "xx 文文：文文文文文",
+                "bullets": [
+                  "文文 (x) 文：文文文文文文",
+                  "文文 (x) 文：文文文文文文",
+                  "文文文文：文文文文",
+                  "文文文文：文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "xx 文文文文文文文文文文，文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文，文文文文，文文文文文文文。文文文文文文文文文文文文文文文，文文文文文文，文文文文文文文文文，文文文文文文。文文文文文，文文文文文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文。",
+                "notes": null
+              },
+              {
+                "id": "core_tech_3",
+                "title": "xxxx 文文文 xxx",
+                "bullets": [
+                  "xxxx：文文文文文文文",
+                  "xxx：文文文文文文",
+                  "文文文文：文文文文",
+                  "文文文文：文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "xxxx 文文文文文文文文文文文文，文文文文文文文文文文文。文文文文文文文文文文，xxx，文文文文文文文文文文文，文文文文文文。xxx 文文文文文文「文文文文」，文文文文文文文文文文文文文，文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文，文文文文文文文文文文文文文。",
+                "notes": null
+              },
+              {
+                "id": "core_tech_4",
+                "title": "xxxxxxx 文文文文文",
+                "bullets": [
+                  "xxxxxxx：文文文文文文",
+                  "文文文：文文文文文文",
+                  "文文文文：文文文文文文",
+                  "文文文文：文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文，xxxxxxx 文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文文，文文文文文文文文文。文文文文文文 xxxxxxx 文文文文 xx 文文文文文文文文，文文文文文文文 xxxx 文文文文文。文文文，xxxxxxx 文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文文。文文文文文文文，文文文文文文文文文文文文。",
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "conclusion",
+            "title": "文文文文文文文",
+            "slides": [
+              {
+                "id": "conclusion_1",
+                "title": "文文文文：文文文文文",
+                "bullets": [
+                  "文文文文文文文文",
+                  "文文文文文文文文",
+                  "文文文文文文文文",
+                  "文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文,文文，文文文！文文文文文文文文文文文文文：「文文文文文文文」。文文文文文文文文，文文文文文文文 xxxxxxx、xx 文文文文，文文 xxxx 文文文 xxx 文文。文文，文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文。文文文文文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文文。文文文文文文文文文文文文，文文文文文文文文文文文文文文文文。",
+                "notes": null
+              },
+              {
+                "id": "conclusion_2",
+                "title": "文文文文文文文文文",
+                "bullets": [
+                  "xxxxxxx文文文文文文",
+                  "xx文文文文文文",
+                  "xxxx文xxx文文文文",
+                  "文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文，文文文文文文文文文文文文文文文文文文文文文。xxxxxxx 文文文文文文「文文」文文文，文文文文文文文文文，文文文 xx 文文文文文文文文文文文文文文文。文 xxxx 文文文 xxx 文文文文文文，文文文文文文文文文文文文文，文文文文文文文文文文文文文文文文。文文文文文文文文文文文，文文文文文，文文文文文文文文文，文文文文文文文文文文文文文文文文，文文文文文文文文文文文文文文文。",
+                "notes": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "ultra_quick_storyteller",
+      "source": "jobs/113ee97a808d/deck.json (subset + length-preserving anonymized)",
+      "options": {
+        "length_mode": "ultra_quick",
+        "narration_style": null
+      },
+      "deck": {
+        "deck_title": "xxxxx xxxxxxxxxxx: 文xxxxxx文文，文文文文文",
+        "source_type": "document",
+        "source_meta": {
+          "title": "xxxxx_xxxxxxxxxxx_文文文文",
+          "format": "xxx",
+          "url": null,
+          "chars": 11818
+        },
+        "sections": [
+          {
+            "id": "intro",
+            "title": "文文文文文xxxxx？",
+            "slides": [
+              {
+                "id": "intro_1",
+                "title": "文文文文文文文文文",
+                "bullets": [
+                  "文文文文文文文文xx文文",
+                  "文文、文文文文文文文文",
+                  "xxxxx：文文文文，文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文,文文文文文文文文文文文？文文文xxxxxx文文文文，文文文文文文文文、文文、文文文。文文xxxxx，文文文文文文文文！文文文文文文文文文，文文文文文文文，文文文文文文文文文文文，文文文文文文，文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_2",
+                "title": "xxxxx：xx文文文文文文文",
+                "bullets": [
+                  "文文xx文「文文文文」",
+                  "文文文文、文文文文文",
+                  "xxxxxx文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文，xxxxx文文文文xx文文文「文文文文」。文文文文文文文，文文文文文文文文文文文，文文文文文文文文。xxxxx文文文文，文文文文文文、文文文文文文文文文文文，xxxxxx文文文文文文文，文文文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "intro_3",
+                "title": "xxxxx文xxxxxx，文文文！",
+                "bullets": [
+                  "xxxxxx：文文文文文文文",
+                  "xxxxx：文文、文文文文文文文文",
+                  "xxxxx文「文文文」，xxxxxx文「文文文文」"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文文文，xxxxx文文文文文文文xxxxxx文文文文文文？文文文文，xxxxxx文文文文文文文文文文文文文文，文文文文文文文文。文xxxxx文文文文文文文文，文文文文文文文、文文文文文文文文文文文。xxxxxx文「文文xxxxxx文文文」，文xxxxx文文「文xxxxxx文文文文」。",
+                "image_path": null,
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "how_it_works",
+            "title": "xxxxx文文文文？",
+            "slides": [
+              {
+                "id": "how_it_works_1",
+                "title": "xxxxx.xx文文文",
+                "bullets": [
+                  "xxxxx.xx文文文文文，文xx文「文文文文」。",
+                  "文文「xxxx xxxxxxxxxxx」文「xxxxxxxx xxxx」。",
+                  "xxxxxxxxxxx文文文，xxxx文文文文文。"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "xxxxx文文文文xxxxx.xx文文，文文文文文文文文文文文文文文文。文文文文xxxx xxxxxxxxxxx，文文文文文文文文文。文文文xxxxxxxx xxxx，文文文文文文文文。xxxxxx文文文文文，文文文文文文文文文文，文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "how_it_works_2",
+                "title": "文文文文文：文文xxxxx",
+                "bullets": [
+                  "xxxxxxxx（文文、文文）文文文文，文文文文xxxxx。",
+                  "xxxxx.xx文文文文文文，文文文文文文文文文文文。",
+                  "文文文文（文文、文文）文文文文文文文文。"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "xxxxx文文文文xxxxx，文文文文「文文文文文」。xxxxxx文文文文文xxxxxxxx，文文文xxxxx。文文文文文文，文文文xxxxx.xx文文文文文。文文文文文文文文，文文文文文文文文文文文。文文文文文文文文，文文文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "how_it_works_3",
+                "title": "xxxxxxxxxxx：文文xxxxx文文文",
+                "bullets": [
+                  "xxxxxx文文xxxxxxxxxxx文文文文文文xxxxx。",
+                  "xxxxxxxxxxx文文文文文「文文文」、「文文文」文「文文文」。",
+                  "文文文文文文文文xxxxx文文文文文文文。"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "xxxxx文文文文文文，文文文文「xxxxxxxxxxx」。xxxxxx文文文xxxxx文文，文文文文xxxxxxxxxxx文文文文。文文，xxxxxxxxxxx文文文xx文「文文文文文」，文文文文文文「文文文」、「文文文」文「文文文」，文文xxxxxx文文文文文文文文文。",
+                "image_path": null,
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "author_your_own",
+            "title": "文文文文文文文xxxxx",
+            "slides": [
+              {
+                "id": "author_your_own_1",
+                "title": "文文xxxxx：文文文文文文文",
+                "bullets": [
+                  "文文文文文文文文xxxxx.xx",
+                  "文文 xxxx xxxxxxxxxxx",
+                  "xxxxxxxxxxx 文文文文文文文文文",
+                  "文文 xxxxxx 文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文文文文xxxxx，文文文文文文文文文，文文xxxxx.xx文文文xxxx xxxxxxxxxxx。文文xxxxxxxxxxx文文文，文文xxxxx文「文文文」，文文文文文文文文文文文，文xxxxxx文文文文文文文！",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "author_your_own_2",
+                "title": "文文文文文文文文文",
+                "bullets": [
+                  "文 xxxxxxxx 文文文文文文",
+                  "文文文文，文文文文",
+                  "文文文文文文文 xxx 文",
+                  "文文 xxx 文文，xxxxx.xx 文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文文xxxxxxxxxxx文，文文文xxxxxxxx文文xxxxx文文文文，文文文文文，文文文文。文文文，文文文文文文文文文xxx文。文文文文文xxx文文文文，xxxxx.xx文文文文文，xxxxxx文文文文。",
+                "image_path": null,
+                "notes": null
+              },
+              {
+                "id": "author_your_own_3",
+                "title": "文文、文文文文文",
+                "bullets": [
+                  "文文 xxx 文文文文 xxxxx",
+                  "文文文文文文文文",
+                  "文文文文文文 xxxxxxxxxxx",
+                  "文文文文文文文文文文"
+                ],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "narration": "文文xxx文文文文文，文文文文，文文xxxxxx文文文文文文文xxxxx。文文文文文文，文文文文文xxxxxxxxxxx，文xxxxxx文文文，文文xxxxx文文文文文。",
+                "image_path": null,
+                "notes": null
+              }
+            ]
+          },
+          {
+            "id": "_outro",
+            "title": "文文文文",
+            "slides": [
+              {
+                "id": "_outro_1",
+                "title": "文文文文",
+                "bullets": [],
+                "code_snippet": null,
+                "code_lang": null,
+                "file_path": null,
+                "image_path": null,
+                "narration": "文文文文文文文文文文文, 文文文文文文文。文文文文文 文文文, 文文文文文文文文文文 · 文文文文文文文文 · xxxxxx。文文文文文文文 xxxxxx.xx 文文, 文文文文文。",
+                "bg_type": "outro",
+                "section_title": "",
+                "outro_speaker": "文文文 文文文",
+                "outro_org": "文文文文文文文文 · 文文文文文文文文 · xxxxxx",
+                "outro_url": "xxxxxx.xx",
+                "outro_show_qr": false,
+                "outro_youtube_url": "xxxxx://xxx.xxxxxxx.xxx/@xxxxxx"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sys
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -27,12 +28,17 @@ from measure_narration_truncation import (  # noqa: E402
     collect_records,
     cue_length_distribution,
     format_markdown_report,
+    load_fixture_records,
     load_options_for_deck,
+    make_record,
     measure_deck,
     resolve_length_mode,
     resolve_narration_style,
     split_cues,
 )
+
+# N2 committed eval fixture (匿名化代表性 deck, CI 可重現截斷率測量)
+_FIXTURE_FILE = Path(__file__).resolve().parent / "fixtures" / "narration" / "decks.json"
 
 
 # --------------------------------------------------------------------------- #
@@ -395,3 +401,161 @@ class TestCollectRecords:
         records = collect_records([tmp_path / "jobs"], root=tmp_path, cue_budget=40)
         assert len(records) == 1
         assert records[0]["source"] == "jobs/good/deck.json"
+
+
+# --------------------------------------------------------------------------- #
+# N2 — make_record 共用 helper + fixtures 模式
+# --------------------------------------------------------------------------- #
+class TestMakeRecord:
+    def test_resolves_options_and_measures(self):
+        deck = {"sections": [{"id": "s", "slides": [{"id": "a", "narration": "字" * 60 + "。"}]}]}
+        rec = make_record(deck, {"length_mode": "lecture", "narration_style": "wuxia"},
+                          "x/y", cue_budget=40)
+        assert rec["length_mode"] == "lecture"
+        assert rec["narration_style"] == "wuxia"
+        assert rec["source"] == "x/y"
+        assert rec["measure"]["over_cue_count"] == 1
+
+    def test_none_options_defaults_and_slash_normalized(self):
+        rec = make_record({"sections": []}, None, "a\\b", cue_budget=40)
+        assert rec["length_mode"] == DEFAULT_LENGTH_MODE
+        assert rec["narration_style"] == DEFAULT_NARRATION_STYLE
+        assert rec["source"] == "a/b"   # 反斜線 → forward slash (跟 build_record 一致)
+
+
+class TestLoadFixtureRecords:
+    def _write(self, tmp_path, doc):
+        p = tmp_path / "decks.json"
+        p.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return p
+
+    def test_happy_path_embedded_options(self, tmp_path):
+        doc = {"fixtures": [
+            {"name": "a", "options": {"length_mode": "lecture", "narration_style": "wuxia"},
+             "deck": {"sections": [{"id": "s", "slides": [{"id": "x", "narration": "句。"}]}]}},
+        ]}
+        recs = load_fixture_records(self._write(tmp_path, doc), cue_budget=40)
+        assert len(recs) == 1
+        assert recs[0]["length_mode"] == "lecture"
+        assert recs[0]["narration_style"] == "wuxia"
+        assert recs[0]["source"] == "a"
+        assert recs[0]["measure"]["total_cues"] == 1
+
+    def test_missing_file_returns_empty(self, tmp_path):
+        assert load_fixture_records(tmp_path / "nope.json", cue_budget=40) == []
+
+    def test_bad_json_returns_empty(self, tmp_path):
+        p = tmp_path / "decks.json"
+        p.write_text("{broken", encoding="utf-8")
+        assert load_fixture_records(p, cue_budget=40) == []
+
+    def test_non_dict_top_returns_empty(self, tmp_path):
+        assert load_fixture_records(self._write(tmp_path, [1, 2, 3]), cue_budget=40) == []
+
+    def test_skips_non_dict_entry_and_missing_or_bad_deck(self, tmp_path):
+        doc = {"fixtures": [
+            "oops",                                   # 非 dict entry
+            {"name": "no_deck"},                      # 缺 deck
+            {"name": "bad_deck", "deck": [1, 2]},     # deck 非 dict
+            {"name": "ok", "deck": {"sections": [
+                {"id": "s", "slides": [{"id": "x", "narration": "句。"}]}]}},
+        ]}
+        recs = load_fixture_records(self._write(tmp_path, doc), cue_budget=40)
+        assert [r["source"] for r in recs] == ["ok"]
+
+    def test_options_not_dict_falls_back_to_defaults(self, tmp_path):
+        doc = {"fixtures": [{"name": "a", "options": "oops", "deck": {"sections": []}}]}
+        recs = load_fixture_records(self._write(tmp_path, doc), cue_budget=40)
+        assert recs[0]["length_mode"] == DEFAULT_LENGTH_MODE
+        assert recs[0]["narration_style"] == DEFAULT_NARRATION_STYLE
+
+    def test_sorted_by_source_deterministic(self, tmp_path):
+        doc = {"fixtures": [
+            {"name": "b", "deck": {"sections": []}},
+            {"name": "a", "deck": {"sections": []}},
+        ]}
+        recs = load_fixture_records(self._write(tmp_path, doc), cue_budget=40)
+        assert [r["source"] for r in recs] == ["a", "b"]
+
+    def test_name_fallback_to_source_then_fixture(self, tmp_path):
+        doc = {"fixtures": [
+            {"source": "src/x", "deck": {"sections": []}},   # 無 name → 用 source
+            {"deck": {"sections": []}},                       # 都無 → 'fixture'
+        ]}
+        recs = load_fixture_records(self._write(tmp_path, doc), cue_budget=40)
+        assert sorted(r["source"] for r in recs) == ["fixture", "src/x"]
+
+
+class TestCommittedFixture:
+    """鎖 tests/fixtures/narration/decks.json — N2 可重現 baseline.
+
+    這組數字是刻意 locked 的 regression baseline. N3 (build_srt 加 per-cue 上限)
+    若重生 fixture, 數字會變動 → 測試紅, 提醒人工確認「修前 vs 修後」差異是預期的,
+    而不是無聲漂移. fixture 是匿名化的真實 deck subset (CI 無 jobs 資料 / 無
+    Gemini 也能逐字重現).
+    """
+    def test_file_exists_and_parses(self):
+        assert _FIXTURE_FILE.is_file()
+        data = json.loads(_FIXTURE_FILE.read_text(encoding="utf-8"))
+        assert isinstance(data.get("fixtures"), list)
+        assert len(data["fixtures"]) == 4
+
+    def test_four_groups_present(self):
+        recs = load_fixture_records(_FIXTURE_FILE, cue_budget=40)
+        groups = {(r["length_mode"], r["narration_style"]) for r in recs}
+        assert groups == {
+            ("lecture", "storyteller"),
+            ("quick", "comedy"),
+            ("quick", "storyteller"),
+            ("ultra_quick", "storyteller"),
+        }
+
+    def test_aggregate_numbers_locked(self):
+        recs = load_fixture_records(_FIXTURE_FILE, cue_budget=40)
+        o = aggregate(recs)["overall"]
+        assert o["deck_count"] == 4
+        assert o["total_slides"] == 39
+        assert o["total_cues"] == 196
+        assert o["over_cue_count"] == 61      # cue_budget 40
+        assert o["over_slide_count"] == 31
+        assert o["max_cue_len"] == 105
+
+    def test_reproducible_across_two_loads(self):
+        a = aggregate(load_fixture_records(_FIXTURE_FILE, cue_budget=40))["overall"]
+        b = aggregate(load_fixture_records(_FIXTURE_FILE, cue_budget=40))["overall"]
+        assert a == b
+
+    def test_narration_anonymized_length_preserving_scheme(self):
+        # 所有 ascii 字母 → 'x', 數字 → '0', 非 ascii 表意文字 → '文'.
+        # 鎖「無真實教材內容外洩」+「length-preserving (cue 字數測量仍代表真實 deck)」.
+        data = json.loads(_FIXTURE_FILE.read_text(encoding="utf-8"))
+        for fx in data["fixtures"]:
+            for sec in fx["deck"].get("sections", []):
+                for sl in sec.get("slides", []):
+                    for ch in (sl.get("narration") or ""):
+                        if ch.isascii():
+                            if ch.isalpha():
+                                assert ch == "x"
+                            elif ch.isdigit():
+                                assert ch == "0"
+                        elif unicodedata.category(ch).startswith("L"):
+                            assert ch == "文"
+
+    def test_no_real_course_terms_leaked(self):
+        blob = _FIXTURE_FILE.read_text(encoding="utf-8")
+        for term in ("劉瑞弘", "勤益", "PID", "材料力學", "Arduino"):
+            assert term not in blob
+
+    def test_cover_outro_sections_present_but_skipped(self):
+        data = json.loads(_FIXTURE_FILE.read_text(encoding="utf-8"))
+        fx = next(f for f in data["fixtures"] if any(
+            str(s.get("id", "")).startswith("_") for s in f["deck"].get("sections", [])))
+        deck = fx["deck"]
+        underscore_slides = sum(len(s.get("slides") or []) for s in deck["sections"]
+                                if str(s.get("id", "")).startswith("_"))
+        body_slides = sum(len(s.get("slides") or []) for s in deck["sections"]
+                          if not str(s.get("id", "")).startswith("_"))
+        assert underscore_slides >= 1   # 有 cover/outro 測資
+        lm = (fx.get("options") or {}).get("length_mode") or DEFAULT_LENGTH_MODE
+        m = measure_deck(deck, length_mode=lm, cue_budget=40)
+        assert m["total_slides"] == body_slides   # _ section 完全沒算進 measure

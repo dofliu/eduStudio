@@ -80,9 +80,13 @@
   + 多 threshold 分布, 輸出 [docs/narration-truncation-report.md](docs/narration-truncation-report.md).
   **真實數字: 19 deck / 2423 cue, over-cue ratio (>40 字) = 44.9%** (舊估「~22%」偏低一半),
   over-slide ratio 88%. +43 tests (1659→1702). 純離線, 復用 narration_validator + srt._SENTENCE_SPLIT.
-- [ ] **N2 可重現 eval fixture**: 從既有 jobs 抽 3~5 個代表性 deck (含過長
-  narration 的) 做 anonymized fixture 進 `tests/fixtures/narration/`, 讓截斷率
-  測量能在 CI 重現 (無 Gemini). N1 工具加 `--fixtures` 模式. +tests.
+- [x] **N2 可重現 eval fixture** (Phase 2 iter 2, 2026-05-28): 從既有 jobs 抽 4 個
+  代表性 deck (lecture/quick/ultra_quick × storyteller/comedy, 含 _cover/_outro)
+  做 length-preserving 匿名化 fixture 進 `tests/fixtures/narration/decks.json`
+  (CJK→文 / ASCII→x / 數字→0, cue 切分與字數逐字不變 → 截斷率在 CI 無 Gemini
+  逐字重現). 工具加 `make_record` 共用 helper + `load_fixture_records` +
+  `--fixtures` CLI 模式. +17 tests (1702→1719). locked baseline: 4 deck / 39
+  slide / 196 cue / over-cue 61 (budget 40) / over-slide 31.
 - [ ] **N3 確定性後處理 (治本核心)**: `build_srt` 加 per-cue 字數上限 — 過長句
   按逗號/分號/語意再切 (greedy 裝箱到 ≤ 字幕帶可容字數), 時長按字數比例細分.
   不破壞語意 (只在標點切, 不硬斷詞). 對齊 `_draw_subtitle_strip` 實際可容字數

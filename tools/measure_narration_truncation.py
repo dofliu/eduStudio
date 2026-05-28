@@ -64,6 +64,9 @@ DEFAULT_CUE_CHAR_BUDGET = 40
 # cue 長度分布 threshold — 讓 N3 / 用戶有資料挑 per-cue 上限
 CUE_DISTRIBUTION_THRESHOLDS = (20, 30, 40, 50, 60, 80)
 
+# N2 eval fixture 預設路徑 (匿名化的代表性 deck, CI 可重現截斷率測量)
+DEFAULT_FIXTURES_PATH = "tests/fixtures/narration/decks.json"
+
 # 沒在 state.json 標 length_mode / narration_style 時的預設 (對齊 preset() 與
 # JobOptions schema 的隱含預設, 否則 group 標籤跟實際渲染行為對不上)
 DEFAULT_LENGTH_MODE = "quick"
@@ -396,6 +399,22 @@ def load_options_for_deck(deck_path: Path) -> dict:
     return opts if isinstance(opts, dict) else {}
 
 
+def make_record(deck: dict, options: dict | None, source: str, *, cue_budget: int) -> dict:
+    """從 deck dict + options 組一筆 record (磁碟掃描與 fixture 模式共用).
+
+    把 length_mode / narration_style 解析 + measure_deck 串起來, 讓
+    build_record (讀 state.json) 與 load_fixture_records (內嵌 options) 走同一條
+    路徑, 不各自重算 — 否則兩邊預設值 drift 會讓 CI fixture 數字跟實機掃描對不上.
+    """
+    length_mode = resolve_length_mode(options)
+    return {
+        "length_mode": length_mode,
+        "narration_style": resolve_narration_style(options),
+        "source": source.replace("\\", "/"),
+        "measure": measure_deck(deck, length_mode=length_mode, cue_budget=cue_budget),
+    }
+
+
 def build_record(deck_path: Path, *, root: Path, cue_budget: int) -> dict | None:
     """讀一個 deck.json + 旁邊 options, 回 record. 壞檔回 None."""
     try:
@@ -404,18 +423,44 @@ def build_record(deck_path: Path, *, root: Path, cue_budget: int) -> dict | None
         return None
     if not isinstance(deck, dict):
         return None
-    options = load_options_for_deck(deck_path)
-    length_mode = resolve_length_mode(options)
     try:
         source = str(deck_path.relative_to(root))
     except ValueError:
         source = str(deck_path)
-    return {
-        "length_mode": length_mode,
-        "narration_style": resolve_narration_style(options),
-        "source": source.replace("\\", "/"),
-        "measure": measure_deck(deck, length_mode=length_mode, cue_budget=cue_budget),
-    }
+    return make_record(
+        deck, load_options_for_deck(deck_path), source, cue_budget=cue_budget,
+    )
+
+
+def load_fixture_records(path: Path, *, cue_budget: int) -> list[dict]:
+    """讀 N2 eval fixture (匿名化的代表性 deck), 回 record list (依 source 排序).
+
+    fixture 檔格式: ``{"fixtures": [{"name", "options", "deck"}, ...]}``. options
+    內嵌 (不讀旁邊 state.json), 讓 CI 在無 jobs 資料 / 無 Gemini 下也能逐字重現
+    截斷率測量. fixture 的 narration 經 length-preserving 匿名化, cue 切分與字數
+    跟原 deck 相同, 故數字具代表性. 壞檔 / 格式不符 → 回空 list (跟 collect_records
+    對壞檔的容忍一致, 不讓 CI 因 fixture 格式炸掉整個測量).
+    """
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    records: list[dict] = []
+    for entry in data.get("fixtures") or []:
+        if not isinstance(entry, dict):
+            continue
+        deck = entry.get("deck")
+        if not isinstance(deck, dict):
+            continue
+        source = str(entry.get("name") or entry.get("source") or "fixture")
+        opts = entry.get("options")
+        records.append(make_record(
+            deck, opts if isinstance(opts, dict) else {}, source, cue_budget=cue_budget,
+        ))
+    records.sort(key=lambda r: r["source"])
+    return records
 
 
 def collect_records(
@@ -449,12 +494,21 @@ def main(argv: list[str] | None = None) -> int:
                     help="markdown 報告輸出路徑 ('-' = stdout)")
     ap.add_argument("--cue-budget", type=int, default=DEFAULT_CUE_CHAR_BUDGET,
                     help=f"per-cue 字數上限 (provisional, 預設 {DEFAULT_CUE_CHAR_BUDGET})")
+    ap.add_argument("--fixtures", nargs="?", const=DEFAULT_FIXTURES_PATH, default=None,
+                    help=f"改讀 N2 eval fixture (CI 可重現, 無 Gemini / 無 jobs 資料); "
+                         f"不帶值用預設 {DEFAULT_FIXTURES_PATH}")
     ap.add_argument("--date", default="", help="報告產出日期字串 (預設留空)")
     ap.add_argument("--quiet", action="store_true", help="不印 stderr 摘要")
     args = ap.parse_args(argv)
 
-    dirs = [Path(args.jobs_dir), Path(args.output_dir)]
-    records = collect_records(dirs, root=ROOT, cue_budget=args.cue_budget)
+    if args.fixtures:
+        fixtures_path = Path(args.fixtures)
+        if not fixtures_path.is_absolute():
+            fixtures_path = ROOT / fixtures_path
+        records = load_fixture_records(fixtures_path, cue_budget=args.cue_budget)
+    else:
+        dirs = [Path(args.jobs_dir), Path(args.output_dir)]
+        records = collect_records(dirs, root=ROOT, cue_budget=args.cue_budget)
     agg = aggregate(records)
     report = format_markdown_report(
         agg, cue_budget=args.cue_budget, generated_at=args.date,

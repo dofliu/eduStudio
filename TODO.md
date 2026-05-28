@@ -87,11 +87,14 @@
   逐字重現). 工具加 `make_record` 共用 helper + `load_fixture_records` +
   `--fixtures` CLI 模式. +17 tests (1702→1719). locked baseline: 4 deck / 39
   slide / 196 cue / over-cue 61 (budget 40) / over-slide 31.
-- [ ] **N3 確定性後處理 (治本核心)**: `build_srt` 加 per-cue 字數上限 — 過長句
-  按逗號/分號/語意再切 (greedy 裝箱到 ≤ 字幕帶可容字數), 時長按字數比例細分.
-  不破壞語意 (只在標點切, 不硬斷詞). 對齊 `_draw_subtitle_strip` 實際可容字數
-  常數. 用 N1 工具量「修前 vs 修後」per-cue 溢出率. 改 `core/srt.py` (+ 可能
-  一個 helper). +tests (空句/單句/超長句/中英混/標點密集).
+- [x] **N3 確定性後處理 (治本核心)** (Phase 2 iter 3, 2026-05-29): `core/srt.py`
+  加 `SUBTITLE_CUE_CHAR_BUDGET=40` + `_split_long_cue` (次級標點 ，、；：,;: greedy
+  裝箱到 ≤ budget, 不硬斷詞) + `narration_to_cues` (切分單一真實來源), `build_srt`
+  加 `max_cue_chars` kwarg. 量修前 vs 修後 (N2 fixture): over-cue **61 (31.1%) → 0
+  (0.0%)**, max cue **105 → 40 字**, cue 196 → 265 (細). +14 tests (1719→1733).
+  - [ ] **N3-verify (下一輪)**: 把 `tools/measure_narration_truncation.py` 的
+    `split_cues` 接 `narration_to_cues` → 工具/CI 直接量修後; 同步更新 N2 locked
+    baseline 數字 (test_measure_narration_truncation TestCommittedFixture) + 重生報告.
 - [ ] **N4 Gemini prompt 強化提案 (GATE — 不自動跑)**: 寫
   `docs/narration-prompt-tuning-proposal.md` — prompt diff 草稿 (強制字數 +
   範例) + 建議的 A/B 驗證流程. **不自主呼叫 Gemini**, STOP 等用戶 review +

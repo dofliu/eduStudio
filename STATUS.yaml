@@ -3,8 +3,9 @@ name_zh: 教學影片自動生成平台
 category: edtech
 progress: 99
 status: active
-last_updated: "2026-05-28"
-next_milestone: "Phase 2 iter 2 (N2) 完成 (2026-05-28) — narration 截斷可重現 eval fixture: 從既有 jobs 抽 4 個代表性 deck (lecture/storyteller, quick/comedy 含 _cover/_outro, quick/storyteller, ultra_quick/storyteller) body 取前 ~10 slide, narration/title/bullet/code/路徑全經 length-preserving 匿名化 (CJK→文 / ASCII字母→x / 數字→0, 保留 。！？!? 與標點空白 → cue 切分與字數跟原 deck 逐字相同), 寫進 tests/fixtures/narration/decks.json (50KB, 不含真實教材內容). 工具加 make_record 共用 helper (build_record 與 fixture 走同路徑不 drift) + load_fixture_records + --fixtures CLI 模式 → CI 無 Gemini / 無 jobs 資料也能逐字重現截斷率測量. locked baseline: 4 deck / 39 slide / 196 cue / over-cue 61 (budget 40, 31.1%) / over-slide 31 / max-cue 105. +17 tests (1702→1719). 下一輪 (Phase 2 iter 3) = N3 確定性後處理治本核心: core/srt.py build_srt 加 per-cue 字數上限, 過長句按逗號/分號/語意再切 (greedy 裝箱), 時長按字數比例細分, 對齊 _draw_subtitle_strip 真實可容字數 — 真實截斷發生在字幕帶視覺層, 單一 cue 目前無字數上限. 改完用 N2 fixture (重生 → 數字下降) 量修前 vs 修後. 之後 N4 Gemini prompt 提案 (GATE 不自動跑). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
+last_updated: "2026-05-29"
+next_milestone: "Phase 2 iter 3 (N3) 完成 (2026-05-29) — narration 截斷治本核心: core/srt.py 加 per-cue 字數上限. 真實截斷發生在字幕帶視覺層 (ffmpeg subtitles FontSize=22/1080p 把過長 cue wrap 出多行頂出 180px 字幕帶), build_srt 雖按終止標點切句但單一 cue 無字數上限. 治本: (1) SUBTITLE_CUE_CHAR_BUDGET=40 常數 (≈字幕帶 2 行 CJK, 跟 N1 工具 DEFAULT_CUE_CHAR_BUDGET 同值, 文件註明兩邊一起改不漂移); (2) _split_long_cue 把過長句在次級標點 (，、；：,;: lookbehind 保留標點+其後空白, 英文逗號後空白不被吃成 'Hello,world') greedy 裝箱到 ≤budget — 只在標點切不硬斷詞 (沒次級標點的長句寧可超出也整段保留, 語意優先); (3) narration_to_cues 成字幕帶切分單一真實來源 (終止標點切句→過長句次級標點切), build_srt 與 N1 工具都該走這條; (4) build_srt 加 max_cue_chars kwarg (預設常數, <=0 關閉切分對照修前). 量修前 vs 修後 (N2 fixture, 純離線): over-cue 61 (31.1%) → 0 (0.0%), max cue 105 → 40 字, cue 196 → 265 (更細, 時長按字數比例細分最後 cue 吃 step 結束時間避 float 誤差). 4 個 fixture deck 每過長句都有可切的次級標點 → 全消化. +14 tests (TestNarrationToCues 9 + TestBuildSrtPerCueCap 5). 1719→1733. 改 2 檔 (core/srt.py + tests/test_srt.py). 下一輪 (N3-verify) = 把 tools/measure_narration_truncation.py split_cues 接 narration_to_cues 讓工具/CI 直接量修後 + 更新 N2 locked baseline 數字 (TestCommittedFixture 196/61→新值) + 重生報告; 之後 N4 Gemini prompt 提案 (GATE 不自動跑). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
+old_next_milestone_iter_n2: "Phase 2 iter 2 (N2) 完成 (2026-05-28) — narration 截斷可重現 eval fixture: 從既有 jobs 抽 4 個代表性 deck (lecture/storyteller, quick/comedy 含 _cover/_outro, quick/storyteller, ultra_quick/storyteller) body 取前 ~10 slide, narration/title/bullet/code/路徑全經 length-preserving 匿名化 (CJK→文 / ASCII字母→x / 數字→0, 保留 。！？!? 與標點空白 → cue 切分與字數跟原 deck 逐字相同), 寫進 tests/fixtures/narration/decks.json (50KB, 不含真實教材內容). 工具加 make_record 共用 helper (build_record 與 fixture 走同路徑不 drift) + load_fixture_records + --fixtures CLI 模式 → CI 無 Gemini / 無 jobs 資料也能逐字重現截斷率測量. locked baseline: 4 deck / 39 slide / 196 cue / over-cue 61 (budget 40, 31.1%) / over-slide 31 / max-cue 105. +17 tests (1702→1719). 下一輪 (Phase 2 iter 3) = N3 確定性後處理治本核心: core/srt.py build_srt 加 per-cue 字數上限, 過長句按逗號/分號/語意再切 (greedy 裝箱), 時長按字數比例細分, 對齊 _draw_subtitle_strip 真實可容字數 — 真實截斷發生在字幕帶視覺層, 單一 cue 目前無字數上限. 改完用 N2 fixture (重生 → 數字下降) 量修前 vs 修後. 之後 N4 Gemini prompt 提案 (GATE 不自動跑). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
 old_next_milestone_iter_n1: "Phase 2 iter 1 (N1) 完成 (2026-05-28) — narration 截斷真實 baseline 測出: 寫 tools/measure_narration_truncation.py 掃 19 個 jobs/*/deck.json (2423 cue), 算 slide over-budget + per-cue 過長句統計 + 多 threshold 分布, 輸出 docs/narration-truncation-report.md. **真實數字: over-cue ratio (>40 字) = 44.9% (1088/2423), 比舊估『~22%』高一倍; over-slide ratio 88%**."
 old_next_milestone_iter_136: "iter 136 完成 (Closeout backlog 3/4) — server/runner.py _run_render_inner (render-phase schema dispatch + section_id 過濾 + 缺檔防呆) 補測試覆蓋. _run_render_inner 從 PR-3a / PR-3h / iter 88 上線後一路加 feature (slides_pdf 分流 / pptx 主題 / short_video_layout 大字 layout) 但 wrapper 本身沒對應直接測試. tests/test_runner_render_inner.py +14 tests, 5 個 class (TestMissingDeckFile / TestV1SchemaPassthrough / TestSchemaDispatch / TestShortVideoLayoutPassthrough / TestSectionIdFilter). 策略 = monkeypatch core.deck.deck_to_exam_schema / _pptx / _slides 三 helper 計呼叫 + core.problem_to_v0_json + core.render_video stub; OUTPUT_DIR + JOBS_DIR 指 tmp_path. 不真打 ffmpeg / TTS / Gemini. 0 production code 改動 (純測試). 1622 → 1636 tests (+14)."
 old_next_milestone_iter_135: "iter 135 完成 (Closeout backlog 2/4) — server/runner.py _run_ingest_long_form (DOCUMENT / URL ingest 共用 helper) 補測試覆蓋. 跟 _run_ingest_repo 結構一致, 差別在 source 分流 (DOCUMENT scan_document + format 分流 pdf→extract_pdf_figures / md|txt→mermaid_text / 其他→figures=[]; URL scan_url + setdefault) + URL 防呆 + outliner/scriptor 換成 *_long_form. 從上線後一路加 feature (iter 51 PDF figure / iter 57 .md mermaid / iter 56 AI 圖 / iter 62 cover / iter 63 outro / iter 92 narration_style + persona) 但 wrapper 沒對應直接測試. 任何 refactor 不小心動 URL 防呆訊息 / 三 format 分流條件 / PDF figure 失敗吞例外 + raw['figures']=[] / .md mermaid 失敗吞例外 + raw['figures']=[] / URL raw.setdefault / mock vs real 分流 / length_mode 兩處透傳 / narration_style + persona 只到 script_long_form (iter 92 設計) / AI helper gate / cover/outro override 全透傳 / 三檔寫盤 ensure_ascii=False+indent=2 就直接上線, 跟 iter 111-134 同思路 (route / helper / orchestrator safety lock). tests/test_runner_ingest_long_form.py +22 tests (TestUrlValidation 2: missing url ValueError 含 'source_type=url' + scan_url 0 calls / url 有值只叫 scan_url 不叫 scan_document 鎖分支不混選 / TestDocumentInvocation 1: scan_document 收 Path 型不被 str 化 / TestPdfFormatBranch 2: pdf 格式 extract_pdf_figures 抽圖到 job_dir/figures + raw['figures'] 寫入 + logger 'PDF figure 抽取' / RuntimeError 吞例外 + raw['figures']=[] fallback + logger 'PDF figure 抽取失敗' + '不擋 ingest' / TestMdMermaidBranch 3: md 格式 mermaid_text 抽 + source_label=raw.title + extract_pdf_figures 0 calls 鎖兩條路不混 + logger 'Mermaid 抽取' + '.md' / RuntimeError 吞 + raw['figures']=[] / txt 格式對稱跑 mermaid 鎖條件含 'txt' / TestUnknownFormatBranch 1: html 假未來 format → 兩條圖路徑都 skip + raw['figures']=[] 鎖 else 分支 / TestUrlFiguresSetdefault 1: URL raw.setdefault('figures', []) 不被偷拿掉, scriptor 依賴此 key / TestMockBranchDispatch 2: mock=True 只走 mock_outline+mock_deck / mock=False 只走 *_long_form / TestScriptOptionsPassthrough 2: length_mode 兩處都收 / narration_style+persona 只到 script_long_form 鎖 outline 不該收 / TestAiHelpersGated 3: 兩 flag False 全 skip / diagrams True 只觸發 AI 圖 / mock=True 即使 flag 開也 skip 鎖 mock 繞 Gemini / TestCoverOutroGated 3: 兩 flag False 全 skip / prepend_cover 收 speaker/org/date/narration 四 override / append_outro 收 7 override 含 iter 63b long_form ingest 漏 hook fix / TestDiskWrites 2: 三檔 ensure_ascii=False + indent=2 + return value == deck.json on disk). 策略 = monkeypatch core.adapters.document.scan_document + extract_pdf_figures / core.adapters.url.scan_url / core.mermaid_render.extract_and_render_mermaid_from_text / core.outliner.mock_outline + outline_long_form / core.scriptor.mock_deck_from_outline + script_long_form (function-local from-import, module attr patch 直接生效); runner_mod._generate_ai_diagrams_for_outline / _generate_mermaid_for_outline / _prepend_cover_to_deck / _append_outro_to_deck (module 本身 lookup, 同 module patch 直接生效). 不真打 Gemini / 真讀 PDF / mermaid.ink HTTP. 0 production code 改動. 1600 → 1622 tests (+22). 下一輪 (iter 136, Closeout 3/4): _run_render_inner (server/runner.py:518) schema dispatch 補測試 (sections vs problems / source_type → SlideRenderer / pptx / blackboard 分流). 舊 iter 134 next_milestone 保留在 key_metrics."
@@ -33,10 +34,44 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1719 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1733 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  Phase 2 iter 3 (2026-05-29, 每 2 小時 routine, N 軸 N3) — narration 截斷治本核心: build_srt per-cue 字數上限 (offline-first):
+  - 接 N1 (量出真實 over-cue 44.9%) / N2 (固化 fixture, locked baseline over-cue 61).
+    N3 是治本: 真實「截斷」發生在字幕帶視覺層 — ffmpeg subtitles filter
+    (FontSize=22 / 1080p / BorderStyle=3 / MarginV=40) 把過長 cue 自動 wrap 成多行,
+    超出 180px 字幕帶 (core.visuals.SUBTITLE_BAND_HEIGHT) 就視覺溢出 / 被切.
+    build_srt 雖按終止標點 (。！？!?) 切句, 但單一 cue 無字數上限.
+  - core/srt.py 改動 (純函式, 無新 dep):
+    * SUBTITLE_CUE_CHAR_BUDGET = 40 常數 — ≈字幕帶可容 2 行 CJK (每行 ~20 字),
+      跟 N1 工具 DEFAULT_CUE_CHAR_BUDGET 同值, docstring 註明兩邊一起改不漂移.
+    * _CLAUSE_SPLIT = re.compile(r"(?<=[，、；：,;:])") — 次級標點 lookbehind 切,
+      不含 \s* 故保留標點後空白 (英文逗號後空白不被吃成 'Hello,world').
+    * _split_long_cue(sentence, max_cue_chars): 過長句在次級標點 greedy 裝箱到
+      ≤budget; 只在標點切不硬斷詞 — 沒次級標點的長句整段保留 (語意優先, 寧可超出);
+      max_cue_chars<=0 視為關閉切分 (回原句, 對照修前 / 測試用).
+    * narration_to_cues(narration, *, max_cue_chars=常數): 字幕帶切分單一真實來源,
+      兩階段 (終止標點切句 → 過長句次級標點切). build_srt 與 N1 工具都該走這條,
+      確保「字幕實際呈現」與「截斷率測量」對齊.
+    * build_srt 加 max_cue_chars kwarg (預設常數), 內部改用 narration_to_cues;
+      時長仍按字數比例分配, 最後 cue 吃 step 結束時間 (避 float 累積誤差).
+  - 量修前 vs 修後 (N2 fixture, 純離線, 不打 Gemini): over-cue (>40 字)
+    **61 (31.1%) → 0 (0.0%)**, max cue **105 → 40 字**, cue 數 196 → 265 (更細).
+    4 個 fixture deck 每個過長句都有可切的次級標點 → 全消化 (殘留 0).
+  - tests/test_srt.py +14 tests:
+    * TestNarrationToCues 9: none/空 / 短句不切 / 預設 budget = 模組常數 /
+      過長句逗號 greedy 切 (全 ≤budget) / 短子句裝箱填滿到接近 budget /
+      無次級標點長句整段保留 (>budget 不硬斷) / 英文逗號後空白保留 /
+      budget<=0 關閉切分 / 句+子句兩階段混合.
+    * TestBuildSrtPerCueCap 5: 多 cue 全 ≤budget / 最後 cue 吃 step 結束時間 /
+      時長按字數比例 (兩等長 cue 第一個結束在中點) / budget=0 同舊「一句一 cue」/
+      短 narration 預設 budget 下仍單 cue (回歸保證).
+  - 既有 build_srt 18 tests 全綠 (短 narration 在預設 budget 40 下行為不變).
+  - 改 2 檔 (core/srt.py production + tests/test_srt.py). 1719 → 1733 (+14).
+    下一輪 = N3-verify (工具 split_cues 接 narration_to_cues + 更新 N2 locked baseline).
 
   Phase 2 iter 2 (2026-05-28, 每 2 小時 routine, N 軸 N2) — narration 截斷可重現 eval fixture (offline-first):
   - 接 N1 (iter 1): N1 量出真實 over-cue 44.9%, 但測量來源是本機 jobs/ (gitignored,

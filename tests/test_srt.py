@@ -6,7 +6,12 @@ from __future__ import annotations
 
 import pytest
 
-from core.srt import _fmt_srt_time, build_srt
+from core.srt import (
+    SUBTITLE_CUE_CHAR_BUDGET,
+    _fmt_srt_time,
+    build_srt,
+    narration_to_cues,
+)
 
 
 class TestFmtSrtTime:
@@ -138,3 +143,108 @@ class TestBuildSrt:
         cue_lines = [l for l in result.split("\n") if l.isdigit()]
         # 3 個 cue: "Hello!" / "How are you?" / "Fine."
         assert len(cue_lines) == 3
+
+
+class TestNarrationToCues:
+    """narration_to_cues — 字幕帶切分單一真實來源 (N3 per-cue 上限治本)."""
+
+    def test_none_and_empty(self):
+        assert narration_to_cues(None) == []
+        assert narration_to_cues("") == []
+        assert narration_to_cues("   ") == []
+
+    def test_short_sentence_unchanged(self):
+        # 短句不切, 跟舊行為一致 (一句一 cue)
+        assert narration_to_cues("這是測試。") == ["這是測試。"]
+
+    def test_default_budget_is_module_constant(self):
+        # 不傳 max_cue_chars 該套用 SUBTITLE_CUE_CHAR_BUDGET
+        long = "一二三，四五六，七八九，十一二，三四五，六七八，九十甲，乙丙丁。"
+        assert narration_to_cues(long) == narration_to_cues(
+            long, max_cue_chars=SUBTITLE_CUE_CHAR_BUDGET
+        )
+
+    def test_long_sentence_split_at_clause_punct(self):
+        # 過長句按逗號 greedy 裝箱到 ≤ budget
+        cues = narration_to_cues("一二三四五，六七八九十，甲乙丙丁戊。", max_cue_chars=8)
+        assert cues == ["一二三四五，", "六七八九十，", "甲乙丙丁戊。"]
+        assert all(len(c) <= 8 for c in cues)
+
+    def test_clause_packing_fills_to_budget(self):
+        # 短子句該 greedy 併到接近 budget, 不是一句一 cue
+        cues = narration_to_cues("一二，三四，五六，七八。", max_cue_chars=6)
+        # "一二，三四，"(6) | "五六，七八。"(6)
+        assert cues == ["一二，三四，", "五六，七八。"]
+        assert all(len(c) <= 6 for c in cues)
+
+    def test_unsplittable_long_clause_kept_whole(self):
+        # 沒有次級標點可切 → 不硬斷詞, 整段保留 (寧可超出也不破壞語意)
+        s = "一二三四五六七八九十甲乙丙丁。"
+        cues = narration_to_cues(s, max_cue_chars=8)
+        assert cues == [s]
+        assert len(cues[0]) > 8
+
+    def test_english_clause_spacing_preserved(self):
+        # 英文逗號後空白不該被吃掉 (避免 "Hello,world")
+        cues = narration_to_cues("Hello, world, foo bar baz.", max_cue_chars=12)
+        assert cues == ["Hello,", "world,", "foo bar baz."]
+
+    def test_budget_zero_disables_clause_split(self):
+        # max_cue_chars <= 0 關閉次級切分 (回一句一 cue, 對照修前)
+        s = "一二三四五，六七八九十，甲乙丙丁戊。"
+        assert narration_to_cues(s, max_cue_chars=0) == [s]
+
+    def test_mixed_sentences_and_clause_split(self):
+        # 終止標點先切句, 過長句再按次級標點切
+        cues = narration_to_cues("短句。長句一二三，四五六七八。", max_cue_chars=6)
+        # "短句。" | "長句一二三，" | "四五六七八。"
+        assert cues == ["短句。", "長句一二三，", "四五六七八。"]
+        assert all(len(c) <= 6 for c in cues)
+
+
+class TestBuildSrtPerCueCap:
+    """build_srt 的 per-cue 上限整合 (N3)."""
+
+    def test_long_narration_capped_into_multiple_cues(self):
+        steps = [{"narration": "一二三四五，六七八九十，甲乙丙丁戊。"}]
+        durs = [12.0]
+        result = build_srt(steps, durs, pause_after_each=0, max_cue_chars=8)
+        cue_lines = [l for l in result.split("\n") if l.isdigit()]
+        assert cue_lines == ["1", "2", "3"]
+        # 每個 cue 文字都 ≤ budget
+        text_lines = [l for l in result.split("\n")
+                      if l and not l.isdigit() and "-->" not in l]
+        assert all(len(t) <= 8 for t in text_lines)
+
+    def test_capped_last_cue_eats_remaining_time(self):
+        # 切多 cue 後最後一個仍吃到 step 結束時間
+        steps = [{"narration": "一二三四五，六七八九十。"}]
+        durs = [10.0]
+        result = build_srt(steps, durs, pause_after_each=0, max_cue_chars=5)
+        ts_lines = [l for l in result.split("\n") if "-->" in l]
+        last_end = ts_lines[-1].split(" --> ")[1]
+        assert last_end == "00:00:10,000"
+
+    def test_duration_split_proportional_across_cues(self):
+        # 兩個等長 cue → 第一個結束在中點 (按字數比例)
+        steps = [{"narration": "一二三四五，六七八九十。"}]
+        durs = [10.0]
+        result = build_srt(steps, durs, pause_after_each=0, max_cue_chars=5)
+        # 兩 cue 各 6 字, 第一 cue 結束 = 10 * 6/12 = 5.0
+        assert "00:00:05,000 -->" in result
+
+    def test_disabled_cap_matches_one_cue_per_sentence(self):
+        # max_cue_chars=0 → 跟舊「一句一 cue」行為一致
+        steps = [{"narration": "一二三四五，六七八九十，甲乙丙丁戊。"}]
+        durs = [10.0]
+        result = build_srt(steps, durs, pause_after_each=0, max_cue_chars=0)
+        cue_lines = [l for l in result.split("\n") if l.isdigit()]
+        assert cue_lines == ["1"]
+
+    def test_default_cap_keeps_short_narration_single_cue(self):
+        # 短 narration 在預設 budget 下仍單 cue (回歸保證)
+        steps = [{"narration": "這是一句短的旁白。"}]
+        durs = [5.0]
+        result = build_srt(steps, durs)
+        cue_lines = [l for l in result.split("\n") if l.isdigit()]
+        assert cue_lines == ["1"]

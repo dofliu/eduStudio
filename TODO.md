@@ -42,8 +42,8 @@
 - [x] **iter 134**: `_run_ingest_repo` (server/runner.py:110) 補測試覆蓋 (2026-05-25, +20 tests, 1580→1600)
 - [x] **iter 135**: `_run_ingest_long_form` (server/runner.py:362) 補測試覆蓋 (2026-05-25, +22 tests, 1600→1622)
 - [x] **iter 136**: `_run_render_inner` (server/runner.py:518) schema dispatch 補測試 (2026-05-27, +14 tests, 1622→1636)
-- [ ] **iter 137**: `run_job` (server/runner.py:971) 主流程串接補測試 (ingest →
-  review 分支 → render)
+- [x] **iter 137**: `run_job` (server/runner.py:971) 主流程串接補測試 (ingest →
+  require_review 分支 → render) (2026-05-28, +23 tests, 1636→1659)
 - [ ] **iter 138 (closeout commit)**: 寫 `docs/ROUTINE_CLOSEOUT.md` + STATUS
   next_milestone 改「等用戶切 daily 模式」+ 報告 STOP
 

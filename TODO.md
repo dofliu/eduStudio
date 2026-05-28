@@ -44,8 +44,10 @@
 - [x] **iter 136**: `_run_render_inner` (server/runner.py:518) schema dispatch 補測試 (2026-05-27, +14 tests, 1622→1636)
 - [x] **iter 137**: `run_job` (server/runner.py:971) 主流程串接補測試 (ingest →
   require_review 分支 → render) (2026-05-28, +23 tests, 1636→1659)
-- [ ] **iter 138 (closeout commit)**: 寫 `docs/ROUTINE_CLOSEOUT.md` + STATUS
-  next_milestone 改「等用戶切 daily 模式」+ 報告 STOP
+- [x] **iter 138 (closeout commit)**: 寫 `docs/ROUTINE_CLOSEOUT.md` + STATUS
+  next_milestone 改「等用戶切 daily 模式」+ 報告 STOP (2026-05-28)
+  → **Closeout backlog 4 項全完成. hourly routine STOP, 等用戶切 daily 模式 + 給新方向.**
+  詳見 [docs/ROUTINE_CLOSEOUT.md](docs/ROUTINE_CLOSEOUT.md)
 
 **不該做的** (邊際效益太低, 別偷塞進來):
 - `schedule_job` / `schedule_render` / `schedule_section_render` — 全 1 行

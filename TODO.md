@@ -59,6 +59,52 @@
 
 ## 🌟 Active backlog (routine 可自主推進)
 
+> **2026-05-28 用戶指定新焦點**: 先做「內容品質 — narration 截斷治本」(N 軸),
+> 做完接「動態視覺」(V 軸 = 既有 G/E 軸). **硬約束: offline-first** — routine
+> 不自主呼叫 Gemini / GCP TTS 燒額度. 需打 Gemini 驗證的 (prompt 調整) 一律寫成
+> proposal docs, STOP 等用戶 review 後手動跑. 細則見
+> [docs/ROUTINE_ADVANCE_PROMPT.md](docs/ROUTINE_ADVANCE_PROMPT.md) Phase 2 段.
+
+### 🎯 N 軸 — narration 截斷治本 (offline-first, 先做這個)
+
+> **背景**: `core/narration_validator.py` (iter 79) 只「偵測+標記」過長 narration
+> (治標), 刻意不自動截斷/retry. 「22%」是 2026-05-07 舊估計. 真實截斷發生在
+> 字幕帶視覺層 — `build_srt` (core/srt.py) 已按標點切句但**單一 cue 無字數上限**,
+> 過長句在 `_draw_subtitle_strip` (pptx_style.py) 會視覺溢出/被切. 治本走確定性
+> 後處理 (離線可測), Gemini prompt 強化只寫 proposal 等用戶開額度.
+
+按順序做 (一輪一項, 全部 offline / 不打 Gemini):
+
+- [ ] **N1 真實 baseline 測量**: 寫 `tools/measure_narration_truncation.py` 掃
+  `jobs/*/deck.json` (+ OUTPUT_DIR 既有 deck), 對每個 length_mode preset ×
+  narration_style 算 over-budget ratio + per-cue 過長句統計, 輸出 markdown 報告.
+  用真實數字取代舊「22%」估計. 純離線, 復用 `narration_validator`. +tests.
+- [ ] **N2 可重現 eval fixture**: 從既有 jobs 抽 3~5 個代表性 deck (含過長
+  narration 的) 做 anonymized fixture 進 `tests/fixtures/narration/`, 讓截斷率
+  測量能在 CI 重現 (無 Gemini). N1 工具加 `--fixtures` 模式. +tests.
+- [ ] **N3 確定性後處理 (治本核心)**: `build_srt` 加 per-cue 字數上限 — 過長句
+  按逗號/分號/語意再切 (greedy 裝箱到 ≤ 字幕帶可容字數), 時長按字數比例細分.
+  不破壞語意 (只在標點切, 不硬斷詞). 對齊 `_draw_subtitle_strip` 實際可容字數
+  常數. 用 N1 工具量「修前 vs 修後」per-cue 溢出率. 改 `core/srt.py` (+ 可能
+  一個 helper). +tests (空句/單句/超長句/中英混/標點密集).
+- [ ] **N4 Gemini prompt 強化提案 (GATE — 不自動跑)**: 寫
+  `docs/narration-prompt-tuning-proposal.md` — prompt diff 草稿 (強制字數 +
+  範例) + 建議的 A/B 驗證流程. **不自主呼叫 Gemini**, STOP 等用戶 review +
+  手動開額度驗證. (硬規則: offline-first)
+
+### 🎬 V 軸 — 動態視覺 (N 軸全完成後啟動)
+
+> 接既有 G/E 軸 RFC (見下方階段 2「G. 動態視覺素材」+ CONTENT_QUALITY_ROADMAP
+> E 軸). offline 可做的先做; 需 Gemini SVG 產生 (E2-2) / 新 dep cairosvg (E1-3)
+> 的一律 STOP 寫 proposal 等用戶.
+
+- [ ] **V1 (offline)**: E1-5 / E2 既有 slice 補測試 + icon_picker / image_frames
+  parser 強化 (不需 Gemini / 新 dep 的部分)
+- [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度, 寫 proposal STOP
+- [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep, STOP 等用戶
+
+---
+
 ### 階段 1 — 短期 (1~2 週內)
 
 **C. Claude Code skill 包裝 `pdf-to-video`** ✨ 進行中
@@ -130,8 +176,8 @@
 ## 🟡 中優先
 
 ### 內容品質
-- [ ] **Gemini narration 截斷率 22%** (2026-05-07)
-  - 三段 retry + truncate 後仍 22% 頁面 narration 不完整
+- [→] **Gemini narration 截斷率** (2026-05-07) — 已升級為 🎯 N 軸 (見上方 Active
+  backlog), routine 治本中. 此舊條目保留追溯.
 - [ ] **Pronunciation map 缺漏收集** — 跑樣本影片自動收念錯詞
 
 ### F5 後續

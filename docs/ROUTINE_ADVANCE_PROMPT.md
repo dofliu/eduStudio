@@ -187,6 +187,28 @@ closeout 後若 routine 仍每小時被觸發, 該 STOP 不該硬找事做.
 
 ---
 
+## Phase 2 — 內容品質 + 動態視覺 (2026-05-28 起, supersedes closeout)
+
+**用戶決策 (2026-05-28)**: closeout 完成後, 用戶給新方向並把 schedule 改成
+**每 2 小時** (`0 */2 * * *`). 焦點順序: 先「N 軸 — narration 截斷治本」,
+做完接「V 軸 — 動態視覺」. closeout STOP 已解除, routine 恢復推進.
+
+**硬約束 — offline-first (不可繞)**:
+- routine **不自主呼叫 Gemini / GCP TTS API** 燒額度. 即使本機有 key.
+- 需打 Gemini 驗證才有意義的工作 (prompt 調整 / A/B narration) → 寫成
+  proposal docs (prompt diff + 建議驗證流程), **STOP 等用戶 review + 手動開額度**.
+- 確定性、可離線重現、可用既有 `jobs/*/deck.json` 資料測量的工作 → 自主做.
+- 仍守: ≤3 檔 / tests 綠 / 不加 pip dep (新 dep 也 STOP 等用戶) / require_review
+  不可改 / tts_config 不 commit.
+
+**Backlog 順序以 `TODO.md` 🌟 Active backlog 的 N 軸 → V 軸為準** (N1→N4 → V1→V3).
+N1-N3 純離線可自主; N4 / V2 / V3 是 GATE (Gemini 額度 / 新 dep) → 寫 proposal + STOP.
+
+**每 2 小時節奏**: 一輪一項, 跟 7 步 SOP 一致. 每天傍晚那輪 (18:00 整) 額外做
+一次當日進度總結 + 後續方案, 給用戶可加新意見.
+
+---
+
 ## STOP 條件 (該停下等用戶決策)
 
 任一條命中 → **不繼續做下一輪**, 改成在 STATUS / TODO 留一條訊息給用戶:

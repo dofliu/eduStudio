@@ -99,10 +99,14 @@
     cue 196→265, over-cue **61 (31.1%) → 0 (0.0%)**, max-cue 105→40 (over-slide 31 /
     slide 39 不變). 報告從 N2 fixture 重生 (匿名化, CI 可重現): over-cue 0.0% (0/265).
     +3 tests (1733→1736). 改 3 檔 (tool + test + report).
-- [ ] **N4 Gemini prompt 強化提案 (GATE — 不自動跑)**: 寫
-  `docs/narration-prompt-tuning-proposal.md` — prompt diff 草稿 (強制字數 +
-  範例) + 建議的 A/B 驗證流程. **不自主呼叫 Gemini**, STOP 等用戶 review +
-  手動開額度驗證. (硬規則: offline-first)
+- [x] **N4 Gemini prompt 強化提案 (GATE — 不自動跑)** (Phase 2 iter 5, 2026-05-29):
+  寫 [docs/narration-prompt-tuning-proposal.md](docs/narration-prompt-tuning-proposal.md)
+  — prompt diff 草稿 (兩個 scriptor prompt 加「句子層 ≤40 字 + 長句每 ~20 字逗號」cue
+  層約束, 補 N3 切不動的「無次級標點長句」缺口 + 強化 over-slide 79.5% 的 slide 層) +
+  A/B 驗證流程 (跑 Gemini 產 A/B deck → `--cue-budget 0` 量源頭 over-cue + over-slide).
+  **STOP 等用戶 review + 手動開額度驗證**. 0 production code 改動 (純 doc). offline-first.
+  - routine 在 STOP 期間可自主做 §5 配套: `tools/measure_narration_truncation.py` 加
+    `uncuttable_long_cues` counter (無次級標點長句 = N3 切不動的殘留指標, 純離線 +tests).
 
 ### 🎬 V 軸 — 動態視覺 (N 軸全完成後啟動)
 

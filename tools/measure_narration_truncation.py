@@ -7,24 +7,24 @@
   1. slide-level over-budget ratio — narration 字數超出 length_mode preset
      上限 (`narration_chars_range` 高值) 的 slide 比例. 復用
      `core.narration_validator`.
-  2. per-cue 過長句統計 — narration 按 `core.srt._SENTENCE_SPLIT` 切句後,
-     單句 (= 一個 SRT cue) 超出字幕帶可容字數的比例.
+  2. per-cue 過長句統計 — narration 按 `core.srt.narration_to_cues` 切成 cue
+     (跟 build_srt 同一條) 後, 單一 cue 超出字幕帶可容字數的比例.
 
-用真實數字取代舊「~22%」估計 (2026-05-07 拍腦袋值). 純離線, 不打 Gemini /
-GCP TTS, 只讀既有 deck.json.
+純離線, 不打 Gemini / GCP TTS, 只讀既有 deck.json.
 
 為什麼分兩層:
   真實「截斷」發生在字幕帶視覺層, 不是 slide narration 本身. `build_srt`
-  (core/srt.py) 已按標點把 narration 切成 cue, 各 cue 按字數比例分時長, 但
-  **單一 cue 沒有字數上限**. 過長 cue 在 ffmpeg subtitles filter (FontSize=22,
-  1080p, MarginV=40, 見 pipeline._build_hardsub_cmd) wrap 成多行, 超出 180px
-  字幕帶 (core.visuals.SUBTITLE_BAND_HEIGHT) → 視覺溢出 / 被切. 這支工具量
-  「有多少 cue 過長」, 給 N3 (build_srt 加 per-cue 上限) 一個修前 baseline,
-  修後可重跑對照.
+  (core/srt.py) 按標點把 narration 切成 cue, 各 cue 按字數比例分時長. N3
+  治本上線後, build_srt 用 `narration_to_cues` 在 per-cue 上限
+  (SUBTITLE_CUE_CHAR_BUDGET) 把過長句再切, 避免在 ffmpeg subtitles filter
+  (FontSize=22, 1080p, MarginV=40, 見 pipeline._build_hardsub_cmd) wrap 成多行
+  頂出 180px 字幕帶 (core.visuals.SUBTITLE_BAND_HEIGHT). 這支工具 (N3-verify
+  起) 復用同一條 `narration_to_cues`, 量到的 over-cue = 修後仍超出上限的殘留
+  (理想 0).
 
-per-cue 字數上限 (DEFAULT_CUE_CHAR_BUDGET) 目前是 provisional 估計 —
-N3 會對齊 `_draw_subtitle_strip` 真實可容字數後定案. 因此本工具同時輸出多個
-threshold 的 cue 長度分布, 讓 N3 / 用戶有資料挑值, 不被單一 magic number 綁死.
+per-cue 字數上限 (DEFAULT_CUE_CHAR_BUDGET) 直接綁 core.srt.SUBTITLE_CUE_CHAR_BUDGET
+(N3 定案值), 兩邊同一常數不漂移. 仍同時輸出多 threshold 的 cue 長度分布看切分後
+散布. `--cue-budget 0` 可關閉過長句切分, 量「修前」對照.
 
 使用:
     python tools/measure_narration_truncation.py
@@ -52,14 +52,12 @@ from core.narration_validator import (  # noqa: E402
     _parse_range_high,
     validate_slide_narration,
 )
-from core.srt import _SENTENCE_SPLIT  # noqa: E402
+from core.srt import SUBTITLE_CUE_CHAR_BUDGET, narration_to_cues  # noqa: E402
 
 
-# provisional per-cue 字數上限 — 約等於字幕帶 (180px) 在 FontSize=22 / 1080p
-# 下可容 2 行 CJK 字. ffmpeg subtitles filter 自動 wrap, 過此值會 wrap 出更多
-# 行而頂出字幕帶. N3 會對齊 _draw_subtitle_strip 真實可容字數後定案, 在此之前
-# 一律配合多 threshold 分布看, 別把這個值當定論.
-DEFAULT_CUE_CHAR_BUDGET = 40
+# per-cue 字數上限 — 直接綁 core.srt.SUBTITLE_CUE_CHAR_BUDGET (N3 治本上線後
+# build_srt 真的會在此上限切 cue). 兩邊同一個常數, 改一處兩邊一起動不漂移.
+DEFAULT_CUE_CHAR_BUDGET = SUBTITLE_CUE_CHAR_BUDGET
 
 # cue 長度分布 threshold — 讓 N3 / 用戶有資料挑 per-cue 上限
 CUE_DISTRIBUTION_THRESHOLDS = (20, 30, 40, 50, 60, 80)
@@ -80,14 +78,21 @@ _CUE_EXCERPT_CHARS = 50
 # 純函式 (無 IO) — 可單元測試
 # --------------------------------------------------------------------------- #
 
-def split_cues(narration: str | None) -> list[str]:
-    """把 narration 切成 SRT cue, 跟 build_srt 同邏輯 (_SENTENCE_SPLIT).
+def split_cues(
+    narration: str | None,
+    *,
+    max_cue_chars: int = DEFAULT_CUE_CHAR_BUDGET,
+) -> list[str]:
+    """把 narration 切成 SRT cue, 直接走 core.srt.narration_to_cues.
 
-    複用 core.srt 的 regex 確保跟實際渲染對齊 — N3 改 build_srt 後重跑此工具
-    才量得到「修前 vs 修後」.
+    N3 治本上線後 build_srt 用 narration_to_cues 做字幕帶切分 (終止標點切句 →
+    過長句次級標點再切). 本工具復用同一條 function 確保「截斷率測量」跟「字幕
+    實際呈現」逐字對齊 — 量到的就是修後真實 cue.
+
+    max_cue_chars <= 0 關閉過長句切分 (回退成只按終止標點切句 = 修前行為),
+    方便對照「修前 vs 修後」.
     """
-    text = (narration or "").strip()
-    return [p.strip() for p in _SENTENCE_SPLIT.split(text) if p.strip()]
+    return narration_to_cues(narration, max_cue_chars=max_cue_chars)
 
 
 def resolve_length_mode(options: dict | None) -> str:
@@ -139,7 +144,7 @@ def measure_deck(
             stat["section_id"] = sec_id
             slides_out.append(stat)
 
-            for cue_idx, cue in enumerate(split_cues(narration)):
+            for cue_idx, cue in enumerate(split_cues(narration, max_cue_chars=cue_budget)):
                 cues_out.append({
                     "section_id": sec_id,
                     "slide_id": slide_id,
@@ -294,18 +299,19 @@ def format_markdown_report(
     thresholds = [d["threshold"] for d in o["distribution"]]
     lines: list[str] = []
 
-    lines.append("# Narration 截斷 baseline 測量報告 (N1)")
+    lines.append("# Narration 截斷 baseline 測量報告 (N3 修後)")
     lines.append("")
     if generated_at:
         lines.append(f"> 產出時間: {generated_at}")
     lines.append(f"> 工具: `tools/measure_narration_truncation.py` (offline, 純讀 deck.json)")
-    lines.append(f"> 掃描 deck 數: {deck_count}  |  per-cue 上限 (provisional): {cue_budget} 字")
+    lines.append(f"> 掃描 deck 數: {deck_count}  |  per-cue 上限: {cue_budget} 字")
     lines.append("")
     lines.append(
-        "本報告用真實 deck 資料取代舊「~22%」估計 (2026-05-07 拍腦袋值). "
-        "**over-cue ratio** 是真正會在字幕帶視覺溢出的指標 (單一 SRT cue 超出 "
-        "字幕帶可容字數); **over-slide ratio** 是 narration 整段超出 length_mode "
-        "preset 上限. N3 治本對象是 over-cue."
+        "本報告量 N3 治本「修後」: cue 切分走 `core.srt.narration_to_cues` (跟 "
+        "build_srt 同一條), **over-cue ratio** = 單一 cue 經 per-cue 上限切分後仍 "
+        "超出字幕帶可容字數的殘留比例 (理想 0); **over-slide ratio** = narration "
+        "整段超出 length_mode preset 上限 (不受 cue 切分影響). N1 修前在 19 個真實 "
+        "deck 量到 over-cue 44.9% (見 git 歷史), 治本目標就是把它壓到 ~0."
     )
     lines.append("")
 
@@ -329,7 +335,7 @@ def format_markdown_report(
     # cue 長度分布 (全域)
     lines.append("## Cue 長度分布 (全域)")
     lines.append("")
-    lines.append("> 不同 per-cue 上限下會有多少 cue 過長 — 給 N3 挑值用.")
+    lines.append("> 不同 per-cue 上限下會有多少 cue 過長 — 看切分後的長度散布.")
     lines.append("")
     lines.append("| 上限 (字) | 超過的 cue 數 | 佔比 |")
     lines.append("|---|---|---|")

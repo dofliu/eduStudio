@@ -92,9 +92,13 @@
   裝箱到 ≤ budget, 不硬斷詞) + `narration_to_cues` (切分單一真實來源), `build_srt`
   加 `max_cue_chars` kwarg. 量修前 vs 修後 (N2 fixture): over-cue **61 (31.1%) → 0
   (0.0%)**, max cue **105 → 40 字**, cue 196 → 265 (細). +14 tests (1719→1733).
-  - [ ] **N3-verify (下一輪)**: 把 `tools/measure_narration_truncation.py` 的
-    `split_cues` 接 `narration_to_cues` → 工具/CI 直接量修後; 同步更新 N2 locked
-    baseline 數字 (test_measure_narration_truncation TestCommittedFixture) + 重生報告.
+  - [x] **N3-verify** (Phase 2 iter 4, 2026-05-29): `tools/measure_narration_truncation.py`
+    的 `split_cues` 接上 `core.srt.narration_to_cues` (build_srt 同一條切分), 工具/CI
+    直接量修後. DEFAULT_CUE_CHAR_BUDGET 改綁 SUBTITLE_CUE_CHAR_BUDGET; split_cues 加
+    `max_cue_chars` kwarg (<=0 關閉切分 = 修前對照). N2 locked baseline 更新成修後:
+    cue 196→265, over-cue **61 (31.1%) → 0 (0.0%)**, max-cue 105→40 (over-slide 31 /
+    slide 39 不變). 報告從 N2 fixture 重生 (匿名化, CI 可重現): over-cue 0.0% (0/265).
+    +3 tests (1733→1736). 改 3 檔 (tool + test + report).
 - [ ] **N4 Gemini prompt 強化提案 (GATE — 不自動跑)**: 寫
   `docs/narration-prompt-tuning-proposal.md` — prompt diff 草稿 (強制字數 +
   範例) + 建議的 A/B 驗證流程. **不自主呼叫 Gemini**, STOP 等用戶 review +

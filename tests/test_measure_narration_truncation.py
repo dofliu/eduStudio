@@ -66,12 +66,24 @@ class TestSplitCues:
         cues = split_cues("甲。\n\n  乙。  ")
         assert cues == ["甲。", "乙。"]
 
-    def test_matches_build_srt_regex(self):
-        # 跟 core.srt build_srt 同一條 regex — 對齊保證重跑可量修前/修後
-        from core.srt import _SENTENCE_SPLIT
+    def test_matches_narration_to_cues(self):
+        # N3-verify: split_cues 直接走 core.srt.narration_to_cues (字幕帶切分
+        # 單一真實來源), 確保「截斷率測量」跟「字幕實際呈現」逐字對齊.
+        from core.srt import narration_to_cues
         text = "一。二！三？"
-        manual = [p.strip() for p in _SENTENCE_SPLIT.split(text) if p.strip()]
-        assert split_cues(text) == manual
+        assert split_cues(text) == narration_to_cues(text)
+
+    def test_long_clause_cue_is_capped(self):
+        # 過長句帶次級標點 → 按 budget 切, 每段 ≤ budget (修後行為)
+        narr = "甲" * 25 + "，" + "乙" * 25 + "。"
+        cues = split_cues(narr, max_cue_chars=40)
+        assert len(cues) == 2
+        assert all(len(c) <= 40 for c in cues)
+
+    def test_budget_zero_disables_split(self):
+        # --cue-budget 0 → 只按終止標點切句, 過長句不再切 (= 修前對照)
+        narr = "甲" * 25 + "，" + "乙" * 25 + "。"
+        assert split_cues(narr, max_cue_chars=0) == [narr.strip()]
 
 
 # --------------------------------------------------------------------------- #
@@ -489,10 +501,14 @@ class TestLoadFixtureRecords:
 class TestCommittedFixture:
     """鎖 tests/fixtures/narration/decks.json — N2 可重現 baseline.
 
-    這組數字是刻意 locked 的 regression baseline. N3 (build_srt 加 per-cue 上限)
-    若重生 fixture, 數字會變動 → 測試紅, 提醒人工確認「修前 vs 修後」差異是預期的,
-    而不是無聲漂移. fixture 是匿名化的真實 deck subset (CI 無 jobs 資料 / 無
-    Gemini 也能逐字重現).
+    這組數字是刻意 locked 的 regression baseline. fixture 是匿名化的真實 deck
+    subset (CI 無 jobs 資料 / 無 Gemini 也能逐字重現).
+
+    N3-verify (2026-05-29): split_cues 接上 core.srt.narration_to_cues 後, 工具
+    直接量「修後」. 修前 (N2, 只按終止標點切句) vs 修後 (build_srt per-cue 上限切):
+    cue 196 → 265 (切更細), over-cue 61 → 0 (全消化), max-cue 105 → 40.
+    over-slide (31) / total-slide (39) 不受 cue 切分影響, 維持不變.
+    若數字再變動 → 測試紅, 提醒人工確認是預期改動而非無聲漂移.
     """
     def test_file_exists_and_parses(self):
         assert _FIXTURE_FILE.is_file()
@@ -511,13 +527,22 @@ class TestCommittedFixture:
         }
 
     def test_aggregate_numbers_locked(self):
+        # N3-verify 修後數字 (split_cues 走 narration_to_cues, 過長句按次級標點切)
         recs = load_fixture_records(_FIXTURE_FILE, cue_budget=40)
         o = aggregate(recs)["overall"]
         assert o["deck_count"] == 4
-        assert o["total_slides"] == 39
+        assert o["total_slides"] == 39        # 不受 cue 切分影響
+        assert o["total_cues"] == 265         # 修前 196 → 切更細
+        assert o["over_cue_count"] == 0       # 修前 61 → 全消化 (cue_budget 40)
+        assert o["over_slide_count"] == 31    # 不受 cue 切分影響
+        assert o["max_cue_len"] == 40         # 修前 105 → 都壓到 ≤ budget
+
+    def test_prefix_baseline_reproducible_with_budget_zero(self):
+        # --cue-budget 0 關閉過長句切分 → 還原 N2「修前」locked baseline,
+        # 證明「修前 vs 修後」可在同一支工具離線重現對照.
+        recs = load_fixture_records(_FIXTURE_FILE, cue_budget=0)
+        o = aggregate(recs)["overall"]
         assert o["total_cues"] == 196
-        assert o["over_cue_count"] == 61      # cue_budget 40
-        assert o["over_slide_count"] == 31
         assert o["max_cue_len"] == 105
 
     def test_reproducible_across_two_loads(self):

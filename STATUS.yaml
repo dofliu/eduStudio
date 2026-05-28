@@ -4,7 +4,8 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-29"
-next_milestone: "Phase 2 iter 3 (N3) 完成 (2026-05-29) — narration 截斷治本核心: core/srt.py 加 per-cue 字數上限. 真實截斷發生在字幕帶視覺層 (ffmpeg subtitles FontSize=22/1080p 把過長 cue wrap 出多行頂出 180px 字幕帶), build_srt 雖按終止標點切句但單一 cue 無字數上限. 治本: (1) SUBTITLE_CUE_CHAR_BUDGET=40 常數 (≈字幕帶 2 行 CJK, 跟 N1 工具 DEFAULT_CUE_CHAR_BUDGET 同值, 文件註明兩邊一起改不漂移); (2) _split_long_cue 把過長句在次級標點 (，、；：,;: lookbehind 保留標點+其後空白, 英文逗號後空白不被吃成 'Hello,world') greedy 裝箱到 ≤budget — 只在標點切不硬斷詞 (沒次級標點的長句寧可超出也整段保留, 語意優先); (3) narration_to_cues 成字幕帶切分單一真實來源 (終止標點切句→過長句次級標點切), build_srt 與 N1 工具都該走這條; (4) build_srt 加 max_cue_chars kwarg (預設常數, <=0 關閉切分對照修前). 量修前 vs 修後 (N2 fixture, 純離線): over-cue 61 (31.1%) → 0 (0.0%), max cue 105 → 40 字, cue 196 → 265 (更細, 時長按字數比例細分最後 cue 吃 step 結束時間避 float 誤差). 4 個 fixture deck 每過長句都有可切的次級標點 → 全消化. +14 tests (TestNarrationToCues 9 + TestBuildSrtPerCueCap 5). 1719→1733. 改 2 檔 (core/srt.py + tests/test_srt.py). 下一輪 (N3-verify) = 把 tools/measure_narration_truncation.py split_cues 接 narration_to_cues 讓工具/CI 直接量修後 + 更新 N2 locked baseline 數字 (TestCommittedFixture 196/61→新值) + 重生報告; 之後 N4 Gemini prompt 提案 (GATE 不自動跑). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
+next_milestone: "Phase 2 iter 4 (N3-verify) 完成 (2026-05-29) — narration 截斷治本驗證 (offline-first): tools/measure_narration_truncation.py 的 split_cues 接上 core.srt.narration_to_cues (build_srt 同一條字幕帶切分), 工具/CI 直接量『修後』. (1) DEFAULT_CUE_CHAR_BUDGET 改綁 SUBTITLE_CUE_CHAR_BUDGET (兩邊同一常數, 改一處兩邊一起動不漂移); (2) measure_deck 把 cue_budget 透傳給 split_cues; (3) split_cues 加 max_cue_chars kwarg, <=0 關閉過長句切分 = 回退修前對照. N2 locked baseline (TestCommittedFixture) 更新成修後數字: cue 196→265 (切更細), over-cue 61 (31.1%) → 0 (0.0%), max-cue 105→40; over-slide 31 / slide 39 不受 cue 切分影響維持不變. 加 test_prefix_baseline_reproducible_with_budget_zero — 證 --cue-budget 0 能離線還原修前 baseline (196 cue / max 105), 同一支工具可重現『修前 vs 修後』對照. 報告 docs/narration-truncation-report.md 從 N2 fixture 重生 (匿名化 → 無真實教材外洩, CI 可重現): over-cue 0.0% (0/265), max 40 字. 改 3 檔 (tool + test + report), +3 tests 1733→1736. 下一輪 = N4 Gemini prompt 強化提案 (GATE — 寫 docs/narration-prompt-tuning-proposal.md, prompt diff + A/B 驗證流程, STOP 等用戶開額度, 不自主呼叫 Gemini). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
+old_next_milestone_iter_n3: "Phase 2 iter 3 (N3) 完成 (2026-05-29) — narration 截斷治本核心: core/srt.py 加 per-cue 字數上限. 真實截斷發生在字幕帶視覺層 (ffmpeg subtitles FontSize=22/1080p 把過長 cue wrap 出多行頂出 180px 字幕帶), build_srt 雖按終止標點切句但單一 cue 無字數上限. 治本: (1) SUBTITLE_CUE_CHAR_BUDGET=40 常數 (≈字幕帶 2 行 CJK, 跟 N1 工具 DEFAULT_CUE_CHAR_BUDGET 同值, 文件註明兩邊一起改不漂移); (2) _split_long_cue 把過長句在次級標點 (，、；：,;: lookbehind 保留標點+其後空白, 英文逗號後空白不被吃成 'Hello,world') greedy 裝箱到 ≤budget — 只在標點切不硬斷詞 (沒次級標點的長句寧可超出也整段保留, 語意優先); (3) narration_to_cues 成字幕帶切分單一真實來源 (終止標點切句→過長句次級標點切), build_srt 與 N1 工具都該走這條; (4) build_srt 加 max_cue_chars kwarg (預設常數, <=0 關閉切分對照修前). 量修前 vs 修後 (N2 fixture, 純離線): over-cue 61 (31.1%) → 0 (0.0%), max cue 105 → 40 字, cue 196 → 265 (更細, 時長按字數比例細分最後 cue 吃 step 結束時間避 float 誤差). 4 個 fixture deck 每過長句都有可切的次級標點 → 全消化. +14 tests (TestNarrationToCues 9 + TestBuildSrtPerCueCap 5). 1719→1733. 改 2 檔 (core/srt.py + tests/test_srt.py). 下一輪 (N3-verify) = 把 tools/measure_narration_truncation.py split_cues 接 narration_to_cues 讓工具/CI 直接量修後 + 更新 N2 locked baseline 數字 (TestCommittedFixture 196/61→新值) + 重生報告; 之後 N4 Gemini prompt 提案 (GATE 不自動跑). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
 old_next_milestone_iter_n2: "Phase 2 iter 2 (N2) 完成 (2026-05-28) — narration 截斷可重現 eval fixture: 從既有 jobs 抽 4 個代表性 deck (lecture/storyteller, quick/comedy 含 _cover/_outro, quick/storyteller, ultra_quick/storyteller) body 取前 ~10 slide, narration/title/bullet/code/路徑全經 length-preserving 匿名化 (CJK→文 / ASCII字母→x / 數字→0, 保留 。！？!? 與標點空白 → cue 切分與字數跟原 deck 逐字相同), 寫進 tests/fixtures/narration/decks.json (50KB, 不含真實教材內容). 工具加 make_record 共用 helper (build_record 與 fixture 走同路徑不 drift) + load_fixture_records + --fixtures CLI 模式 → CI 無 Gemini / 無 jobs 資料也能逐字重現截斷率測量. locked baseline: 4 deck / 39 slide / 196 cue / over-cue 61 (budget 40, 31.1%) / over-slide 31 / max-cue 105. +17 tests (1702→1719). 下一輪 (Phase 2 iter 3) = N3 確定性後處理治本核心: core/srt.py build_srt 加 per-cue 字數上限, 過長句按逗號/分號/語意再切 (greedy 裝箱), 時長按字數比例細分, 對齊 _draw_subtitle_strip 真實可容字數 — 真實截斷發生在字幕帶視覺層, 單一 cue 目前無字數上限. 改完用 N2 fixture (重生 → 數字下降) 量修前 vs 修後. 之後 N4 Gemini prompt 提案 (GATE 不自動跑). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
 old_next_milestone_iter_n1: "Phase 2 iter 1 (N1) 完成 (2026-05-28) — narration 截斷真實 baseline 測出: 寫 tools/measure_narration_truncation.py 掃 19 個 jobs/*/deck.json (2423 cue), 算 slide over-budget + per-cue 過長句統計 + 多 threshold 分布, 輸出 docs/narration-truncation-report.md. **真實數字: over-cue ratio (>40 字) = 44.9% (1088/2423), 比舊估『~22%』高一倍; over-slide ratio 88%**."
 old_next_milestone_iter_136: "iter 136 完成 (Closeout backlog 3/4) — server/runner.py _run_render_inner (render-phase schema dispatch + section_id 過濾 + 缺檔防呆) 補測試覆蓋. _run_render_inner 從 PR-3a / PR-3h / iter 88 上線後一路加 feature (slides_pdf 分流 / pptx 主題 / short_video_layout 大字 layout) 但 wrapper 本身沒對應直接測試. tests/test_runner_render_inner.py +14 tests, 5 個 class (TestMissingDeckFile / TestV1SchemaPassthrough / TestSchemaDispatch / TestShortVideoLayoutPassthrough / TestSectionIdFilter). 策略 = monkeypatch core.deck.deck_to_exam_schema / _pptx / _slides 三 helper 計呼叫 + core.problem_to_v0_json + core.render_video stub; OUTPUT_DIR + JOBS_DIR 指 tmp_path. 不真打 ffmpeg / TTS / Gemini. 0 production code 改動 (純測試). 1622 → 1636 tests (+14)."
@@ -34,10 +35,40 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1733 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1736 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  Phase 2 iter 4 (2026-05-29, 每 2 小時 routine, N 軸 N3-verify) — narration 截斷治本驗證: 工具/CI 直接量修後 (offline-first):
+  - 接 N3 (build_srt 加 per-cue 上限 narration_to_cues). N3 當下用 ad-hoc 量修前
+    vs 修後; N3-verify 把這條測量固化進工具/CI, 讓「修後」可重現對照.
+  - tools/measure_narration_truncation.py 改動 (0 行為改舊測, 全是 short / 不可切長句):
+    * split_cues 不再自切 _SENTENCE_SPLIT, 改直接 return core.srt.narration_to_cues
+      (build_srt 同一條字幕帶切分單一真實來源) — 量到的就是修後真實 cue.
+    * split_cues 加 max_cue_chars kwarg (預設 = DEFAULT_CUE_CHAR_BUDGET); <=0 關閉
+      過長句切分 → 回退成只按終止標點切句 = 修前行為, 給「修前 vs 修後」對照.
+    * DEFAULT_CUE_CHAR_BUDGET 改綁 core.srt.SUBTITLE_CUE_CHAR_BUDGET (匯入常數,
+      不再寫死 40) — 兩邊同一常數, 改一處兩邊一起動不漂移.
+    * measure_deck 把 cue_budget 透傳給 split_cues (過去只當 over 門檻, 現在同時
+      當切分上限); over-cue = 修後仍超出上限的殘留 (= 沒次級標點可切的長句).
+    * 報告 intro / 標題 / docstring 改述「修後」(over-cue = 殘留比例; N1 修前 44.9%
+      引為 git 歷史脈絡).
+  - N2 locked baseline 更新 (修前 → 修後, TestCommittedFixture.test_aggregate_numbers_locked):
+    cue 196 → 265 (切更細), over-cue 61 (31.1%) → **0 (0.0%)**, max-cue 105 → 40;
+    over-slide 31 / total-slide 39 不受 cue 切分影響不變.
+  - +3 tests (tests/test_measure_narration_truncation.py):
+    * test_matches_narration_to_cues (取代舊 test_matches_build_srt_regex — split_cues
+      == narration_to_cues 逐字對齊)
+    * test_long_clause_cue_is_capped (帶次級標點長句按 budget 切, 每段 ≤ budget)
+    * test_budget_zero_disables_split (--cue-budget 0 不切過長句 = 修前)
+    * test_prefix_baseline_reproducible_with_budget_zero (cue_budget=0 還原 N2 修前
+      locked 196/105 — 同一支工具離線可重現修前 vs 修後)
+  - 報告 docs/narration-truncation-report.md 從 N2 fixture 重生 (--fixtures, 匿名化
+    → 無真實教材外洩, CI 可重現): deck 4 / slide 39 / cue 265 / over-cue **0.0%
+    (0/265)** / max 40 字. (N1 舊報告是 19 真實 deck 44.9%, 改成 fixture 修後驗證.)
+  - 改 3 檔 (tool + test + report). 1733 → 1736 (+3). 下一輪 = N4 Gemini prompt
+    強化提案 (GATE — 寫 proposal docs, STOP 等用戶開額度, 不自主呼叫 Gemini).
 
   Phase 2 iter 3 (2026-05-29, 每 2 小時 routine, N 軸 N3) — narration 截斷治本核心: build_srt per-cue 字數上限 (offline-first):
   - 接 N1 (量出真實 over-cue 44.9%) / N2 (固化 fixture, locked baseline over-cue 61).

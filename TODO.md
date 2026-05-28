@@ -75,10 +75,11 @@
 
 按順序做 (一輪一項, 全部 offline / 不打 Gemini):
 
-- [ ] **N1 真實 baseline 測量**: 寫 `tools/measure_narration_truncation.py` 掃
-  `jobs/*/deck.json` (+ OUTPUT_DIR 既有 deck), 對每個 length_mode preset ×
-  narration_style 算 over-budget ratio + per-cue 過長句統計, 輸出 markdown 報告.
-  用真實數字取代舊「22%」估計. 純離線, 復用 `narration_validator`. +tests.
+- [x] **N1 真實 baseline 測量** (Phase 2 iter 1, 2026-05-28): `tools/measure_narration_truncation.py`
+  掃 `jobs/*/deck.json` (+ OUTPUT_DIR), 算 slide over-budget + per-cue 過長句統計
+  + 多 threshold 分布, 輸出 [docs/narration-truncation-report.md](docs/narration-truncation-report.md).
+  **真實數字: 19 deck / 2423 cue, over-cue ratio (>40 字) = 44.9%** (舊估「~22%」偏低一半),
+  over-slide ratio 88%. +43 tests (1659→1702). 純離線, 復用 narration_validator + srt._SENTENCE_SPLIT.
 - [ ] **N2 可重現 eval fixture**: 從既有 jobs 抽 3~5 個代表性 deck (含過長
   narration 的) 做 anonymized fixture 進 `tests/fixtures/narration/`, 讓截斷率
   測量能在 CI 重現 (無 Gemini). N1 工具加 `--fixtures` 模式. +tests.

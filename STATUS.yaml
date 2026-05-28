@@ -4,7 +4,7 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-28"
-next_milestone: "Phase 2 啟動 (2026-05-28 用戶給新方向) — closeout 結束, routine 恢復推進, schedule 改成每 2 小時 (0 */2 * * *). 焦點順序: 先『N 軸 — narration 截斷治本』(offline-first), 做完接『V 軸 — 動態視覺』. **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度, 需打 Gemini 驗證的 (prompt 調整) 寫 proposal STOP 等用戶手動開額度. N 軸 backlog (見 TODO.md 🌟 Active): N1 真實 baseline 測量 (tools/measure_narration_truncation.py 掃 jobs/*/deck.json 算 over-budget ratio, 取代舊『22%』估計, 純離線) → N2 可重現 eval fixture (CI 無 Gemini 可重現) → N3 確定性後處理治本核心 (build_srt 加 per-cue 字數上限, 過長句按標點再切, 對齊 _draw_subtitle_strip 可容字數 — 真實截斷發生在字幕帶視覺層, 單一 cue 目前無字數上限) → N4 Gemini prompt 強化提案 (GATE, 不自動跑). 下一輪 (Phase 2 iter 1) = N1. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段. 舊 closeout / iter 137 next_milestone 保留在 key_metrics + docs/ROUTINE_CLOSEOUT.md."
+next_milestone: "Phase 2 iter 1 (N1) 完成 (2026-05-28) — narration 截斷真實 baseline 測出: 寫 tools/measure_narration_truncation.py 掃 19 個 jobs/*/deck.json (2423 cue), 算 slide over-budget + per-cue 過長句統計 + 多 threshold 分布, 輸出 docs/narration-truncation-report.md. **真實數字: over-cue ratio (>40 字) = 44.9% (1088/2423), 比舊估『~22%』高一倍; over-slide ratio 88%**. 下一輪 (Phase 2 iter 2) = N2 可重現 eval fixture: 從既有 jobs 抽 3~5 個代表性 deck 做 anonymized fixture 進 tests/fixtures/narration/, N1 工具加 --fixtures 模式, 讓截斷率測量能在 CI 重現 (無 Gemini). 之後 N3 (build_srt 加 per-cue 字數上限, 過長句按標點再切, 對齊 _draw_subtitle_strip 可容字數 — 真實截斷發生在字幕帶視覺層, 單一 cue 目前無字數上限) → N4 Gemini prompt 強化提案 (GATE 不自動跑). **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段 + docs/narration-truncation-report.md."
 old_next_milestone_iter_136: "iter 136 完成 (Closeout backlog 3/4) — server/runner.py _run_render_inner (render-phase schema dispatch + section_id 過濾 + 缺檔防呆) 補測試覆蓋. _run_render_inner 從 PR-3a / PR-3h / iter 88 上線後一路加 feature (slides_pdf 分流 / pptx 主題 / short_video_layout 大字 layout) 但 wrapper 本身沒對應直接測試. tests/test_runner_render_inner.py +14 tests, 5 個 class (TestMissingDeckFile / TestV1SchemaPassthrough / TestSchemaDispatch / TestShortVideoLayoutPassthrough / TestSectionIdFilter). 策略 = monkeypatch core.deck.deck_to_exam_schema / _pptx / _slides 三 helper 計呼叫 + core.problem_to_v0_json + core.render_video stub; OUTPUT_DIR + JOBS_DIR 指 tmp_path. 不真打 ffmpeg / TTS / Gemini. 0 production code 改動 (純測試). 1622 → 1636 tests (+14)."
 old_next_milestone_iter_135: "iter 135 完成 (Closeout backlog 2/4) — server/runner.py _run_ingest_long_form (DOCUMENT / URL ingest 共用 helper) 補測試覆蓋. 跟 _run_ingest_repo 結構一致, 差別在 source 分流 (DOCUMENT scan_document + format 分流 pdf→extract_pdf_figures / md|txt→mermaid_text / 其他→figures=[]; URL scan_url + setdefault) + URL 防呆 + outliner/scriptor 換成 *_long_form. 從上線後一路加 feature (iter 51 PDF figure / iter 57 .md mermaid / iter 56 AI 圖 / iter 62 cover / iter 63 outro / iter 92 narration_style + persona) 但 wrapper 沒對應直接測試. 任何 refactor 不小心動 URL 防呆訊息 / 三 format 分流條件 / PDF figure 失敗吞例外 + raw['figures']=[] / .md mermaid 失敗吞例外 + raw['figures']=[] / URL raw.setdefault / mock vs real 分流 / length_mode 兩處透傳 / narration_style + persona 只到 script_long_form (iter 92 設計) / AI helper gate / cover/outro override 全透傳 / 三檔寫盤 ensure_ascii=False+indent=2 就直接上線, 跟 iter 111-134 同思路 (route / helper / orchestrator safety lock). tests/test_runner_ingest_long_form.py +22 tests (TestUrlValidation 2: missing url ValueError 含 'source_type=url' + scan_url 0 calls / url 有值只叫 scan_url 不叫 scan_document 鎖分支不混選 / TestDocumentInvocation 1: scan_document 收 Path 型不被 str 化 / TestPdfFormatBranch 2: pdf 格式 extract_pdf_figures 抽圖到 job_dir/figures + raw['figures'] 寫入 + logger 'PDF figure 抽取' / RuntimeError 吞例外 + raw['figures']=[] fallback + logger 'PDF figure 抽取失敗' + '不擋 ingest' / TestMdMermaidBranch 3: md 格式 mermaid_text 抽 + source_label=raw.title + extract_pdf_figures 0 calls 鎖兩條路不混 + logger 'Mermaid 抽取' + '.md' / RuntimeError 吞 + raw['figures']=[] / txt 格式對稱跑 mermaid 鎖條件含 'txt' / TestUnknownFormatBranch 1: html 假未來 format → 兩條圖路徑都 skip + raw['figures']=[] 鎖 else 分支 / TestUrlFiguresSetdefault 1: URL raw.setdefault('figures', []) 不被偷拿掉, scriptor 依賴此 key / TestMockBranchDispatch 2: mock=True 只走 mock_outline+mock_deck / mock=False 只走 *_long_form / TestScriptOptionsPassthrough 2: length_mode 兩處都收 / narration_style+persona 只到 script_long_form 鎖 outline 不該收 / TestAiHelpersGated 3: 兩 flag False 全 skip / diagrams True 只觸發 AI 圖 / mock=True 即使 flag 開也 skip 鎖 mock 繞 Gemini / TestCoverOutroGated 3: 兩 flag False 全 skip / prepend_cover 收 speaker/org/date/narration 四 override / append_outro 收 7 override 含 iter 63b long_form ingest 漏 hook fix / TestDiskWrites 2: 三檔 ensure_ascii=False + indent=2 + return value == deck.json on disk). 策略 = monkeypatch core.adapters.document.scan_document + extract_pdf_figures / core.adapters.url.scan_url / core.mermaid_render.extract_and_render_mermaid_from_text / core.outliner.mock_outline + outline_long_form / core.scriptor.mock_deck_from_outline + script_long_form (function-local from-import, module attr patch 直接生效); runner_mod._generate_ai_diagrams_for_outline / _generate_mermaid_for_outline / _prepend_cover_to_deck / _append_outro_to_deck (module 本身 lookup, 同 module patch 直接生效). 不真打 Gemini / 真讀 PDF / mermaid.ink HTTP. 0 production code 改動. 1600 → 1622 tests (+22). 下一輪 (iter 136, Closeout 3/4): _run_render_inner (server/runner.py:518) schema dispatch 補測試 (sections vs problems / source_type → SlideRenderer / pptx / blackboard 分流). 舊 iter 134 next_milestone 保留在 key_metrics."
 old_next_milestone_iter_134: "iter 134 完成 (Closeout backlog 1/4) — server/runner.py _run_ingest_repo (REPO source ingest 主流程) 補測試覆蓋. tests/test_runner_ingest_repo.py +20 tests, 8 個 class (TestPathValidation / TestScanRepoInvocation / TestMermaidExtraction / TestMockBranchDispatch / TestScriptOptionsPassthrough / TestAiHelpersGated / TestCoverOutroGated / TestDiskWrites). 1580 → 1600 tests (+20)."
@@ -32,10 +32,47 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1659 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1702 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
-  --- 近期 5 個 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+  --- 近期 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  Phase 2 iter 1 (2026-05-28, 每 2 小時 routine, N 軸 N1) — narration 截斷真實 baseline 測量工具 (offline-first):
+  - 用戶 2026-05-28 給新方向: closeout 結束, 焦點轉「內容品質 — narration
+    截斷治本 (N 軸)」, offline-first (routine 不自主打 Gemini / GCP TTS).
+    N1 = 量真實 baseline 取代舊「~22%」拍腦袋估計.
+  - tools/measure_narration_truncation.py: 掃 jobs/*/deck.json (+ OUTPUT_DIR),
+    對每個 (length_mode × narration_style) 算兩層統計:
+    * slide-level over-budget ratio (narration 整段超出 length_mode preset
+      上限, 復用 core.narration_validator.validate_slide_narration + preset)
+    * per-cue 過長句統計 (narration 按 core.srt._SENTENCE_SPLIT 切 cue —
+      跟 build_srt 同一條 regex 確保對齊 — 算單 cue 超出字幕帶可容字數的比例)
+    + 多 threshold (20/30/40/50/60/80) cue 長度分布 (給 N3 挑 per-cue 上限,
+      不被單一 magic number 綁死) + 各組最長 cue 範例. 純函式 (split_cues /
+      measure_deck / cue_length_distribution / aggregate / format_markdown_report)
+      + 薄 IO 層 (load_options_for_deck 讀 state.json options / build_record /
+      collect_records rglob+dedup). state.json options 給 length_mode +
+      narration_style (None → quick / storyteller 預設).
+  - **真實數字 (docs/narration-truncation-report.md): 19 deck / 458 slide /
+    2423 cue. over-cue ratio (>40 字) = 44.9% (1088/2423) — 比舊估『~22%』高
+    一倍. over-slide ratio = 88% (403/458, narration 整段幾乎都超 preset).
+    分布: >20 字 88.7% / >30 66.5% / >50 25.8% / >80 2.9%. 最長 cue 136 字.
+    分組: quick/storyteller 13 deck over-cue 47%, lecture/storyteller 44%,
+    quick/comedy 39%, ultra_quick/storyteller 20%.**
+  - 真實「截斷」發生在字幕帶視覺層 (ffmpeg subtitles filter FontSize=22 / 1080p
+    / 180px 字幕帶), 不是 slide narration 本身. build_srt 已按標點切 cue 但單一
+    cue 無字數上限 → 過長 cue wrap 出多行頂出字幕帶. N3 治本對象是 over-cue.
+  - tests/test_measure_narration_truncation.py +43 tests (TestSplitCues 6 /
+    TestResolveOptions 5 / TestMeasureDeck 9 / TestCueDistribution 3 /
+    TestAggregate 6 / TestFormatReport 3 / TestLoadOptions 4 / TestBuildRecord 4 /
+    TestCollectRecords 4 — 含 v1 problems/steps schema / _cover section skip /
+    cue budget 邊界 > 非 >= / 壞 json fallback / rglob dedup). 踩坑: site-packages
+    有同名 `tools` 套件會 shadow `import tools.X`, test 改把 tools 目錄掛 path
+    當 top-level module 載入 (跨本機/CI 穩). 1659 → 1702 tests (+43).
+  - 下一輪 (Phase 2 iter 2) = N2 可重現 eval fixture (tests/fixtures/narration/
+    + 工具 --fixtures 模式, CI 無 Gemini 可重現).
+
+  --- 近期 closeout iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
 
   iter 137 (2026-05-28, hourly routine, Closeout backlog 4/4 最後一項) — runner.py run_job 主流程串接補測試覆蓋:
   - server/runner.py run_job 是整條 pipeline 最外層 orchestrator (routes 層

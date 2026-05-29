@@ -30,6 +30,9 @@ export default function JobsIndex() {
   const [filter, setFilter] = useState<FilterKey>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  // 多選刪除 (方案 A — 純前端, 對每個選取 id 呼叫既有 DELETE /jobs/{id})
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const reload = useCallback(async () => {
     try {
@@ -95,6 +98,59 @@ export default function JobsIndex() {
     }
   };
 
+  // ── 多選刪除 ───────────────────────────────────────────────
+  const toggleId = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((j) => selectedIds.has(j.id));
+
+  const toggleSelectAll = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (filtered.every((j) => next.has(j.id))) filtered.forEach((j) => next.delete(j.id));
+      else filtered.forEach((j) => next.add(j.id));
+      return next;
+    });
+
+  // 對一批 id 平行刪除, 回報成功/失敗筆數 (單筆失敗不擋其他)
+  const deleteMany = async (ids: string[]) => {
+    const results = await Promise.allSettled(ids.map((id) => api.deleteJob(id)));
+    const ok = results.filter((r) => r.status === 'fulfilled').length;
+    const fail = results.length - ok;
+    if (fail === 0) show(`已刪除 ${ok} 個`);
+    else show(`刪除 ${ok} 個, ${fail} 個失敗`, 'error');
+    reload();
+  };
+
+  const onBatchDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!confirm(`刪除選取的 ${ids.length} 個 job 與其所有 artifacts? 此動作無法復原。`)) return;
+    await deleteMany(ids);
+    exitSelectMode();
+  };
+
+  const onDeleteAllFailed = async () => {
+    const ids = jobs.filter((j) => j.state === 'failed').map((j) => j.id);
+    if (ids.length === 0) {
+      show('沒有失敗的 job');
+      return;
+    }
+    if (!confirm(`清除全部 ${ids.length} 個失敗 job?`)) return;
+    await deleteMany(ids);
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <Topbar
@@ -137,6 +193,59 @@ export default function JobsIndex() {
             </div>
           </div>
 
+          {/* 多選工具列 */}
+          <div className="px-4 py-1.5 border-b border-paper-line flex items-center gap-2 text-[11.5px]">
+            {!selectMode ? (
+              <>
+                <button
+                  onClick={() => setSelectMode(true)}
+                  className="text-ink-muted hover:text-forest-700 font-medium"
+                >
+                  ☑ 多選刪除
+                </button>
+                {counts.failed > 0 && (
+                  <button
+                    onClick={onDeleteAllFailed}
+                    className="ml-auto text-accent-coral hover:underline font-medium"
+                  >
+                    清除全部失敗 ({counts.failed})
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={toggleSelectAll}
+                  className="text-ink-muted hover:text-forest-700 font-medium whitespace-nowrap"
+                >
+                  {allFilteredSelected ? '☑ 取消全選' : '☐ 全選'}
+                </button>
+                <span className="text-ink-muted whitespace-nowrap">
+                  已選 <span className="font-mono">{selectedIds.size}</span>
+                </span>
+                <span className="flex-1" />
+                <button
+                  onClick={onBatchDelete}
+                  disabled={selectedIds.size === 0}
+                  className={
+                    'font-medium whitespace-nowrap ' +
+                    (selectedIds.size === 0
+                      ? 'text-ink-faint cursor-not-allowed'
+                      : 'text-accent-coral hover:underline')
+                  }
+                >
+                  ✕ 刪除選取
+                </button>
+                <button
+                  onClick={exitSelectMode}
+                  className="text-ink-muted hover:text-forest-700 whitespace-nowrap"
+                >
+                  取消
+                </button>
+              </>
+            )}
+          </div>
+
           <div className="flex-1 overflow-y-auto scrollbar-thin">
             {loading && jobs.length === 0 ? (
               <div className="text-center py-10 text-ink-muted">Loading…</div>
@@ -149,6 +258,7 @@ export default function JobsIndex() {
             ) : (
               filtered.map((j) => {
                 const sel = j.id === selected?.id;
+                const checked = selectedIds.has(j.id);
                 const mp4s = j.artifacts.filter((a) => a.kind === 'mp4');
                 const ytDone = mp4s.filter(
                   (a) => j.youtube_uploads?.[a.name]?.state === 'done',
@@ -160,13 +270,31 @@ export default function JobsIndex() {
                 return (
                   <button
                     key={j.id}
-                    onClick={() => setSelectedId(j.id)}
+                    onClick={() => (selectMode ? toggleId(j.id) : setSelectedId(j.id))}
                     className={
                       'w-full text-left px-4 py-2.5 border-b border-paper-line transition-colors block ' +
-                      (sel ? 'bg-chalk-yellow/30' : 'hover:bg-paper-warm')
+                      (selectMode
+                        ? checked
+                          ? 'bg-accent-coral/10'
+                          : 'hover:bg-paper-warm'
+                        : sel
+                        ? 'bg-chalk-yellow/30'
+                        : 'hover:bg-paper-warm')
                     }
                   >
                     <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      {selectMode && (
+                        <span
+                          className={
+                            'inline-flex items-center justify-center w-4 h-4 rounded-sm border text-[10px] shrink-0 ' +
+                            (checked
+                              ? 'bg-accent-coral border-accent-coral text-white'
+                              : 'border-paper-line text-transparent')
+                          }
+                        >
+                          ✓
+                        </span>
+                      )}
                       <SourceBadge type={j.source_type} size="sm" />
                       <StatusPill state={j.state} size="sm" />
                       <span className="ml-auto font-mono text-[10px] text-ink-faint">

@@ -52,12 +52,13 @@ def client(tmp_path, monkeypatch):
 # ---------- GET /voices ----------
 
 class TestListVoices:
-    def test_returns_six_voices(self, client):
+    def test_returns_nine_voices(self, client):
+        # 5 edge + 1 F5 + 3 google (S 軸 S2)
         c, _, _ = client
         resp = c.get("/voices")
         assert resp.status_code == 200
         body = resp.json()
-        assert len(body["voices"]) == 6
+        assert len(body["voices"]) == 9
 
     def test_current_reflects_config(self, client):
         c, _, _ = client

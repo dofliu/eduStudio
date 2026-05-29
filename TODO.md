@@ -160,10 +160,14 @@
   google: 走 prefix 命名空間驗證 (不要求在 VOICE_IDS, 因 GCP 合法 voice 名很多, 預設清單
   S2 才補)。+5 tests (TestGoogleBackend: read / read 缺 voice 退預設 / write 切 backend /
   write 保留 edge+f5 區塊 / round-trip)。1777→1782。改 2 檔 (voices.py + test_voices.py)。
-- [ ] **S2 VOICES 清單加 Google 選項**: VOICES list 加 3 個 google entry (A 女預設 /
-  B 男 / C 男深沉), label 標「(Google 雲端 TTS, 需 GCP 額度)」, VOICE_IDS 自動含。
-  動檔: server/routes/voices.py + tests/test_voices.py (≤2 檔)。驗收: GET /voices 回
-  含 3 個 google; POST 各 google id 成功且套用; 未知 google id 仍 400。
+- [x] **S2 VOICES 清單加 Google 選項** (2026-05-30): VOICES list 加 3 個 google entry
+  (cmn-TW-Wavenet-A 女預設 / B 男中性 / C 男深沉), label 標「(Google 雲端 TTS, 需 GCP
+  額度)」, VOICE_IDS 自動含。順帶收緊 `_write_current_voice`: S1 曾為 google: prefix 開
+  命名空間放行 (清單未補時的過渡), S2 補進預設清單後改回一律走 VOICE_IDS 白名單 → 未知
+  google id 也 400 (符合驗收)。read 仍如實顯示 cfg 裡清單外的 GCP voice (只是 UI 下拉限
+  3 個預設)。+8 tests (list 3: 3 google / 進 VOICE_IDS / label 標額度; endpoint 5: GET
+  含 3 google / POST 各 google 成功套用 / 未知 google 400)。1782→1790。改 3 檔
+  (voices.py + test_voices.py + test_voices_route.py 的 six→nine)。
 - [ ] **S3 sample 試聽對無預錄 sample 的 voice 優雅降級**: google voice 沒有
   voices/samples/*.mp3, 現行 sample endpoint 會回 404「sample 檔不存在」, 前端試聽
   鈕會壞。VoiceInfo schema 加 `has_sample: bool` (掃 sample 檔存在與否), list_voices

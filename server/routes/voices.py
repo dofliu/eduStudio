@@ -29,7 +29,10 @@ VOICE_SAMPLE_DIR = PROJECT_ROOT / "voices" / "samples"
 
 # (id, label, sample 檔名) — 跟 Track A app.py VOICES list 對齊, 統一 source of truth。
 # f5: 開頭代表 F5-TTS 聲音複製 (本機推論, 用 voices/teacher_ref.wav),
-# 切換時 backend 改 f5; 其他 id 都是 edge backend 的 voice 名稱。
+# 切換時 backend 改 f5; google: 開頭代表 GCP Cloud TTS (S1/S2 加, backend 改 google);
+# 其他 id 都是 edge backend 的 voice 名稱。
+# google voice 描述見 docs/GOOGLE_TTS_SETUP.md; 無預錄 sample (sample 檔不存在故
+# 試聽會 404, S3 用 has_sample 讓前端優雅降級)。
 VOICES: list[dict] = [
     {"id": "zh-TW-HsiaoChenNeural", "label": "小陳 (台女, 新聞風)",     "sample": "voice_tw_hsiaochen_F.mp3"},
     {"id": "zh-TW-HsiaoYuNeural",   "label": "小雨 (台女, 較甜)",       "sample": "voice_tw_hsiaoyu_F.mp3"},
@@ -37,6 +40,9 @@ VOICES: list[dict] = [
     {"id": "zh-CN-YunyangNeural",   "label": "雲揚 (陸男, 主播穩)",     "sample": "voice_cn_yunyang_M.mp3"},
     {"id": "zh-CN-XiaoxiaoNeural",  "label": "曉曉 (陸女, 大陸通用)",   "sample": "voice_cn_xiaoxiao_F.mp3"},
     {"id": "f5:teacher",            "label": "劉老師 (F5 聲音複製)",   "sample": "voice_f5_teacher_M.mp3"},
+    {"id": "google:cmn-TW-Wavenet-A", "label": "Wavenet-A (台女, 自然, 預設) (Google 雲端 TTS, 需 GCP 額度)", "sample": "voice_google_wavenet_a_F.mp3"},
+    {"id": "google:cmn-TW-Wavenet-B", "label": "Wavenet-B (台男, 中性) (Google 雲端 TTS, 需 GCP 額度)",       "sample": "voice_google_wavenet_b_M.mp3"},
+    {"id": "google:cmn-TW-Wavenet-C", "label": "Wavenet-C (台男, 深沉) (Google 雲端 TTS, 需 GCP 額度)",       "sample": "voice_google_wavenet_c_M.mp3"},
 ]
 VOICE_IDS = {v["id"] for v in VOICES}
 
@@ -64,12 +70,14 @@ def _read_current_voice() -> str:
 def _write_current_voice(voice_id: str) -> bool:
     """切聲音 = 同時切 backend 跟對應 voice。f5 / google 區塊的其他參數維持不動。
 
-    google: prefix 走命名空間驗證 (不要求在 VOICE_IDS, 因 GCP 合法 voice 名很多,
-    S2 才補 UI 預設清單); edge / f5 仍照 VOICE_IDS 白名單。
+    一律走 VOICE_IDS 白名單 (含 S2 補進的 3 個預設 google voice)。S1 曾為 google:
+    prefix 開過命名空間放行 (清單還沒補時的過渡), S2 補進預設清單後收緊 — 未知
+    google id 也擋下 (回 400)。使用者要用清單外的 GCP voice 仍可直接編 tts_config.json,
+    _read_current_voice 會如實顯示 (只是 UI 下拉切換限這 3 個預設)。
     """
-    is_google = voice_id.startswith("google:")
-    if voice_id not in VOICE_IDS and not is_google:
+    if voice_id not in VOICE_IDS:
         return False
+    is_google = voice_id.startswith("google:")
     cfg: dict = {}
     if TTS_CONFIG_PATH.exists():
         try:

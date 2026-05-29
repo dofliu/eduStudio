@@ -34,9 +34,9 @@ def fake_tts_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 # ---------- VOICES list ----------
 
 class TestVoicesList:
-    def test_six_voices(self):
-        # 5 edge + 1 F5
-        assert len(VOICES) == 6
+    def test_nine_voices(self):
+        # 5 edge + 1 F5 + 3 google (S 軸 S2)
+        assert len(VOICES) == 9
 
     def test_voice_ids_unique(self):
         ids = [v["id"] for v in VOICES]
@@ -153,3 +153,68 @@ class TestGoogleBackend:
     def test_google_round_trip(self, fake_tts_config):
         _write_current_voice("google:cmn-TW-Wavenet-C")
         assert _read_current_voice() == "google:cmn-TW-Wavenet-C"
+
+
+# ---------- google voices 進 VOICES 清單 (S 軸 S2) ----------
+
+class TestGoogleVoicesInList:
+    def test_three_google_voices(self):
+        google = [v for v in VOICES if v["id"].startswith("google:")]
+        assert len(google) == 3
+
+    def test_google_voices_in_voice_ids(self):
+        # VOICE_IDS 自動含 → _write_current_voice 白名單放行
+        for vid in ("google:cmn-TW-Wavenet-A", "google:cmn-TW-Wavenet-B",
+                    "google:cmn-TW-Wavenet-C"):
+            assert vid in VOICE_IDS
+
+    def test_google_labels_flag_gcp_quota(self):
+        # label 標明需 GCP 額度, 避免使用者誤以為免費
+        google = [v for v in VOICES if v["id"].startswith("google:")]
+        for v in google:
+            assert "Google" in v["label"]
+            assert "額度" in v["label"]
+
+
+# ---------- GET / POST endpoint 驗收 (S 軸 S2) ----------
+
+@pytest.fixture
+def voices_client(tmp_path, monkeypatch):
+    """TestClient + tmp tts_config (隔離真實 tts_config.json, 不污染 user 設定)."""
+    from fastapi.testclient import TestClient
+    from server.main import create_app
+
+    cfg_path = tmp_path / "tts_config.json"
+    cfg_path.write_text(json.dumps({
+        "backend": "edge",
+        "edge": {"voice": "zh-TW-HsiaoChenNeural"},
+    }, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(voices_mod, "TTS_CONFIG_PATH", cfg_path)
+    return TestClient(create_app())
+
+
+class TestVoicesEndpoint:
+    def test_get_voices_includes_three_google(self, voices_client):
+        resp = voices_client.get("/voices")
+        assert resp.status_code == 200
+        ids = [v["id"] for v in resp.json()["voices"]]
+        assert "google:cmn-TW-Wavenet-A" in ids
+        assert "google:cmn-TW-Wavenet-B" in ids
+        assert "google:cmn-TW-Wavenet-C" in ids
+
+    @pytest.mark.parametrize("vid", [
+        "google:cmn-TW-Wavenet-A",
+        "google:cmn-TW-Wavenet-B",
+        "google:cmn-TW-Wavenet-C",
+    ])
+    def test_post_google_voice_succeeds_and_applies(self, voices_client, vid):
+        resp = voices_client.post("/voices", json={"voice_id": vid})
+        assert resp.status_code == 200
+        assert resp.json()["current"] == vid
+
+    def test_post_unknown_google_voice_still_400(self, voices_client):
+        # 未在白名單的 google id 仍應被擋 (命名空間放行只給已定義的 3 個)
+        resp = voices_client.post(
+            "/voices", json={"voice_id": "google:no-such-voice"},
+        )
+        assert resp.status_code == 400

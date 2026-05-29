@@ -126,7 +126,13 @@
     驗過. +6 tests — 上界 clamp / 預設 0.10 / 非數值 size_ratio 靜默 skip + 不擋同
     list 其他 icon / 寬 icon (2:1) 高按比例縮 / 高 icon (1:2) 寬鎖 size_ratio. 純
     PIL pixel 驗, 0 production code 改動. 1748→1754. 改 1 檔 (tests/test_icon_overlay.py).
-  - [ ] **V1b** image_frames / icon_picker 剩餘 slice 補測試 + parser 強化 (下輪)
+  - [x] **V1b icon_picker manifest 優先序 + image_frames require_file_exists 透傳補測試** (Phase 2 iter 8, 2026-05-29):
+    icon_picker docstring 明定『結果順序 = manifest 出現順序』且 max_icons 截斷依此序,
+    但既有測試用 set 沒鎖順序 / 截斷依 manifest 序; manifest 缺 icons key fallback 沒測.
+    image_frames select_frame / terminal_frame 的 require_file_exists 透傳給 valid_frames
+    從沒驗過. +7 tests (icon_picker 3 + image_frames 4). 純測試 0 production 改動.
+    1754→1761. 改 2 檔.
+  - [ ] **V1c** E1-2 SlideRenderer frame fallback / E2-5 renderer icon 疊圖 既有 slice 補測試 (下輪, offline)
 - [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度, 寫 proposal STOP
 - [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep, STOP 等用戶
 

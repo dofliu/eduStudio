@@ -122,6 +122,16 @@ class TestValidFrames:
         assert len(result) == 1
         assert result[0]["path"] == missing
 
+    def test_empty_string_path_dropped(self, existing_pngs):
+        # path 為空字串 → not path_str 為真該 drop (跟缺 path 同處理)
+        frames = [
+            {"path": "", "display_ratio": 0.5},
+            {"path": existing_pngs[0], "display_ratio": 1.0},
+        ]
+        result = valid_frames(frames)
+        assert len(result) == 1
+        assert result[0]["path"] == existing_pngs[0]
+
 
 class TestSelectFrame:
     def test_none_input_returns_none(self):
@@ -186,6 +196,29 @@ class TestSelectFrame:
         result = select_frame(frames, 0.5)
         assert result["path"] == existing_pngs[0]
 
+    def test_all_missing_strict_returns_none(self, tmp_path):
+        # 全部檔案不存在 + 預設嚴格模式 → valid_frames 過濾光 → None
+        # (跟 terminal_frame.test_all_invalid_returns_none 對稱, select 路徑同樣鎖)
+        missing = str(tmp_path / "nope.png")
+        frames = [{"path": missing, "display_ratio": 1.0}]
+        assert select_frame(frames, 0.5) is None
+
+    def test_require_file_exists_false_passthrough(self, tmp_path):
+        # require_file_exists=False 該透傳給 valid_frames — 檔案不在仍選得到 frame
+        # (review UI 預覽期 build_clip 還沒產 PNG 也要能挑當下 frame)
+        missing_a = str(tmp_path / "a.png")
+        missing_b = str(tmp_path / "b.png")
+        frames = [
+            {"path": missing_a, "display_ratio": 0.5},
+            {"path": missing_b, "display_ratio": 1.0},
+        ]
+        # 嚴格模式: 全過濾 → None
+        assert select_frame(frames, 0.3) is None
+        # 寬鬆模式: 落在 (0, 0.5] → 回第一個 missing frame
+        result = select_frame(frames, 0.3, require_file_exists=False)
+        assert result is not None
+        assert result["path"] == missing_a
+
 
 class TestTerminalFrame:
     def test_none_returns_none(self):
@@ -211,6 +244,19 @@ class TestTerminalFrame:
         missing = str(tmp_path / "nope.png")
         frames = [{"path": missing, "display_ratio": 1.0}]
         assert terminal_frame(frames) is None
+
+    def test_require_file_exists_false_passthrough(self, tmp_path):
+        # require_file_exists=False 透傳 — 檔案不在仍回最後 (最大 ratio) frame
+        missing_a = str(tmp_path / "a.png")
+        missing_b = str(tmp_path / "b.png")
+        frames = [
+            {"path": missing_a, "display_ratio": 0.5},
+            {"path": missing_b, "display_ratio": 1.0},
+        ]
+        assert terminal_frame(frames) is None  # 嚴格模式全過濾
+        result = terminal_frame(frames, require_file_exists=False)
+        assert result is not None
+        assert result["path"] == missing_b
 
 
 class TestFrameCount:

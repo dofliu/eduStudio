@@ -308,6 +308,66 @@ class TestRealManifest:
         assert keys & {"pid_loop", "wind_turbine", "block_diagram"}
 
 
+class TestManifestOrderPriority:
+    """manifest 出現順序 = priority — pick_icons docstring 明定『Order: 按 manifest
+    中 entry 出現順序』, 且 max_icons 截斷依此序保留前 N 個. 既有 test 用 set 驗命中
+    集合, 沒鎖『順序』與『截斷依 manifest 序非 narration 序』兩個契約."""
+
+    def _ordered_library(self, tmp_path):
+        """alpha/beta/gamma 三 entry, manifest 順序 alpha→beta→gamma."""
+        library_root = tmp_path / "lib"
+        library_root.mkdir()
+        icons = {}
+        # dict 插入序即 JSON 序 (Py3.7+ + json.loads 保留序), 鎖死 alpha<beta<gamma
+        for name, kw in [("alpha", "aaa"), ("beta", "bbb"), ("gamma", "ccc")]:
+            rel = f"generic/{name}.svg"
+            _touch_svg(library_root, rel)
+            icons[name] = {
+                "keywords": [kw],
+                "icon": rel,
+                "position": "top-right",
+                "size_ratio": 0.10,
+                "domain": "generic",
+            }
+        manifest_path = _write_manifest(library_root, icons)
+        return manifest_path, library_root
+
+    def test_result_order_follows_manifest_not_narration(self, tmp_path):
+        """narration 以 gamma→alpha→beta 順序提及 keyword, 結果仍該照 manifest 序回."""
+        manifest_path, library_root = self._ordered_library(tmp_path)
+        result = pick_icons(
+            "ccc 出現在前 aaa 居中 bbb 最後",
+            manifest_path=manifest_path,
+            library_root=library_root,
+        )
+        assert [m.key for m in result] == ["alpha", "beta", "gamma"]
+
+    def test_max_icons_truncates_by_manifest_order(self, tmp_path):
+        """三個都命中但 max_icons=2 → 保留 manifest 前兩個 (alpha/beta),
+        而非 narration 先提到的 gamma. 鎖『截斷依 manifest 序非提及序』."""
+        manifest_path, library_root = self._ordered_library(tmp_path)
+        result = pick_icons(
+            "ccc 先講 然後 aaa 再來 bbb",
+            manifest_path=manifest_path,
+            library_root=library_root,
+            max_icons=2,
+        )
+        assert [m.key for m in result] == ["alpha", "beta"]
+        assert "gamma" not in {m.key for m in result}
+
+
+class TestManifestMissingIconsKey:
+    def test_manifest_without_icons_key_returns_empty(self, tmp_path):
+        """manifest 缺 'icons' key (極端 defensive) → manifest.get('icons', {})
+        該回 [] 不噴 KeyError."""
+        library_root = tmp_path / "lib"
+        library_root.mkdir()
+        path = library_root / "manifest.json"
+        path.write_text(json.dumps({"_schema_version": 1}), encoding="utf-8")
+        result = pick_icons("為什麼風力機?", manifest_path=path, library_root=library_root)
+        assert result == []
+
+
 class TestSuggestForDeck:
     """E2-6 backend slice: 對整個 deck 批次跑 pick_icons 給 review UI 用."""
 

@@ -118,8 +118,15 @@
 > E 軸). offline 可做的先做; 需 Gemini SVG 產生 (E2-2) / 新 dep cairosvg (E1-3)
 > 的一律 STOP 寫 proposal 等用戶.
 
-- [ ] **V1 (offline)**: E1-5 / E2 既有 slice 補測試 + icon_picker / image_frames
+- [~] **V1 (offline)**: E1-5 / E2 既有 slice 補測試 + icon_picker / image_frames
   parser 強化 (不需 Gemini / 新 dep 的部分)
+  - [x] **V1a icon_overlay 尺寸/比例路徑補測試** (Phase 2 iter 7, 2026-05-29):
+    既有 icon_overlay 測試 icon 全是 256×256 正方形, aspect-ratio 縮放
+    (`target_h = icon_h * target_w/icon_w`) 與 size_ratio 上界 clamp (0.50) 從沒被
+    驗過. +6 tests — 上界 clamp / 預設 0.10 / 非數值 size_ratio 靜默 skip + 不擋同
+    list 其他 icon / 寬 icon (2:1) 高按比例縮 / 高 icon (1:2) 寬鎖 size_ratio. 純
+    PIL pixel 驗, 0 production code 改動. 1748→1754. 改 1 檔 (tests/test_icon_overlay.py).
+  - [ ] **V1b** image_frames / icon_picker 剩餘 slice 補測試 + parser 強化 (下輪)
 - [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度, 寫 proposal STOP
 - [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep, STOP 等用戶
 

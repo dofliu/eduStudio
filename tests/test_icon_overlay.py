@@ -200,6 +200,95 @@ class TestSizeAndMultiple:
         assert canvas.getpixel((1750, 750))[0] > 200
 
 
+class TestSizeRatioEdges:
+    """size_ratio 的 clamp / 預設 / 非數值路徑 — 既有測試只蓋下界 (0→0.02),
+    上界 (0.50) / 預設值 / 壞值 skip 從沒被驗過."""
+
+    def test_size_ratio_clamped_upper_half(self, blank_canvas, real_icon):
+        # size_ratio=0.9 該 clamp 到 0.50 → 寬 1920*0.5=960 (top-left x 40..1000),
+        # 而非 0.9 的寬 1728. 抓一個落在 0.9 寬內但 0.5 寬外的 pixel 來區分.
+        compose_icons(
+            blank_canvas,
+            [{"path": str(real_icon), "position": "top-left", "size_ratio": 0.9}],
+        )
+        # clamp 0.50 範圍內 (500,500) 該紅
+        assert blank_canvas.getpixel((500, 500))[0] > 200
+        # x=1400 落在 0.9 寬 (到 1768) 內、0.5 寬 (到 1000) 外 → clamp 後該白
+        assert blank_canvas.getpixel((1400, 500)) == (255, 255, 255)
+
+    def test_default_size_ratio_when_missing(self, blank_canvas, real_icon):
+        # 沒 size_ratio key → 預設 0.10 → 寬 192, top-left x 40..232
+        compose_icons(
+            blank_canvas,
+            [{"path": str(real_icon), "position": "top-left"}],
+        )
+        assert blank_canvas.getpixel((100, 100))[0] > 200
+        # x=300 已超 232 → 白, 證明用預設 0.10 而非更大
+        assert blank_canvas.getpixel((300, 100)) == (255, 255, 255)
+
+    def test_non_numeric_size_ratio_skipped(self, blank_canvas, real_icon):
+        # size_ratio 非數值 → float() 炸 → 單筆靜默 skip (設計: 單 icon 失敗不擋整批)
+        compose_icons(
+            blank_canvas,
+            [{"path": str(real_icon), "position": "top-left", "size_ratio": "big"}],
+        )
+        # 該 skip, top-left 仍白
+        assert blank_canvas.getpixel((100, 100)) == (255, 255, 255)
+
+    def test_bad_size_ratio_does_not_block_other_icons(self, blank_canvas, real_icon):
+        # 壞 size_ratio 的 icon skip, 但同 list 的好 icon 該照畫 (per-entry 隔離)
+        compose_icons(
+            blank_canvas,
+            [
+                {"path": str(real_icon), "position": "top-left", "size_ratio": "big"},
+                {"path": str(real_icon), "position": "top-right", "size_ratio": 0.1},
+            ],
+        )
+        assert blank_canvas.getpixel((100, 100)) == (255, 255, 255)  # 壞的 skip
+        assert blank_canvas.getpixel((1750, 100))[0] > 200  # 好的照畫
+
+
+class TestAspectRatioPreserved:
+    """非正方形 icon 該按比例縮放 — 既有測試 icon 全是 256×256 正方形,
+    aspect-ratio 縮放 (target_h = icon_h * target_w/icon_w) 從沒被真正驗過."""
+
+    @pytest.fixture
+    def wide_icon(self, tmp_path):
+        """256×128 (2:1) 紅 RGBA — 驗高度按比例縮 (非拉成跟寬一樣)."""
+        p = tmp_path / "wide.png"
+        Image.new("RGBA", (256, 128), (255, 0, 0, 255)).save(p)
+        return p
+
+    @pytest.fixture
+    def tall_icon(self, tmp_path):
+        """128×256 (1:2) 紅 RGBA — 驗寬固定 size_ratio、高按比例放大."""
+        p = tmp_path / "tall.png"
+        Image.new("RGBA", (128, 256), (255, 0, 0, 255)).save(p)
+        return p
+
+    def test_wide_icon_height_scaled_proportionally(self, blank_canvas, wide_icon):
+        # 256×128 (2:1), size_ratio=0.1 → 寬 192, 高按比例 = 96 (不是 192)
+        compose_icons(
+            blank_canvas,
+            [{"path": str(wide_icon), "position": "top-left", "size_ratio": 0.1}],
+        )
+        # icon: x 40..232, y 40..136. (100,100) 在內該紅
+        assert blank_canvas.getpixel((100, 100))[0] > 200
+        # y=200 超出高 96 (40+96=136) → 白, 證明高沒被拉成 192
+        assert blank_canvas.getpixel((100, 200)) == (255, 255, 255)
+
+    def test_tall_icon_height_scaled_proportionally(self, blank_canvas, tall_icon):
+        # 128×256 (1:2), size_ratio=0.1 → 寬 192, 高按比例 = 384
+        compose_icons(
+            blank_canvas,
+            [{"path": str(tall_icon), "position": "top-left", "size_ratio": 0.1}],
+        )
+        # icon: x 40..232, y 40..424. (100,400) 仍在高範圍內該紅
+        assert blank_canvas.getpixel((100, 400))[0] > 200
+        # x=300 超出寬 192 (40+192=232) → 白, 證明寬鎖 size_ratio 沒被高度連動拉大
+        assert blank_canvas.getpixel((300, 100)) == (255, 255, 255)
+
+
 # ---------- iter 103: 渲染整合 (BlackboardRenderer + PptxStyleRenderer) ----------
 
 

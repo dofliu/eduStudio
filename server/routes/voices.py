@@ -53,12 +53,22 @@ def _read_current_voice() -> str:
         return VOICES[0]["id"]
     if cfg.get("backend") == "f5":
         return "f5:teacher"
+    # google backend: voice id 格式 google:<voiceName> (例 google:cmn-TW-Wavenet-A),
+    # 跟 f5: 同走 prefix 命名空間。沒這分支時 backend=google 的 cfg 會掉進下面
+    # edge 那行 → UI 顯示成 edge 第一個 voice 騙人 (S 軸 S1 修的顯示斷層)。
+    if cfg.get("backend") == "google":
+        return "google:" + (cfg.get("google", {}).get("voice") or "cmn-TW-Wavenet-A")
     return cfg.get("edge", {}).get("voice") or VOICES[0]["id"]
 
 
 def _write_current_voice(voice_id: str) -> bool:
-    """切聲音 = 同時切 backend 跟對應 edge.voice。f5 區塊 (ref_audio 等) 維持不動。"""
-    if voice_id not in VOICE_IDS:
+    """切聲音 = 同時切 backend 跟對應 voice。f5 / google 區塊的其他參數維持不動。
+
+    google: prefix 走命名空間驗證 (不要求在 VOICE_IDS, 因 GCP 合法 voice 名很多,
+    S2 才補 UI 預設清單); edge / f5 仍照 VOICE_IDS 白名單。
+    """
+    is_google = voice_id.startswith("google:")
+    if voice_id not in VOICE_IDS and not is_google:
         return False
     cfg: dict = {}
     if TTS_CONFIG_PATH.exists():
@@ -69,6 +79,9 @@ def _write_current_voice(voice_id: str) -> bool:
 
     if voice_id.startswith("f5:"):
         cfg["backend"] = "f5"
+    elif is_google:
+        cfg["backend"] = "google"
+        cfg.setdefault("google", {})["voice"] = voice_id[len("google:"):]
     else:
         cfg["backend"] = "edge"
         cfg.setdefault("edge", {})["voice"] = voice_id

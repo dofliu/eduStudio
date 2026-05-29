@@ -153,13 +153,13 @@
 >   -B (男) / -C (男, 深沉)。
 > - 不動 `tts_config.json` 內容本身 (gitignored, smoke test 會改); 只改 route 邏輯 + 測試。
 
-- [ ] **S1 voices route 認得 google backend (修顯示斷層)**: `_read_current_voice`
-  加 google 分支 (backend==google → 回 `google:` + cfg["google"]["voice"]);
-  `_write_current_voice` 加 google 分支 (id 以 `google:` 開頭 → backend=google +
-  設 cfg.setdefault("google",{})["voice"] = voiceName, 不動既有 f5/edge 區塊)。
-  動檔: server/routes/voices.py + tests/test_voices.py (≤2 檔)。驗收: backend=google
-  的 tts_config → GET /voices current == `google:cmn-TW-Wavenet-A` (不再掉 edge);
-  POST google id → 寫回 backend=google + google.voice; round-trip 一致。
+- [x] **S1 voices route 認得 google backend (修顯示斷層)** (2026-05-30): `_read_current_voice`
+  加 google 分支 (backend==google → 回 `google:` + cfg["google"]["voice"], 缺 voice 退
+  預設 cmn-TW-Wavenet-A); `_write_current_voice` 加 google 分支 (id 以 `google:` 開頭 →
+  backend=google + cfg.setdefault("google",{})["voice"] = prefix 後字串, 不動 f5/edge 區塊)。
+  google: 走 prefix 命名空間驗證 (不要求在 VOICE_IDS, 因 GCP 合法 voice 名很多, 預設清單
+  S2 才補)。+5 tests (TestGoogleBackend: read / read 缺 voice 退預設 / write 切 backend /
+  write 保留 edge+f5 區塊 / round-trip)。1777→1782。改 2 檔 (voices.py + test_voices.py)。
 - [ ] **S2 VOICES 清單加 Google 選項**: VOICES list 加 3 個 google entry (A 女預設 /
   B 男 / C 男深沉), label 標「(Google 雲端 TTS, 需 GCP 額度)」, VOICE_IDS 自動含。
   動檔: server/routes/voices.py + tests/test_voices.py (≤2 檔)。驗收: GET /voices 回

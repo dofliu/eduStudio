@@ -114,3 +114,42 @@ class TestWriteCurrentVoice:
         assert _read_current_voice() == "zh-CN-XiaoxiaoNeural"
         _write_current_voice("f5:teacher")
         assert _read_current_voice() == "f5:teacher"
+
+
+# ---------- google backend (S 軸 S1) ----------
+
+class TestGoogleBackend:
+    def test_reads_google_voice(self, fake_tts_config):
+        # backend=google 時不該掉成 edge, 要回 google:<voiceName>
+        cfg = json.loads(fake_tts_config.read_text(encoding="utf-8"))
+        cfg["backend"] = "google"
+        cfg["google"] = {"voice": "cmn-TW-Wavenet-A"}
+        fake_tts_config.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+        assert _read_current_voice() == "google:cmn-TW-Wavenet-A"
+
+    def test_reads_google_default_when_voice_missing(self, fake_tts_config):
+        # backend=google 但 google 區塊缺 voice → 退預設 cmn-TW-Wavenet-A
+        cfg = json.loads(fake_tts_config.read_text(encoding="utf-8"))
+        cfg["backend"] = "google"
+        cfg.pop("google", None)
+        fake_tts_config.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+        assert _read_current_voice() == "google:cmn-TW-Wavenet-A"
+
+    def test_write_google_voice_switches_backend(self, fake_tts_config):
+        ok = _write_current_voice("google:cmn-TW-Wavenet-B")
+        assert ok is True
+        cfg = json.loads(fake_tts_config.read_text(encoding="utf-8"))
+        assert cfg["backend"] == "google"
+        assert cfg["google"]["voice"] == "cmn-TW-Wavenet-B"
+
+    def test_write_google_preserves_edge_and_f5_blocks(self, fake_tts_config):
+        # 切 google 不該動既有 edge / f5 區塊 (使用者參數)
+        before = json.loads(fake_tts_config.read_text(encoding="utf-8"))
+        _write_current_voice("google:cmn-TW-Wavenet-A")
+        after = json.loads(fake_tts_config.read_text(encoding="utf-8"))
+        assert after["edge"] == before["edge"]
+        assert after["f5"] == before["f5"]
+
+    def test_google_round_trip(self, fake_tts_config):
+        _write_current_voice("google:cmn-TW-Wavenet-C")
+        assert _read_current_voice() == "google:cmn-TW-Wavenet-C"

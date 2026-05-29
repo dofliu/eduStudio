@@ -134,9 +134,46 @@
 - [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep + 行為
   refactor. 見上方同一份 proposal. 建議先做完 V2 再評估 (或退候選 C 純 Pillow 不加 dep).
 
-> **🛑 Routine wind-down (2026-05-29)**: V 軸 offline 能自主做的 (V1) 已收尾, V2/V3
-> 都 GATE。hourly routine 該停, 等劉老師開 V2 額度補 SVG / 或給新方向。細則見
-> [docs/ROUTINE_ADVANCE_PROMPT.md](docs/ROUTINE_ADVANCE_PROMPT.md) Phase 3 段。
+### 🎙️ S 軸 — 語音 voices UI 修補 (offline, 劉老師 2026-05-29 授權 routine 自主)
+
+> **背景**: 2026-05-29 互動 session 查 TTS 現況時發現 voices route 有真 bug —
+> `server/routes/voices.py` 的 `_read_current_voice` / `_write_current_voice` 只認
+> edge / f5 兩種 backend, 完全沒有 google 分支。後果: 若 `tts_config.json` 的
+> `backend` 是 google, UI 會顯示**錯的** current voice (掉成 edge 第一個「小陳」),
+> 且使用者在 UI 選任何聲音都會把 google 設定覆蓋掉 → 「Google 在 UI 上管不到、
+> 還會騙人」。系統文件 (CLAUDE.md / GOOGLE_TTS_SETUP) 宣稱「預設 google」但 UI 接不住。
+>
+> **授權**: 劉老師明確授權 routine 自主修這組 (解除硬規則 #3「修 bug 先討論」gate)。
+> 全 offline、純 code、低風險、有測試。一輪一項, 按順序做。
+>
+> **預先定好的設計約束 (routine 照做, 不用自己決策)**:
+> - google voice id 格式 = `google:<voiceName>`, 例 `google:cmn-TW-Wavenet-A`
+>   (跟 `f5:teacher` 的 prefix 風格一致)。
+> - google voice 清單取 docs/GOOGLE_TTS_SETUP.md: cmn-TW-Wavenet-A (女, 預設) /
+>   -B (男) / -C (男, 深沉)。
+> - 不動 `tts_config.json` 內容本身 (gitignored, smoke test 會改); 只改 route 邏輯 + 測試。
+
+- [ ] **S1 voices route 認得 google backend (修顯示斷層)**: `_read_current_voice`
+  加 google 分支 (backend==google → 回 `google:` + cfg["google"]["voice"]);
+  `_write_current_voice` 加 google 分支 (id 以 `google:` 開頭 → backend=google +
+  設 cfg.setdefault("google",{})["voice"] = voiceName, 不動既有 f5/edge 區塊)。
+  動檔: server/routes/voices.py + tests/test_voices.py (≤2 檔)。驗收: backend=google
+  的 tts_config → GET /voices current == `google:cmn-TW-Wavenet-A` (不再掉 edge);
+  POST google id → 寫回 backend=google + google.voice; round-trip 一致。
+- [ ] **S2 VOICES 清單加 Google 選項**: VOICES list 加 3 個 google entry (A 女預設 /
+  B 男 / C 男深沉), label 標「(Google 雲端 TTS, 需 GCP 額度)」, VOICE_IDS 自動含。
+  動檔: server/routes/voices.py + tests/test_voices.py (≤2 檔)。驗收: GET /voices 回
+  含 3 個 google; POST 各 google id 成功且套用; 未知 google id 仍 400。
+- [ ] **S3 sample 試聽對無預錄 sample 的 voice 優雅降級**: google voice 沒有
+  voices/samples/*.mp3, 現行 sample endpoint 會回 404「sample 檔不存在」, 前端試聽
+  鈕會壞。VoiceInfo schema 加 `has_sample: bool` (掃 sample 檔存在與否), list_voices
+  回填。動檔: server/routes/voices.py + tests/test_voices.py (前端 web/ disable 試聽鈕
+  可另開小項, 後端先就緒)。驗收: google voice 的 has_sample==False, edge/f5==True。
+
+> **做完 S 軸 → 回 wind-down**。其餘大目標 (GitHub issue #12 P0 穩固化 / #13 V2-V3 /
+> #14 發佈擴展) 多需架構決策 / Gemini 額度 / 用戶操作, routine 不自主碰, 等劉老師
+> 互動 session 推或拆出新 offline 子任務。B1/B2 動態尺寸 (docs/B1_B2_DYNAMIC_DIMENSIONS_RFC.md)
+> 卡在「等用戶選 Option A/B/C」架構決策, 選定後才好拆。
 
 ---
 

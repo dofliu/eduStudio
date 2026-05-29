@@ -8,13 +8,22 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server.main import create_app
+from server.jobs import JobStore, get_default_store
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """proposals 寫到 tmp_path 避免污染真實 PROPOSALS_PATH."""
+    """proposals 寫到 tmp_path 避免污染真實 PROPOSALS_PATH.
+
+    iter 11: 同時 override get_default_store → tmp JobStore. 否則
+    test_duplicate_then_approve_succeeds 呼叫 /approve 會在 production
+    jobs/ 真建 job + schedule_job ingest 假路徑 /x/prop_approved_1.pdf,
+    每次 pytest 跑都漏一筆「ingest 失敗」到真實 Jobs 作業中心 (routine
+    每 2 小時跑 baseline 測試 → 每 2 小時冒一筆). 沿用全 repo route 測試慣例.
+    """
     fake_path = tmp_path / "proposals.json"
     monkeypatch.setattr("server.routes.proposals.PROPOSALS_PATH", fake_path)
+    store = JobStore(tmp_path / "jobs")
     # 初始 proposals
     def _make(pid: str, status: str, title: str, dur: int = 5):
         return {
@@ -37,7 +46,9 @@ def client(tmp_path, monkeypatch):
         json.dumps({"proposals": sample}, ensure_ascii=False),
         encoding="utf-8",
     )
-    return TestClient(create_app())
+    app = create_app()
+    app.dependency_overrides[get_default_store] = lambda: store
+    return TestClient(app)
 
 
 def _load(client) -> list[dict]:

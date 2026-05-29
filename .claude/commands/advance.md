@@ -144,4 +144,4 @@ Ctrl+C / Esc 隨時中斷。
 - 短期任務: `TODO.md` (主要選任務的地方)
 - 版本路線: `ROADMAP.md`
 - Lessons learned: `docs/CODE_REVIEW.md`
-- 上次 session 接手筆記: `docs/SESSION_HANDOFF.md`
+- 專案現狀 / 最近 iter: `STATUS.yaml`

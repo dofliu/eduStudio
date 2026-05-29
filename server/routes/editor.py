@@ -304,6 +304,13 @@ def _render_editor(j: JobRecord, store: JobStore) -> str:
                            or deck.get("source_meta", {}).get("root_name", ""))
     state_badge = f'<span class="badge badge-{j.state.value}">{j.state.value}</span>'
 
+    # JS-context escape: deck / job_id 注入 <script> block, 任一字串欄位含
+    # "</script>" 會讓 HTML parser 提早結束 script tag → XSS. 把 "</" 轉成
+    # "<\/" (JSON 標準作法, 不改變 JS 解析語意). f-string 的 {} 內不能含反斜線
+    # (py3.10/3.11 限制), 故先在外面算好. _html_escape 已護住其餘 DOM 路徑.
+    job_id_js = json.dumps(j.id).replace("</", "<\\/")
+    deck_js = json.dumps(deck, ensure_ascii=False).replace("</", "<\\/")
+
     body = f"""
 <div class="toolbar">
   <strong>{deck_title}</strong>
@@ -319,8 +326,8 @@ def _render_editor(j: JobRecord, store: JobStore) -> str:
 </form>
 
 <script>
-const JOB_ID = {json.dumps(j.id)};
-const DECK = {json.dumps(deck, ensure_ascii=False)};
+const JOB_ID = {job_id_js};
+const DECK = {deck_js};
 
 function collectDeck() {{
   // 從 DOM 收集編輯後的 deck — 結構照原 deck schema, 只更新允許編輯的欄位

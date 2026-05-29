@@ -240,7 +240,7 @@ autoSolverVideo/
 - 當前任務:`TODO.md`(🌟 下階段規劃是 active 工作清單)
 - 設計文件:`docs/*.md`(`ideate-design.md` / `engineering-diagram-design.md` 等)
 - Code review 紀錄:`docs/CODE_REVIEW.md`(Round 1 + Round 2 + lessons learned)
-- 上次 session 接手筆記:`docs/SESSION_HANDOFF.md`(給 AI / 人類都看)
+- 專案現狀 / 最近 iter:`STATUS.yaml`(每次推進都更新, 接手先看這份)
 
 有問題 → 開 issue 或直接問劉老師。
 

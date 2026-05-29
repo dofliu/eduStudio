@@ -74,7 +74,7 @@
 
 ## v1.7 — 簡報講解影片擴充(2026-05 Phase 1/2/3/5 完成)
 
-把同一條 pipeline 擴展到吃簡報 PDF。詳見 [plan_slidevideo.md](plan_slidevideo.md)(規劃文件,主要事項已完成)。
+把同一條 pipeline 擴展到吃簡報 PDF(slides_pdf source)。Phase 1/2/3/5 完成。
 
 ### 1.7.0 — Phase 1 Renderer 抽象
 - [x] `pipeline.py` 抽 `Renderer` 基類,`BlackboardRenderer` 包現有邏輯
@@ -107,7 +107,7 @@
 
 ## v2.0 — YouTube 上傳通道(2026-05 完成)
 
-詳見 [plan_youtube_agent.md](plan_youtube_agent.md)。
+`publish.py` CLI + Track B 上傳審查通道(YouTube Data API v3 + OAuth)。
 
 ### publish.py CLI
 - [x] OAuth 2.0 flow,token 存 `youtube_token.json`
@@ -365,8 +365,7 @@
 - [ ] propose_from_file (Gemini Vision call + parse) (iter 12)
 - [ ] dedupe_against_jobs (對 JobStore + YouTube + 前次 proposals) (iter 13)
 - [ ] server route /proposals + React UI ProposalsList 頁 (iter 14)
-- 設計細節見 [docs/ideate-design.md](docs/ideate-design.md), 舊版規劃見
-  [plan_youtube_agent.md](../plan_youtube_agent.md) v2.1
+- 設計細節見 [docs/ideate-design.md](docs/ideate-design.md)
 - 價值: 從「批次工具」升級成「自動內容企劃平台」
 - 風險: Gemini token 成本 / proposals 品質可能要二次篩
 

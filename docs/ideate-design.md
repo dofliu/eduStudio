@@ -1,6 +1,6 @@
 # ideate.py — 自動內容企劃 RFC (v4 階段 2 B)
 
-> 更新 `plan_youtube_agent.md` v2.1 段落到 Track B 設計。把 watched_folders → Gemini 分析 → proposals.json → React UI 的流程跟 v3.x 既有架構接好。
+> v4 階段 2 B 設計。把 watched_folders → Gemini 分析 → proposals.json → React UI 的流程跟 v3.x 既有架構接好。
 
 ---
 

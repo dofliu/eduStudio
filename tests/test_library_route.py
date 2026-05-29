@@ -281,6 +281,52 @@ class TestReadDeckTitleEdgeCases:
         assert isinstance(result, str)
         assert result  # 非空 (job_id fallback 或合法 title)
 
+    def test_deck_top_level_is_list_falls_back(self, tmp_path):
+        """deck.json 頂層是 list (非 dict) → deck.get AttributeError, 修前 500.
+        try 範圍擴大後該 graceful 退 job_id (見 ROUTINE_FINDINGS 2026-05-24)."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        store.deck_path(rec.id).write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+        assert _read_deck_title(store, rec.id) == rec.id
+
+    def test_deck_top_level_is_string_falls_back(self, tmp_path):
+        """deck.json 頂層是 JSON string (非 dict) → 同樣 deck.get 炸 → 退 job_id."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        store.deck_path(rec.id).write_text(json.dumps("just a string"), encoding="utf-8")
+        assert _read_deck_title(store, rec.id) == rec.id
+
+    def test_non_str_int_title_falls_back(self, tmp_path):
+        """exam_title 是 int (Gemini 偶爾偏差 / 用戶手改錯) → or 鏈回 truthy 42,
+        .strip() AttributeError, 修前 500. 擴大 try 後 graceful 退 job_id."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        store.deck_path(rec.id).write_text(
+            json.dumps({"exam_title": 42}), encoding="utf-8",
+        )
+        assert _read_deck_title(store, rec.id) == rec.id
+
+    def test_non_str_list_title_falls_back(self, tmp_path):
+        """deck_title 是 list (truthy non-str) → .strip() 炸 → 退 job_id."""
+        store = JobStore(root=tmp_path / "jobs")
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.DOCUMENT,
+            source=JobSource(path="/tmp/fake.pdf"),
+        ))
+        store.deck_path(rec.id).write_text(
+            json.dumps({"deck_title": ["a", "b"]}), encoding="utf-8",
+        )
+        assert _read_deck_title(store, rec.id) == rec.id
+
 
 class TestLibraryItemFields:
     """iter 115: LibraryItem 各欄位 — URL 格式 / srt_exists / source_type /

@@ -361,6 +361,52 @@ class TestEditorPage:
         assert 'value="&lt;/h3&gt;&lt;img src=x onerror=evil()&gt;"' in r.text
         # bullet <input value="{bullet}"> — 走 _html_escape (escaped 版本一定在)
         assert "&quot;&gt;&lt;b&gt;bullet payload&lt;/b&gt;" in r.text
-        # 注意: 同 payload 也會出現在 <script>const DECK = ...</script> JSON
-        # 路徑 (未 escape 的 <b>bullet payload</b> 可能裸露), 該路徑 XSS 風險
-        # 見 docs/ROUTINE_FINDINGS.md, 不在此測試 assert 範圍
+        # JS-context 路徑 (<script>const DECK = ...) 的 </ escape 由
+        # TestEditorScriptContextEscape 專門驗.
+
+
+class TestEditorScriptContextEscape:
+    """<script>const DECK = {json}</script> 的 JS-context XSS 防線.
+
+    deck 任一字串欄位含 `</script>` 會讓 HTML parser 提早結束 script tag
+    → 後面內容當成新 tag 解析 (XSS). 修法: json.dumps 後把 `</` 換成 `<\\/`
+    (JSON 標準, 不改 JS 語意). 原本只有 _html_escape 護 DOM 路徑, 這條漏掉
+    (見 docs/ROUTINE_FINDINGS.md 2026-05-24 finding, 已修)."""
+
+    def test_script_close_in_deck_title_is_neutralized(self, client):
+        c, store = client
+        # deck_title 帶 </script> break-out 嘗試
+        payload = "</script><img src=x onerror=alert(1)>"
+        _make_job(store, deck_content={
+            "deck_title": payload,
+            "sections": [
+                {"id": "sec1", "title": "ok", "slides": [
+                    {"id": "s1", "title": "ok", "bullets": [],
+                     "narration": "", "code_snippet": None, "file_path": None},
+                ]},
+            ],
+        })
+        r = c.get("/editor/testjob01")
+        assert r.status_code == 200
+        # 裸露的 </script><img...> 不該出現 (那代表 break out 成功)
+        assert payload not in r.text
+        # 該以 escape 形式出現在 const DECK JSON 內: </ → <\/
+        assert "<\\/script><img src=x onerror=alert(1)>" in r.text
+
+    def test_script_close_in_narration_is_neutralized(self, client):
+        c, store = client
+        evil = "正常旁白</script><script>steal()</script>"
+        _make_job(store, deck_content={
+            "deck_title": "ok",
+            "sections": [
+                {"id": "sec1", "title": "ok", "slides": [
+                    {"id": "s1", "title": "ok", "bullets": [],
+                     "narration": evil, "code_snippet": None, "file_path": None},
+                ]},
+            ],
+        })
+        r = c.get("/editor/testjob01")
+        assert r.status_code == 200
+        # narration 的 </script> 在 const DECK JSON 內全被 escape, 不裸露
+        assert "</script><script>steal()" not in r.text
+        assert "<\\/script><script>steal()<\\/script>" in r.text

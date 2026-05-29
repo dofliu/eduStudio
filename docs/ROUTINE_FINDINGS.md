@@ -7,7 +7,11 @@
 
 ---
 
-## 2026-05-24 (iter 113) — editor.py route 有 JS-context XSS 風險
+## 2026-05-24 (iter 113) — editor.py route 有 JS-context XSS 風險  ✅ 已修 (2026-05-29)
+
+> **RESOLVED 2026-05-29**: `_render_editor` 改成先把 `json.dumps(deck/job_id)`
+> 的 `</` 換成 `<\/` 再注入 `<script>` block (採建議修法 1). +2 tests
+> (tests/test_editor_route.py::TestEditorScriptContextEscape). 保留本筆作紀錄.
 
 **來源**: 補 `server/routes/editor.py` 測試覆蓋時發現 (test_editor_route.py
 test_deck_xss_in_html_render_path_escaped 原本想驗 deck_title 含 `<script>`
@@ -51,7 +55,12 @@ Christian) 可能跑別人的 deck, 仍有風險.
 
 ---
 
-## 2026-05-24 (iter 121) — library.py `_read_deck_title` 對非 str 型別 title 會炸
+## 2026-05-24 (iter 121) — library.py `_read_deck_title` 對非 str 型別 title 會炸  ✅ 已修 (2026-05-29)
+
+> **RESOLVED 2026-05-29**: try/except 範圍擴大到包含最後的 `.get(...).strip()`
+> return (採建議修法 1). deck 非 dict / title 非 str 都 graceful 退 job_id 不再
+> 500. +4 tests (tests/test_library_route.py: list/string 頂層 + int/list title).
+> 保留本筆作紀錄.
 
 **來源**: 補 `server/routes/library.py::_read_deck_title` 邊角測試 (test_library_route.py
 TestReadDeckTitleEdgeCases) 時, 邊看 code 邊推. 已寫的 5 個 test 都是 graceful

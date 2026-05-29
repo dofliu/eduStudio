@@ -4,7 +4,7 @@
 > 接管 /loop /advance 在 session 內做的事, 但獨立可重入, 不依賴
 > 對話 context.
 >
-> Last updated: 2026-05-17 (iter 94 完成後寫)
+> Last updated: 2026-05-29 (Phase 3 wind-down: N/V1 完成, V2/V3 GATE, routine 該停)
 
 ---
 
@@ -176,8 +176,8 @@ helper safety lock, 沒抓到真 bug, 邊際效益遞減. 設定明確 closeout 
 - 補 module test < 5 個的小檔 — 都已過保護線, 再補純消耗 API
 - 大型 refactor / 拆 pipeline.py / 新功能
 
-**Closeout 完成判定 (4 項全打勾) → 自動 STOP, 寫 docs/ROUTINE_CLOSEOUT.md**:
-- 標題「Routine closeout 完成 — 等用戶切 daily 模式」
+**Closeout 完成判定 (4 項全打勾) → 自動 STOP** (2026-05-28 達成, ROUTINE_CLOSEOUT.md
+已於 2026-05-29 移除; Phase 2/3 supersede 此段, 保留作流程紀錄):
 - 列每 iter 對應 commit hash
 - 提醒: 用戶該用 `/schedule` 把 hourly task 改成 daily 5pm summary, 或刪掉
   重建一個 summary-only 版本
@@ -206,6 +206,29 @@ N1-N3 純離線可自主; N4 / V2 / V3 是 GATE (Gemini 額度 / 新 dep) → �
 
 **每 2 小時節奏**: 一輪一項, 跟 7 步 SOP 一致. 每天傍晚那輪 (18:00 整) 額外做
 一次當日進度總結 + 後續方案, 給用戶可加新意見.
+
+---
+
+## Phase 3 — wind-down (2026-05-29 起, 當前狀態)
+
+**用戶決策 (2026-05-29)**: N 軸全完成、V 軸 V1 (offline 補測試 + parser 強化)
+也收尾。剩下的 **V2 (Gemini 產 25 SVG icon) / V3 (cairosvg flow_diagram) 都是 GATE**
+— 需要 routine 不該自主動用的資源 (Gemini 額度 / 新 pip dep / production 行為改動)。
+→ offline-first 能自主做的高價值工作已做光。
+
+**proposal 已寫**: [dynamic-visual-v2-v3-proposal.md](dynamic-visual-v2-v3-proposal.md)
+(V2/V3 卡在哪、要用戶做什麼、怎麼驗收)。
+
+**routine 現在該做的**:
+- **預設 STOP / wind to daily**。hourly 自主推進沒料可推, 不該硬找事做 (closeout
+  期 iter 111-133 連 23 輪補 wrapper safety-lock、邊際效益遞減的教訓不要重演)。
+- 用戶把 `/schedule` 從每 2 小時改成 daily summary, 或開 V2 額度後恢復推進。
+- **唯一可自主恢復的觸發**: 用戶補完 V2 的 25 個 SVG 檔進 `assets/icon_library/`
+  之後, routine 可做「驗收測試 + manifest 完整性鎖」(純 offline, 見 proposal 驗收段)。
+- 若用戶給全新 offline 方向 → 照新方向走 7 步 SOP。
+
+> closeout phase (iter 138) 的 `docs/ROUTINE_CLOSEOUT.md` 已在 2026-05-29 文件整理時
+> 移除 (歷史里程碑, git 仍可查)。Phase 2/3 supersede 它。
 
 ---
 

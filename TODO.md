@@ -28,32 +28,11 @@
 
 ---
 
-## 🏁 Routine closeout backlog (2026-05-24 設定, 做完停 hourly)
+## 🏁 Routine closeout backlog — ✅ 完成 (iter 134-138, 2026-05-28)
 
-> **背景**: iter 111-133 連 23 iter 全在補 wrapper / route / helper safety
-> lock, 沒抓到真 bug, 邊際效益遞減. 用戶 (2026-05-24) 決議設明確終點 →
-> 4 項全完成後 routine 自動 STOP + 寫 `docs/ROUTINE_CLOSEOUT.md`, 等用戶
-> 用 `/schedule` 切 daily 5pm summary 模式. 細則見
-> [docs/ROUTINE_ADVANCE_PROMPT.md](docs/ROUTINE_ADVANCE_PROMPT.md) Closeout
-> phase 段落.
-
-按順序做 (一輪一項):
-
-- [x] **iter 134**: `_run_ingest_repo` (server/runner.py:110) 補測試覆蓋 (2026-05-25, +20 tests, 1580→1600)
-- [x] **iter 135**: `_run_ingest_long_form` (server/runner.py:362) 補測試覆蓋 (2026-05-25, +22 tests, 1600→1622)
-- [x] **iter 136**: `_run_render_inner` (server/runner.py:518) schema dispatch 補測試 (2026-05-27, +14 tests, 1622→1636)
-- [x] **iter 137**: `run_job` (server/runner.py:971) 主流程串接補測試 (ingest →
-  require_review 分支 → render) (2026-05-28, +23 tests, 1636→1659)
-- [x] **iter 138 (closeout commit)**: 寫 `docs/ROUTINE_CLOSEOUT.md` + STATUS
-  next_milestone 改「等用戶切 daily 模式」+ 報告 STOP (2026-05-28)
-  → **Closeout backlog 4 項全完成. hourly routine STOP, 等用戶切 daily 模式 + 給新方向.**
-  詳見 [docs/ROUTINE_CLOSEOUT.md](docs/ROUTINE_CLOSEOUT.md)
-
-**不該做的** (邊際效益太低, 別偷塞進來):
-- `schedule_job` / `schedule_render` / `schedule_section_render` — 全 1 行
-  asyncio.create_task, 沒 wrapper value-add
-- 找 module test < 5 個的補 — 都已過保護線
-- 任何 production code 改 / 新 feature
+> closeout 4 項 (runner.py 4 個 orchestrator 補測試) 全完成, 1580→1659 tests。
+> 之後用戶 2026-05-28 給 Phase 2 新方向 (N 軸 → V 軸)。歷史細節見 git log +
+> STATUS.yaml key_metrics。(原 `docs/ROUTINE_CLOSEOUT.md` 已於 2026-05-29 文件整理移除。)
 
 ---
 
@@ -149,8 +128,15 @@
     純 endpoint 序列化/過濾契約, 0 production 改動. 1766→1771. 改 2 檔
     (tests/test_icon_suggestions_endpoint.py + tests/test_image_frames_endpoint.py).
     **V1 (offline) 收尾.** 下一輪 = V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg) GATE 需用戶開額度/新 dep STOP.
-- [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度, 寫 proposal STOP
-- [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep, STOP 等用戶
+- [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度. proposal 已寫:
+  [docs/dynamic-visual-v2-v3-proposal.md](docs/dynamic-visual-v2-v3-proposal.md).
+  manifest 已定義 25 icon 但 0 SVG 檔在磁碟 → 補檔後 routine 可自主做驗收測試 (offline).
+- [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep + 行為
+  refactor. 見上方同一份 proposal. 建議先做完 V2 再評估 (或退候選 C 純 Pillow 不加 dep).
+
+> **🛑 Routine wind-down (2026-05-29)**: V 軸 offline 能自主做的 (V1) 已收尾, V2/V3
+> 都 GATE。hourly routine 該停, 等劉老師開 V2 額度補 SVG / 或給新方向。細則見
+> [docs/ROUTINE_ADVANCE_PROMPT.md](docs/ROUTINE_ADVANCE_PROMPT.md) Phase 3 段。
 
 ---
 

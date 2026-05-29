@@ -414,8 +414,7 @@ autoSolverVideo/
 │
 ├── tests/               # PR-4b: pytest (148 tests, 9 modules)
 ├── docs/
-│   ├── CODE_REVIEW.md   # 2026-05-09 獨立審查結果, 4 P0 + 4 P1 follow-ups
-│   └── SESSION_HANDOFF.md  # 給下個 Claude session 接手用
+│   └── CODE_REVIEW.md   # 2026-05-09 獨立審查結果, 4 P0 + 4 P1 follow-ups
 ├── pyproject.toml       # pytest 設定
 ├── requirements-dev.txt # pytest + httpx
 ├── .github/
@@ -535,7 +534,7 @@ GitHub Actions 在 push / PR 時跑 4 組 matrix(Python 3.10/3.12 × Linux/Win)�
 - [TODO.md](TODO.md) — 短期可立即做的事項 + Code review follow-ups
 - [claude.md](claude.md) — 專案規則 / 溝通原則(給 Claude Code 用)
 - [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) — 2026-05-09 獨立審查結果
-- [docs/SESSION_HANDOFF.md](docs/SESSION_HANDOFF.md) — 給下個 Claude session 接手用
+- [docs/onboarding.md](docs/onboarding.md) — 研究室 onboarding(30 分鐘上手)
 
 ---
 

@@ -50,12 +50,15 @@ def _read_deck_title(store: JobStore, job_id: str) -> str:
     deck_path = store.deck_path(job_id)
     if not deck_path.exists():
         return job_id
+    # try 要包到最後 return: 不只 json.loads 會炸, deck 非 dict (頂層是 list /
+    # str) 時 deck.get 噴 AttributeError, title 是 non-str truthy (例 42 / [..])
+    # 時 .strip() 也炸 — 任一條都該 graceful 退 job_id, 不該讓整頁 Library 掛 500.
     try:
         import json
         deck = json.loads(deck_path.read_text(encoding="utf-8"))
+        return (deck.get("exam_title") or deck.get("deck_title") or job_id).strip()
     except Exception:
         return job_id
-    return (deck.get("exam_title") or deck.get("deck_title") or job_id).strip()
 
 
 # ---------- Route ----------

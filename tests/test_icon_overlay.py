@@ -491,7 +491,7 @@ class TestSlideRendererIntegration:
         data = self._make_data(real_icon_shared, layout="full")
         renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
         assert out.exists()
-        result = _Image.open(out).convert("RGB")
+        result = Image.open(out).convert("RGB")
         assert result.size == (1920, 1080)
         # 無 bg, top-right icon 區 (x≈1820, y≈100) 該被紅 icon 疊上 (非純黑底)
         px = result.getpixel((1920 - 100, 100))
@@ -505,7 +505,7 @@ class TestSlideRendererIntegration:
         data = self._make_data(None, layout="full", with_overlay=False)
         renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
         assert out.exists()
-        result = _Image.open(out).convert("RGB")
+        result = Image.open(out).convert("RGB")
         assert result.size == (1920, 1080)
         # 無 icon + 無 bg → top-right 仍純黑底 (compose_icons NoOp)
         assert result.getpixel((1920 - 100, 100)) == (0, 0, 0)
@@ -517,7 +517,7 @@ class TestSlideRendererIntegration:
         data = self._make_data(real_icon_shared, layout="split-left")
         renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
         assert out.exists()
-        result = _Image.open(out).convert("RGB")
+        result = Image.open(out).convert("RGB")
         assert result.size == (1920, 1080)
         # split-left 底色 (18,18,22); top-right icon 區該被紅 icon 蓋上
         px = result.getpixel((1920 - 100, 100))
@@ -540,7 +540,7 @@ class TestSlideRendererIntegration:
             {"path": str(real_icon_shared), "position": "bottom-right", "size_ratio": 0.1}
         ]
         renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
-        result = _Image.open(out).convert("RGB")
+        result = Image.open(out).convert("RGB")
         # y=700 落在 canvas_h=900 的 bottom icon 區 (668..860) → 該是 icon 色
         assert result.getpixel((1920 - 100, 700))[0] > 100
         # y=950 在字幕帶內 → 該是字幕帶色 (icon 沒漏進帶內)
@@ -557,5 +557,5 @@ class TestSlideRendererIntegration:
             {"path": str(real_icon_shared), "position": "bottom-right", "size_ratio": 0.1}
         ]
         renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
-        result = _Image.open(out).convert("RGB")
+        result = Image.open(out).convert("RGB")
         assert result.getpixel((1920 - 100, 1000)) == SUBTITLE_STRIP_COLOR

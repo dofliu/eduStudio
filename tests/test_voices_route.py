@@ -67,12 +67,67 @@ class TestListVoices:
         assert body["current"] == "zh-TW-HsiaoChenNeural"
 
     def test_voice_info_shape(self, client):
-        """每個 voice 該帶 id / label / sample_url, sample_url 該指向 /voices/{id}/sample."""
+        """每個 voice 該帶 id / label / sample_url / has_sample, sample_url 該指向 /voices/{id}/sample."""
         c, _, _ = client
         body = c.get("/voices").json()
         for v in body["voices"]:
-            assert set(v.keys()) == {"id", "label", "sample_url"}
+            assert set(v.keys()) == {"id", "label", "sample_url", "has_sample"}
             assert v["sample_url"] == f"/voices/{v['id']}/sample"
+            assert isinstance(v["has_sample"], bool)
+
+
+class TestHasSample:
+    """S3: has_sample 反映 voices/samples/ 預錄檔是否存在 → 前端據此 disable 試聽鈕。
+
+    fixture 的 sample_dir 預設是空的, 各 test 自己鋪需要的 sample 檔。
+    """
+
+    def _write_samples(self, sample_dir, ids):
+        """為指定 voice id 在 sample_dir 鋪空 mp3 (檔名取 VOICES 的 sample 欄)。"""
+        by_id = {v["id"]: v for v in voices_mod.VOICES}
+        for vid in ids:
+            (sample_dir / by_id[vid]["sample"]).write_bytes(b"\x00")
+
+    def test_all_false_when_sample_dir_empty(self, client):
+        """sample 全缺 (空 dir) → 每個 voice has_sample==False, 不噴錯。"""
+        c, _, _ = client
+        body = c.get("/voices").json()
+        assert all(v["has_sample"] is False for v in body["voices"])
+
+    def test_google_voices_have_no_sample(self, client):
+        """驗收核心: 3 個 google voice 無預錄 sample → has_sample==False (即使其他都鋪了)。"""
+        c, _, sample_dir = client
+        # 鋪 edge + f5 的 sample, 但不鋪 google 的
+        self._write_samples(
+            sample_dir,
+            [v["id"] for v in voices_mod.VOICES if not v["id"].startswith("google:")],
+        )
+        body = c.get("/voices").json()
+        for v in body["voices"]:
+            if v["id"].startswith("google:"):
+                assert v["has_sample"] is False, v["id"]
+
+    def test_edge_and_f5_have_sample_when_present(self, client):
+        """edge / f5 voice 的 sample 檔存在時 → has_sample==True。"""
+        c, _, sample_dir = client
+        self._write_samples(
+            sample_dir,
+            [v["id"] for v in voices_mod.VOICES if not v["id"].startswith("google:")],
+        )
+        body = c.get("/voices").json()
+        for v in body["voices"]:
+            if not v["id"].startswith("google:"):
+                assert v["has_sample"] is True, v["id"]
+
+    def test_has_sample_per_voice_independent(self, client):
+        """只鋪一個 voice 的 sample → 只有它 True, 其餘 False (逐 voice 獨立判斷)。"""
+        c, _, sample_dir = client
+        self._write_samples(sample_dir, ["zh-TW-HsiaoChenNeural"])
+        body = {v["id"]: v["has_sample"] for v in c.get("/voices").json()["voices"]}
+        assert body["zh-TW-HsiaoChenNeural"] is True
+        assert body["zh-TW-HsiaoYuNeural"] is False
+        assert body["f5:teacher"] is False
+        assert body["google:cmn-TW-Wavenet-A"] is False
 
     def test_current_falls_back_when_config_missing(self, client, tmp_path, monkeypatch):
         """沒 tts_config.json 不該爆 500, 該回第一個 voice (跟 _read_current_voice 對齊)."""

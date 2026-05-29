@@ -168,13 +168,15 @@
   3 個預設)。+8 tests (list 3: 3 google / 進 VOICE_IDS / label 標額度; endpoint 5: GET
   含 3 google / POST 各 google 成功套用 / 未知 google 400)。1782→1790。改 3 檔
   (voices.py + test_voices.py + test_voices_route.py 的 six→nine)。
-- [ ] **S3 sample 試聽對無預錄 sample 的 voice 優雅降級**: google voice 沒有
-  voices/samples/*.mp3, 現行 sample endpoint 會回 404「sample 檔不存在」, 前端試聽
-  鈕會壞。VoiceInfo schema 加 `has_sample: bool` (掃 sample 檔存在與否), list_voices
-  回填。動檔: server/routes/voices.py + tests/test_voices.py (前端 web/ disable 試聽鈕
-  可另開小項, 後端先就緒)。驗收: google voice 的 has_sample==False, edge/f5==True。
+- [x] **S3 sample 試聽對無預錄 sample 的 voice 優雅降級** (2026-05-30): VoiceInfo schema
+  加 `has_sample: bool`, list_voices 以 `(VOICE_SAMPLE_DIR / v["sample"]).exists()` 回填。
+  google voice 無 voices/samples/*.mp3 → has_sample==False, 前端據此 disable 試聽鈕優雅
+  降級 (sample endpoint 仍維持 404 行為不動)。+4 tests (TestHasSample: 空 dir 全 False /
+  google 永遠 False (即使 edge+f5 鋪了) / edge+f5 鋪檔則 True / 逐 voice 獨立判斷) +
+  shape test 加 has_sample 欄。1790→1794。改 2 檔 (voices.py + test_voices_route.py)。
+  (前端 web/ disable 試聽鈕另開小項, 後端契約先就緒。)
 
-> **做完 S 軸 → 回 wind-down**。其餘大目標 (GitHub issue #12 P0 穩固化 / #13 V2-V3 /
+> **S 軸 (S1→S3) 全完成 → 回 wind-down**。其餘大目標 (GitHub issue #12 P0 穩固化 / #13 V2-V3 /
 > #14 發佈擴展) 多需架構決策 / Gemini 額度 / 用戶操作, routine 不自主碰, 等劉老師
 > 互動 session 推或拆出新 offline 子任務。B1/B2 動態尺寸 (docs/B1_B2_DYNAMIC_DIMENSIONS_RFC.md)
 > 卡在「等用戶選 Option A/B/C」架構決策, 選定後才好拆。

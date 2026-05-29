@@ -106,6 +106,9 @@ class VoiceInfo(BaseModel):
     id: str
     label: str
     sample_url: str
+    # 預錄試聽檔是否存在於 voices/samples/。google voice 無預錄 sample
+    # (sample endpoint 會 404), 前端據此 disable 試聽鈕優雅降級 (S3)。
+    has_sample: bool
 
 
 class VoiceListResponse(BaseModel):
@@ -129,6 +132,7 @@ async def list_voices() -> VoiceListResponse:
                 id=v["id"],
                 label=v["label"],
                 sample_url=f"/voices/{v['id']}/sample",
+                has_sample=(VOICE_SAMPLE_DIR / v["sample"]).exists(),
             )
             for v in VOICES
         ],

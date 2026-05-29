@@ -105,8 +105,12 @@
   層約束, 補 N3 切不動的「無次級標點長句」缺口 + 強化 over-slide 79.5% 的 slide 層) +
   A/B 驗證流程 (跑 Gemini 產 A/B deck → `--cue-budget 0` 量源頭 over-cue + over-slide).
   **STOP 等用戶 review + 手動開額度驗證**. 0 production code 改動 (純 doc). offline-first.
-  - routine 在 STOP 期間可自主做 §5 配套: `tools/measure_narration_truncation.py` 加
-    `uncuttable_long_cues` counter (無次級標點長句 = N3 切不動的殘留指標, 純離線 +tests).
+  - [x] **§5 配套 counter** (Phase 2 iter 6, 2026-05-29): `tools/measure_narration_truncation.py`
+    加 `is_uncuttable_long_cue` + `uncuttable_long_count` (長度 > `SUBTITLE_CUE_CHAR_BUDGET`
+    且 `_CLAUSE_SPLIT` 切不出 >1 段 = N3 切不動的殘留, 復用 core.srt 不漂移). 全域摘要 +
+    分組表 + 報告各加一列. 配 `--cue-budget 0` 量 Gemini 源頭, 修後等於 over-cue 殘留.
+    fixture locked 0 (4 deck 長句剛好都有逗號 = 缺口 A「運氣」實證). +12 tests (1736→1748).
+    純離線, 改 3 檔 (tool + test + report). **N 軸全收尾, 下一輪接 V 軸 V1 (offline)**.
 
 ### 🎬 V 軸 — 動態視覺 (N 軸全完成後啟動)
 

@@ -28,6 +28,7 @@ from measure_narration_truncation import (  # noqa: E402
     collect_records,
     cue_length_distribution,
     format_markdown_report,
+    is_uncuttable_long_cue,
     load_fixture_records,
     load_options_for_deck,
     make_record,
@@ -84,6 +85,37 @@ class TestSplitCues:
         # --cue-budget 0 → 只按終止標點切句, 過長句不再切 (= 修前對照)
         narr = "甲" * 25 + "，" + "乙" * 25 + "。"
         assert split_cues(narr, max_cue_chars=0) == [narr.strip()]
+
+
+# --------------------------------------------------------------------------- #
+# is_uncuttable_long_cue (proposal N4 缺口 A 殘留指標)
+# --------------------------------------------------------------------------- #
+class TestUncuttableLongCue:
+    def test_short_cue_not_flagged(self):
+        # ≤ threshold → 不算 (無論有無標點)
+        assert is_uncuttable_long_cue("短句") is False
+
+    def test_boundary_equal_not_over(self):
+        # 剛好 = threshold 不算 (用 > 不是 >=, 對齊 over-cue 判定)
+        assert is_uncuttable_long_cue("甲" * 40) is False
+
+    def test_long_with_clause_punct_is_cuttable(self):
+        # 過長但有次級標點 → N3 切得動 → 不算殘留
+        assert is_uncuttable_long_cue("甲" * 25 + "，" + "乙" * 25) is False
+
+    def test_long_without_clause_punct_is_uncuttable(self):
+        # 過長且無次級標點 → N3 切不動 → 算殘留 (缺口 A)
+        assert is_uncuttable_long_cue("甲" * 45) is True
+
+    def test_english_comma_counts_as_clause_punct(self):
+        # 英文逗號也是次級標點 → 可切
+        assert is_uncuttable_long_cue("x" * 25 + ", " + "y" * 25) is False
+
+    def test_custom_threshold(self):
+        # threshold 可調 — 30 字句在 threshold=20 算過長, threshold=40 不算
+        long_no_punct = "甲" * 30
+        assert is_uncuttable_long_cue(long_no_punct, threshold=20) is True
+        assert is_uncuttable_long_cue(long_no_punct, threshold=40) is False
 
 
 # --------------------------------------------------------------------------- #
@@ -186,6 +218,27 @@ class TestMeasureDeck:
         assert measure_deck(deck, length_mode="quick")["over_slide_count"] == 1
         assert measure_deck(deck, length_mode="lecture")["over_slide_count"] == 0
 
+    def test_uncuttable_long_count_no_punct(self):
+        # 過長且無次級標點 → N3 切不動, 修前 (budget 0) 與修後 (budget 40) 都殘留
+        deck = {"sections": [{"id": "s", "slides": [{"id": "a", "narration": "字" * 60 + "。"}]}]}
+        m0 = measure_deck(deck, length_mode="quick", cue_budget=0)
+        assert m0["uncuttable_long_count"] == 1
+        m40 = measure_deck(deck, length_mode="quick", cue_budget=40)
+        # 修後 cue 仍 >40 (切不動), uncuttable 等於 over_cue 殘留
+        assert m40["uncuttable_long_count"] == 1
+        assert m40["uncuttable_long_count"] == m40["over_cue_count"]
+
+    def test_uncuttable_long_count_with_punct_is_zero(self):
+        # 過長但有逗號 → N3 切得動, 不算殘留 (修前修後皆 0)
+        deck = {"sections": [{"id": "s", "slides": [
+            {"id": "a", "narration": "字" * 25 + "，" + "字" * 25 + "。"}]}]}
+        assert measure_deck(deck, length_mode="quick", cue_budget=0)["uncuttable_long_count"] == 0
+        assert measure_deck(deck, length_mode="quick", cue_budget=40)["uncuttable_long_count"] == 0
+
+    def test_uncuttable_long_count_short_is_zero(self):
+        deck = {"sections": [{"id": "s", "slides": [{"id": "a", "narration": "短句。"}]}]}
+        assert measure_deck(deck, length_mode="quick")["uncuttable_long_count"] == 0
+
 
 # --------------------------------------------------------------------------- #
 # cue_length_distribution
@@ -260,6 +313,19 @@ class TestAggregate:
         assert agg["overall"]["deck_count"] == 2
         assert agg["overall"]["total_cues"] == 2
 
+    def test_uncuttable_long_propagates_to_group_and_overall(self):
+        # 一個無標點長句 (budget 0 量源頭) → group + overall counter + ratio
+        d = {"sections": [{"id": "s", "slides": [
+            {"id": "a", "narration": "字" * 50 + "。" + "短。"},
+        ]}]}
+        agg = aggregate([_rec("quick", "academic", d, "jobs/x/deck.json", cue_budget=0)])
+        grp = agg["groups"][0]
+        assert grp["uncuttable_long_count"] == 1   # 只有那個 50 字無標點句
+        o = agg["overall"]
+        assert o["uncuttable_long_count"] == 1
+        assert o["total_cues"] == 2
+        assert o["uncuttable_long_ratio"] == 0.5
+
     def test_worst_cue_tracks_source(self):
         d = {"sections": [{"id": "s", "slides": [{"id": "a", "narration": "字" * 70 + "。"}]}]}
         agg = aggregate([_rec("quick", "academic", d, "jobs/zzz/deck.json")])
@@ -297,6 +363,13 @@ class TestFormatReport:
         assert "2026-05-28" in report
         # over-cue 100% (唯一 cue 過長)
         assert "100.0%" in report
+
+    def test_includes_uncuttable_long_metric(self):
+        # budget 0 量源頭, 一個 50 字無標點句 → 報告該出現「無標點長句」指標
+        d = {"sections": [{"id": "s", "slides": [{"id": "a", "narration": "字" * 50 + "。"}]}]}
+        agg = aggregate([_rec("quick", "academic", d, "jobs/x/deck.json", cue_budget=0)])
+        report = format_markdown_report(agg, cue_budget=0, deck_count=1)
+        assert "無標點長句" in report
 
     def test_excerpt_escapes_pipe(self):
         d = {"sections": [{"id": "s", "slides": [{"id": "a", "narration": "前|後" + "字" * 60 + "。"}]}]}
@@ -544,6 +617,17 @@ class TestCommittedFixture:
         o = aggregate(recs)["overall"]
         assert o["total_cues"] == 196
         assert o["max_cue_len"] == 105
+
+    def test_uncuttable_long_count_zero_both_budgets(self):
+        # proposal N4 缺口 A: fixture 4 deck 的長句「剛好」每個都有次級標點
+        # (= 運氣, prompt 沒明文要求), 所以 N3 切得動, 修前 (budget 0 量源頭)
+        # 與修後 (budget 40) 都 0 個無標點長句. 鎖這個 0 = 提案缺口 A 的離線
+        # 殘留指標 baseline; 將來 A/B 跑修後 prompt 若 fixture 換成含無標點長句
+        # 的 deck, 此數字會 >0 提醒人工確認.
+        o40 = aggregate(load_fixture_records(_FIXTURE_FILE, cue_budget=40))["overall"]
+        assert o40["uncuttable_long_count"] == 0
+        o0 = aggregate(load_fixture_records(_FIXTURE_FILE, cue_budget=0))["overall"]
+        assert o0["uncuttable_long_count"] == 0
 
     def test_reproducible_across_two_loads(self):
         a = aggregate(load_fixture_records(_FIXTURE_FILE, cue_budget=40))["overall"]

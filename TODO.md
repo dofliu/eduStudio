@@ -132,7 +132,14 @@
     image_frames select_frame / terminal_frame 的 require_file_exists 透傳給 valid_frames
     從沒驗過. +7 tests (icon_picker 3 + image_frames 4). 純測試 0 production 改動.
     1754→1761. 改 2 檔.
-  - [ ] **V1c** E1-2 SlideRenderer frame fallback / E2-5 renderer icon 疊圖 既有 slice 補測試 (下輪, offline)
+  - [x] **V1c SlideRenderer icon 疊圖整合補測試** (Phase 2 iter 9, 2026-05-29):
+    SlideRenderer (pipeline, iter 102) 是最早接 E2-5 compose_icons 的 renderer,
+    但 iter 103 整合測試只補了 Blackboard + Pptx, SlideRenderer 自己兩 layout
+    (full / split-left) 從沒被直接整合測. +5 tests (TestSlideRendererIntegration) —
+    full/split-left 各疊 icon 渲染 / 無 overlay NoOp / bottom-right icon 用
+    canvas_h=900 定位 (y=700 在 icon 內證非 1080) / split-left 字幕帶不被 icon 污染.
+    純整合測試 0 production 改動. 1761→1766. 改 1 檔 (tests/test_icon_overlay.py).
+  - [ ] **V1d** image_frames API endpoint / icon-suggestions endpoint 既有 slice 補測試 (下輪, offline)
 - [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度, 寫 proposal STOP
 - [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep, STOP 等用戶
 

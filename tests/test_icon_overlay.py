@@ -455,3 +455,107 @@ class TestPptxStyleRendererIntegration:
             # forest 字幕帶 fill = SUBTITLE_STRIP_COLOR (~ 黑灰). 不該是紅
             r, g, b = png.getpixel((1750, 950))[:3]
             assert r < 100, f"字幕帶 (y=950) 不該有紅 icon, 拿到 {(r, g, b)}"
+
+
+# ---------- V1c (iter 9): SlideRenderer 渲染整合 ----------
+
+
+class TestSlideRendererIntegration:
+    """V1c: SlideRenderer (pipeline) 接 compose_icons — iter 102 上線兩 layout
+    (full / split-left) 是最早接 E2-5 icon 疊圖的 renderer, 但 iter 103 整合
+    測試只補了 BlackboardRenderer + PptxStyleRenderer, SlideRenderer 自己從沒
+    被直接整合測過. 此處補對稱覆蓋.
+
+    契約重點: 兩 layout 都以 canvas_h=CONTENT_BOTTOM(900) 呼叫 compose_icons,
+    讓 bottom-* icon 停在字幕帶上方 — 若誤傳 1080 (整高), bottom icon 會掉進
+    y>=900 的字幕黑帶被蓋掉. 用 bottom-right icon 落點區分 900 vs 1080.
+    """
+
+    def _make_data(self, icon_path, *, layout="full", with_overlay=True):
+        step = {
+            "display": "投影片標題",
+            "narration": "旁白",
+            "layout": layout,
+            "bullets": ["重點一", "重點二"],
+        }
+        if with_overlay:
+            step["icon_overlay"] = [
+                {"path": str(icon_path), "position": "top-right", "size_ratio": 0.1}
+            ]
+        return {"steps": [step], "meta": {}}
+
+    def test_full_layout_renders_with_icon(self, real_icon_shared, tmp_path):
+        import pipeline
+        out = tmp_path / "slide_full.png"
+        renderer = pipeline.SlideRenderer()
+        data = self._make_data(real_icon_shared, layout="full")
+        renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
+        assert out.exists()
+        result = _Image.open(out).convert("RGB")
+        assert result.size == (1920, 1080)
+        # 無 bg, top-right icon 區 (x≈1820, y≈100) 該被紅 icon 疊上 (非純黑底)
+        px = result.getpixel((1920 - 100, 100))
+        assert px != (0, 0, 0)
+        assert px[0] > 100
+
+    def test_full_no_icon_overlay_still_works(self, tmp_path):
+        import pipeline
+        out = tmp_path / "slide_full_plain.png"
+        renderer = pipeline.SlideRenderer()
+        data = self._make_data(None, layout="full", with_overlay=False)
+        renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
+        assert out.exists()
+        result = _Image.open(out).convert("RGB")
+        assert result.size == (1920, 1080)
+        # 無 icon + 無 bg → top-right 仍純黑底 (compose_icons NoOp)
+        assert result.getpixel((1920 - 100, 100)) == (0, 0, 0)
+
+    def test_split_left_layout_renders_with_icon(self, real_icon_shared, tmp_path):
+        import pipeline
+        out = tmp_path / "slide_split.png"
+        renderer = pipeline.SlideRenderer()
+        data = self._make_data(real_icon_shared, layout="split-left")
+        renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
+        assert out.exists()
+        result = _Image.open(out).convert("RGB")
+        assert result.size == (1920, 1080)
+        # split-left 底色 (18,18,22); top-right icon 區該被紅 icon 蓋上
+        px = result.getpixel((1920 - 100, 100))
+        assert px[0] > 100
+
+    def test_full_bottom_icon_uses_content_canvas_h(self, real_icon_shared, tmp_path):
+        """bottom-right icon 該以 canvas_h=900 定位 (y 668..860), 不是 1080.
+
+        size_ratio 0.1 → 192x192; bottom-right margin 40:
+          canvas_h=900  → y 668..860 (落在內容區, y=700 在內)
+          canvas_h=1080 → y 848..1040 (y=700 在外, 該點會是黑底)
+        取 (1820, 700) 區分: 只有 canvas_h=900 該點才在 icon 內.
+        """
+        import pipeline
+        from core.visuals import SUBTITLE_STRIP_COLOR
+        out = tmp_path / "slide_bottom.png"
+        renderer = pipeline.SlideRenderer()
+        data = self._make_data(real_icon_shared, layout="full")
+        data["steps"][0]["icon_overlay"] = [
+            {"path": str(real_icon_shared), "position": "bottom-right", "size_ratio": 0.1}
+        ]
+        renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
+        result = _Image.open(out).convert("RGB")
+        # y=700 落在 canvas_h=900 的 bottom icon 區 (668..860) → 該是 icon 色
+        assert result.getpixel((1920 - 100, 700))[0] > 100
+        # y=950 在字幕帶內 → 該是字幕帶色 (icon 沒漏進帶內)
+        assert result.getpixel((1920 - 100, 950)) == SUBTITLE_STRIP_COLOR
+
+    def test_split_left_subtitle_band_intact_with_icon(self, real_icon_shared, tmp_path):
+        """split-left 也畫字幕帶 (y=900..1080) 且 bottom icon 不污染帶內."""
+        import pipeline
+        from core.visuals import SUBTITLE_STRIP_COLOR
+        out = tmp_path / "slide_split_band.png"
+        renderer = pipeline.SlideRenderer()
+        data = self._make_data(real_icon_shared, layout="split-left")
+        data["steps"][0]["icon_overlay"] = [
+            {"path": str(real_icon_shared), "position": "bottom-right", "size_ratio": 0.1}
+        ]
+        renderer.render(data, step_idx=1, out_p=str(out), q_work=None)
+        result = _Image.open(out).convert("RGB")
+        assert result.getpixel((1920 - 100, 1000)) == SUBTITLE_STRIP_COLOR

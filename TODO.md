@@ -118,8 +118,8 @@
 > E 軸). offline 可做的先做; 需 Gemini SVG 產生 (E2-2) / 新 dep cairosvg (E1-3)
 > 的一律 STOP 寫 proposal 等用戶.
 
-- [~] **V1 (offline)**: E1-5 / E2 既有 slice 補測試 + icon_picker / image_frames
-  parser 強化 (不需 Gemini / 新 dep 的部分)
+- [x] **V1 (offline)**: E1-5 / E2 既有 slice 補測試 + icon_picker / image_frames
+  parser 強化 (不需 Gemini / 新 dep 的部分) — V1a~V1d 全完成 (Phase 2 iter 7~12)
   - [x] **V1a icon_overlay 尺寸/比例路徑補測試** (Phase 2 iter 7, 2026-05-29):
     既有 icon_overlay 測試 icon 全是 256×256 正方形, aspect-ratio 縮放
     (`target_h = icon_h * target_w/icon_w`) 與 size_ratio 上界 clamp (0.50) 從沒被
@@ -139,7 +139,16 @@
     full/split-left 各疊 icon 渲染 / 無 overlay NoOp / bottom-right icon 用
     canvas_h=900 定位 (y=700 在 icon 內證非 1080) / split-left 字幕帶不被 icon 污染.
     純整合測試 0 production 改動. 1761→1766. 改 1 檔 (tests/test_icon_overlay.py).
-  - [ ] **V1d** image_frames API endpoint / icon-suggestions endpoint 既有 slice 補測試 (下輪, offline)
+  - [x] **V1d icon-suggestions / image-frames endpoint 序列化 + 過濾契約補測試** (Phase 2 iter 12, 2026-05-29):
+    icon-suggestions endpoint 親手組的 payload dict (jobs.py:179-193) 的 `position` /
+    `size_ratio` 兩欄沒被既有 happy path 鎖過 (只測 key/matched_keyword/domain/file_exists/icon),
+    重構漏掉前端疊圖位置/大小就錯但測試不紅; max_icons ge=1 le=20 只測界外 (0/21→422)
+    沒測界內 (1/20→200). image-frames endpoint 既有 query-param 測試是『全存在』或『全缺檔』
+    兩極端, 沒測混合 (缺檔被 valid_frames 踢但存在的保留, terminal 取存在裡最大) /
+    亂序輸入 terminal 仍取 display_ratio 最大 (非陣列末筆). +5 tests (icon 3 + frames 2).
+    純 endpoint 序列化/過濾契約, 0 production 改動. 1766→1771. 改 2 檔
+    (tests/test_icon_suggestions_endpoint.py + tests/test_image_frames_endpoint.py).
+    **V1 (offline) 收尾.** 下一輪 = V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg) GATE 需用戶開額度/新 dep STOP.
 - [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度, 寫 proposal STOP
 - [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep, STOP 等用戶
 

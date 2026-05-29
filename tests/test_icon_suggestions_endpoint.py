@@ -171,6 +171,67 @@ class TestIconSuggestionsHappyPath:
         assert sug == {"slide_a": []}
 
 
+class TestIconSuggestionsSerialization:
+    """endpoint 親手組的 payload dict (jobs.py) — position / size_ratio 兩欄
+    沒被 happy path 鎖過, 純靠 endpoint 從 IconMatch.position / .size_ratio
+    搬過來. 若有人重構漏掉這兩欄, 前端 alpha_composite 疊圖位置 / 大小就錯,
+    但既有測試不會紅. 這裡把『全 7 欄都序列化正確』鎖死."""
+
+    def test_payload_includes_position_and_size_ratio(
+        self, client, make_job_with_deck, fake_icon_library
+    ):
+        """命中的 IconMatch position / size_ratio 要原樣出現在 payload."""
+        deck = {
+            "deck_title": "x",
+            "sections": [
+                {
+                    "id": "s",
+                    "title": "t",
+                    "slides": [
+                        {"id": "wind", "title": "t", "narration": "介紹風機"},
+                        {"id": "ctrl", "title": "t", "narration": "PID 控制器"},
+                    ],
+                }
+            ],
+        }
+        make_job_with_deck("ser", deck=deck)
+        r = client.get("/jobs/ser/icon-suggestions")
+        assert r.status_code == 200
+        sug = r.json()["suggestions"]
+        # fake_icon_library: wind_turbine position=top-right size_ratio=0.12
+        w = sug["wind"][0]
+        assert w["position"] == "top-right"
+        assert w["size_ratio"] == 0.12
+        # 7 欄全在 (前端契約)
+        assert set(w.keys()) == {
+            "key", "icon", "matched_keyword", "position",
+            "size_ratio", "domain", "file_exists",
+        }
+        # pid_block position=bottom-right size_ratio=0.10
+        c = sug["ctrl"][0]
+        assert c["position"] == "bottom-right"
+        assert c["size_ratio"] == 0.10
+
+
+class TestIconSuggestionsMaxIconsBoundary:
+    """max_icons ge=1 le=20 — 既有只測界外 (0 / 21 → 422), 沒測界內值被接受.
+    鎖 ge/le 是『含端點』(1 與 20 該 200 不該 422), 防有人改成 gt/lt."""
+
+    def test_max_icons_lower_bound_accepted(
+        self, client, make_job_with_deck, fake_icon_library
+    ):
+        make_job_with_deck("lo", deck={"deck_title": "x", "sections": []})
+        r = client.get("/jobs/lo/icon-suggestions?max_icons=1")
+        assert r.status_code == 200
+
+    def test_max_icons_upper_bound_accepted(
+        self, client, make_job_with_deck, fake_icon_library
+    ):
+        make_job_with_deck("hi", deck={"deck_title": "x", "sections": []})
+        r = client.get("/jobs/hi/icon-suggestions?max_icons=20")
+        assert r.status_code == 200
+
+
 class TestIconSuggestionsExamSchema:
     def test_exam_pdf_deck_returns_empty(
         self, client, make_job_with_deck, fake_icon_library

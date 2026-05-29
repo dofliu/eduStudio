@@ -4,7 +4,8 @@ category: edtech
 progress: 99
 status: active
 last_updated: "2026-05-29"
-next_milestone: "Phase 2 iter 11 完成 (2026-05-29) — test_duplicate_proposal JobStore 隔離 (修 routine 自身 baseline 污染 production jobs/): 進場發現 prior routine run 留下未 commit fix (self-labeled iter 11), 補 commit 解 routine blocker. test_duplicate_then_approve_succeeds 呼叫 /approve, 但 approve route 以 Depends(get_default_store) 解析 store (server/routes/proposals.py:230/371/417) — fixture 沒 override 它, 每次 baseline 跑都在 production jobs/ 真建 job + schedule_job ingest 假路徑 /x/prop_approved_1.pdf, 漏一筆 ingest 失敗 job (routine 每 2 小時跑 baseline → 每 2 小時冒一筆髒 job). fixture 加 app.dependency_overrides[get_default_store] = lambda: tmp JobStore (沿用全 repo route 測試慣例). 純測試隔離 0 production code 改動, 1766 passed 不變. 改 1 檔 (tests/test_duplicate_proposal.py). 下一輪 = V1d (image_frames / icon-suggestions API endpoint 既有 slice 補測試, offline); V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg) GATE 需用戶開額度/新 dep STOP. **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
+next_milestone: "Phase 2 iter 12 完成 (2026-05-29) — V 軸 V1d: icon-suggestions / image-frames endpoint 序列化 + 過濾契約補測試 (offline), V1 (offline) 收尾. icon-suggestions endpoint 親手組的 payload dict (server/routes/jobs.py:179-193) 的 `position` / `size_ratio` 兩欄沒被既有 happy path 鎖過 (只測 key/matched_keyword/domain/file_exists/icon) — 重構漏掉前端 alpha_composite 疊圖位置/大小就錯但測試不紅; max_icons ge=1 le=20 只測界外 (0/21→422) 沒測界內值被接受 (1/20→200, 鎖含端點防被改 gt/lt). image-frames endpoint 既有 query-param 測試是『全存在』或『全缺檔』兩極端, 沒測混合 (同 slide 缺檔 frame 被 valid_frames 踢但存在的保留, terminal 取存在裡 display_ratio 最大那筆非整批最大) / 亂序輸入 terminal 仍取最大 ratio (鎖『terminal=max display_ratio』透過 endpoint 序列化, 防重構成取陣列末筆). +5 tests (icon 3 + frames 2). 純 endpoint 序列化/過濾契約 0 production code 改動. 1766→1771 (+5). 改 2 檔 (tests/test_icon_suggestions_endpoint.py + tests/test_image_frames_endpoint.py). **V1 (offline) V1a~V1d 全完成.** 下一輪 = V2 (E2-2 Gemini 產 25 SVG icon) / V3 (E1-3 flow_diagram SVG + cairosvg) 皆 GATE 需用戶開額度/新 pip dep → 寫 proposal + STOP. **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
+next_milestone_iter11: "Phase 2 iter 11 完成 (2026-05-29) — test_duplicate_proposal JobStore 隔離 (修 routine 自身 baseline 污染 production jobs/): 進場發現 prior routine run 留下未 commit fix (self-labeled iter 11), 補 commit 解 routine blocker. test_duplicate_then_approve_succeeds 呼叫 /approve, 但 approve route 以 Depends(get_default_store) 解析 store (server/routes/proposals.py:230/371/417) — fixture 沒 override 它, 每次 baseline 跑都在 production jobs/ 真建 job + schedule_job ingest 假路徑 /x/prop_approved_1.pdf, 漏一筆 ingest 失敗 job (routine 每 2 小時跑 baseline → 每 2 小時冒一筆髒 job). fixture 加 app.dependency_overrides[get_default_store] = lambda: tmp JobStore (沿用全 repo route 測試慣例). 純測試隔離 0 production code 改動, 1766 passed 不變. 改 1 檔 (tests/test_duplicate_proposal.py). 下一輪 = V1d (image_frames / icon-suggestions API endpoint 既有 slice 補測試, offline); V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg) GATE 需用戶開額度/新 dep STOP. **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
 next_milestone_iter10: "Phase 2 iter 10 (hotfix) 完成 (2026-05-29) — test_icon_overlay TestSlideRendererIntegration NameError 修正: iter 9 (V1c) 新增的 5 個整合測試用 `_Image.open` 但檔案頂 (line 12) 是 `from PIL import Image` — `_Image` 從未定義, 5 測全 NameError. baseline 實際是 5 failed / 1761 passed (V1c commit 訊息誤報 1766 passed, 那批測試從沒真正跑綠過). 純 typo: _Image.open → Image.open (5 處: line 494/508/520/543/560), 0 production code 改動, baseline 恢復 1766 passed. 改 1 檔 (tests/test_icon_overlay.py)."
 next_milestone_iter9: "Phase 2 iter 9 (V 軸 V1c) 完成 (2026-05-29) — SlideRenderer icon 疊圖整合補測試 (offline): V1c 接 V1b, 同樣鎖『從沒被驗過的契約』. SlideRenderer (pipeline.py, iter 102) 是最早接 E2-5 compose_icons 的 renderer (full / split-left 兩 layout), 但 iter 103 整合測試只補了 BlackboardRenderer + PptxStyleRenderer, SlideRenderer 自己從沒被直接整合測過 (test_slide_renderer.py 0 個 icon test, test_icon_overlay.py 只有 Blackboard/Pptx 兩 Integration class). 核心契約: 兩 layout 都以 canvas_h=CONTENT_BOTTOM(900) 呼叫 compose_icons, 讓 bottom-* icon 停在字幕帶上方 — 若誤傳 1080(整高) bottom icon 會掉進 y>=900 字幕黑帶被蓋掉. +5 tests (TestSlideRendererIntegration): (1) full layout 疊 top-right icon 渲出非黑底 (2) full 無 overlay NoOp top-right 仍純黑底 (3) split-left 疊 icon 渲出 (底色 18,18,22 上紅 icon) (4) bottom-right icon size_ratio 0.1 (192px) 用 canvas_h=900 定位 y 668..860 — 取 (1820,700) 在 icon 內證非 1080 (1080 會是 848..1040 該點落黑底) + y=950 字幕帶內證 icon 沒漏進帶 (5) split-left 字幕帶 y=1000 仍 SUBTITLE_STRIP_COLOR(15,15,18) icon 不污染. 純整合測試 0 production code 改動. 1761→1766 (+5). 改 1 檔 (tests/test_icon_overlay.py). 下一輪 = V1d (image_frames / icon-suggestions API endpoint 既有 slice 補測試, offline); V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg) GATE 需用戶開額度/新 dep STOP. **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
 old_next_milestone_iter_v1b: "Phase 2 iter 8 (V 軸 V1b) 完成 (2026-05-29) — icon_picker manifest 優先序 + image_frames require_file_exists 透傳補測試 (offline): V1b 接 V1a, 同樣鎖『從沒被驗過的契約』而非 wrapper safety-lock. 兩個缺口: (1) icon_picker.pick_icons docstring 明定『結果順序按 manifest 出現順序 = priority』且 max_icons 截斷依此序保留前 N — 但既有 test_multiple_entries_match 用 set 驗命中『集合』, 順序與『截斷依 manifest 序非 narration 提及序』兩契約沒鎖; manifest 缺 'icons' key 的 graceful fallback 也沒測. (2) image_frames.select_frame / terminal_frame 的 require_file_exists kwarg 透傳給 valid_frames 從沒驗過 (既有只在 valid_frames/frame_count/summarize_for_deck 測 loose 模式), select_frame 全 missing 嚴格回 None 也沒對稱測; 空字串 path 過濾沒測. +7 tests: icon_picker 3 (TestManifestOrderPriority 2: narration 以 gamma→alpha→beta 序提及但結果照 manifest alpha→beta→gamma / max_icons=2 截斷保留 manifest 前兩個非 narration 先提的 gamma; TestManifestMissingIconsKey 1: 缺 icons key 回 [] 不噴 KeyError); image_frames 4 (valid_frames 空字串 path drop / select_frame 全 missing 嚴格回 None / select_frame require_file_exists=False 透傳挑得到 missing frame / terminal_frame require_file_exists=False 透傳回最大 ratio missing frame). 0 production code 改動 (純測試). 1754→1761 (+7). 改 2 檔 (tests/test_icon_picker.py + tests/test_image_frames.py). 下一輪 = V1c (E1-2 SlideRenderer frame fallback / E2-5 renderer icon 疊圖 既有 slice 補測試, offline); V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg) 是 GATE 需用戶開額度/新 dep STOP. **硬約束 offline-first**: routine 不自主呼叫 Gemini / GCP TTS 燒額度. 細則見 docs/ROUTINE_ADVANCE_PROMPT.md Phase 2 段."
@@ -42,10 +43,33 @@ description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini 
 description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
 
 key_metrics: |
-  測試覆蓋: 1766 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
+  測試覆蓋: 1771 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +
   frontend-typecheck 全綠.
 
   --- 近期 iter (詳細歷史見 git log + docs/CHANGELOG.md) ---
+
+  Phase 2 iter 12 (2026-05-29, 每 2 小時 routine, V 軸 V1d) — icon-suggestions / image-frames endpoint 序列化 + 過濾契約補測試 (offline, V1 收尾):
+  - V1d 接 V1a~V1c, 同樣鎖『從沒被驗過的契約』. 兩個 review-UI batch endpoint 的
+    既有測試蓋了 happy path / exam schema / 404 / 基本 query param, 但漏掉兩類缺口:
+  - icon-suggestions (GET /jobs/{id}/icon-suggestions): endpoint 親手把 IconMatch
+    搬成 payload dict (server/routes/jobs.py:179-193), 但既有 happy path 只 assert
+    key/matched_keyword/domain/file_exists/icon — `position` / `size_ratio` 兩欄沒鎖.
+    這兩欄是前端 alpha_composite 疊圖的位置/大小依據, 重構漏掉就疊錯但測試不紅.
+    max_icons ge=1 le=20 也只測界外 (0/21→422) 沒測界內值被接受.
+  - image-frames (GET /jobs/{id}/image-frames): 既有 query-param 測試是『全存在』或
+    『全缺檔』兩極端, 沒測混合 — 同 slide 缺檔 frame 被 valid_frames 踢但存在的保留,
+    terminal 取『存在 frame 裡 display_ratio 最大』那筆 (非整批最大); 亂序輸入時
+    terminal 仍取最大 ratio (非陣列末筆).
+  - +5 tests:
+    * icon 3: TestIconSuggestionsSerialization 1 (全 7 欄序列化 + position/size_ratio
+      正確) + TestIconSuggestionsMaxIconsBoundary 2 (max_icons=1 / =20 → 200, 鎖含端點)
+    * frames 2: 混合存在/缺檔嚴格只算存在 (count=2, terminal=存在裡最大; 寬鬆 count=3
+      terminal=缺檔) + 亂序輸入 terminal 取 max display_ratio (輸入首筆 ratio 1.0 仍是
+      terminal 證取 max 非取末筆)
+  - 0 production code 改動 (純 endpoint 序列化/過濾契約). 1766 → 1771 (+5). 改 2 檔
+    (tests/test_icon_suggestions_endpoint.py + tests/test_image_frames_endpoint.py).
+    **V1 (offline) V1a~V1d 全完成.** 下一輪 = V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg)
+    皆 GATE 需用戶開額度/新 pip dep → 寫 proposal + STOP.
 
   Phase 2 iter 10 (2026-05-29, 每 2 小時 routine, hotfix) — test_icon_overlay TestSlideRendererIntegration NameError 修正:
   - 進場跑 baseline 抓到 5 failed: iter 9 (V1c) 新增的 5 個 TestSlideRendererIntegration

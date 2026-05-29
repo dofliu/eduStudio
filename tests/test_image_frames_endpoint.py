@@ -249,6 +249,91 @@ class TestImageFramesQueryParams:
         assert gh["has_frames"] is True
         assert gh["terminal_path"] == missing_path
 
+    def test_mixed_valid_and_missing_strict_counts_only_valid(
+        self, client, make_job_with_deck, fake_frames, tmp_path
+    ):
+        """同一 slide 混存在 + 缺檔 frame, 嚴格模式只算存在的.
+
+        既有 query-param 測試是『全存在』或『全缺檔』兩極端, 沒測過混合 —
+        endpoint 透傳 valid_frames 過濾, 缺檔那筆該被踢掉但存在的保留,
+        terminal 取『存在 frame 裡 display_ratio 最大』那筆 (非整批最大).
+        """
+        missing_path = str(tmp_path / "gone.png")  # 不寫檔
+        deck = {
+            "deck_title": "x",
+            "sections": [
+                {
+                    "id": "s",
+                    "title": "t",
+                    "slides": [
+                        {
+                            "id": "mix",
+                            "title": "t",
+                            "narration": "n",
+                            "image_frames": [
+                                {"path": fake_frames["f1.png"], "display_ratio": 0.3},
+                                {"path": missing_path, "display_ratio": 0.9},
+                                {"path": fake_frames["f2.png"], "display_ratio": 0.6},
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+        make_job_with_deck("mix", deck=deck)
+
+        # 嚴格: 缺檔 (ratio 0.9) 被踢, 剩 f1/f2, terminal = f2 (存在裡最大 0.6)
+        r1 = client.get("/jobs/mix/image-frames")
+        assert r1.status_code == 200
+        s1 = r1.json()["summary"]["mix"]
+        assert s1["count"] == 2
+        assert s1["has_frames"] is True
+        assert s1["terminal_path"].endswith("f2.png")
+
+        # 寬鬆: 缺檔算數, count=3, terminal = 缺檔那筆 (整批最大 0.9)
+        r2 = client.get("/jobs/mix/image-frames?require_file_exists=false")
+        assert r2.status_code == 200
+        s2 = r2.json()["summary"]["mix"]
+        assert s2["count"] == 3
+        assert s2["terminal_path"] == missing_path
+
+    def test_terminal_path_is_max_ratio_regardless_of_input_order(
+        self, client, make_job_with_deck, fake_frames
+    ):
+        """image_frames 亂序給, terminal_path 仍取 display_ratio 最大那筆.
+
+        鎖『terminal = 最大 display_ratio』契約透過 endpoint 序列化 (valid_frames
+        內部 sort, summarize_for_deck 取 [-1]). 防有人重構成『取陣列最後一筆』.
+        """
+        deck = {
+            "deck_title": "x",
+            "sections": [
+                {
+                    "id": "s",
+                    "title": "t",
+                    "slides": [
+                        {
+                            "id": "ooo",
+                            "title": "t",
+                            "narration": "n",
+                            "image_frames": [
+                                {"path": fake_frames["f3.png"], "display_ratio": 1.0},
+                                {"path": fake_frames["f1.png"], "display_ratio": 0.3},
+                                {"path": fake_frames["f2.png"], "display_ratio": 0.6},
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+        make_job_with_deck("ooo", deck=deck)
+        r = client.get("/jobs/ooo/image-frames")
+        assert r.status_code == 200
+        s = r.json()["summary"]["ooo"]
+        assert s["count"] == 3
+        # 輸入第一筆是 f3 (ratio 1.0), 仍是 terminal — 證明取 max 非取輸入末筆
+        assert s["terminal_path"].endswith("f3.png")
+
     def test_empty_sections_returns_empty_summary(
         self, client, make_job_with_deck
     ):

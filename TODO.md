@@ -105,6 +105,8 @@
 
 - [ ] **M0 POC (spike)**: 裝 demucs + whisperx 確認 4080 CUDA 跑得動 + 手動歌詞/時間軸
   1 首歌走通到 mp4 (純色/單圖背景, 先不接生圖, 驗渲染 + 歌曲音軌 + 歌詞字幕)
+  - dep 清單已備: `requirements-song.txt` (demucs + whisperx, 獨立檔不進主 requirements
+    避免 CI 裝 torch; 含 CUDA wheel 安裝順序註解)。劉老師本機 install 後推 M0。
 - [ ] **M1 對齊子系統**: Demucs + WhisperX 自動對齊出 song.json 時間軸 + review UI 微調層
 - [ ] **M2 生圖子系統**: 逐段 Gemini 生圖 + 風格一致性 (統一 style suffix/seed) + ken burns
 - [ ] **M3 整合**: 渲染串接 + 字幕燒錄 + require_review + YouTube 上傳 (含章節)
@@ -164,10 +166,13 @@
 - [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度. proposal 已寫:
   [docs/dynamic-visual-v2-v3-proposal.md](docs/dynamic-visual-v2-v3-proposal.md).
   manifest 已定義 25 icon 但 0 SVG 檔在磁碟 → 補檔後 routine 可自主做驗收測試 (offline).
-  - [ ] **V2 執行包 (offline, routine 可自主)**: 寫離線腳本 `tools/gen_icon_svgs.py` —
-    讀 manifest.json 的 25 icon 定義 → 組 Gemini image/SVG prompt (proposal 草稿) →
-    輸出待產清單 + dry-run。用戶開額度當天一鍵跑落 `assets/icon_library/`, 跑完 routine
-    自動接驗收測試。腳本本身不打 API (預設 dry-run 印 prompt), 故 offline 可做。
+  - [x] **V2 執行包 (offline)** (2026-06-04): `tools/gen_icon_svgs.py` — 讀 manifest 25
+    icon → 內建 VISUAL_DESC 視覺描述 + 統一風格規範 (viewBox 256 / #1e3a2e / #ffd96b /
+    無文字 label) 組 per-icon prompt。**SVG 用文字模型 gemini-2.5-flash 產 (不吃 image
+    額度)**。預設 dry-run (印 prompt 不打 API), `--execute` 才呼叫 Gemini + 落檔, 產完印
+    人工 review checklist + 不自動 commit (硬規則)。+20 tests (完整性鎖 VISUAL_DESC==manifest
+    / prompt 含風格+語意 / extract_svg / dry-run)。劉老師開額度後跑 `--execute` → review → 補
+    25 SVG → routine 自動接 V2 驗收測試 (tests/test_icon_library_complete.py, proposal §驗收)。
 - [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep + 行為
   refactor. 見上方同一份 proposal. 建議先做完 V2 再評估 (或退候選 C 純 Pillow 不加 dep).
 

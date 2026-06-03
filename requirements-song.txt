@@ -1,0 +1,29 @@
+# SONG MV track (第 4 條 track) 專用依賴 — 刻意「不」併進主 requirements.txt
+# ============================================================================
+# 原因: torch / whisperx / demucs 又重又慢 (數 GB), 若進主 requirements 會讓
+# GitHub Actions CI 4 組 matrix (ubuntu/win × py3.10/3.12) 全部安裝 → CI 爆時間,
+# 且 Windows runner 裝 GPU torch 容易炸。SONG track 只在劉老師本機 (RTX 4080) 跑,
+# 故獨立成此檔, SONG M0 spike 前手動 install。
+#
+# 安裝順序 (本機 RTX 4080, 假設 CUDA 12.1 — 先查 `nvidia-smi` 確認版本再選 wheel):
+#
+#   # 1) 先裝對應 CUDA 的 torch (GPU build, 不要讓下面套件拉到 CPU 版蓋掉)
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+#   # 2) 再裝本檔其餘
+#   pip install -r requirements-song.txt
+#
+# 對齊方案 2 (Demucs 分人聲 + WhisperX word-level forced alignment + 手動 review)。
+# 細節見 docs/SONG_MV_TRACK_RFC.md。
+# ----------------------------------------------------------------------------
+
+# 人聲 / 伴奏分離 (htdemucs 模型) — 先剝人聲再對齊, 大幅降低樂器干擾
+demucs>=4.0.0
+
+# word-level forced alignment (Whisper + wav2vec2)
+# 注意: whisperx 會連帶拉 faster-whisper / torchaudio / pyannote 等,
+# 安裝後務必確認 torch 仍是步驟 1 的 GPU build (沒被覆蓋成 CPU 版)
+whisperx>=3.1.0
+
+# torch / torchaudio 由上方步驟 1 的 CUDA wheel 安裝, 此處刻意不釘版本,
+# 避免 pip 解析時用 PyPI 預設 (CPU) build 覆蓋掉 GPU build。

@@ -91,6 +91,39 @@
     fixture locked 0 (4 deck 長句剛好都有逗號 = 缺口 A「運氣」實證). +12 tests (1736→1748).
     純離線, 改 3 檔 (tool + test + report). **N 軸全收尾, 下一輪接 V 軸 V1 (offline)**.
 
+### 🎵 SONG 軸 — 歌曲 → AI 生圖 MV 影片 (第 4 條 track, 2026-06-03 用戶拍板正式做)
+
+> **決議 (2026-06-03 互動 session)**: 新增第 4 個 `source_type = "song"` — 歌曲音檔
+> (AI 產) + 純文字歌詞 (無 LRC) → forced alignment 對齊時間軸 → 逐段 AI 生圖 → MV
+> 影片 → YouTube。forced alignment 走**方案 2 (Demucs 分人聲 + WhisperX word-level +
+> 手動 review 微調層)**, 畫面走 **AI 生圖逐段配**。完整設計見
+> [docs/SONG_MV_TRACK_RFC.md](docs/SONG_MV_TRACK_RFC.md)。
+>
+> **GATE**: ① 新 dep demucs + whisperx + torch(CUDA) — 方案 2 已授權, M0 先確認 4080
+> 環境再實裝 ② Gemini image 額度 (跟 V2 同開關)。offline-first 不變: 對齊/生圖碰
+> 額度的部分寫 proposal + STOP, 不自主燒額度。
+
+- [ ] **M0 POC (spike)**: 裝 demucs + whisperx 確認 4080 CUDA 跑得動 + 手動歌詞/時間軸
+  1 首歌走通到 mp4 (純色/單圖背景, 先不接生圖, 驗渲染 + 歌曲音軌 + 歌詞字幕)
+- [ ] **M1 對齊子系統**: Demucs + WhisperX 自動對齊出 song.json 時間軸 + review UI 微調層
+- [ ] **M2 生圖子系統**: 逐段 Gemini 生圖 + 風格一致性 (統一 style suffix/seed) + ken burns
+- [ ] **M3 整合**: 渲染串接 + 字幕燒錄 + require_review + YouTube 上傳 (含章節)
+- 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板
+
+### ✨ 新功能 backlog (2026-06-03 用戶挑選進場)
+
+> 互動 session 用戶從建議清單挑這 4 個進 backlog。多數可接既有結構, 不需 Gemini 額度
+> 的先做 (offline-first)。
+
+- [ ] **LaTeX 公式渲染** (🔴 高, 教學剛需): 材料力學公式進 slide。matplotlib mathtext
+  或 MathJax→PNG 渲 LaTeX, 接 slide_renderer 既有圖片疊放路徑。**offline 可做**。
+- [ ] **YouTube 自動章節** (🔴 高, 近零成本高 CP): deck section 結構 → YT description
+  時間軸章節格式 (`0:00 章節名`)。publish.py 既有 description 組裝處加一段。**offline 可做**。
+- [ ] **雙語字幕** (🟡 中): 既有 SRT → 翻英/日雙語軌。翻譯需 Gemini/翻譯 API → GATE
+  寫 proposal 等用戶開額度; SRT 雙語合併格式 + 渲染是 offline 可先做。
+- [ ] **學生提問 → RAG → 解答影片** (🟢 探索, 戰略價值高工程重): 串 RAG 研究
+  (Kiwi/Christian) + EdTech 論文 + 課程網站整合。先寫 RFC 拆子系統, 不急著動 code。
+
 ### 🎬 V 軸 — 動態視覺 (N 軸全完成後啟動)
 
 > 接既有 G/E 軸 RFC (見下方階段 2「G. 動態視覺素材」+ CONTENT_QUALITY_ROADMAP
@@ -131,6 +164,10 @@
 - [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度. proposal 已寫:
   [docs/dynamic-visual-v2-v3-proposal.md](docs/dynamic-visual-v2-v3-proposal.md).
   manifest 已定義 25 icon 但 0 SVG 檔在磁碟 → 補檔後 routine 可自主做驗收測試 (offline).
+  - [ ] **V2 執行包 (offline, routine 可自主)**: 寫離線腳本 `tools/gen_icon_svgs.py` —
+    讀 manifest.json 的 25 icon 定義 → 組 Gemini image/SVG prompt (proposal 草稿) →
+    輸出待產清單 + dry-run。用戶開額度當天一鍵跑落 `assets/icon_library/`, 跑完 routine
+    自動接驗收測試。腳本本身不打 API (預設 dry-run 印 prompt), 故 offline 可做。
 - [ ] **V3 (GATE)**: E1-3 flow_diagram SVG + cairosvg 渲 frame — 新 pip dep + 行為
   refactor. 見上方同一份 proposal. 建議先做完 V2 再評估 (或退候選 C 純 Pillow 不加 dep).
 

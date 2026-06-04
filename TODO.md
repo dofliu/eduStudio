@@ -143,10 +143,11 @@
   - [x] **M3a source_type 註冊 + review policy (2026-06-04)**: schemas.py `SONG = "song"`
     enum + jobs.py `_resolve_default_review` song → True (對齊+生圖 prompt+生圖全 AI 估值,
     同硬規則 #1 強制 review)。+1 test (2060→2061)。
-  - [ ] **M3b ingest_song (待拍板資產路徑)**: runner ingest dispatch 加 song 分支 →
-    讀 song.json 存成 deck.json。**架構決策**: audio/image 路徑 — (A) song.json 用絕對路徑,
-    deck.json 引用絕對 (不複製大檔, 但 job 不自包含) / (B) ingest 複製 audio+images 進
-    jobs/<id>/ (job 自包含可搬, 但複製數十 MB)。建議 A (本機用, 大檔不複製)。
+  - [x] **M3b ingest_song (2026-06-04, 劉老師拍板選 B 自包含)**: runner `_run_ingest`
+    dispatch 加 SONG 分支 → `_run_ingest_song` 讀 song.json, 複製 audio (→ song<ext>) +
+    逐段圖 (→ images/<原名>) 進 jobs/<id>/, deck.json 內路徑改寫成相對 → job 自包含可搬。
+    純檔案搬運 0 Gemini; 缺檔 graceful 略過不炸; 非 song schema → ValueError。+8 tests
+    (2061→2069, 含「砍來源後 job dir 仍完整」證自包含)。
   - [ ] **M3c render_song**: _run_render_inner 開頭 `is_song_schema` 分流 → _run_render_song
     (繞過 v0/render_video TTS pipeline, 直接 song_segments_to_srt + ken burns/純色 cmd +
     ffmpeg → artifacts/<id>.mp4)。

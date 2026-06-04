@@ -104,7 +104,77 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
     if rec.source_type in (SourceType.DOCUMENT, SourceType.URL):
         return await _run_ingest_long_form(store, rec, deck_path, mock)
 
+    if rec.source_type == SourceType.SONG:
+        return await _run_ingest_song(store, rec, src_path, deck_path)
+
     raise ValueError(f"未支援的 source_type: {rec.source_type}")
+
+
+async def _run_ingest_song(
+    store: JobStore, rec: JobRecord, src_path: Path, deck_path: Path,
+) -> dict:
+    """song.json + 資產 (audio / 逐段圖) 複製進 job dir, 路徑改寫成相對, 存 deck.json。
+
+    M3b (選 B, 劉老師 2026-06-04 拍板): job 自包含可搬 — 把 song.json 引用的歌曲
+    音檔與每段生成圖複製進 jobs/<id>/, deck.json 內路徑改成相對 job dir。不跑 Gemini
+    (song.json 由 M0/M1/M2 工具離線產好), 純檔案搬運。
+
+    路徑改寫:
+    - audio_path → 'song<副檔名>' (複製到 job dir 根)
+    - segment.image_path → 'images/<原檔名>' (複製到 job dir/images/)
+    來源相對路徑以 song.json 所在目錄解析 (跟 tools/song_mv.py 慣例一致)。
+
+    對齊時間軸 / 生圖全是 AI 估值 → song job require_review=True (M3a), deck.json
+    寫好後停 awaiting_review 等人工逐段微調。
+    """
+    import shutil
+
+    from core.song_render import is_song_schema
+
+    song = json.loads(src_path.read_text(encoding="utf-8"))
+    if not is_song_schema(song):
+        raise ValueError(
+            "song source 的檔不是 song schema (需 track_type=='song' + segments list)"
+        )
+
+    job_dir = deck_path.parent
+    src_dir = src_path.parent
+
+    def _resolve(p: str) -> Path:
+        path = Path(p)
+        return path if path.is_absolute() else (src_dir / path)
+
+    # 複製歌曲音檔 → song<ext>
+    audio_raw = (song.get("audio_path") or "").strip()
+    if audio_raw:
+        audio_src = _resolve(audio_raw)
+        if audio_src.exists():
+            dest = job_dir / f"song{audio_src.suffix or '.mp3'}"
+            await asyncio.to_thread(shutil.copy2, audio_src, dest)
+            song["audio_path"] = dest.name
+        else:
+            logger.warning("song audio 來源不存在, 略過複製: %s", audio_src)
+
+    # 複製逐段圖 → images/<原檔名>
+    img_dir = job_dir / "images"
+    for seg in song.get("segments", []):
+        ip = (seg.get("image_path") or "").strip()
+        if not ip:
+            continue
+        img_src = _resolve(ip)
+        if img_src.exists():
+            img_dir.mkdir(parents=True, exist_ok=True)
+            dest = img_dir / img_src.name
+            await asyncio.to_thread(shutil.copy2, img_src, dest)
+            seg["image_path"] = f"images/{img_src.name}"
+        else:
+            logger.warning("song segment 圖來源不存在, 略過複製: %s", img_src)
+
+    deck_path.write_text(
+        json.dumps(song, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    logger.info("song ingest 完成: %d segment, 資產複製進 job dir", len(song.get("segments", [])))
+    return song
 
 
 async def _run_ingest_repo(store: JobStore, rec: JobRecord, deck_path: Path, mock: bool) -> dict:

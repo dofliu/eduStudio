@@ -117,13 +117,18 @@
 > 互動 session 用戶從建議清單挑這 4 個進 backlog。多數可接既有結構, 不需 Gemini 額度
 > 的先做 (offline-first)。
 
-- [~] **LaTeX 公式渲染** (🔴 高, 教學剛需) — **改判 GATE (2026-06-04)**: 材料力學公式進
-  slide。原列「offline 可做 (matplotlib mathtext)」, 但 routine 查證 matplotlib **不在**
-  requirements / CI 安裝清單 (僅 GATE 的 Gemini-diagram subprocess 功能 lazy import)。
-  接主線 slide render 路徑 = matplotlib 升核心 dep (進 requirements.txt + CI) = 新 pip
-  dep → STOP。proposal 已寫: [docs/latex-formula-rendering-proposal.md](docs/latex-formula-rendering-proposal.md)
-  (後端 A/B/C/D trade-off, 建議 A matplotlib mathtext, 解鎖後 offline 實作規劃)。
-  **等劉老師拍板後端 + 同意 matplotlib 進核心依賴**, routine 才接著做 offline 實作。
+- [x] **LaTeX 公式渲染 (backend)** (🔴 高, 教學剛需) — **完成 (2026-06-04, iter 18~21)**:
+  劉老師授權 GATE 解鎖 (拍板後端 A matplotlib mathtext + 同意 matplotlib 進核心依賴)。
+  端到端通: deck.json `slide.formula` → normalize/flatten 透傳 → `render_latex_to_png`
+  (mathtext → 透明 PNG) → `compose_formula` (複用 compose_icons 定位/paste) → 三大
+  renderer 4 seam 疊放。GATE 緣由 + 後端選型見
+  [docs/latex-formula-rendering-proposal.md](docs/latex-formula-rendering-proposal.md)。
+  - iter 18: core/formula_render.py render_latex_to_png + matplotlib 進 requirements + CI (+12)
+  - iter 19: core/deck.py slide.formula 透傳 (normalize + 兩 flatten 轉換) (+6)
+  - iter 20: compose_formula helper (render → tempPNG → compose_icons 複用) (+9)
+  - iter 21: pipeline.py (Blackboard/Slide 2 layout) + pptx_style.py (4 路 layout) 接 (+6)
+  - **剩 (非本輪)**: ① review UI 讓使用者逐 slide 編 formula (前端 web/, 另開) ②
+    auto-formula (Gemini 從 narration 偵測公式自動建議) = GATE 需額度, 不可繞 require_review。
 - [x] **YouTube 自動章節** (🔴 高, 近零成本高 CP) (2026-06-04): deck section 結構 → YT
   description 時間軸章節格式 (`0:00 章節名`)。實作在 `core/youtube.py` (Track B 真正組
   description 的地方, 非 publish.py CLI)。`auto_youtube_meta` 原只認 exam schema

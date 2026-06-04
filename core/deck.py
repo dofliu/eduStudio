@@ -108,6 +108,8 @@ def deck_to_exam_schema_slides(deck: dict) -> dict:
                 "icon_overlay": slide.get("icon_overlay"),
                 # iter 101 (E1-1): image_frames 透傳, slides_pdf 也吃 (review UI 共用)
                 "image_frames": slide.get("image_frames"),
+                # LaTeX 公式 (2026-06-04): dict | None, 渲染端轉 PNG 疊放. 純透傳.
+                "formula": slide.get("formula"),
             })
         if not steps:
             continue
@@ -176,6 +178,9 @@ def deck_to_exam_schema_pptx(deck: dict, *, short_video_layout: bool = False) ->
                 # iter 101 (E1-1): image_frames list[dict] | None — 動態視覺素材 RFC E1.
                 # 流程圖 frame 序列, 渲染端 (E1-2) 偵測 list 走多 PNG 順序. 此處純透傳.
                 "image_frames": slide.get("image_frames"),
+                # LaTeX 公式 (2026-06-04): dict | None, 渲染端 render_latex_to_png 轉 PNG
+                # 疊放. 純透傳不檢驗. 設計文件 docs/latex-formula-rendering-proposal.md.
+                "formula": slide.get("formula"),
             }
             # iter 62: cover 專屬 meta 欄位 (其他 layout 不會讀)
             if bg_type == "cover":
@@ -280,6 +285,12 @@ def normalize_deck(deck: dict) -> dict:
             # 每個 dict 預期欄位: path (str, PNG 絕對/相對) + display_ratio
             # (float 0.0~1.0 累進佔比). 渲染端 (E1-2) 偵測 list 走多 PNG 順序模式,
             # 配 narration 時長均分. 舊 deck 沒這欄 → 用既有 image_path 單張流程.
+            sl.setdefault("formula", None)  # LaTeX 公式渲染 (2026-06-04): dict | None
+            # 結構鏡像 icon_overlay (好讓 renderer 走同一條疊放 seam): 預期欄位
+            # latex (str, 數學式本體如 "\\sigma=\\frac{F}{A}") + 選擇性 position /
+            # size_ratio / color (同 icon_overlay 語意). 渲染端 render_latex_to_png
+            # 把 latex 轉透明 PNG 再 alpha_composite. 此處純透傳不檢驗, 舊 deck 沒這欄
+            # → None 不渲公式. 設計文件 docs/latex-formula-rendering-proposal.md.
 
     return deck
 

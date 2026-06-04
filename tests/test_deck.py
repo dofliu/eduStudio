@@ -147,6 +147,20 @@ class TestNormalizeDeck:
         normalize_deck(deck)
         assert deck["sections"][0]["slides"][0]["image_frames"] == frames
 
+    def test_formula_defaults_to_none(self):
+        """LaTeX 公式 (2026-06-04): formula 預設 None — 舊 deck 沒這欄不該炸."""
+        deck = {"sections": [{"id": "s1", "slides": [{}]}]}
+        normalize_deck(deck)
+        assert deck["sections"][0]["slides"][0]["formula"] is None
+
+    def test_preserves_existing_formula(self):
+        """已有 formula 該被保留 (normalize 只補不蓋)."""
+        formula = {"latex": r"\sigma = \frac{F}{A}", "position": "center",
+                   "size_ratio": 0.4}
+        deck = {"sections": [{"slides": [{"formula": formula}]}]}
+        normalize_deck(deck)
+        assert deck["sections"][0]["slides"][0]["formula"] == formula
+
 
 # ---------- assert_deck_minimum ----------
 
@@ -367,6 +381,39 @@ class TestDeckToExamSchemaPptx:
         exam = deck_to_exam_schema_pptx(deck)
         assert exam["problems"][0]["steps"][0]["image_frames"] is None
 
+    def test_formula_passed_through_to_step(self):
+        """LaTeX 公式 (2026-06-04): pptx 路徑該把 slide.formula 帶到 step."""
+        formula = {"latex": r"M = \frac{wL^2}{8}", "position": "center",
+                   "size_ratio": 0.4}
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [
+                    {"id": "s1_1", "title": "x", "bullets": ["a"],
+                     "narration": "n", "formula": formula},
+                    {"id": "s1_2", "title": "y", "bullets": ["b"],
+                     "narration": "n", "formula": None},
+                ],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        steps = exam["problems"][0]["steps"]
+        assert steps[0]["formula"] == formula
+        assert steps[1]["formula"] is None
+
+    def test_formula_missing_defaults_to_none(self):
+        """slide 沒 formula key → step 該補 None (不該 KeyError, 舊 deck 相容)."""
+        deck = {
+            "sections": [{
+                "id": "s1", "title": "T",
+                "slides": [{"id": "s1_1", "title": "x", "bullets": ["a"],
+                            "narration": "n"}],
+            }],
+        }
+        exam = deck_to_exam_schema_pptx(deck)
+        assert exam["problems"][0]["steps"][0]["formula"] is None
+
 
 # ---------- deck_to_exam_schema_slides (PR-3h, 簡報原圖) ----------
 
@@ -540,6 +587,39 @@ class TestDeckToExamSchemaSlides:
         }
         exam = deck_to_exam_schema_slides(deck)
         assert exam["problems"][0]["steps"][0]["image_frames"] is None
+
+    def test_formula_passed_through_to_step_slides(self):
+        """LaTeX 公式 (2026-06-04): slides_pdf 路徑也要把 formula 透傳 (review UI 共用)."""
+        formula = {"latex": r"\delta_{max} = \frac{5wL^4}{384EI}",
+                   "position": "bottom-right", "size_ratio": 0.35}
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1", "title": "x", "bullets": [],
+                    "narration": "n", "bg_image": "p.png", "layout": "full",
+                    "formula": formula,
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        assert exam["problems"][0]["steps"][0]["formula"] == formula
+
+    def test_formula_missing_defaults_to_none_slides(self):
+        """slide 沒 formula → slides 路徑 step 該補 None."""
+        deck = {
+            "deck_title": "t",
+            "sections": [{
+                "id": "ch1", "title": "T",
+                "slides": [{
+                    "id": "ch1_p1", "title": "x", "bullets": [],
+                    "narration": "n", "bg_image": "p.png",
+                }],
+            }],
+        }
+        exam = deck_to_exam_schema_slides(deck)
+        assert exam["problems"][0]["steps"][0]["formula"] is None
 
     def test_bullets_independent_copy(self):
         # 透傳 bullets 不能跟原 slide 共用 list, 不然 caller mutate 會污染原 deck

@@ -169,9 +169,10 @@
     `translate_text` / `translate_steps` 打本機 Ollama `/api/generate` (標準庫 urllib,
     **不加 pip dep**) 產 `narration_secondary`; 空 narration 跳過 + 已有 out_field 跳過
     (idempotent, 不覆蓋人工修過的) + 不就地改傳入 dict; Ollama 沒開/逾時 → TranslateError
-    含修復指引。+13 tests (2026→2039, monkeypatch 不真打 HTTP)。**待劉老師本機實測**:
-    translategemma prompt 格式我未實測, 用通用 instruction prompt + 可配置, 本機跑確認
-    翻譯品質後調 `_build_prompt`。VRAM 排 render 前批次跑完卸載避與 TTS/demucs 搶 4080。
+    含修復指引。+13 tests (2026→2039, monkeypatch 不真打 HTTP)。
+    **✅ 劉老師本機實測通過 (2026-06-04)**:「你好，這是材料力學的應力分析。」→
+    "Hello, this is a stress analysis in mechanics of materials." — 無多餘文字、術語正確、
+    格式乾淨, 預設 `_build_prompt` 不需調。VRAM 排 render 前批次跑完卸載避與 TTS/demucs 搶 4080。
   - [ ] **schema 透傳 + 渲染燒第二軌 / YouTube 多軌上傳**: narration_secondary 進 schema
     flatten; 渲染燒一軌 + publish.py captions.insert 上第二軌 (碰 YouTube OAuth = GATE)。
 - [ ] **學生提問 → RAG → 解答影片** (🟢 探索, 戰略價值高工程重): 串 RAG 研究

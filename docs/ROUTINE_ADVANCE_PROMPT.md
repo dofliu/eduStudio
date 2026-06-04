@@ -209,7 +209,28 @@ N1-N3 純離線可自主; N4 / V2 / V3 是 GATE (Gemini 額度 / 新 dep) → �
 
 ---
 
-## Phase 3 — wind-down (2026-05-29 起, 當前狀態)
+## Phase 4 — SONG track + 新功能推進 (2026-06-04 起, 當前狀態, supersedes Phase 3)
+
+**用戶決策 (2026-06-03/04 互動 session, 劉老師回歸)**: Phase 3 wind-down 結束。給新方向 +
+恢復 hourly 自主推進 (offline 料補回來了, 不再空轉)。已完成: V2 icon 25 SVG 入庫 + 雙語字幕
+(SRT 雙軌 + 本機 translategemma 翻譯層, 不燒雲端額度) + SONG track M0 渲染骨架 / M2 生圖層 +
+ken burns / M3a (source_type+review) / M3b (ingest_song 複製資產自包含)。
+
+**當前主線 = SONG M3 收尾 (routine 授權自主, 一輪一塊)**:
+- **M3c render_song** (下一輪): runner `_run_render_inner` 加 `is_song_schema` early-return
+  分流 → 新 `_run_render_song` (繞 v0/render_video, 直接 SRT + ken burns/純色 + ffmpeg)。
+  純 offline 本機 ffmpeg。**接入點/設計/cwd/命名/測試策略全寫在 TODO.md M3c 段, 照著做。**
+- **M3d** youtube meta song 分支 (offline) → **M3e** web UI song review (動 web/ 要跑 tsc)。
+- 守 7 步 SOP + ≤3 檔。M3c 動核心 runner render 路徑: 只 early-return 分流不碰既有 exam/deck
+  分支; ffmpeg 真跑測試用 monkeypatch subprocess (環境未必有 ffmpeg)。
+
+**offline-first 不變 (GATE 不碰)**: Gemini image 真生圖 (V2 / SONG M2, 用戶自己跑 --execute) /
+雙語翻譯真跑 (本機 Ollama translategemma, 用戶跑) — routine 不自主呼叫燒額度。需 Gemini 驗證
+的 prompt 調整 → 寫 proposal + STOP。M3 全做完無新方向 → 回報 STOP 不硬找事。
+
+---
+
+## Phase 3 — wind-down (2026-05-29 起, 已被 Phase 4 supersede, 保留作流程紀錄)
 
 **用戶決策 (2026-05-29)**: N 軸全完成、V 軸 V1 (offline 補測試 + parser 強化)
 也收尾。剩下的 **V2 (Gemini 產 25 SVG icon) / V3 (cairosvg flow_diagram) 都是 GATE**

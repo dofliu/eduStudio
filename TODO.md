@@ -148,9 +148,31 @@
     逐段圖 (→ images/<原名>) 進 jobs/<id>/, deck.json 內路徑改寫成相對 → job 自包含可搬。
     純檔案搬運 0 Gemini; 缺檔 graceful 略過不炸; 非 song schema → ValueError。+8 tests
     (2061→2069, 含「砍來源後 job dir 仍完整」證自包含)。
-  - [ ] **M3c render_song**: _run_render_inner 開頭 `is_song_schema` 分流 → _run_render_song
-    (繞過 v0/render_video TTS pipeline, 直接 song_segments_to_srt + ken burns/純色 cmd +
-    ffmpeg → artifacts/<id>.mp4)。
+  - [ ] **M3c render_song** (routine 下一輪, 劉老師授權自主, 純 offline 本機 ffmpeg):
+    **接入點**: `server/runner.py` `_run_render_inner` (line ~535, `deck = json.loads(...)`
+    之後、`if "sections" in deck` 判斷之前) 加 early-return 分流:
+    `from core.song_render import is_song_schema; if is_song_schema(deck): return await
+    _run_render_song(store, rec, deck, section_id=section_id)` — **不碰既有 exam/deck 分支**。
+    **新 `_run_render_song(store, rec, deck, *, section_id=None)`** (繞過 v0/render_video
+    TTS pipeline):
+    · `job_dir = store.deck_path(rec.id).parent`; `artifacts_dir = store.artifacts_dir(rec.id)`;
+      artifacts_dir.mkdir。
+    · `srt = song_segments_to_srt(deck["segments"])`; 空 → raise ValueError。srt 寫
+      `job_dir / "song.srt"` (cwd 設 job_dir, subtitles filter 用 basename 避 Windows 冒號)。
+    · audio = `deck["audio_path"]` (ingest 已改寫成相對 job_dir, 如 "song.mp3")。
+    · 每 valid segment (用 `_valid_segment`) 都有 `image_path` (相對 job_dir) → ken burns:
+      `image_durs = [(s["image_path"], s["end"]-s["start"]) ...]` →
+      `build_song_mv_kenburns_cmd(image_durs, audio, "song.srt", out_stem, ...)`; 否則
+      `build_song_mv_cmd(audio, "song.srt", out_stem, ...)` 純色。
+    · `out_stem = str(artifacts_dir / "song")` (build 補 .mp4 → artifacts/song.mp4)。
+    · `subprocess.run(cmd, cwd=str(job_dir))`; returncode !=0 → raise; FileNotFoundError
+      (無 ffmpeg) → raise 清楚訊息。
+    · section_id 忽略 (song 整首單一影片, 不支援單章 render)。state DONE 由 _run_render_phase
+      收尾 (此函式只產 artifacts, 比照 _run_render_inner 不自己 set state)。
+    **測試** tests/test_runner_render_song.py: monkeypatch `subprocess.run` (routine 環境
+    未必有 ffmpeg, 不真跑) 驗 — ken burns 模式 (全段有圖→cmd 含 zoompan) / 純色模式
+    (缺圖) / srt 真寫出 / cwd=job_dir / 空 segment raise / ffmpeg 失敗 raise /
+    _run_render_inner 路由 song 到 _run_render_song。≤3 檔 (runner.py + 測試 + TODO/STATUS)。
   - [ ] **M3d youtube meta song 分支**: core/youtube.py auto_youtube_meta 加 is_song_schema
     → song title/description (歌名 + 段落, 沿用既有 _build_chapter_lines)。
   - [ ] **M3e web UI**: types.ts 加 'song' + CreateJobForm 下拉 + JobEditor song review

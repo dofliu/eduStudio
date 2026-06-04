@@ -189,8 +189,18 @@
     把絕對 start 轉成段間距餵既有 _build_chapter_lines (累積回到絕對時間戳不漂移), 首段非 0
     補「🎵 前奏」章節 (YouTube 首章須 0:00)。category 用 10 (Music) 非教學 27; tags 加 song
     條目。+15 tests (2084→2099)。改 2 檔 (core/youtube.py + tests/test_youtube_helper.py)。
-  - [ ] **M3e web UI**: types.ts 加 'song' + CreateJobForm 下拉 + JobEditor song review
-    (逐段顯示 [start–end] 歌詞 + 圖預覽, 拖拉微調對齊 — RFC 手動 review 層)。
+  - **M3e web UI** (拆 3 小 iter, 守 ≤3 檔):
+    - [x] **M3e-1 types 基礎** (2026-06-04, routine 自主, offline, 動 web/ 跑 tsc):
+      types.ts SourceType 加 'song' + SongDeck/SongSegment interface (對應 song.json:
+      track_type/song_title/audio_path/visual_style/segments[id,start,end,lines,image_path,
+      image_prompt,reviewed]) + isSongDraft type guard (比照 core.song_render.is_song_schema,
+      track_type==='song' && segments list, 與 isExamDraft/isDeckDraft 不互撞) + Draft union
+      加 SongDeck。SourceBadge.tsx SOURCE_META 加 'song' 條目 (唯一 exhaustive Record<SourceType>,
+      不加 tsc 紅)。tsc 綠 + 2099 pytest 不變。改 2 檔 (types.ts + SourceBadge.tsx + TODO/STATUS)。
+    - [ ] **M3e-2 CreateJobForm**: source_type 下拉加 song 選項 + song 建 job 輸入流
+      (audio 檔 + 歌詞; song 不適用 theme/length_mode 等 deck 選項, 比照 exam 收斂面板)。
+    - [ ] **M3e-3 JobEditor song review**: isSongDraft 分流新 SongReviewPane — 逐段顯示
+      [start–end] 歌詞 + image_path 圖預覽 + reviewed 勾選 (RFC 手動 review 層)。
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板
 
 ### ✨ 新功能 backlog (2026-06-03 用戶挑選進場)

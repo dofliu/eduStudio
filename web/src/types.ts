@@ -6,7 +6,8 @@ export type SourceType =
   | 'slides_pdf'
   | 'repo'
   | 'document'
-  | 'url';
+  | 'url'
+  | 'song';   // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
 
 export type JobState =
   | 'pending'
@@ -162,6 +163,41 @@ export interface Deck {
   sections: Section[];
 }
 
+// ---------- Song schema (SONG track, M3 用) ----------
+// 對應 core.song_render.is_song_schema (track_type==='song' + segments list) 與
+// server runner / core.youtube 消費的 song.json 欄位。改這裡要同步 song.json 結構。
+
+export interface SongSegment {
+  /** 段落 id (生圖檔名 seg_<id>.png 用); 可選 */
+  id?: string;
+  /** 對齊好的絕對起點 (秒) */
+  start: number;
+  /** 對齊好的絕對終點 (秒, 須 > start 否則渲染端跳過) */
+  end: number;
+  /** 歌詞行 (一段可多行, 渲染時併進同一 SRT cue) */
+  lines: string[];
+  /** AI 生圖路徑 (相對 job dir, 如 "images/seg_s1.png") 或 null */
+  image_path?: string | null;
+  /** 生圖 prompt (人工修過則 idempotent 不被覆蓋) */
+  image_prompt?: string | null;
+  /** AI 生圖是估值, 須人工 review 後才標 true (硬規則 #1) */
+  reviewed?: boolean | null;
+}
+
+export interface SongDeck {
+  /** 區分 song schema 的標記 (硬規則 #9 type guard 用, 不靠 'segments' in d 硬判) */
+  track_type: 'song';
+  song_title?: string;
+  /** 後端 title fallback 鏈會看 deck_title */
+  deck_title?: string;
+  source_type?: string;
+  /** 歌曲音檔 (ingest 後相對 job dir, 如 "song.mp3") */
+  audio_path?: string | null;
+  /** 統一視覺風格 (逐段生圖共用, 保畫風一致) */
+  visual_style?: string | null;
+  segments: SongSegment[];
+}
+
 // ---------- v1 exam schema (考卷 / 簡報 用, PR-3g 接 React UI) ----------
 
 export interface Step {
@@ -197,10 +233,10 @@ export interface Exam {
 }
 
 /**
- * 共通的 draft 型別: 後端 GET /jobs/{id}/draft 回 dict, 可能是 Exam 或 Deck。
- * UI 用 isExamDraft / isDeckDraft 兩個 type guard 分流。
+ * 共通的 draft 型別: 後端 GET /jobs/{id}/draft 回 dict, 可能是 Exam / Deck / Song。
+ * UI 用 isExamDraft / isDeckDraft / isSongDraft 三個 type guard 分流。
  */
-export type Draft = Exam | Deck | Record<string, unknown>;
+export type Draft = Exam | Deck | SongDeck | Record<string, unknown>;
 
 export function isExamDraft(d: unknown): d is Exam {
   return !!d && typeof d === 'object' && Array.isArray((d as any).problems);
@@ -208,6 +244,17 @@ export function isExamDraft(d: unknown): d is Exam {
 
 export function isDeckDraft(d: unknown): d is Deck {
   return !!d && typeof d === 'object' && Array.isArray((d as any).sections);
+}
+
+// 比照 core.song_render.is_song_schema: track_type==='song' + segments list。
+// song deck 無 problems / sections, 故與 isExamDraft / isDeckDraft 不會誤判互撞。
+export function isSongDraft(d: unknown): d is SongDeck {
+  return (
+    !!d &&
+    typeof d === 'object' &&
+    (d as any).track_type === 'song' &&
+    Array.isArray((d as any).segments)
+  );
 }
 
 // ---------- Voice picker (PR-3l) ----------

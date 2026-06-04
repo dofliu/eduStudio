@@ -137,8 +137,12 @@
   artifact stem 對到 section.id → 單章影片章節=slides; 對不到 (final.mp4 整份) → 章節=各
   section (該章 slides 旁白估算秒數總和)。抽 `_estimate_narration_seconds` +
   `_build_chapter_lines` 共用 (exam 路徑改用後不變)。+15 tests (1814→1829)。改 2 檔。
-- [ ] **雙語字幕** (🟡 中): 既有 SRT → 翻英/日雙語軌。翻譯需 Gemini/翻譯 API → GATE
+- [~] **雙語字幕** (🟡 中): 既有 SRT → 翻英/日雙語軌。翻譯需 Gemini/翻譯 API → GATE
   寫 proposal 等用戶開額度; SRT 雙語合併格式 + 渲染是 offline 可先做。
+  **proposal 已寫 (2026-06-04, routine)**: [docs/bilingual-subtitle-proposal.md](docs/bilingual-subtitle-proposal.md)
+  — 列 3 個架構決策 (格式 A 交錯/B 雙軌/C ASS, 建議 B; 字幕帶 180px 溢出約束; cue 對齊)
+  + offline 可先做段 (拍板 B 後 routine 可自主做 build_bilingual_srt_tracks helper + schema
+  透傳, 純離線不碰額度)。**STOP 等劉老師選格式 + 開翻譯額度 + 確認 require_review**。
 - [ ] **學生提問 → RAG → 解答影片** (🟢 探索, 戰略價值高工程重): 串 RAG 研究
   (Kiwi/Christian) + EdTech 論文 + 課程網站整合。先寫 RFC 拆子系統, 不急著動 code。
 

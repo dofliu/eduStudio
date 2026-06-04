@@ -123,7 +123,17 @@
     song.json (手填 segments 時間軸, whisper phrase 時間戳當起點) + 備 audio →
     `python tools/song_mv.py song.json` → 肉眼驗 mp4 渲染+音軌+字幕對齊。
 - [ ] **M1 對齊子系統**: Demucs + WhisperX 自動對齊出 song.json 時間軸 + review UI 微調層
-- [ ] **M2 生圖子系統**: 逐段 Gemini 生圖 + 風格一致性 (統一 style suffix/seed) + ken burns
+- [~] **M2 生圖子系統**: 逐段 Gemini 生圖 + 風格一致性 (統一 style suffix/seed) + ken burns
+  - [x] **生圖層 (2026-06-04)**: `core/song_images.py` `build_image_prompt` (歌詞語意 +
+    統一 visual_style + 風格 suffix, 0 API; 既有 image_prompt 優先 idempotent) +
+    `generate_segment_image` (複用 diagram_image_gen 的 gemini-2.5-flash-image 呼叫, GATE);
+    執行包 `tools/gen_song_images.py` 同 gen_icon_svgs 安全模式 (預設 dry-run 印 prompt
+    不燒額度, `--execute` 才生圖 + 寫回 song.json image_path + **reviewed=false 停 review**,
+    不自動標 reviewed=true / 不自動 commit). +13 tests (2039→2052). 改 3 檔.
+  - [ ] **真生圖 (GATE)**: 劉老師開 Gemini image 額度 + song.json 填 visual_style →
+    `python tools/gen_song_images.py song.json --execute` → 逐張 review → reviewed=true.
+  - [ ] **ken burns 渲染串接**: 生成圖 → 緩慢平移縮放 frame + 每 segment 一 clip 串接
+    (取代 M0 純色背景; 延伸 V 軸 image_frames/ken burns; build_song_mv_cmd 升級成多圖序列).
 - [ ] **M3 整合**: 渲染串接 + 字幕燒錄 + require_review + YouTube 上傳 (含章節)
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板
 

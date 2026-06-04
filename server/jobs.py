@@ -60,11 +60,13 @@ def _resolve_default_review(source_type: SourceType, opt_value: bool | None) -> 
     """require_review 沒明說時的預設值。
 
     exam_pdf → True (CLAUDE.md 硬規則 #1: AI 產出考題答案必須人工 review)
-    slides_pdf → False (簡報講解風險低,可直接渲染)
+    song → True (對齊時間軸 + 生圖 prompt + AI 生圖全是估值, song.json 停 review
+        逐段微調對齊/換圖, 同硬規則 #1; 見 SONG_MV_TRACK_RFC §2 中間產物)
+    slides_pdf / repo / document / url → False (講解風險低,可直接渲染)
     """
     if opt_value is not None:
         return opt_value
-    return source_type == SourceType.EXAM_PDF
+    return source_type in (SourceType.EXAM_PDF, SourceType.SONG)
 
 
 # ---------- Store (thread-safe in-memory + write-through) ----------

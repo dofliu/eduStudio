@@ -87,6 +87,16 @@ class TestCreateAndGet:
         rec = store.create(req)
         assert rec.options.require_review is True
 
+    def test_song_default_require_review_true(self, store):
+        # M3: song 對齊+生圖 prompt+生圖全 AI 估值, 同硬規則 #1 強制 review
+        req = CreateJobRequest(
+            source_type=SourceType.SONG,
+            source=JobSource(path="/fake/song.json"),
+            options=JobOptions(),
+        )
+        rec = store.create(req)
+        assert rec.options.require_review is True
+
     def test_slides_pdf_default_require_review_false(self, store):
         req = CreateJobRequest(
             source_type=SourceType.SLIDES_PDF,

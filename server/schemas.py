@@ -42,6 +42,7 @@ class SourceType(str, Enum):
     REPO = "repo"                # 資料夾 / repo -> repo adapter
     DOCUMENT = "document"        # PDF / MD / TXT 單檔 long-form -> document adapter
     URL = "url"                  # 靜態 HTML 文章 -> url adapter
+    SONG = "song"                # 歌曲音檔 + 歌詞時間軸 -> AI 生圖 MV (M3, 第 4 track)
 
 
 class JobState(str, Enum):

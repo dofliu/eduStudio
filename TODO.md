@@ -138,7 +138,22 @@
     M0 純色; 真跑前檢查圖檔存在 (缺 → 提示先跑 gen_song_images)。+8 tests (2052→2060)。
     **假設 segments 連續無 gap** (concat 是相對串接); 前奏/間奏 gap 對齊精修待後續。
     劉老師生圖 OK 後可直接 `python tools/song_mv.py song.json` 出完整有畫面 MV。
-- [ ] **M3 整合**: 渲染串接 + 字幕燒錄 + require_review + YouTube 上傳 (含章節)
+- [~] **M3 整合**: 接進 server flow (建 job → ingest → review → render → YouTube) + web UI。
+  跨 server/runner/schemas/jobs/youtube/web 多檔, 拆多 PR。
+  - [x] **M3a source_type 註冊 + review policy (2026-06-04)**: schemas.py `SONG = "song"`
+    enum + jobs.py `_resolve_default_review` song → True (對齊+生圖 prompt+生圖全 AI 估值,
+    同硬規則 #1 強制 review)。+1 test (2060→2061)。
+  - [ ] **M3b ingest_song (待拍板資產路徑)**: runner ingest dispatch 加 song 分支 →
+    讀 song.json 存成 deck.json。**架構決策**: audio/image 路徑 — (A) song.json 用絕對路徑,
+    deck.json 引用絕對 (不複製大檔, 但 job 不自包含) / (B) ingest 複製 audio+images 進
+    jobs/<id>/ (job 自包含可搬, 但複製數十 MB)。建議 A (本機用, 大檔不複製)。
+  - [ ] **M3c render_song**: _run_render_inner 開頭 `is_song_schema` 分流 → _run_render_song
+    (繞過 v0/render_video TTS pipeline, 直接 song_segments_to_srt + ken burns/純色 cmd +
+    ffmpeg → artifacts/<id>.mp4)。
+  - [ ] **M3d youtube meta song 分支**: core/youtube.py auto_youtube_meta 加 is_song_schema
+    → song title/description (歌名 + 段落, 沿用既有 _build_chapter_lines)。
+  - [ ] **M3e web UI**: types.ts 加 'song' + CreateJobForm 下拉 + JobEditor song review
+    (逐段顯示 [start–end] 歌詞 + 圖預覽, 拖拉微調對齊 — RFC 手動 review 層)。
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板
 
 ### ✨ 新功能 backlog (2026-06-03 用戶挑選進場)

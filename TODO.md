@@ -115,8 +115,13 @@
     (對齊時間軸 → SRT, **繞過** narration_to_cues 字數切分, 無效 segment 靜默跳過 +
     重編號) + `build_song_mv_cmd` (ffmpeg 純色背景 + 燒歌詞 + 歌曲音軌, 歌詞置中大字,
     不真跑). +18 tests (1990→2008). 改 2 檔 (core/song_render.py + tests/test_song_render.py).
-  - [ ] **M0b 本機驗收**: 劉老師拿 1 首歌 + 手填 segments 時間軸 (whisper 轉錄 phrase
-    時間戳當起點) → 真跑 build_song_mv_cmd 出 mp4 肉眼驗渲染+音軌+字幕對齊。
+  - [~] **M0b 本機驗收**: helper `tools/song_mv.py` 完成 (2026-06-04, offline) — 讀
+    song.json → is_song_schema 驗證 → song_segments_to_srt 寫 .srt → build_song_mv_cmd
+    跑 ffmpeg → mp4; `--dry-run` 不跑 (沒 ffmpeg/測試用); audio_path 相對 song.json 解析;
+    Windows 冒號用 cwd+basename 避; ffmpeg 缺/失敗各自 return code. +12 tests (2008→2020).
+    改 2 檔 (tools/song_mv.py + tests/test_song_mv.py). **待劉老師真跑**: 寫一首歌
+    song.json (手填 segments 時間軸, whisper phrase 時間戳當起點) + 備 audio →
+    `python tools/song_mv.py song.json` → 肉眼驗 mp4 渲染+音軌+字幕對齊。
 - [ ] **M1 對齊子系統**: Demucs + WhisperX 自動對齊出 song.json 時間軸 + review UI 微調層
 - [ ] **M2 生圖子系統**: 逐段 Gemini 生圖 + 風格一致性 (統一 style suffix/seed) + ken burns
 - [ ] **M3 整合**: 渲染串接 + 字幕燒錄 + require_review + YouTube 上傳 (含章節)

@@ -16,6 +16,27 @@
 # 對齊方案 2 (Demucs 分人聲 + WhisperX word-level forced alignment + 手動 review)。
 # 細節見 docs/SONG_MV_TRACK_RFC.md。
 # ----------------------------------------------------------------------------
+#
+# === M0 spike 實測結果 (2026-06-04, RTX 4080 + Python 3.12) ===
+#
+# ✅ 跑通: CUDA torch (用 cu124 而非上面註解原寫的 cu121 — 4080 Ada 吃 CUDA 12.4) /
+#    demucs 分人聲 / whisper large-v3 轉錄 (device=cuda, float16).
+#    驗證: python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
+#    → True 12.4
+#    安裝: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+#
+# ⚠️ 卡關 (= M1 自動對齊, 不擋 M0 手動時間軸): whisperx 3.8.6 word-level forced
+#    alignment 在此環境跑不起來 — 依賴鏈版本互斥:
+#      - pyannote-audio 4.0.4 要 torch>=2.8 (cu124 wheel 目前最高 torch 2.6)
+#      - whisperx 3.8.6 要 torchvision~=0.23 (cu124 給 0.21)
+#      - 新版 transformers 載 jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn
+#        (該 repo 缺 preprocessor_config.json) → IndexError: list index out of range
+#    HF 鏡像 (HF_ENDPOINT=https://hf-mirror.com) 不解 (非網路問題, 是版本相容).
+#    → M1 解法待查: pin 一組舊版 (whisperx 3.1.x + 相容 transformers/pyannote/torch)
+#      或改對齊後端 (torchaudio MMS / 別的中文 wav2vec2). M0 不需自動對齊, 用手動
+#      歌詞+時間軸 (RFC M0 定義), 故此卡關不阻擋 M0 渲染骨架.
+#
+# ----------------------------------------------------------------------------
 
 # 人聲 / 伴奏分離 (htdemucs 模型) — 先剝人聲再對齊, 大幅降低樂器干擾
 demucs>=4.0.0

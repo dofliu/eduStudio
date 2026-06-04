@@ -85,3 +85,7 @@ _scriptor_errors/
 *.rar
 # 影片產物 (outro / demo / intro mp4) 不該追蹤, 走 OUTPUT_DIR 流程
 docs/*.mp4
+
+# SONG track: demucs 分人聲輸出 (vocals.wav / no_vocals.wav, 數百 MB scratch)
+# 由 demucs 從歌曲音檔重生, 不該 commit
+separated/

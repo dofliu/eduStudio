@@ -117,8 +117,13 @@
 > 互動 session 用戶從建議清單挑這 4 個進 backlog。多數可接既有結構, 不需 Gemini 額度
 > 的先做 (offline-first)。
 
-- [ ] **LaTeX 公式渲染** (🔴 高, 教學剛需): 材料力學公式進 slide。matplotlib mathtext
-  或 MathJax→PNG 渲 LaTeX, 接 slide_renderer 既有圖片疊放路徑。**offline 可做**。
+- [~] **LaTeX 公式渲染** (🔴 高, 教學剛需) — **改判 GATE (2026-06-04)**: 材料力學公式進
+  slide。原列「offline 可做 (matplotlib mathtext)」, 但 routine 查證 matplotlib **不在**
+  requirements / CI 安裝清單 (僅 GATE 的 Gemini-diagram subprocess 功能 lazy import)。
+  接主線 slide render 路徑 = matplotlib 升核心 dep (進 requirements.txt + CI) = 新 pip
+  dep → STOP。proposal 已寫: [docs/latex-formula-rendering-proposal.md](docs/latex-formula-rendering-proposal.md)
+  (後端 A/B/C/D trade-off, 建議 A matplotlib mathtext, 解鎖後 offline 實作規劃)。
+  **等劉老師拍板後端 + 同意 matplotlib 進核心依賴**, routine 才接著做 offline 實作。
 - [x] **YouTube 自動章節** (🔴 高, 近零成本高 CP) (2026-06-04): deck section 結構 → YT
   description 時間軸章節格式 (`0:00 章節名`)。實作在 `core/youtube.py` (Track B 真正組
   description 的地方, 非 publish.py CLI)。`auto_youtube_meta` 原只認 exam schema

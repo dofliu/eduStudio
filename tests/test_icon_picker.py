@@ -288,21 +288,27 @@ class TestRealManifest:
         assert MANIFEST_PATH.name == "manifest.json"
         assert MANIFEST_PATH.parent.name == "icon_library"
 
-    def test_real_narration_no_svg_yet_graceful(self):
-        """E2-2 SVG 還沒產, require_file_exists=True 該回空 list (不噴 error)."""
-        # 用會命中多 entry 的 narration, 但 SVG 還沒進 repo
+    def test_real_narration_svg_present_default_returns_matches(self):
+        """V2 (2026-06-04) 25 SVG 補齊後, require_file_exists=True 預設值該命中.
+
+        (補檔前此測試名為 *_no_svg_yet_graceful 斷言 result==[] — SVG 進 repo 後
+        前提失效, 改鎖補檔後的對稱現實: 渲染端預設值真的疊得出 icon. 完整性鎖
+        見 tests/test_icon_library_complete.py.)
+        """
         result = pick_icons("這是 PID 控制風力機的方塊圖")
-        # SVG 不存在, default require_file_exists=True 該過濾光
-        assert result == []
+        assert len(result) > 0
+        assert all(m.file_exists is True for m in result)
+        keys = {m.key for m in result}
+        assert keys & {"pid_loop", "wind_turbine", "block_diagram"}
 
     def test_real_narration_with_relaxed_flag_returns_matches(self):
-        """require_file_exists=False — 該看到建議, file_exists=False 標記."""
+        """require_file_exists=False — 該看到建議. V2 補檔後 file_exists 全 True."""
         result = pick_icons(
             "這是 PID 控制風力機的方塊圖",
             require_file_exists=False,
         )
         assert len(result) > 0
-        assert all(m.file_exists is False for m in result)
+        assert all(m.file_exists is True for m in result)
         # 該包含 pid_loop / wind_turbine / block_diagram 之一
         keys = {m.key for m in result}
         assert keys & {"pid_loop", "wind_turbine", "block_diagram"}

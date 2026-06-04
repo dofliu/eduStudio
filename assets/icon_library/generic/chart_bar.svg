@@ -1,0 +1,13 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Baseline for the chart -->
+  <line x1="24" y1="232" x2="232" y2="232" stroke="#1e3a2e" stroke-width="3" fill="none"/>
+
+  <!-- Bar 1 (Shortest) -->
+  <rect x="29" y="152" width="36" height="80" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+  <!-- Bar 2 (Medium-Tall) -->
+  <rect x="83" y="92" width="36" height="140" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+  <!-- Bar 3 (Medium) -->
+  <rect x="137" y="122" width="36" height="110" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+  <!-- Bar 4 (Tallest) -->
+  <rect x="191" y="62" width="36" height="170" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+</svg>

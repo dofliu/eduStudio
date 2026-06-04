@@ -1,0 +1,8 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- X-axis -->
+  <path d="M 24 210 L 232 210" fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Y-axis -->
+  <path d="M 24 210 L 24 40" fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Magnitude Curve -->
+  <path d="M 40 60 L 80 60 L 200 190" fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

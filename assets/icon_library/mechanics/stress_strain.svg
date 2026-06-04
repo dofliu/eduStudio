@@ -1,0 +1,38 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    /* Global styles for consistency */
+    .stroke-main {
+      stroke: #1e3a2e;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none; /* Default for lines, overridden for arrows and text */
+    }
+    .fill-main {
+      fill: #1e3a2e; /* For arrowheads and text labels */
+      stroke: none; /* No stroke for filled elements to avoid double line effect */
+    }
+    .axis-label {
+      font-family: serif; /* For mathematical symbols */
+      font-size: 32px;
+      fill: #1e3a2e;
+      stroke: none; /* Text fill only */
+    }
+  </style>
+
+  <!-- Axes -->
+  <line x1="32" y1="224" x2="32" y2="32" class="stroke-main" /> <!-- Y-axis -->
+  <line x1="32" y1="224" x2="224" y2="224" class="stroke-main" /> <!-- X-axis -->
+
+  <!-- Arrowheads -->
+  <polygon points="32 32 27 42 37 42" class="fill-main" /> <!-- Y-axis arrowhead -->
+  <polygon points="224 224 214 219 214 229" class="fill-main" /> <!-- X-axis arrowhead -->
+
+  <!-- Stress-Strain Curve -->
+  <path d="M 32 224 L 80 176 C 120 120 180 60 216 40" class="stroke-main" />
+
+  <!-- Labels for Stress (sigma) and Strain (epsilon) -->
+  <text x="20" y="48" text-anchor="end" dominant-baseline="alphabetic" class="axis-label">σ</text> <!-- Sigma for Stress -->
+  <text x="224" y="244" text-anchor="end" dominant-baseline="alphabetic" class="axis-label">ε</text> <!-- Epsilon for Strain -->
+
+</svg>

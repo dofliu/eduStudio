@@ -1,0 +1,26 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="10 3.5, 0 0, 0 7" fill="#1e3a2e" />
+    </marker>
+  </defs>
+
+  <!-- Axes -->
+  <!-- σ (normal stress) axis -->
+  <line x1="30" y1="128" x2="230" y2="128" stroke="#1e3a2e" stroke-width="3" marker-end="url(#arrowhead)" />
+  <!-- τ (shear stress) axis -->
+  <line x1="80" y1="38" x2="80" y2="218" stroke="#1e3a2e" stroke-width="3" marker-end="url(#arrowhead)" />
+
+  <!-- Mohr's Circle -->
+  <circle cx="150" cy="128" r="60" stroke="#1e3a2e" stroke-width="3" fill="#ffd96b" />
+
+  <!-- Axis labels -->
+  <!-- σ label -->
+  <text x="220" y="120" font-family="serif" font-size="28" fill="#1e3a2e" text-anchor="middle">σ</text>
+  <!-- τ label -->
+  <text x="70" y="45" font-family="serif" font-size="28" fill="#1e3a2e" text-anchor="middle">τ</text>
+
+  <!-- Origin dot -->
+  <circle cx="80" cy="128" r="4" fill="#1e3a2e" />
+
+</svg>

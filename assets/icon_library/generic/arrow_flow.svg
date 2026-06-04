@@ -1,0 +1,20 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- 方塊1 (帶圓角) -->
+  <rect x="24" y="108" width="40" height="40" rx="6" ry="6" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+  
+  <!-- 連接線1 (從方塊1到方塊2，帶圓頭) -->
+  <line x1="64" y1="128" x2="94.5" y2="128" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <!-- 箭頭1 (實心填充，尖端在 108,128，基部在 96,128) -->
+  <path d="M 108 128 L 96 124 L 96 132 Z" fill="#1e3a2e" stroke="none"/>
+
+  <!-- 方塊2 (帶圓角) -->
+  <rect x="108" y="108" width="40" height="40" rx="6" ry="6" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+
+  <!-- 連接線2 (從方塊2到方塊3，帶圓頭) -->
+  <line x1="148" y1="128" x2="178.5" y2="128" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <!-- 箭頭2 (實心填充，尖端在 192,128，基部在 180,128) -->
+  <path d="M 192 128 L 180 124 L 180 132 Z" fill="#1e3a2e" stroke="none"/>
+
+  <!-- 方塊3 (帶圓角) -->
+  <rect x="192" y="108" width="40" height="40" rx="6" ry="6" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+</svg>

@@ -183,9 +183,12 @@
     純 endpoint 序列化/過濾契約, 0 production 改動. 1766→1771. 改 2 檔
     (tests/test_icon_suggestions_endpoint.py + tests/test_image_frames_endpoint.py).
     **V1 (offline) 收尾.** 下一輪 = V2 (E2-2 Gemini SVG) / V3 (E1-3 cairosvg) GATE 需用戶開額度/新 dep STOP.
-- [ ] **V2 (GATE)**: E2-2 Gemini 產 25 個 SVG icon — 需用戶開額度. proposal 已寫:
+- [x] **V2 (E2-2)** — **完成 (2026-06-04, 劉老師產 SVG + routine 驗收入庫)**: 25 個扁平
+  SVG icon (風能/控制/材力各 5 + generic 10) 全進 `assets/icon_library/{wind,control,mechanics,generic}/`,
+  manifest 25 entry 對齊。驗收完整性鎖 `tests/test_icon_library_complete.py` (每 icon 檔存在 +
+  合法 SVG + viewBox 256 風格 + 欄位合法 + 雙向無孤兒檔 + pick_icons 補檔後真命中, +128 tests
+  1862→1990); 順帶更新 test_icon_picker 2 個「SVG 還沒產」前提失效的測試。proposal:
   [docs/dynamic-visual-v2-v3-proposal.md](docs/dynamic-visual-v2-v3-proposal.md).
-  manifest 已定義 25 icon 但 0 SVG 檔在磁碟 → 補檔後 routine 可自主做驗收測試 (offline).
   - [x] **V2 執行包 (offline)** (2026-06-04): `tools/gen_icon_svgs.py` — 讀 manifest 25
     icon → 內建 VISUAL_DESC 視覺描述 + 統一風格規範 (viewBox 256 / #1e3a2e / #ffd96b /
     無文字 label) 組 per-icon prompt。**SVG 用文字模型 gemini-2.5-flash 產 (不吃 image
@@ -271,7 +274,7 @@
   SVG 全 Gemini 產
 - 建議推進順序 (見 design memo 末段):
   - [x] **E2-1**: `assets/icon_library/` 目錄 + manifest.json 框架 (iter 98)
-  - [ ] **E2-2**: Gemini 一次性產 25 個扁平 SVG icon, commit 進 repo
+  - [x] **E2-2**: 25 個扁平 SVG icon 已入庫 (2026-06-04, 劉老師產 + routine 驗收, 見上方 V2 段)
   - [x] **E2-3**: `core/icon_picker.py` keyword grep 模組 (iter 99)
   - [x] **E2-4**: schema 加 `slide.icon_overlay` (iter 100)
   - [x] **E2-5**: slide_renderer alpha_composite 疊 icon (iter 102 SlideRenderer 兩 layout; iter 103 擴 BlackboardRenderer + PptxStyleRenderer 4 路 layout — 三大 renderer 全覆蓋)

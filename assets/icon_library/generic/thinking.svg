@@ -1,0 +1,37 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- 頭部輪廓 (Head Profile) -->
+  <path
+    d="M 68 174.5
+       C 48 154.5, 48 114.5, 68 94.5
+       C 88 74.5, 118 74.5, 128 94.5
+       C 138 114.5, 138 144.5, 118 164.5
+       C 108 174.5, 78 194.5, 68 174.5 Z"
+    stroke="#1e3a2e"
+    stroke-width="3"
+    fill="#ffd96b"
+  />
+
+  <!-- 思考泡泡連接部分 (Thought Bubble Tail) -->
+  <circle cx="138" cy="179.5" r="9" stroke="#1e3a2e" stroke-width="3" fill="#ffd96b" />
+  <circle cx="153" cy="189.5" r="6" stroke="#1e3a2e" stroke-width="3" fill="#ffd96b" />
+
+  <!-- 思考泡泡主體 (Main Thought Cloud) -->
+  <path
+    d="M 178 104.5
+       Q 158 94.5, 158 124.5
+       Q 158 154.5, 178 164.5
+       Q 198 174.5, 218 164.5
+       Q 238 154.5, 238 124.5
+       Q 238 94.5, 218 84.5
+       Q 198 74.5, 178 84.5
+       Q 168 94.5, 178 104.5 Z"
+    stroke="#1e3a2e"
+    stroke-width="3"
+    fill="#ffd96b"
+  />
+
+  <!-- 思考泡泡內的三個小圓點 (Three Dots inside Thought Cloud) -->
+  <circle cx="188" cy="134.5" r="5" fill="#1e3a2e" />
+  <circle cx="203" cy="129.5" r="5" fill="#1e3a2e" />
+  <circle cx="218" cy="134.5" r="5" fill="#1e3a2e" />
+</svg>

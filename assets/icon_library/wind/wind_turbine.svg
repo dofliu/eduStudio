@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Tower -->
+  <rect x="118" y="70" width="20" height="160"
+    fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"
+    rx="4" ry="4"/>
+  
+  <!-- Hub/Nacelle -->
+  <circle cx="128" cy="60" r="10"
+    fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+  
+  <!-- Blades (three lines forming a Y-shape) -->
+  <line x1="128" y1="60" x2="70" y2="20"
+    stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <line x1="128" y1="60" x2="186" y2="20"
+    stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <line x1="128" y1="60" x2="100" y2="130"
+    stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+</svg>

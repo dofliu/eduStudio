@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <g stroke="#1e3a2e" stroke-width="3">
+    <!-- Lines connecting nodes -->
+    <path fill="none" d="M128 128 L128 64 M128 128 L192 128 M128 128 L128 192 M128 128 L64 128 M128 64 L192 128 M192 128 L128 192 M128 192 L64 128 M64 128 L128 64"/>
+    <!-- Nodes -->
+    <circle cx="128" cy="128" r="10" fill="#ffd96b"/>
+    <circle cx="128" cy="64" r="10" fill="#ffd96b"/>
+    <circle cx="192" cy="128" r="10" fill="#ffd96b"/>
+    <circle cx="128" cy="192" r="10" fill="#ffd96b"/>
+    <circle cx="64" cy="128" r="10" fill="#ffd96b"/>
+  </g>
+</svg>

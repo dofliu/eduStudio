@@ -1,0 +1,19 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect x="88" y="88" width="80" height="80" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+
+  <!-- Force: Downwards (e.g., Gravity) -->
+  <line x1="128" y1="168" x2="128" y2="216" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <polyline points="128,216 122,206 134,206" fill="#1e3a2e" stroke="none"/>
+
+  <!-- Force: Upwards (e.g., Normal Force) -->
+  <line x1="128" y1="88" x2="128" y2="40" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <polyline points="128,40 122,50 134,50" fill="#1e3a2e" stroke="none"/>
+
+  <!-- Force: Rightwards (e.g., Applied Force) -->
+  <line x1="168" y1="128" x2="216" y2="128" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <polyline points="216,128 206,122 206,134" fill="#1e3a2e" stroke="none"/>
+
+  <!-- Force: Leftwards (e.g., Friction) -->
+  <line x1="88" y1="128" x2="40" y2="128" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round"/>
+  <polyline points="40,128 50,122 50,134" fill="#1e3a2e" stroke="none"/>
+</svg>

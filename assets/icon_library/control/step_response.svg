@@ -1,0 +1,35 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <path
+    d="M 40 220 L 40 40 M 40 220 L 220 220"
+    stroke="#1e3a2e"
+    stroke-width="3"
+    fill="none"
+  />
+  <!-- Y-axis arrowhead -->
+  <path
+    d="M 40 40 L 34 48 M 40 40 L 46 48"
+    stroke="#1e3a2e"
+    stroke-width="3"
+    fill="none"
+  />
+  <!-- X-axis arrowhead -->
+  <path
+    d="M 220 220 L 212 214 M 220 220 L 212 226"
+    stroke="#1e3a2e"
+    stroke-width="3"
+    fill="none"
+  />
+  <!-- Step response curve -->
+  <path
+    d="M 40 220 
+       C 50 190, 70 120, 90 80 
+       S 110 60, 130 95 
+       S 150 105, 170 90 
+       S 190 88, 210 90"
+    stroke="#1e3a2e"
+    stroke-width="3"
+    fill="none"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

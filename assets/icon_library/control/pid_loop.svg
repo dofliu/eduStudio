@@ -1,0 +1,49 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style type="text/css">
+      .stroke-main { fill: none; stroke: #1e3a2e; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+      .fill-main { fill: #1e3a2e; }
+      .fill-block { fill: #ffd96b; }
+      .font-label { font-family: sans-serif; font-size: 16px; font-weight: bold; }
+    </style>
+  </defs>
+
+  <!-- Summing Point -->
+  <circle cx="60" cy="128" r="18" class="stroke-main"/>
+  <line x1="52" y1="128" x2="68" y2="128" class="stroke-main"/>
+  <line x1="60" y1="120" x2="60" y2="136" class="stroke-main"/>
+
+  <!-- Controller Block -->
+  <rect x="90" y="108" width="60" height="40" class="stroke-main fill-block"/>
+  <text x="107" y="130" class="font-label fill-main" text-anchor="middle">P</text>
+  <text x="120" y="130" class="font-label fill-main" text-anchor="middle">I</text>
+  <text x="133" y="130" class="font-label fill-main" text-anchor="middle">D</text>
+
+  <!-- Process Block (or Plant) -->
+  <rect x="160" y="108" width="60" height="40" class="stroke-main fill-block"/>
+
+  <!-- Forward Path Lines -->
+  <line x1="24" y1="128" x2="42" y2="128" class="stroke-main"/> <!-- Input to Summing Point (edge: x=42, center: x=60-18) -->
+  <line x1="78" y1="128" x2="90" y2="128" class="stroke-main"/> <!-- Summing Point to Controller (edge: x=78, center: x=60+18) -->
+  <line x1="150" y1="128" x2="160" y2="128" class="stroke-main"/> <!-- Controller to Process -->
+  <line x1="220" y1="128" x2="232" y2="128" class="stroke-main"/> <!-- Process Output -->
+
+  <!-- Feedback Path Lines -->
+  <path d="M 220 128 V 200 H 48 V 146 H 60" class="stroke-main"/> <!-- From Process to Summing Point (bottom connection) -->
+
+  <!-- Arrowheads -->
+  <!-- Input to Summing -->
+  <path d="M 42 128 L 34 124 L 34 132 Z" class="fill-main"/>
+  <!-- Summing to Controller -->
+  <path d="M 90 128 L 82 124 L 82 132 Z" class="fill-main"/>
+  <!-- Controller to Process -->
+  <path d="M 160 128 L 152 124 L 152 132 Z" class="fill-main"/>
+  <!-- Process Output -->
+  <path d="M 232 128 L 224 124 L 224 132 Z" class="fill-main"/>
+  <!-- Feedback (down segment) -->
+  <path d="M 220 200 L 216 192 L 224 192 Z" class="fill-main"/>
+  <!-- Feedback (left segment) -->
+  <path d="M 48 200 L 56 196 L 56 204 Z" class="fill-main"/>
+  <!-- Feedback (up segment) -->
+  <path d="M 48 146 L 44 154 L 52 154 Z" class="fill-main"/>
+</svg>

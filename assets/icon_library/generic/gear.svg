@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <path d="M 218 128 L 201.91 158.62 L 191.64 191.64 L 158.62 201.91 L 128 218 L 97.38 201.91 L 64.36 191.64 L 47.09 158.62 L 38 128 L 47.09 97.38 L 64.36 64.36 L 97.38 47.09 L 128 38 L 158.62 47.09 L 191.64 64.36 L 201.91 97.38 Z M 98 128 A 30,30 0 1,0 158 128 A 30,30 0 1,0 98 128 Z"
+        fill="#ffd96b" stroke="#1e3a2e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd"/>
+</svg>

@@ -1,0 +1,21 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bulb (glass part) -->
+  <path d="M 128 40 C 80 40, 60 70, 60 110 V 160 C 60 165, 80 170, 128 170 C 176 170, 196 165, 196 160 V 110 C 196 70, 176 40, 128 40 Z"
+    fill="#ffd96b" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Filament -->
+  <path d="M 100 125 L 115 105 L 128 125 L 141 105 L 156 125"
+    fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Base outline -->
+  <rect x="100" y="170" width="56" height="40"
+    fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Base ridges -->
+  <line x1="100" y1="180" x2="156" y2="180"
+    fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="100" y1="190" x2="156" y2="190"
+    fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="100" y1="200" x2="156" y2="200"
+    fill="none" stroke="#1e3a2e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

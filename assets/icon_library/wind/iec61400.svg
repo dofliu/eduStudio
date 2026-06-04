@@ -1,0 +1,18 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Document outline (base rectangle) -->
+  <rect x="30" y="30" width="196" height="196" rx="10" stroke="#1e3a2e" stroke-width="3" fill="none"/>
+  <!-- Folded corner of the document -->
+  <path d="M 226 30 L 196 30 L 226 60 Z" stroke="#1e3a2e" stroke-width="3" fill="#ffd96b"/>
+
+  <!-- Wind turbine silhouette, centered within the document -->
+  <!-- Tower -->
+  <rect x="122" y="110" width="12" height="60" stroke="#1e3a2e" stroke-width="3" fill="#ffd96b"/>
+  <!-- Nacelle (top housing) -->
+  <rect x="118" y="95" width="20" height="15" rx="2" stroke="#1e3a2e" stroke-width="3" fill="#ffd96b"/>
+  <!-- Hub (rotor center) -->
+  <circle cx="128" cy="102" r="5" stroke="#1e3a2e" stroke-width="3" fill="#ffd96b"/>
+  <!-- Blades (represented by lines with rounded caps) -->
+  <line x1="128" y1="102" x2="158" y2="82" stroke="#1e3a2e" stroke-width="4" stroke-linecap="round"/>
+  <line x1="128" y1="102" x2="158" y2="122" stroke="#1e3a2e" stroke-width="4" stroke-linecap="round"/>
+  <line x1="128" y1="102" x2="98" y2="102" stroke="#1e3a2e" stroke-width="4" stroke-linecap="round"/>
+</svg>

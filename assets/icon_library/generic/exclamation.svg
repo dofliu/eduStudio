@@ -1,0 +1,10 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- 外層圓形背景，填充粉筆黃，邊框深綠 -->
+  <circle cx="128" cy="128" r="100" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+
+  <!-- 驚嘆號主體 (線條) -->
+  <path d="M 128 65 L 128 165" stroke="#1e3a2e" stroke-width="4" stroke-linecap="round" fill="none"/>
+
+  <!-- 驚嘆號點 (線條) -->
+  <circle cx="128" cy="195" r="7" stroke="#1e3a2e" stroke-width="3" fill="none"/>
+</svg>

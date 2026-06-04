@@ -1,0 +1,22 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- 水平梁 (Horizontal Beam) -->
+  <rect x="28" y="148" width="200" height="32" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+
+  <!-- 左側三角形支撐 (Left Triangular Support) -->
+  <polygon points="28,228 68,228 48,180" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+
+  <!-- 右側三角形支撐 (Right Triangular Support) -->
+  <polygon points="188,228 228,228 208,180" fill="#ffd96b" stroke="#1e3a2e" stroke-width="3"/>
+
+  <!-- 第一個向下負載箭頭 (First Downward Load Arrow) -->
+  <line x1="78" y1="28" x2="78" y2="124" stroke="#1e3a2e" stroke-width="3"/>
+  <polygon points="78,148 68,124 88,124" fill="#1e3a2e"/>
+
+  <!-- 第二個向下負載箭頭 (Second Downward Load Arrow) -->
+  <line x1="128" y1="28" x2="128" y2="124" stroke="#1e3a2e" stroke-width="3"/>
+  <polygon points="128,148 118,124 138,124" fill="#1e3a2e"/>
+
+  <!-- 第三個向下負載箭頭 (Third Downward Load Arrow) -->
+  <line x1="178" y1="28" x2="178" y2="124" stroke="#1e3a2e" stroke-width="3"/>
+  <polygon points="178,148 168,124 188,124" fill="#1e3a2e"/>
+</svg>

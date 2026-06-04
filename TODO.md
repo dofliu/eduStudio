@@ -182,8 +182,13 @@
     未必有 ffmpeg, 不真跑) 驗 — ken burns 模式 (全段有圖→cmd 含 zoompan) / 純色模式
     (缺圖) / srt 真寫出 / cwd=job_dir / 空 segment raise / ffmpeg 失敗 raise /
     _run_render_inner 路由 song 到 _run_render_song。≤3 檔 (runner.py + 測試 + TODO/STATUS)。
-  - [ ] **M3d youtube meta song 分支**: core/youtube.py auto_youtube_meta 加 is_song_schema
-    → song title/description (歌名 + 段落, 沿用既有 _build_chapter_lines)。
+  - [x] **M3d youtube meta song 分支** (2026-06-04, routine 自主, offline): core/youtube.py
+    auto_youtube_meta 最前面加 is_song_schema 分流 (在 deck/exam 之前, song 無 sections/
+    problems 會誤走 problems 路徑) → 新 _song_youtube_meta: title=song_title, description=
+    歌詞章節 (每段首句 + 對齊好的絕對 start 時間, 繞字數估算)。章節用 _song_chapter_durs
+    把絕對 start 轉成段間距餵既有 _build_chapter_lines (累積回到絕對時間戳不漂移), 首段非 0
+    補「🎵 前奏」章節 (YouTube 首章須 0:00)。category 用 10 (Music) 非教學 27; tags 加 song
+    條目。+15 tests (2084→2099)。改 2 檔 (core/youtube.py + tests/test_youtube_helper.py)。
   - [ ] **M3e web UI**: types.ts 加 'song' + CreateJobForm 下拉 + JobEditor song review
     (逐段顯示 [start–end] 歌詞 + 圖預覽, 拖拉微調對齊 — RFC 手動 review 層)。
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板

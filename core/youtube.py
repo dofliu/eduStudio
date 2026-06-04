@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .config import PROJECT_ROOT
+from .song_render import _valid_segment, is_song_schema
 
 
 YOUTUBE_TOKEN_PATH = PROJECT_ROOT / "youtube_token.json"
@@ -42,6 +43,7 @@ DEFAULT_TAGS_BY_SOURCE = {
     "repo": ["程式碼講解", "技術教學", "Dof 老師"],
     "document": ["文件講解", "教學影片", "Dof 老師"],
     "url": ["文章導讀", "技術教學", "Dof 老師"],
+    "song": ["歌曲 MV", "AI 生圖", "Dof Lab"],
 }
 
 
@@ -135,6 +137,80 @@ def _section_durations_for_deck(sections: list) -> list[tuple[str, float]]:
     return out
 
 
+def _song_chapter_durs(segments: list) -> list[tuple[str, float]]:
+    """song segments → (歌詞首句, 該章長度) 序列, 餵 _build_chapter_lines.
+
+    歌曲 segment 已有對齊好的絕對 start/end 時間戳 (M0 手填 / M1 對齊), 跟 deck
+    的字數估算不同 — 直接用絕對時間戳才不會被段間 / 前奏空拍 (instrumental gap)
+    累積漂移。轉成 _build_chapter_lines 要的「該章長度」= 下一章 start - 本章 start,
+    讓累積後的時間戳剛好回到絕對 start (沿用既有章節時間軸組裝路徑)。
+
+    YouTube 章節規則第一個 timestamp 必須 0:00; 首段非從 0 開始 (有前奏) → 前面
+    補一個「🎵 前奏」章節吃掉前奏 gap, 否則首句歌詞被迫標 0:00 會與實際對不上。
+    無效 segment (比照 song_segments_to_srt 的 _valid_segment) 跳過; 全無效 → []。
+    """
+    valid = [s for s in segments if _valid_segment(s)]
+    if not valid:
+        return []
+
+    labels_starts: list[tuple[str, float]] = []
+    first_start = float(valid[0]["start"])
+    if first_start >= 1.0:
+        labels_starts.append(("🎵 前奏", 0.0))
+    for seg in valid:
+        line = next(
+            (ln.strip() for ln in seg["lines"]
+             if isinstance(ln, str) and ln.strip()),
+            "段落",
+        )
+        labels_starts.append((line[:30], float(seg["start"])))
+
+    out: list[tuple[str, float]] = []
+    for i, (label, start) in enumerate(labels_starts):
+        if i + 1 < len(labels_starts):
+            dur = labels_starts[i + 1][1] - start
+        else:
+            # 最後一章沒有「下一章 start」, 用最後 segment 的 end-start;
+            # 只影響不存在的下一個時間戳, 取正值即可。
+            last = valid[-1]
+            dur = float(last["end"]) - float(last["start"])
+        out.append((label, max(0.0, dur)))
+    return out
+
+
+def _song_youtube_meta(deck: dict, *, source_type: str) -> dict:
+    """song schema (track_type=='song' + segments) 的預填 metadata.
+
+    song 是整首單一影片 (無單章 render), problem_id 忽略; 章節時間軸用每段歌詞
+    首句 + 對齊好的絕對 start 時間 (繞過字數估算, 比照 song_segments_to_srt)。
+    category 用 10 (Music) 而非教學的 27 — MV 是音樂內容, 利於 YouTube 分類。
+    """
+    title = (
+        deck.get("song_title")
+        or deck.get("deck_title")
+        or deck.get("exam_title")
+        or "歌曲 MV"
+    ).strip()
+    tags = DEFAULT_TAGS_BY_SOURCE.get(source_type, [])
+
+    durs = _song_chapter_durs(deck.get("segments") or [])
+    parts: list[str] = []
+    if durs:
+        parts.append("📍 歌詞章節")
+        parts.extend(_build_chapter_lines(durs))
+        parts.append("")
+    parts.append("---")
+    parts.append("由 Dof Lab 教學影片自動生成平台製作。")
+
+    return {
+        "title": title[:100],
+        "description": "\n".join(parts)[:5000],
+        "tags": tags,
+        "privacy": "unlisted",
+        "category": "10",
+    }
+
+
 def _deck_youtube_meta(deck: dict, artifact_id: str, *,
                        source_type: str) -> dict:
     """deck schema (sections/slides) 的預填 metadata。
@@ -182,7 +258,11 @@ def auto_youtube_meta(deck: dict, problem_id: str, *,
 
     repo / document / url 的 deck.json 是 deck schema (sections/slides, 無 problems),
     走 _deck_youtube_meta 產 section / slide 章節; exam / slides_pdf 走以下 problems 路徑。
+    song 的 song.json 是 song schema (track_type=='song' + segments), 走 _song_youtube_meta
+    產歌詞章節 (整首單一影片, problem_id 忽略)。
     """
+    if is_song_schema(deck):
+        return _song_youtube_meta(deck, source_type=source_type)
     if _is_deck_schema(deck):
         return _deck_youtube_meta(deck, problem_id, source_type=source_type)
 

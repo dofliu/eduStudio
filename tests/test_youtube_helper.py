@@ -7,6 +7,7 @@ from core.youtube import (
     _estimate_narration_seconds,
     _is_deck_schema,
     _seconds_to_hhmmss,
+    _song_chapter_durs,
     _step_durations_for_problem,
     auto_youtube_meta,
 )
@@ -195,9 +196,9 @@ class TestAutoYoutubeMeta:
         assert len(meta["title"]) <= 100
 
 
-def test_default_tags_by_source_has_all_5_types():
-    # 確保 5 種 source_type 都有預設 tags, 否則 React UI 上 tags 欄位會空白
-    expected = {"exam_pdf", "slides_pdf", "repo", "document", "url"}
+def test_default_tags_by_source_has_all_6_types():
+    # 確保所有 source_type 都有預設 tags, 否則 React UI 上 tags 欄位會空白
+    expected = {"exam_pdf", "slides_pdf", "repo", "document", "url", "song"}
     assert set(DEFAULT_TAGS_BY_SOURCE.keys()) == expected
 
 
@@ -321,4 +322,117 @@ class TestAutoYoutubeMetaDeckSchema:
     def test_title_capped_100_chars(self):
         deck = {"deck_title": "x" * 200, "sections": []}
         meta = auto_youtube_meta(deck, "final", source_type="document")
+        assert len(meta["title"]) <= 100
+
+
+# ---------- song schema (track_type=='song' + segments) ----------
+
+def _sample_song() -> dict:
+    return {
+        "track_type": "song",
+        "song_title": "此刻的溫度",
+        "audio_path": "song.mp3",
+        "segments": [
+            {"id": "s1", "lines": ["舊書牆架在舊書裡", "停在你沒翻的那頁"],
+             "start": 10.3, "end": 20.1, "image_path": "images/seg_s1.png"},
+            {"id": "s2", "lines": ["咖啡熱情慢慢升起"],
+             "start": 20.1, "end": 28.5, "image_path": "images/seg_s2.png"},
+        ],
+    }
+
+
+class TestSongChapterDurs:
+    def test_prepends_intro_when_first_segment_not_at_zero(self):
+        # 首段 start=10.3 (有前奏) → 前面補「🎵 前奏」吃掉 gap
+        durs = _song_chapter_durs(_sample_song()["segments"])
+        labels = [d[0] for d in durs]
+        assert labels[0] == "🎵 前奏"
+        assert labels[1] == "舊書牆架在舊書裡"  # 取首句歌詞
+        assert labels[2] == "咖啡熱情慢慢升起"
+
+    def test_spacing_reconstructs_absolute_timestamps(self):
+        # 餵 _build_chapter_lines 後累積時間戳應回到絕對 start (非段長累積漂移)
+        durs = _song_chapter_durs(_sample_song()["segments"])
+        lines = _build_chapter_lines(durs)
+        assert lines[0] == "0:00  🎵 前奏"
+        assert lines[1] == "0:10  舊書牆架在舊書裡"  # 絕對 10.3s
+        assert lines[2] == "0:20  咖啡熱情慢慢升起"  # 絕對 20.1s
+
+    def test_no_intro_when_first_segment_near_zero(self):
+        segs = [
+            {"id": "s1", "lines": ["第一句"], "start": 0.4, "end": 5.0},
+            {"id": "s2", "lines": ["第二句"], "start": 20.0, "end": 25.0},
+        ]
+        durs = _song_chapter_durs(segs)
+        assert [d[0] for d in durs] == ["第一句", "第二句"]
+
+    def test_skips_invalid_segments(self):
+        segs = [
+            {"id": "bad", "lines": ["缺時間"]},                       # 無 start/end
+            {"id": "ok", "lines": ["有效"], "start": 5.0, "end": 9.0},
+            {"id": "rev", "lines": ["end<=start"], "start": 9.0, "end": 9.0},
+        ]
+        durs = _song_chapter_durs(segs)
+        labels = [d[0] for d in durs]
+        assert "缺時間" not in labels
+        assert "end<=start" not in labels
+        assert "有效" in labels
+
+    def test_all_invalid_returns_empty(self):
+        assert _song_chapter_durs([{"id": "x", "lines": []}]) == []
+
+    def test_empty_segments(self):
+        assert _song_chapter_durs([]) == []
+
+
+class TestAutoYoutubeMetaSongSchema:
+    def test_title_uses_song_title(self):
+        meta = auto_youtube_meta(_sample_song(), "ignored", source_type="song")
+        assert meta["title"] == "此刻的溫度"
+
+    def test_problem_id_ignored_single_video(self):
+        # song 整首單一影片, problem_id 不影響輸出 (傳什麼都一樣)
+        a = auto_youtube_meta(_sample_song(), "final", source_type="song")
+        b = auto_youtube_meta(_sample_song(), "s1", source_type="song")
+        assert a == b
+
+    def test_description_has_lyric_chapters(self):
+        meta = auto_youtube_meta(_sample_song(), "final", source_type="song")
+        desc = meta["description"]
+        assert "📍 歌詞章節" in desc
+        assert "0:00  🎵 前奏" in desc
+        assert "0:10  舊書牆架在舊書裡" in desc
+
+    def test_song_tags(self):
+        meta = auto_youtube_meta(_sample_song(), "final", source_type="song")
+        assert "歌曲 MV" in meta["tags"]
+        assert meta["tags"] == DEFAULT_TAGS_BY_SOURCE["song"]
+
+    def test_category_is_music(self):
+        # MV 是音樂內容 → category 10 (Music), 非教學 27
+        meta = auto_youtube_meta(_sample_song(), "final", source_type="song")
+        assert meta["category"] == "10"
+        assert meta["privacy"] == "unlisted"
+
+    def test_title_falls_back_when_no_song_title(self):
+        song = _sample_song()
+        del song["song_title"]
+        meta = auto_youtube_meta(song, "final", source_type="song")
+        assert meta["title"] == "歌曲 MV"
+
+    def test_no_segments_no_chapter_block(self):
+        song = {"track_type": "song", "song_title": "純音樂", "segments": []}
+        meta = auto_youtube_meta(song, "final", source_type="song")
+        assert "📍 歌詞章節" not in meta["description"]
+        assert meta["title"] == "純音樂"
+
+    def test_song_dispatched_before_deck_and_exam(self):
+        # song schema 無 sections / problems → 不該誤走 deck / exam 路徑
+        meta = auto_youtube_meta(_sample_song(), "final", source_type="song")
+        assert "章節時間軸" not in meta["description"]  # deck 路徑用詞
+        assert "歌詞章節" in meta["description"]
+
+    def test_title_capped_100_chars(self):
+        song = {"track_type": "song", "song_title": "歌" * 200, "segments": []}
+        meta = auto_youtube_meta(song, "final", source_type="song")
         assert len(meta["title"]) <= 100

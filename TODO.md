@@ -103,10 +103,20 @@
 > 環境再實裝 ② Gemini image 額度 (跟 V2 同開關)。offline-first 不變: 對齊/生圖碰
 > 額度的部分寫 proposal + STOP, 不自主燒額度。
 
-- [ ] **M0 POC (spike)**: 裝 demucs + whisperx 確認 4080 CUDA 跑得動 + 手動歌詞/時間軸
+- [~] **M0 POC (spike)**: 裝 demucs + whisperx 確認 4080 CUDA 跑得動 + 手動歌詞/時間軸
   1 首歌走通到 mp4 (純色/單圖背景, 先不接生圖, 驗渲染 + 歌曲音軌 + 歌詞字幕)
   - dep 清單已備: `requirements-song.txt` (demucs + whisperx, 獨立檔不進主 requirements
-    避免 CI 裝 torch; 含 CUDA wheel 安裝順序註解)。劉老師本機 install 後推 M0。
+    避免 CI 裝 torch; 含 CUDA wheel 安裝順序註解 + 2026-06-04 M0 spike 實測結果)。
+  - [x] **環境 spike** (2026-06-04): CUDA torch (cu124) / demucs / whisper 轉錄全通;
+    whisperx **自動對齊**卡依賴地獄 (whisperx 3.8.6 stack vs torch 2.6 互斥) → **降 M1**
+    (M0 用手動時間軸不受影響)。實測記進 requirements-song.txt。
+  - [x] **M0a 渲染骨架 code** (2026-06-04, offline, RFC §8 授權): `core/song_render.py` —
+    `is_song_schema` type guard (track_type==song, 硬規則 #9) + `song_segments_to_srt`
+    (對齊時間軸 → SRT, **繞過** narration_to_cues 字數切分, 無效 segment 靜默跳過 +
+    重編號) + `build_song_mv_cmd` (ffmpeg 純色背景 + 燒歌詞 + 歌曲音軌, 歌詞置中大字,
+    不真跑). +18 tests (1990→2008). 改 2 檔 (core/song_render.py + tests/test_song_render.py).
+  - [ ] **M0b 本機驗收**: 劉老師拿 1 首歌 + 手填 segments 時間軸 (whisper 轉錄 phrase
+    時間戳當起點) → 真跑 build_song_mv_cmd 出 mp4 肉眼驗渲染+音軌+字幕對齊。
 - [ ] **M1 對齊子系統**: Demucs + WhisperX 自動對齊出 song.json 時間軸 + review UI 微調層
 - [ ] **M2 生圖子系統**: 逐段 Gemini 生圖 + 風格一致性 (統一 style suffix/seed) + ken burns
 - [ ] **M3 整合**: 渲染串接 + 字幕燒錄 + require_review + YouTube 上傳 (含章節)

@@ -165,9 +165,13 @@
     同組 durations 出 `{primary, secondary}` 兩條獨立 SRT 軌 (格式 B), step 邊界時間天然
     對齊 (build_srt per-step 切, 沒 narration 的 step 仍累加 t → 不需逐 cue 對齊); 無
     secondary 欄位的舊 deck → secondary 空字串向後相容。+6 tests (2020→2026)。
-  - [ ] **翻譯層 (本機 Ollama translategemma)** — 下輪: `core/translate.py` 呼叫本機
-    translategemma 產 `narration_secondary` (Ollama localhost, 不燒雲端額度); VRAM 排在
-    render 前批次跑完卸載避與 TTS/demucs 搶 4080。第二軌跳過 review (用戶授權)。
+  - [x] **翻譯層 (本機 Ollama translategemma)** (2026-06-04): `core/translate.py` —
+    `translate_text` / `translate_steps` 打本機 Ollama `/api/generate` (標準庫 urllib,
+    **不加 pip dep**) 產 `narration_secondary`; 空 narration 跳過 + 已有 out_field 跳過
+    (idempotent, 不覆蓋人工修過的) + 不就地改傳入 dict; Ollama 沒開/逾時 → TranslateError
+    含修復指引。+13 tests (2026→2039, monkeypatch 不真打 HTTP)。**待劉老師本機實測**:
+    translategemma prompt 格式我未實測, 用通用 instruction prompt + 可配置, 本機跑確認
+    翻譯品質後調 `_build_prompt`。VRAM 排 render 前批次跑完卸載避與 TTS/demucs 搶 4080。
   - [ ] **schema 透傳 + 渲染燒第二軌 / YouTube 多軌上傳**: narration_secondary 進 schema
     flatten; 渲染燒一軌 + publish.py captions.insert 上第二軌 (碰 YouTube OAuth = GATE)。
 - [ ] **學生提問 → RAG → 解答影片** (🟢 探索, 戰略價值高工程重): 串 RAG 研究

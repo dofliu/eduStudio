@@ -157,7 +157,19 @@
   **proposal 已寫 (2026-06-04, routine)**: [docs/bilingual-subtitle-proposal.md](docs/bilingual-subtitle-proposal.md)
   — 列 3 個架構決策 (格式 A 交錯/B 雙軌/C ASS, 建議 B; 字幕帶 180px 溢出約束; cue 對齊)
   + offline 可先做段 (拍板 B 後 routine 可自主做 build_bilingual_srt_tracks helper + schema
-  透傳, 純離線不碰額度)。**STOP 等劉老師選格式 + 開翻譯額度 + 確認 require_review**。
+  透傳, 純離線不碰額度)。
+  **劉老師 2026-06-04 拍板**: 格式 **B 雙獨立軌** / 翻譯後端 **本機 Ollama translategemma**
+  (本機推論不燒雲端額度 → 翻譯不再是 GATE) / 第二語言軌**跳過 review** (中文主軌 require_review
+  不動)。
+  - [x] **SRT 雙軌組裝層** (2026-06-04): `core/srt.py` `build_bilingual_srt_tracks` —
+    同組 durations 出 `{primary, secondary}` 兩條獨立 SRT 軌 (格式 B), step 邊界時間天然
+    對齊 (build_srt per-step 切, 沒 narration 的 step 仍累加 t → 不需逐 cue 對齊); 無
+    secondary 欄位的舊 deck → secondary 空字串向後相容。+6 tests (2020→2026)。
+  - [ ] **翻譯層 (本機 Ollama translategemma)** — 下輪: `core/translate.py` 呼叫本機
+    translategemma 產 `narration_secondary` (Ollama localhost, 不燒雲端額度); VRAM 排在
+    render 前批次跑完卸載避與 TTS/demucs 搶 4080。第二軌跳過 review (用戶授權)。
+  - [ ] **schema 透傳 + 渲染燒第二軌 / YouTube 多軌上傳**: narration_secondary 進 schema
+    flatten; 渲染燒一軌 + publish.py captions.insert 上第二軌 (碰 YouTube OAuth = GATE)。
 - [ ] **學生提問 → RAG → 解答影片** (🟢 探索, 戰略價值高工程重): 串 RAG 研究
   (Kiwi/Christian) + EdTech 論文 + 課程網站整合。先寫 RFC 拆子系統, 不急著動 code。
 

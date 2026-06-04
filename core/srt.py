@@ -157,3 +157,48 @@ def build_srt(
         t += dur + pause_after_each
 
     return "\n".join(out_lines)
+
+
+def build_bilingual_srt_tracks(
+    steps: list[dict],
+    durations: list[float],
+    *,
+    primary_field: str = "narration",
+    secondary_field: str = "narration_secondary",
+    pause_after_each: float = 0.6,
+    max_cue_chars: int = SUBTITLE_CUE_CHAR_BUDGET,
+) -> dict[str, str]:
+    """產雙語字幕的「兩條獨立 SRT 軌」(雙語字幕 proposal 格式 B)。
+
+    格式 B (雙獨立軌) 而非單檔交錯雙行 — 避開字幕帶 180px 溢出 (雙語最多 4 行
+    頂出帶), 燒一軌另一軌上 YouTube 多字幕軌讓觀眾切換。詳見
+    docs/bilingual-subtitle-proposal.md。
+
+    兩軌共用同一組 `durations` → **step 邊界時間天然對齊** (build_srt 是 per-step
+    切分, 沒 narration 的 step 仍累加 t): 第 k 個 step 在兩軌的起始時間一致, 不需
+    逐 cue 對齊 (proposal 決策 3 的 B 路線)。各軌內部 cue 各自按自己語言的字數切。
+
+    參數:
+        primary_field: 主軌讀哪個 step 欄位 (預設 'narration', 中文主軌)。
+        secondary_field: 第二語言軌讀哪個欄位 (預設 'narration_secondary',
+            由翻譯層 Ollama translategemma 填; 缺此欄的 step → 第二軌該 step 無 cue)。
+        pause_after_each / max_cue_chars: 透傳 build_srt, 兩軌同參數。
+
+    回傳 {"primary": <SRT>, "secondary": <SRT>}。
+
+    向後相容: 對只有 narration、沒有 secondary_field 的舊 deck, secondary 軌會是
+    空字串 (每個 step 的 secondary narration 都 None → 不產 cue), 呼叫端據此略過
+    第二軌。主軌行為與直接呼叫 build_srt 完全一致。
+    """
+    primary_steps = [{"narration": s.get(primary_field)} for s in steps]
+    secondary_steps = [{"narration": s.get(secondary_field)} for s in steps]
+    return {
+        "primary": build_srt(
+            primary_steps, durations,
+            pause_after_each=pause_after_each, max_cue_chars=max_cue_chars,
+        ),
+        "secondary": build_srt(
+            secondary_steps, durations,
+            pause_after_each=pause_after_each, max_cue_chars=max_cue_chars,
+        ),
+    }

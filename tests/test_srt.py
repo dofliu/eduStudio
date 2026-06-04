@@ -9,9 +9,78 @@ import pytest
 from core.srt import (
     SUBTITLE_CUE_CHAR_BUDGET,
     _fmt_srt_time,
+    build_bilingual_srt_tracks,
     build_srt,
     narration_to_cues,
 )
+
+
+def _first_cue_start(srt: str, cue_no: str) -> str:
+    """從 SRT 撈某 cue 編號的起始時間戳 (給雙軌對齊驗證用)。"""
+    lines = srt.split("\n")
+    for i, ln in enumerate(lines):
+        if ln == cue_no and i + 1 < len(lines) and "-->" in lines[i + 1]:
+            return lines[i + 1].split(" --> ")[0]
+    return ""
+
+
+class TestBuildBilingualSrtTracks:
+    """build_bilingual_srt_tracks → {primary, secondary} 雙獨立 SRT 軌 (格式 B)."""
+
+    def test_both_tracks_produced(self):
+        steps = [{"narration": "你好世界。", "narration_secondary": "Hello world."}]
+        durs = [5.0]
+        out = build_bilingual_srt_tracks(steps, durs)
+        assert "你好世界。" in out["primary"]
+        assert "Hello world." in out["secondary"]
+
+    def test_step_boundaries_time_aligned(self):
+        # 兩軌共用 durations → 第 2 個 step 在兩軌的起始時間該一致
+        steps = [
+            {"narration": "第一句。", "narration_secondary": "First."},
+            {"narration": "第二句。", "narration_secondary": "Second."},
+        ]
+        durs = [4.0, 6.0]
+        out = build_bilingual_srt_tracks(steps, durs)
+        # primary cue 2 與 secondary cue 2 都是各自第二 step 的開頭
+        assert _first_cue_start(out["primary"], "2") == _first_cue_start(out["secondary"], "2")
+        assert _first_cue_start(out["primary"], "2") != ""
+
+    def test_backward_compat_no_secondary_field(self):
+        # 舊 deck 只有 narration → secondary 軌空字串, primary 與直接 build_srt 一致
+        steps = [{"narration": "只有中文。"}]
+        durs = [5.0]
+        out = build_bilingual_srt_tracks(steps, durs)
+        assert out["secondary"] == ""
+        assert out["primary"] == build_srt(steps, durs)
+
+    def test_partial_secondary_keeps_time_alignment(self):
+        # 中間 step 缺 secondary → 該 step 第二軌無 cue, 但後續 step 時間不錯位
+        steps = [
+            {"narration": "一。", "narration_secondary": "One."},
+            {"narration": "二。"},  # 缺 secondary
+            {"narration": "三。", "narration_secondary": "Three."},
+        ]
+        durs = [3.0, 3.0, 3.0]
+        out = build_bilingual_srt_tracks(steps, durs)
+        # 第二軌只有 One. / Three. 兩 cue, 沒有第二句
+        assert "One." in out["secondary"] and "Three." in out["secondary"]
+        # Three. 的起始時間 = 第三 step 開頭 = primary 第三 cue 開頭 (時間沒因缺 cue 漂移)
+        three_start = _first_cue_start(out["secondary"], "2")  # secondary 第 2 cue = Three.
+        assert three_start == _first_cue_start(out["primary"], "3")
+
+    def test_custom_field_names(self):
+        steps = [{"zh": "中文。", "ja": "日本語。"}]
+        durs = [5.0]
+        out = build_bilingual_srt_tracks(
+            steps, durs, primary_field="zh", secondary_field="ja"
+        )
+        assert "中文。" in out["primary"]
+        assert "日本語。" in out["secondary"]
+
+    def test_empty_steps(self):
+        out = build_bilingual_srt_tracks([], [])
+        assert out == {"primary": "", "secondary": ""}
 
 
 class TestFmtSrtTime:

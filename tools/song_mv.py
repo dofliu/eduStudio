@@ -35,7 +35,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from core.song_render import (  # noqa: E402  (sys.path 注入後才 import)
+    _valid_segment,
     build_song_mv_cmd,
+    build_song_mv_kenburns_cmd,
     is_song_schema,
     song_segments_to_srt,
 )
@@ -89,13 +91,34 @@ def main(argv: list[str] | None = None) -> int:
         title = (song.get("song_title") or "").strip() or args.song_json.stem
         out_stem = str(workdir / title)
 
-    cmd = build_song_mv_cmd(
-        str(audio), srt_path.name, out_stem,
-        bg_color=args.bg, font_size=args.font_size,
-    )
+    # 每個有效 segment 都有 image_path → ken burns (M2 完整畫面); 否則純色 (M0)。
+    valid_segs = [s for s in song["segments"] if _valid_segment(s)]
+    seg_images = [(s.get("image_path") or "").strip() for s in valid_segs]
+    use_kenburns = bool(valid_segs) and all(seg_images)
+
+    if use_kenburns:
+        image_durs = [
+            (img, float(s["end"]) - float(s["start"]))
+            for img, s in zip(seg_images, valid_segs)
+        ]
+        cmd = build_song_mv_kenburns_cmd(
+            image_durs, str(audio), srt_path.name, out_stem, font_size=args.font_size,
+        )
+        mode = f"ken burns (每段圖推鏡, {len(image_durs)} 圖)"
+    else:
+        cmd = build_song_mv_cmd(
+            str(audio), srt_path.name, out_stem,
+            bg_color=args.bg, font_size=args.font_size,
+        )
+        n_missing = sum(1 for i in seg_images if not i)
+        mode = (
+            "純色背景 (M0)" if not valid_segs
+            else f"純色背景 (M0; {n_missing}/{len(valid_segs)} segment 缺 image_path, 跑 gen_song_images 補圖才走 ken burns)"
+        )
     n_cues = srt.count(" --> ")
 
     if args.dry_run:
+        print(f"=== 模式: {mode} ===")
         print("=== SRT ===")
         print(srt)
         print(f"=== ffmpeg cmd (cwd={workdir}) ===")
@@ -106,6 +129,14 @@ def main(argv: list[str] | None = None) -> int:
     if not audio.exists():
         print(f"❌ 找不到歌曲音檔: {audio} (song.json 的 audio_path)", file=sys.stderr)
         return 2
+
+    if use_kenburns:
+        missing_imgs = [img for img in seg_images if not (workdir / img).exists()]
+        if missing_imgs:
+            print(f"❌ 缺圖檔: {missing_imgs} — 先跑 gen_song_images.py --execute 生圖", file=sys.stderr)
+            return 2
+
+    print(f"▶ 模式: {mode}")
 
     srt_path.write_text(srt, encoding="utf-8")
     print(f"✅ 寫出 {srt_path.name} ({n_cues} cue)")

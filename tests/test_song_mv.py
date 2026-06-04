@@ -93,6 +93,59 @@ class TestResolveAudio:
         assert song_mv.resolve_audio(song, sp) == abs
 
 
+class TestKenBurnsMode:
+    def _song_with_images(self, tmp_path, *, make_files=True):
+        segs = [
+            {"id": "s1", "lines": ["第一段"], "start": 0.0, "end": 5.0, "image_path": "images/seg_s1.png"},
+            {"id": "s2", "lines": ["第二段"], "start": 5.0, "end": 10.0, "image_path": "images/seg_s2.png"},
+        ]
+        song = {"track_type": "song", "song_title": "MV測試", "audio_path": "song.mp3", "segments": segs}
+        p = tmp_path / "song.json"
+        p.write_text(json.dumps(song, ensure_ascii=False), encoding="utf-8")
+        if make_files:
+            imgs = tmp_path / "images"
+            imgs.mkdir()
+            (imgs / "seg_s1.png").write_bytes(b"\x89PNG")
+            (imgs / "seg_s2.png").write_bytes(b"\x89PNG")
+        return p
+
+    def test_dry_run_uses_kenburns_when_all_have_images(self, tmp_path, capsys):
+        sp = self._song_with_images(tmp_path)
+        gen = song_mv.main([str(sp), "--dry-run"])
+        out = capsys.readouterr().out
+        assert gen == 0
+        assert "ken burns" in out
+        assert "zoompan" in out and "concat=n=2" in out
+
+    def test_dry_run_falls_back_to_solid_when_missing_image(self, tmp_path, capsys):
+        sp = _write_song(tmp_path, _SEGS)  # _SEGS 沒 image_path
+        song_mv.main([str(sp), "--dry-run"])
+        out = capsys.readouterr().out
+        assert "純色背景 (M0" in out
+        assert "zoompan" not in out
+
+    def test_real_run_missing_image_file_returns_2(self, tmp_path, capsys, monkeypatch):
+        # song.json 有 image_path 但檔案不存在 → 提示先生圖
+        sp = self._song_with_images(tmp_path, make_files=False)
+        (tmp_path / "song.mp3").write_bytes(b"\x00")
+        rc = song_mv.main([str(sp)])
+        assert rc == 2
+        assert "缺圖檔" in capsys.readouterr().err
+
+    def test_real_run_kenburns_invokes_ffmpeg(self, tmp_path, monkeypatch):
+        sp = self._song_with_images(tmp_path)
+        (tmp_path / "song.mp3").write_bytes(b"\x00")
+        seen = {}
+
+        class _Proc:
+            returncode = 0
+
+        monkeypatch.setattr(song_mv.subprocess, "run", lambda cmd, cwd=None: seen.update(cmd=cmd) or _Proc())
+        rc = song_mv.main([str(sp)])
+        assert rc == 0
+        assert "zoompan" in " ".join(seen["cmd"])  # 真的走 ken burns cmd
+
+
 class TestRealRun:
     def test_real_run_writes_srt_and_invokes_ffmpeg(self, tmp_path, monkeypatch, capsys):
         # 準備 audio 檔 (真跑前會檢查存在)

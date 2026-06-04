@@ -4,8 +4,11 @@
 """
 from __future__ import annotations
 
+import pytest
+
 from core.song_render import (
     build_song_mv_cmd,
+    build_song_mv_kenburns_cmd,
     is_song_schema,
     song_segments_to_srt,
 )
@@ -121,3 +124,37 @@ class TestBuildSongMvCmd:
         # MV 歌詞置中 (ASS Alignment=2 = 底部置中)
         joined = " ".join(build_song_mv_cmd("a.mp3", "b.srt", "c"))
         assert "Alignment=2" in joined
+
+
+class TestBuildSongMvKenburnsCmd:
+    def test_per_image_zoompan_and_concat(self):
+        cmd = build_song_mv_kenburns_cmd(
+            [("seg1.png", 5.0), ("seg2.png", 8.0)], "song.mp3", "song.srt", "out"
+        )
+        joined = " ".join(cmd)
+        # 兩張圖各一個 -loop 1 input
+        assert cmd.count("-loop") == 2
+        assert "seg1.png" in cmd and "seg2.png" in cmd
+        # 各自 zoompan + concat n=2 + 字幕
+        assert "zoompan" in joined
+        assert "concat=n=2:v=1:a=0" in joined
+        assert "subtitles=song.srt" in joined
+        assert cmd[-1] == "out.mp4"
+
+    def test_audio_mapped_after_images(self):
+        # 2 圖 → audio 是 input index 2
+        cmd = build_song_mv_kenburns_cmd(
+            [("a.png", 3.0), ("b.png", 3.0)], "track.mp3", "l.srt", "mv"
+        )
+        assert "song.mp3" not in cmd  # sanity
+        assert "track.mp3" in cmd
+        assert "2:a" in cmd  # audio map index = 圖數
+
+    def test_frames_scale_with_duration_and_fps(self):
+        # d=frames = round(秒 * fps); 10 秒 @ 30fps = 300
+        cmd = build_song_mv_kenburns_cmd([("x.png", 10.0)], "a.mp3", "s.srt", "o", fps=30)
+        assert "d=300:" in " ".join(cmd)
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError):
+            build_song_mv_kenburns_cmd([], "a.mp3", "s.srt", "o")

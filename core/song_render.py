@@ -118,3 +118,68 @@ def build_song_mv_cmd(
         "-c:a", "aac",
         f"{out_name}.mp4",
     ]
+
+
+def build_song_mv_kenburns_cmd(
+    image_durations: list[tuple[str, float]],
+    audio_name: str,
+    srt_name: str,
+    out_name: str,
+    *,
+    width: int = 1920,
+    height: int = 1080,
+    fps: int = 30,
+    zoom_rate: float = 0.0008,
+    zoom_max: float = 1.3,
+    font_size: int = 36,
+    font_name: str = "Microsoft JhengHei",
+) -> list[str]:
+    """組 ffmpeg 指令: 每 segment 一張圖做 ken burns (緩慢推鏡) → 串接 → 燒歌詞 +
+    歌曲音軌 → mp4 (M2 完整畫面版, 取代 M0 純色背景)。
+
+    image_durations: [(圖檔名, 該 segment 秒數), ...], 順序 = 播放順序。圖檔名相對
+    呼叫端 cwd (同 build_song_mv_cmd 慣例, 避 Windows 冒號)。
+
+    每張圖用 zoompan 緩慢 zoom in (居中, ken burns) 撐滿該 segment 時長 (frames =
+    round(秒數 * fps)), 再 concat 成連續背景, 燒字幕, 配音軌。RFC §4.2 ken burns。
+
+    zoom_rate 每 frame 放大量 (0.0008 ≈ 30s 推到 ~1.3x 慢推); zoom_max 上限。
+
+    空 list → ValueError (caller 該先確認每 segment 都有圖, 或退 build_song_mv_cmd
+    純色版)。
+    """
+    if not image_durations:
+        raise ValueError("image_durations 不可空 (每 segment 需有圖; 否則用 build_song_mv_cmd 純色版)")
+
+    inputs: list[str] = []
+    filters: list[str] = []
+    for i, (img_name, dur) in enumerate(image_durations):
+        frames = max(1, round(dur * fps))
+        inputs += ["-loop", "1", "-t", f"{dur}", "-i", img_name]
+        filters.append(
+            f"[{i}:v]zoompan=z='min(zoom+{zoom_rate},{zoom_max})':"
+            f"d={frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"s={width}x{height}:fps={fps}[v{i}]"
+        )
+
+    n = len(image_durations)
+    audio_idx = n  # 音軌是圖之後的最後一個 input
+    concat_in = "".join(f"[v{i}]" for i in range(n))
+    filters.append(f"{concat_in}concat=n={n}:v=1:a=0[bg]")
+    filters.append(
+        f"[bg]subtitles={srt_name}:"
+        f"force_style='FontName={font_name},FontSize={font_size},"
+        f"Alignment=2,BorderStyle=1,Outline=2'[v]"
+    )
+
+    return [
+        "ffmpeg", "-y", "-loglevel", "error",
+        *inputs,
+        "-i", audio_name,
+        "-filter_complex", ";".join(filters),
+        "-map", "[v]", "-map", f"{audio_idx}:a",
+        "-shortest",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        f"{out_name}.mp4",
+    ]

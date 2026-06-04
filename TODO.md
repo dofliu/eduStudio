@@ -132,8 +132,12 @@
     不自動標 reviewed=true / 不自動 commit). +13 tests (2039→2052). 改 3 檔.
   - [ ] **真生圖 (GATE)**: 劉老師開 Gemini image 額度 + song.json 填 visual_style →
     `python tools/gen_song_images.py song.json --execute` → 逐張 review → reviewed=true.
-  - [ ] **ken burns 渲染串接**: 生成圖 → 緩慢平移縮放 frame + 每 segment 一 clip 串接
-    (取代 M0 純色背景; 延伸 V 軸 image_frames/ken burns; build_song_mv_cmd 升級成多圖序列).
+  - [x] **ken burns 渲染串接 (2026-06-04)**: `build_song_mv_kenburns_cmd` (core/song_render.py)
+    — 每 segment 一張圖 zoompan 緩慢推鏡 (居中 zoom in) 撐該段時長 → concat → 燒歌詞 +
+    歌曲音軌。`tools/song_mv.py` 偵測「每 segment 都有 image_path」→ 走 ken burns, 否則退
+    M0 純色; 真跑前檢查圖檔存在 (缺 → 提示先跑 gen_song_images)。+8 tests (2052→2060)。
+    **假設 segments 連續無 gap** (concat 是相對串接); 前奏/間奏 gap 對齊精修待後續。
+    劉老師生圖 OK 後可直接 `python tools/song_mv.py song.json` 出完整有畫面 MV。
 - [ ] **M3 整合**: 渲染串接 + 字幕燒錄 + require_review + YouTube 上傳 (含章節)
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板
 

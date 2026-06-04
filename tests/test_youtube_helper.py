@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from core.youtube import (
     DEFAULT_TAGS_BY_SOURCE,
+    _build_chapter_lines,
+    _estimate_narration_seconds,
+    _is_deck_schema,
     _seconds_to_hhmmss,
     _step_durations_for_problem,
     auto_youtube_meta,
@@ -196,3 +199,126 @@ def test_default_tags_by_source_has_all_5_types():
     # 確保 5 種 source_type 都有預設 tags, 否則 React UI 上 tags 欄位會空白
     expected = {"exam_pdf", "slides_pdf", "repo", "document", "url"}
     assert set(DEFAULT_TAGS_BY_SOURCE.keys()) == expected
+
+
+# ---------- type guard / 共用 helper ----------
+
+class TestIsDeckSchema:
+    def test_deck_schema_has_sections_no_problems(self):
+        assert _is_deck_schema({"deck_title": "T", "sections": []}) is True
+
+    def test_exam_schema_has_problems(self):
+        assert _is_deck_schema({"exam_title": "T", "problems": []}) is False
+
+    def test_flattened_deck_with_problems_is_not_deck_schema(self):
+        # deck 壓平成 exam schema 後同時有 sections + problems → 走 exam 路徑
+        deck = {"deck_title": "T", "sections": [], "problems": []}
+        assert _is_deck_schema(deck) is False
+
+    def test_sections_must_be_list(self):
+        # sections 不是 list (壞資料) → 不當 deck schema
+        assert _is_deck_schema({"sections": "oops"}) is False
+
+
+class TestBuildChapterLines:
+    def test_first_chapter_forced_zero(self):
+        lines = _build_chapter_lines([("A", 65.0), ("B", 30.0)])
+        assert lines[0] == "0:00  A"
+        # 第二章從 65 秒起 = 1:05
+        assert lines[1] == "1:05  B"
+
+    def test_empty(self):
+        assert _build_chapter_lines([]) == []
+
+
+def test_estimate_narration_seconds_min_floor():
+    # 空字串 / 極短 → 最小 2 秒
+    assert _estimate_narration_seconds("") == 2.0
+    assert _estimate_narration_seconds("短") == 2.0
+    # 長旁白按字數遞增
+    assert _estimate_narration_seconds("一段比較長的旁白。" * 10) > 2.0
+
+
+# ---------- auto_youtube_meta: deck schema (sections/slides) ----------
+
+def _sample_deck() -> dict:
+    return {
+        "deck_title": "InduSpect AI 深度解析",
+        "source_type": "document",
+        "sections": [
+            {
+                "id": "intro",
+                "title": "簡介",
+                "slides": [
+                    {"id": "intro_1", "title": "為什麼要做巡檢", "narration": "這段講動機。"},
+                    {"id": "intro_2", "title": "系統概觀", "narration": "整體架構說明。"},
+                ],
+            },
+            {
+                "id": "method",
+                "title": "方法",
+                "slides": [
+                    {"id": "method_1", "title": "資料前處理", "narration": "清洗資料的步驟說明很長很長很長。" * 3},
+                ],
+            },
+        ],
+    }
+
+
+class TestAutoYoutubeMetaDeckSchema:
+    def test_whole_deck_uses_section_chapters(self):
+        # final.mp4 → stem "final" 對不到 section → 章節 = 各 section
+        meta = auto_youtube_meta(_sample_deck(), "final", source_type="document")
+        assert meta["title"] == "InduSpect AI 深度解析"
+        desc = meta["description"]
+        assert "📍 章節時間軸" in desc
+        assert "0:00  簡介" in desc      # 第一章強制 0:00
+        assert "方法" in desc            # 第二章存在
+        # 章節用 section.title, 不該洩漏 slide 標題到整份章節列
+        assert "為什麼要做巡檢" not in desc
+
+    def test_single_section_uses_slide_chapters(self):
+        # intro.mp4 → stem "intro" 對到 section → 章節 = 該章 slides
+        meta = auto_youtube_meta(_sample_deck(), "intro", source_type="document")
+        assert meta["title"] == "InduSpect AI 深度解析 | 簡介"
+        desc = meta["description"]
+        assert "0:00  為什麼要做巡檢" in desc
+        assert "系統概觀" in desc
+
+    def test_deck_tags_by_source(self):
+        meta = auto_youtube_meta(_sample_deck(), "final", source_type="document")
+        assert "文件講解" in meta["tags"]
+        meta = auto_youtube_meta(_sample_deck(), "final", source_type="repo")
+        assert "程式碼講解" in meta["tags"]
+
+    def test_deck_privacy_and_category_defaults(self):
+        meta = auto_youtube_meta(_sample_deck(), "final", source_type="document")
+        assert meta["privacy"] == "unlisted"
+        assert meta["category"] == "27"
+
+    def test_section_chapters_are_cumulative(self):
+        # 第二章 timestamp 應晚於 0:00 (第一章有兩個 slide 累積秒數 > 0)
+        meta = auto_youtube_meta(_sample_deck(), "final", source_type="document")
+        lines = [l for l in meta["description"].splitlines() if "簡介" in l or "方法" in l]
+        assert lines[0].startswith("0:00")
+        assert not lines[1].startswith("0:00")
+
+    def test_empty_sections_no_chapter_block(self):
+        deck = {"deck_title": "空", "sections": []}
+        meta = auto_youtube_meta(deck, "final", source_type="document")
+        assert "📍 章節時間軸" not in meta["description"]
+        assert meta["title"] == "空"
+
+    def test_section_without_title_falls_back(self):
+        deck = {
+            "deck_title": "D",
+            "sections": [{"id": "s1", "slides": [{"narration": "n"}]}],
+        }
+        meta = auto_youtube_meta(deck, "final", source_type="repo")
+        # section.title 缺 → "第 1 章"
+        assert "0:00  第 1 章" in meta["description"]
+
+    def test_title_capped_100_chars(self):
+        deck = {"deck_title": "x" * 200, "sections": []}
+        meta = auto_youtube_meta(deck, "final", source_type="document")
+        assert len(meta["title"]) <= 100

@@ -119,8 +119,14 @@
 
 - [ ] **LaTeX 公式渲染** (🔴 高, 教學剛需): 材料力學公式進 slide。matplotlib mathtext
   或 MathJax→PNG 渲 LaTeX, 接 slide_renderer 既有圖片疊放路徑。**offline 可做**。
-- [ ] **YouTube 自動章節** (🔴 高, 近零成本高 CP): deck section 結構 → YT description
-  時間軸章節格式 (`0:00 章節名`)。publish.py 既有 description 組裝處加一段。**offline 可做**。
+- [x] **YouTube 自動章節** (🔴 高, 近零成本高 CP) (2026-06-04): deck section 結構 → YT
+  description 時間軸章節格式 (`0:00 章節名`)。實作在 `core/youtube.py` (Track B 真正組
+  description 的地方, 非 publish.py CLI)。`auto_youtube_meta` 原只認 exam schema
+  (problems/steps), deck schema (repo/document/url 的 sections/slides) 走 problems 必空 →
+  description 全空無章節。加 `_is_deck_schema` type guard (硬規則 #9) + `_deck_youtube_meta`:
+  artifact stem 對到 section.id → 單章影片章節=slides; 對不到 (final.mp4 整份) → 章節=各
+  section (該章 slides 旁白估算秒數總和)。抽 `_estimate_narration_seconds` +
+  `_build_chapter_lines` 共用 (exam 路徑改用後不變)。+15 tests (1814→1829)。改 2 檔。
 - [ ] **雙語字幕** (🟡 中): 既有 SRT → 翻英/日雙語軌。翻譯需 Gemini/翻譯 API → GATE
   寫 proposal 等用戶開額度; SRT 雙語合併格式 + 渲染是 offline 可先做。
 - [ ] **學生提問 → RAG → 解答影片** (🟢 探索, 戰略價值高工程重): 串 RAG 研究

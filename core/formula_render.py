@@ -88,3 +88,62 @@ def render_latex_to_png(
         return False
 
     return out_path.exists() and out_path.stat().st_size > 0
+
+
+# formula overlay 預設 — 公式比 icon 醒目, size_ratio 比 icon (0.10) 大
+DEFAULT_FORMULA_POSITION = "center"
+DEFAULT_FORMULA_SIZE_RATIO = 0.35
+
+
+def compose_formula(
+    img,
+    formula,
+    *,
+    canvas_w: int = 1920,
+    canvas_h: int = 1080,
+    margin: int = 40,
+) -> None:
+    """把 slide.formula 渲成透明 PNG 再疊到 img 上 (in-place 修改)。
+
+    formula 是 schema slide.formula 欄位 (deck.py 透傳):
+        dict {latex: str, position?: str, size_ratio?: float, color?: str} | None。
+        非 dict / 無 latex → noop (跟 core.icon_overlay.compose_icons 同容錯契約)。
+
+    複用 compose_icons 做定位 / 縮放 / alpha paste — formula 只是「先把 LaTeX
+    render 成 PNG 的一個 icon」, 故先 render_latex_to_png 到暫存檔, 再組成
+    icon_overlay 形狀的 entry 交給 compose_icons。canvas_h 該由 caller 傳「字幕帶
+    之上」可視高, 公式才不會壓到字幕區 (跟 icon 同規矩)。
+
+    任何失敗 (壞 LaTeX / render 不出 / size 計算炸) 靜默 skip, 不擋影片渲染整批。
+    """
+    if not isinstance(formula, dict):
+        return
+    latex = (formula.get("latex") or "").strip()
+    if not latex:
+        return
+
+    import tempfile
+
+    from core.icon_overlay import compose_icons
+
+    color = formula.get("color") or DEFAULT_COLOR
+    try:
+        # 暫存 PNG 只在 compose_icons 讀取期間存在, 疊完即清 (公式 PNG 不落 job 盤)
+        with tempfile.TemporaryDirectory() as td:
+            png = Path(td) / "formula.png"
+            if not render_latex_to_png(latex, png, color=color):
+                return
+            entry = {
+                "path": str(png),
+                "position": formula.get("position") or DEFAULT_FORMULA_POSITION,
+                "size_ratio": float(
+                    formula.get("size_ratio", DEFAULT_FORMULA_SIZE_RATIO)
+                ),
+            }
+            compose_icons(
+                img, [entry],
+                canvas_w=canvas_w, canvas_h=canvas_h, margin=margin,
+            )
+    except Exception as e:
+        logger.warning("formula 疊放失敗 (latex=%r): %s", latex, e)
+        return

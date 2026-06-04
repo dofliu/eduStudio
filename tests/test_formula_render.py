@@ -12,6 +12,7 @@ import pytest
 from core.formula_render import (
     DEFAULT_COLOR,
     DEFAULT_DPI,
+    compose_formula,
     render_latex_to_png,
 )
 
@@ -107,3 +108,78 @@ class TestRenderParams:
     def test_defaults_exposed(self):
         assert DEFAULT_DPI == 200
         assert DEFAULT_COLOR == "white"
+
+
+def _black_canvas(w=1920, h=1080):
+    return Image.new("RGB", (w, h), (0, 0, 0))
+
+
+def _has_non_black(im, box=None):
+    region = im.crop(box) if box else im
+    return region.convert("L").getextrema()[1] > 0
+
+
+class TestComposeFormula:
+    def test_valid_formula_paints_pixels(self):
+        img = _black_canvas()
+        compose_formula(img, {"latex": r"\sigma = \frac{F}{A}"},
+                        canvas_w=1920, canvas_h=900)
+        assert _has_non_black(img)  # 公式被疊上 → 出現非黑像素
+
+    def test_none_is_noop(self):
+        img = _black_canvas()
+        compose_formula(img, None, canvas_w=1920, canvas_h=900)
+        assert not _has_non_black(img)  # 畫布維持全黑
+
+    def test_non_dict_is_noop(self):
+        img = _black_canvas()
+        compose_formula(img, "x^2", canvas_w=1920, canvas_h=900)  # type: ignore[arg-type]
+        assert not _has_non_black(img)
+
+    def test_missing_latex_is_noop(self):
+        img = _black_canvas()
+        compose_formula(img, {"position": "center"}, canvas_w=1920, canvas_h=900)
+        assert not _has_non_black(img)
+
+    def test_empty_latex_is_noop(self):
+        img = _black_canvas()
+        compose_formula(img, {"latex": "   "}, canvas_w=1920, canvas_h=900)
+        assert not _has_non_black(img)
+
+    def test_broken_latex_is_noop_no_raise(self):
+        """壞 LaTeX → render 回 False → compose 不疊任何東西, 不炸."""
+        img = _black_canvas()
+        compose_formula(img, {"latex": r"\frac{"}, canvas_w=1920, canvas_h=900)
+        assert not _has_non_black(img)
+
+    def test_position_top_left_vs_bottom_right(self):
+        """position 透傳 compose_icons — top-left 公式落左上, bottom-right 落右下."""
+        tl = _black_canvas()
+        compose_formula(tl, {"latex": r"x", "position": "top-left",
+                             "size_ratio": 0.1}, canvas_w=1920, canvas_h=900)
+        br = _black_canvas()
+        compose_formula(br, {"latex": r"x", "position": "bottom-right",
+                             "size_ratio": 0.1}, canvas_w=1920, canvas_h=900)
+        # top-left 區 (左上 1/4) 有像素, 右下角無; bottom-right 反之
+        assert _has_non_black(tl, box=(0, 0, 480, 225))
+        assert not _has_non_black(tl, box=(1440, 675, 1920, 900))
+        assert _has_non_black(br, box=(1440, 675, 1920, 900))
+        assert not _has_non_black(br, box=(0, 0, 480, 225))
+
+    def test_formula_stays_above_subtitle_band(self):
+        """canvas_h=900 (字幕帶上緣) → bottom 公式停在 y<900, 不掉進字幕黑帶."""
+        img = _black_canvas()
+        compose_formula(img, {"latex": r"\sigma", "position": "bottom-left",
+                              "size_ratio": 0.1}, canvas_w=1920, canvas_h=900)
+        # 字幕帶 (y>=900) 該維持全黑
+        assert not _has_non_black(img, box=(0, 900, 1920, 1080))
+
+    def test_color_changes_pixels(self):
+        """color 透傳 render_latex_to_png — 白字與紅字疊出的畫布不同."""
+        white = _black_canvas()
+        compose_formula(white, {"latex": r"E=mc^2", "color": "white"},
+                        canvas_w=1920, canvas_h=900)
+        red = _black_canvas()
+        compose_formula(red, {"latex": r"E=mc^2", "color": "red"},
+                        canvas_w=1920, canvas_h=900)
+        assert list(white.getdata()) != list(red.getdata())

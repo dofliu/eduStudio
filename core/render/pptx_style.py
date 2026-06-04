@@ -2528,3 +2528,9 @@ class PptxStyleRenderer:
             img, step.get("icon_overlay"),
             canvas_w=VIDEO_WIDTH, canvas_h=CONTENT_BOTTOM,
         )
+        # LaTeX 公式疊放 (2026-06-04): 同集中收尾, 4 路 layout 一起覆蓋
+        from core.formula_render import compose_formula
+        compose_formula(
+            img, step.get("formula"),
+            canvas_w=VIDEO_WIDTH, canvas_h=CONTENT_BOTTOM,
+        )

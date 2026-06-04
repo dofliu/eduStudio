@@ -252,6 +252,12 @@ class BlackboardRenderer(Renderer):
             img, data["steps"][step_idx - 1].get("icon_overlay"),
             canvas_w=WIDTH, canvas_h=CONTENT_BOTTOM,
         )
+        # LaTeX 公式疊放 (2026-06-04): formula → PNG → 同 seam 疊, canvas_h=CONTENT_BOTTOM
+        from core.formula_render import compose_formula
+        compose_formula(
+            img, data["steps"][step_idx - 1].get("formula"),
+            canvas_w=WIDTH, canvas_h=CONTENT_BOTTOM,
+        )
         _overlay_teacher_photo(img); img.save(out_p, "PNG")
 
 
@@ -326,6 +332,12 @@ class SlideRenderer(Renderer):
         from core.icon_overlay import compose_icons
         compose_icons(
             canvas, step.get("icon_overlay"),
+            canvas_w=WIDTH, canvas_h=visible_h,
+        )
+        # LaTeX 公式疊放 (2026-06-04): canvas_h=visible_h 公式不掉到字幕帶
+        from core.formula_render import compose_formula
+        compose_formula(
+            canvas, step.get("formula"),
             canvas_w=WIDTH, canvas_h=visible_h,
         )
 
@@ -424,6 +436,12 @@ class SlideRenderer(Renderer):
         from core.icon_overlay import compose_icons
         compose_icons(
             canvas, step.get("icon_overlay"),
+            canvas_w=WIDTH, canvas_h=CONTENT_BOTTOM,
+        )
+        # LaTeX 公式疊放 (2026-06-04): split-left 同 CONTENT_BOTTOM canvas_h
+        from core.formula_render import compose_formula
+        compose_formula(
+            canvas, step.get("formula"),
             canvas_w=WIDTH, canvas_h=CONTENT_BOTTOM,
         )
 

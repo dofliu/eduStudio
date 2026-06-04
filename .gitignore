@@ -89,3 +89,9 @@ docs/*.mp4
 # SONG track: demucs 分人聲輸出 (vocals.wav / no_vocals.wav, 數百 MB scratch)
 # 由 demucs 從歌曲音檔重生, 不該 commit
 separated/
+
+# SONG M0b 本機測試輸出 (劉老師跑 tools/song_mv.py 產的 song.json / srt / mp4)
+# 是個人歌曲測試資料 (含版權音檔), 不進 repo; 範例見 tools/song_mv.py docstring
+tools/song.json
+tools/*.srt
+tools/*.mp4

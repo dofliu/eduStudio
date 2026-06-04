@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 from core.logging_setup import (
@@ -604,6 +605,14 @@ async def _run_render_inner(
 
     deck = json.loads(deck_path.read_text(encoding="utf-8"))
 
+    # M3c: SONG track (第 4 條 track) 走獨立渲染分流 — 繞過 v0/render_video
+    # TTS pipeline (歌曲音檔當配樂不跑 TTS, 歌詞時間戳定死不跑字數切分)。
+    # type guard (硬規則 #9) 早判, 不碰底下既有 exam/deck 分支。
+    from core.song_render import is_song_schema
+
+    if is_song_schema(deck):
+        return await _run_render_song(store, rec, deck, section_id=section_id)
+
     # 判斷 schema: 新 deck schema 有 sections, v1 exam schema 有 problems
     if "sections" in deck and "problems" not in deck:
         # 走哪條 renderer 看 source_type:
@@ -748,6 +757,82 @@ async def _run_render_inner(
             normalized_intro, intro_duration,
             normalized_outro, outro_duration,
         )
+
+
+async def _run_render_song(
+    store: JobStore, rec: JobRecord, deck: dict, *, section_id: str | None = None,
+) -> None:
+    """M3c: SONG track render — song.json (對齊 segments + 圖) → MV mp4 進 artifacts/.
+
+    繞過 v0/render_video TTS pipeline:
+    - 歌曲音檔直接當配樂 (不跑 TTS)。
+    - 歌詞 segments 的時間戳定死 (M0 手填 / M1 對齊), 繞過 narration_to_cues 字數切分。
+
+    背景: 每個 valid segment 都備好 image_path (相對 job_dir 且檔案存在) → ken burns
+    推鏡; 任一段缺圖 → 退 M0 純色背景 (整首一致, 不混搭)。
+
+    section_id 忽略 — song 是整首單一影片, 不支援單章 render (比照 deck 的逐章
+    render 概念在 song 不成立)。state 不在此設 (DONE 由 _run_render_phase 收尾,
+    比照 _run_render_inner 只產 artifacts)。
+    """
+    from core.song_render import (
+        _valid_segment,
+        build_song_mv_cmd,
+        build_song_mv_kenburns_cmd,
+        song_segments_to_srt,
+    )
+
+    # job_dir = deck.json 所在目錄; ingest_song 已把 audio/圖複製進這裡並改成相對路徑
+    job_dir = store.deck_path(rec.id).parent
+    artifacts_dir = store.artifacts_dir(rec.id)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    segments = deck.get("segments") or []
+    srt = song_segments_to_srt(segments)
+    if not srt.strip():
+        raise ValueError("song.json 沒有有效 segment (缺 start/end/lines), 無法 render")
+
+    # SRT 寫 job_dir, subtitles filter 用 basename (cwd=job_dir) 避 Windows 路徑冒號
+    (job_dir / "song.srt").write_text(srt, encoding="utf-8")
+
+    audio_name = (deck.get("audio_path") or "").strip()
+    if not audio_name:
+        raise ValueError("song.json 缺 audio_path, 無法 render")
+
+    out_stem = str(artifacts_dir / "song")  # build 補 .mp4 → artifacts/song.mp4
+
+    # 每個 valid segment 都有圖且檔案存在 → ken burns; 否則純色 (不混搭)
+    valid = [s for s in segments if _valid_segment(s)]
+    all_have_images = bool(valid) and all(
+        (s.get("image_path") or "").strip()
+        and (job_dir / str(s["image_path"])).exists()
+        for s in valid
+    )
+    if all_have_images:
+        image_durs = [
+            (str(s["image_path"]), float(s["end"]) - float(s["start"])) for s in valid
+        ]
+        cmd = build_song_mv_kenburns_cmd(image_durs, audio_name, "song.srt", out_stem)
+    else:
+        cmd = build_song_mv_cmd(audio_name, "song.srt", out_stem)
+
+    logger.info(
+        "SONG render 開始: %s (%s 背景)",
+        rec.id, "ken burns" if all_have_images else "純色",
+    )
+    try:
+        result = await asyncio.to_thread(
+            subprocess.run, cmd,
+            cwd=str(job_dir), capture_output=True, text=True,
+        )
+    except FileNotFoundError as e:
+        raise FileNotFoundError("ffmpeg 找不到, 請確認已安裝並在 PATH") from e
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg render 失敗 (code {result.returncode}): "
+            f"{(result.stderr or '')[:500]}"
+        )
+    logger.info("SONG render 完成: %s → %s.mp4", rec.id, out_stem)
 
 
 def _merge_sections_to_final(

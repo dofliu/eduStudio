@@ -148,7 +148,16 @@
     逐段圖 (→ images/<原名>) 進 jobs/<id>/, deck.json 內路徑改寫成相對 → job 自包含可搬。
     純檔案搬運 0 Gemini; 缺檔 graceful 略過不炸; 非 song schema → ValueError。+8 tests
     (2061→2069, 含「砍來源後 job dir 仍完整」證自包含)。
-  - [ ] **M3c render_song** (routine 下一輪, 劉老師授權自主, 純 offline 本機 ffmpeg):
+  - [x] **M3c render_song** (2026-06-04, routine 自主, 純 offline 本機 ffmpeg):
+    `_run_render_inner` `deck = json.loads(...)` 後加 `is_song_schema` early-return →
+    新 `_run_render_song` (繞 v0/render_video TTS pipeline): song_segments_to_srt 寫
+    job_dir/song.srt → 每 valid segment 都備圖且檔案存在走 build_song_mv_kenburns_cmd,
+    任一缺圖退 build_song_mv_cmd 純色 (不混搭) → `subprocess.run(cmd, cwd=job_dir)` →
+    artifacts/song.mp4。空/全無效 segment + 缺 audio_path → ValueError; returncode!=0 →
+    RuntimeError; ffmpeg 不存在 → FileNotFoundError 清楚訊息。section_id 忽略 (整首單一
+    影片)。state 由 _run_render_phase 收尾。+15 tests (2069→2084, monkeypatch subprocess
+    不真跑 ffmpeg)。改 3 檔 (server/runner.py + tests/test_runner_render_song.py + TODO/STATUS)。
+  - [ ] ~~**M3c render_song**~~ (原 spec, 已實作如上):
     **接入點**: `server/runner.py` `_run_render_inner` (line ~535, `deck = json.loads(...)`
     之後、`if "sections" in deck` 判斷之前) 加 early-return 分流:
     `from core.song_render import is_song_schema; if is_song_schema(deck): return await

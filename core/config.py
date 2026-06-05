@@ -62,6 +62,15 @@ def get_history_db_path() -> str:
     return os.environ.get("HISTORY_DB_PATH", str(HISTORY_DB_PATH))
 
 
+# eduStudio 合併 (C-4): infoCard 分享連結 SQLite db（取代原 in-memory Map）。
+SHARE_DB_PATH = PROJECT_ROOT / "infocard_shares.db"
+
+
+def get_share_db_path() -> str:
+    """infoCard 分享 db 路徑。env SHARE_DB_PATH 可覆寫。"""
+    return os.environ.get("SHARE_DB_PATH", str(SHARE_DB_PATH))
+
+
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)
 # 環境變數 CLAUDE_FONT_PATH / CLAUDE_FALLBACK_FONT_PATH 可覆寫

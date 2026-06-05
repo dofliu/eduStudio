@@ -65,6 +65,18 @@
     .card.soon { opacity: 0.7; }
     .card.soon:hover { transform: none; border-color: var(--border); background: var(--surface); cursor: default; }
     .badge-soon { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; margin-left: 8px; }
+    .hero-cta {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      text-decoration: none; color: inherit; margin-bottom: 28px;
+      background: linear-gradient(135deg, var(--accent-soft), var(--surface));
+      border: 1px solid var(--accent); border-radius: var(--radius);
+      padding: 22px 24px; transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .hero-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(79,156,249,0.18); }
+    .hero-cta-title { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .hero-cta-desc { color: var(--muted); font-size: 14px; margin-top: 4px; }
+    .hero-cta-badge { font-size: 13px; color: var(--accent); background: var(--accent-soft); padding: 6px 14px; border-radius: 999px; white-space: nowrap; }
+    .grid-label { color: var(--muted); font-size: 12px; margin: 0 0 12px; letter-spacing: 0.5px; }
     footer { max-width: var(--maxw); width: 100%; padding: 20px 24px 40px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
   </style>
 </head>
@@ -75,6 +87,14 @@
   </header>
 
   <main>
+    <a class="hero-cta" href="/app/">
+      <div class="hero-cta-text">
+        <div class="hero-cta-title">進入 eduStudio 統一介面 →</div>
+        <div class="hero-cta-desc">4 個工作站（影片 · 視覺 · 素材 · 發布）整合在一個介面 · Lumen 設計</div>
+      </div>
+      <span class="hero-cta-badge">/app</span>
+    </a>
+    <div class="grid-label">或直接進入各站</div>
     <div class="grid">
       <a class="card" href="/ui/">
         <div class="icon">🎬</div>

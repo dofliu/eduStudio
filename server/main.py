@@ -61,6 +61,8 @@ setup_logging()
 WEB_DIST = PROJECT_ROOT / "web" / "dist"
 # eduStudio 合併 C-4: infoCard 前端 build（base=/studio/）serve 在此。
 WEB_STUDIO = PROJECT_ROOT / "web" / "studio"
+# eduStudio 合併 C-4: 統一 app（Claude Design 設計、infoCard React19 build，base=/app/）。
+WEB_EDUAPP = PROJECT_ROOT / "web" / "eduapp"
 # eduStudio 合併 C-4 方案 A: 統一入口 landing（外觀可獨立替換，待 Claude Design 重做）。
 LANDING_PAGE = PROJECT_ROOT / "server" / "static" / "landing.html"
 
@@ -146,6 +148,27 @@ def create_app() -> FastAPI:
             if target.is_file():
                 return FileResponse(target)
             return FileResponse(WEB_STUDIO / "index.html")
+
+    # eduStudio 合併 C-4: 統一 app（Claude Design 設計）serve 在 /app/*（同 /ui 模式）。
+    if WEB_EDUAPP.exists():
+        eduapp_assets = WEB_EDUAPP / "assets"
+        if eduapp_assets.exists():
+            app.mount(
+                "/app/assets",
+                StaticFiles(directory=str(eduapp_assets)),
+                name="eduapp-assets",
+            )
+
+        @app.get("/app/{full_path:path}", include_in_schema=False)
+        async def eduapp_spa(full_path: str) -> FileResponse:
+            target = (WEB_EDUAPP / full_path).resolve()
+            try:
+                target.relative_to(WEB_EDUAPP.resolve())
+            except ValueError:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
+            if target.is_file():
+                return FileResponse(target)
+            return FileResponse(WEB_EDUAPP / "index.html")
 
     @app.get("/health", tags=["meta"])
     async def health(store=Depends(get_default_store)) -> dict:

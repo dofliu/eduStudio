@@ -59,6 +59,8 @@ setup_logging()
 
 # 對齊 vite.config.ts 的 build outDir
 WEB_DIST = PROJECT_ROOT / "web" / "dist"
+# eduStudio 合併 C-4: infoCard 前端 build（base=/studio/）serve 在此。
+WEB_STUDIO = PROJECT_ROOT / "web" / "studio"
 
 
 def create_app() -> FastAPI:
@@ -119,6 +121,29 @@ def create_app() -> FastAPI:
             if target.is_file():
                 return FileResponse(target)
             return FileResponse(WEB_DIST / "index.html")
+
+    # eduStudio 合併 C-4: infoCard 前端 (vite build --base=/studio/) 服務 /studio/*。
+    # 同 /ui 模式：mount assets + SPA fallback。前端目前仍 client-side 呼叫 Gemini
+    # (key 由 UI 設定)；「前端改打本 server /api」為後續步驟。
+    if WEB_STUDIO.exists():
+        studio_assets = WEB_STUDIO / "assets"
+        if studio_assets.exists():
+            app.mount(
+                "/studio/assets",
+                StaticFiles(directory=str(studio_assets)),
+                name="studio-assets",
+            )
+
+        @app.get("/studio/{full_path:path}", include_in_schema=False)
+        async def studio_spa(full_path: str) -> FileResponse:
+            target = (WEB_STUDIO / full_path).resolve()
+            try:
+                target.relative_to(WEB_STUDIO.resolve())
+            except ValueError:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
+            if target.is_file():
+                return FileResponse(target)
+            return FileResponse(WEB_STUDIO / "index.html")
 
     @app.get("/health", tags=["meta"])
     async def health(store=Depends(get_default_store)) -> dict:

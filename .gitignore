@@ -43,6 +43,7 @@ jobs/
 # React UI (PR-3e) build / deps
 web/node_modules/
 web/dist/
+web/studio/
 web/.vite/
 web/*.tsbuildinfo
 web/vite.config.d.ts

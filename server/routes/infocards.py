@@ -55,6 +55,20 @@ class ExportPptxRequest(BaseModel):
     filename: str = "presentation"
 
 
+class RefineSlideRequest(BaseModel):
+    """單頁微調：slide 為要改的投影片，instruction 為修改指令。"""
+
+    slide: dict
+    instruction: str
+    style: str = "professional"
+    customStylePrompt: str = ""
+    persona: dict | None = None
+    slideIndex: int | None = None
+    totalSlides: int | None = None
+    imageModel: str = DEFAULT_IMAGE_MODEL
+    textModel: str = DEFAULT_TEXT_MODEL
+
+
 @router.get("/health")
 def health() -> dict:
     """infoCard 風格健康檢查（模式清單 + 服務資訊）。"""
@@ -113,6 +127,18 @@ def generate(req: GenerateRequest) -> dict:
         return {"success": True, "type": "presentation", "data": data.model_dump()}
 
     raise HTTPException(status_code=400, detail=f"未知 mode：{req.mode}（支援 {_SUPPORTED_MODES}）")
+
+
+@router.post("/refine")
+def refine_slide(req: RefineSlideRequest) -> dict:
+    """單頁微調：依指令重生該頁並套用與整份生成一致的後處理。回 refined slide。"""
+    from core.infocards import refine_service
+
+    slide = refine_service.refine_presentation_slide(
+        req.slide, req.instruction, style=req.style, custom=req.customStylePrompt,
+        persona=req.persona, slide_index=req.slideIndex, total_slides=req.totalSlides,
+        model=req.textModel, image_model=req.imageModel)
+    return {"success": True, "slide": slide.model_dump()}
 
 
 @router.post("/export/pptx")

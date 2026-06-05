@@ -37,6 +37,7 @@ class GenerateRequest(BaseModel):
     density: str = "balanced"
     aspectRatio: str = "vertical"
     refinement: str = ""
+    selectedOutline: dict | None = None
     imageModel: str = DEFAULT_IMAGE_MODEL
     textModel: str = DEFAULT_TEXT_MODEL
 
@@ -93,11 +94,20 @@ def generate(req: GenerateRequest) -> dict:
         return {"success": True, "type": "poster",
                 "imageUrl": result["imageUrl"], "prompt": result["prompt"]}
 
+    if mode == "outline":
+        # 兩階段 Stage 1：產 3 個大綱方案（低成本，不生圖）。
+        outlines = presentation_service.generate_presentation_outlines(
+            req.text, req.style, custom=req.customStylePrompt,
+            slide_count=req.slideCount, model=req.textModel)
+        return {"success": True, "type": "outline",
+                "data": {"outlines": [o.model_dump() for o in outlines]}}
+
     if mode == "presentation":
         data = presentation_service.generate_presentation_data(
             req.text, req.style, custom=req.customStylePrompt,
             slide_count=req.slideCount, density=req.density,
-            typography=req.typography or "modern", model=req.textModel)
+            typography=req.typography or "modern", selected_outline=req.selectedOutline,
+            model=req.textModel)
         data = presentation_service.generate_presentation_images(
             data, style=req.style, custom=req.customStylePrompt, image_model=req.imageModel)
         return {"success": True, "type": "presentation", "data": data.model_dump()}

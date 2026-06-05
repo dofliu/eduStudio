@@ -20,8 +20,10 @@ from core.infocards.chart_suggester import (
     is_renderable_chart_data,
 )
 from core.infocards.gemini import generate_image_b64, generate_json
+from core.infocards.layout_rules import analyze_outline_slide, reconcile_layout
+from core.infocards.outline_normalizer import normalize_outlines
 from core.infocards.presentation_themes import get_theme_by_style
-from core.infocards.schemas import PresentationData
+from core.infocards.schemas import PresentationData, PresentationOutline
 from core.infocards.slide_budget import enforce_teaching_layout_budget_dict
 
 # 允許 AI 生圖的版型（對齊 layouts.ts needsAIImage：imagePolicy required/optional）。
@@ -156,8 +158,32 @@ _TYPOGRAPHY = {
 }
 
 
+def _build_outline_instruction(outline: dict | None) -> str:
+    """已選大綱 → 注入「嚴格遵守此架構」指令（對齊 presentationService.ts outlineInstruction）。"""
+    if not outline:
+        return ""
+    slides = outline.get("slides") or []
+    lines = "\n".join(
+        f"  第 {i + 1} 頁: [{s.get('layout')}] {s.get('title')} — {s.get('summary')}"
+        for i, s in enumerate(slides)
+    )
+    return f"""
+【使用者已選定的簡報大綱 - 必須嚴格遵守此架構】
+方案名稱：{outline.get('label', '')}
+設計思路：{outline.get('approach', '')}
+主標題：{outline.get('mainTitle', '')}
+副標題：{outline.get('subtitle', '')}
+投影片結構（請依此順序與版型生成完整內容）：
+{lines}
+
+重要：請嚴格按照上述大綱的版型(layout)、標題和主題順序生成完整內容。每頁的具體文字內容
+和 imagePrompt 需要你根據大綱方向展開撰寫。
+"""
+
+
 def _build_prompt(text: str, style: str, custom: str, slide_count: int,
-                  density: str, typography: str, theme: dict) -> str:
+                  density: str, typography: str, theme: dict,
+                  outline: dict | None = None) -> str:
     if style == "custom":
         style_header = f"THEME: {custom}"
     else:
@@ -176,6 +202,7 @@ def _build_prompt(text: str, style: str, custom: str, slide_count: int,
 - 排版風格：{_TYPOGRAPHY.get(typography, _TYPOGRAPHY['modern'])}
 - 目標頁數：精確生成 {slide_count} 頁（含封面和總結頁）
 - 語言：繁體中文（台灣）
+{_build_outline_instruction(outline)}
 【待處理內容】
 {text or '請分析內容，生成完整的專業簡報。'}"""
 
@@ -219,11 +246,21 @@ def generate_presentation_data(
     density: str = "balanced",
     typography: str = "modern",
     animation: str = "fade",
+    selected_outline: dict | None = None,
     model: str | None = None,
 ) -> PresentationData:
-    """內容 → 簡報結構 PresentationData（不含圖；imageUrl 之後由 images 步驟填）。"""
-    theme = get_theme_by_style("professional" if style == "custom" else style)
-    prompt = _build_prompt(text, style, custom, slide_count, density, typography, theme)
+    """內容 → 簡報結構 PresentationData（不含圖；imageUrl 之後由 images 步驟填）。
+
+    selected_outline（兩階段流程 Stage 2）：傳入已選大綱時，沿用其 suggestedTheme/
+    suggestedTypography，並把大綱結構注入 prompt 嚴格遵守（對齊 presentationService.ts）。
+    """
+    effective_style = style
+    if selected_outline:
+        effective_style = selected_outline.get("suggestedTheme") or style
+        typography = selected_outline.get("suggestedTypography") or typography
+    theme = get_theme_by_style("professional" if effective_style == "custom" else effective_style)
+    prompt = _build_prompt(text, effective_style, custom, slide_count, density, typography,
+                           theme, selected_outline)
     data = generate_json(prompt, model=model, response_schema=_PresentationGen)
     data = _coerce(data)
     # 後端補（非模型輸出，對齊 presentationService.ts）。
@@ -234,7 +271,7 @@ def generate_presentation_data(
     if not data.get("themeColor") or data.get("themeColor") == "#000000":
         data["themeColor"] = theme["accent"]
     data["presentationTheme"] = theme["id"]
-    data.setdefault("style", style)
+    data.setdefault("style", effective_style)
     return PresentationData.model_validate(data)
 
 
@@ -252,3 +289,86 @@ def generate_presentation_images(
         if slide.imagePrompt and needs_ai_image(slide.layout):
             slide.imageUrl = generate_image_b64(slide.imagePrompt, model=image_model)
     return data
+
+
+# ── 兩階段大綱（Stage 1：低成本預覽 3 個方案）──
+_OUTLINE_PROMPT = """
+【ROLE】你是一位資深簡報策略顧問，擅長根據內容規劃不同風格的簡報架構。
+【TASK】根據內容產生 3 個不同風格的簡報大綱方案，讓使用者預覽後選擇再完整生成。
+【3 個方案（同一視覺主題下的不同敘事/版型方案，差異在敘事結構與 layout 分配，非配色）】
+- 方案 A「敘事型」：以故事線串連，有起承轉合，適合演講與報告
+- 方案 B「分析型」：以數據和邏輯為主，善用圖表、比較、流程，適合專業提案
+- 方案 C「視覺型」：大量圖片與視覺衝擊，文字極簡，適合產品發表或行銷
+【每個方案需含】label / approach（1-2 句設計思路）/ recommendedAudience（1-5 字受眾標籤）/
+suggestedTheme（主題 ID）/ suggestedTypography（modern/classic/mono/handwriting）/
+mainTitle / subtitle / slides（每頁 layout+title+summary 一句話）/ estimatedImageCount。
+【SLIDE LAYOUT OPTIONS】title_cover / section_header / bullet_list / text_and_image / big_number /
+quote / diagram_image / conclusion / two_column / process_steps / timeline / chart_focus /
+full_image / worked_example / exercise / code_block / swot_analysis / pyramid_diagram / comparison_table
+【RULES】每方案頁數符合指定頁數；3 方案沿用同一主題；差異體現在 layout 分配與敘事結構；
+summary 用繁中（台灣）每項 ≤30 字；絕不連續使用相同 layout 超過 2 次。
+"""
+
+
+class _SlideOutlineGen(BaseModel):
+    layout: str = "bullet_list"
+    title: str
+    summary: str = ""
+
+
+class _OutlineGen(BaseModel):
+    label: str
+    approach: str = ""
+    recommendedAudience: str | None = None
+    suggestedTheme: str = "professional"
+    suggestedTypography: str = "modern"
+    mainTitle: str
+    subtitle: str = ""
+    estimatedImageCount: int = 0
+    slides: list[_SlideOutlineGen]
+
+
+class _OutlinesGen(BaseModel):
+    outlines: list[_OutlineGen]
+
+
+def generate_presentation_outlines(
+    text: str,
+    style: str,
+    *,
+    custom: str = "",
+    slide_count: int = 10,
+    model: str | None = None,
+) -> list[PresentationOutline]:
+    """Stage 1：產 3 個大綱方案（低成本，不生圖）。
+
+    每頁版型經規則引擎校正（analyze_outline_slide + reconcile_layout），整批再
+    normalize_outlines（typography/estimatedImageCount 合法化 + 主題統一為使用者選定風格）。
+    """
+    style_hint = (
+        f"使用者偏好風格：{custom}（三個方案仍需有差異）" if style == "custom" and custom
+        else f"使用者初始選擇風格：{style}（三個方案仍需有差異）"
+    )
+    prompt = f"""{_OUTLINE_PROMPT}
+【本次設定】
+- {style_hint}
+- 目標頁數：每個方案精確 {slide_count} 頁（含封面和總結頁）
+- 語言：繁體中文（台灣）
+【待處理內容】
+{text or '請根據內容規劃簡報大綱。'}"""
+
+    data = generate_json(prompt, model=model, response_schema=_OutlinesGen)
+    outlines = data.get("outlines") or []
+
+    for i, o in enumerate(outlines):
+        o.setdefault("id", f"outline_{i}")
+        total = len(o.get("slides") or [])
+        for idx, s in enumerate(o.get("slides") or []):
+            signals = analyze_outline_slide(s.get("title", ""), s.get("summary", ""))
+            s["layout"] = reconcile_layout(
+                slide_index=idx + 1, total_slides=total,
+                title=s.get("title"), content=s.get("summary"),
+                ai_hint=s.get("layout"), **signals)
+
+    normalize_outlines(outlines, style)
+    return [PresentationOutline.model_validate(o) for o in outlines]

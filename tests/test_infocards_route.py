@@ -83,6 +83,23 @@ class TestGenerate:
         assert body["success"] is True and body["type"] == "infographic"
         assert body["data"]["mainTitle"] == "圖卡"
 
+    def test_outline_mode(self, client, monkeypatch):
+        from core.infocards.schemas import PresentationOutline
+
+        fake = [PresentationOutline.model_validate({
+            "id": "outline_0", "label": "方案 A", "approach": "故事線",
+            "suggestedTheme": "navy", "suggestedTypography": "modern",
+            "mainTitle": "簡報", "subtitle": "副標", "estimatedImageCount": 2,
+            "slides": [{"layout": "title_cover", "title": "封面", "summary": "x"}],
+        })]
+        monkeypatch.setattr(ic.presentation_service, "generate_presentation_outlines",
+                            lambda text, style, **kw: fake)
+        r = client.post("/api/generate", json={"mode": "outline", "text": "t", "style": "navy"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["type"] == "outline"
+        assert body["data"]["outlines"][0]["label"] == "方案 A"
+
     def test_presentation_mode(self, client, monkeypatch):
         fake = PresentationData.model_validate({
             "mainTitle": "簡報", "subtitle": "副標", "themeColor": "#1e3a5f", "style": "navy",

@@ -13,7 +13,7 @@ pytest.importorskip("multipart", reason="server.main 內 upload route 需要")
 from fastapi.testclient import TestClient
 
 import server.routes.infocards as ic
-from core.infocards.schemas import ComicData
+from core.infocards.schemas import ComicData, InfographicData
 from core.infocards.share_store import ShareStore
 from server.main import create_app
 
@@ -41,6 +41,7 @@ class TestHealth:
         body = r.json()
         assert body["status"] == "ok"
         assert "comic" in body["implemented"] and "poster" in body["implemented"]
+        assert "infographic" in body["implemented"]
 
 
 class TestGenerate:
@@ -63,6 +64,23 @@ class TestGenerate:
         assert r.status_code == 200
         body = r.json()
         assert body["type"] == "poster" and body["imageUrl"] == "data:image/png;base64,X"
+
+    def test_infographic_mode(self, client, monkeypatch):
+        fake = InfographicData.model_validate({
+            "mainTitle": "圖卡", "subtitle": "副標", "layout": "grid", "themeColor": "#111",
+            "style": "academic", "conclusion": "結論",
+            "sections": [{"id": "s1", "title": "t", "content": "c", "iconType": "info"}],
+            "statistics": [{"id": "st1", "value": "1", "label": "x"}],
+        })
+        monkeypatch.setattr(ic.infographic_service, "generate_infographic_data",
+                            lambda text, style, custom="", aspect_ratio="vertical", model=None: fake)
+        monkeypatch.setattr(ic.infographic_service, "generate_infographic_images",
+                            lambda data, model=None, custom="": data)
+        r = client.post("/api/generate", json={"mode": "infographic", "text": "牛頓", "style": "academic"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is True and body["type"] == "infographic"
+        assert body["data"]["mainTitle"] == "圖卡"
 
     def test_presentation_not_implemented(self, client):
         r = client.post("/api/generate", json={"mode": "presentation", "text": "t"})

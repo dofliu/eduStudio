@@ -9,13 +9,13 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from core.infocards import comic_service, poster_service
+from core.infocards import comic_service, infographic_service, poster_service
 from core.infocards.models import DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL
 from core.infocards.share_store import get_share_store
 
 router = APIRouter(prefix="/api", tags=["infocards"])
 
-_SUPPORTED_MODES = ("presentation", "poster", "comic")
+_SUPPORTED_MODES = ("presentation", "poster", "comic", "infographic")
 
 
 class GenerateRequest(BaseModel):
@@ -48,7 +48,7 @@ def health() -> dict:
         "status": "ok",
         "service": "infocards",
         "modes": list(_SUPPORTED_MODES),
-        "implemented": ["comic", "poster"],   # presentation 移植進行中
+        "implemented": ["comic", "poster", "infographic"],   # presentation 移植進行中
     }
 
 
@@ -63,6 +63,14 @@ def generate(req: GenerateRequest) -> dict:
         data = comic_service.generate_comic_images(data, model=req.imageModel,
                                                    custom=req.customStylePrompt)
         return {"success": True, "type": "comic", "data": data.model_dump()}
+
+    if mode in ("infographic", "card"):
+        data = infographic_service.generate_infographic_data(
+            req.text, req.style, custom=req.customStylePrompt,
+            aspect_ratio=req.aspectRatio, model=req.textModel)
+        data = infographic_service.generate_infographic_images(
+            data, model=req.imageModel, custom=req.customStylePrompt)
+        return {"success": True, "type": "infographic", "data": data.model_dump()}
 
     if mode == "poster":
         result = poster_service.generate_poster(

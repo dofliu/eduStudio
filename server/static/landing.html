@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!--
+  eduStudio 統一入口 landing（合併 C-4 / 方案 A）。
+  刻意做成「結構與樣式分離、可獨立替換」：
+  - 結構 = 下方語意化 HTML（header / 模組卡片 grid / footer），路由連到各模組。
+  - 樣式 = :root 的 design tokens（顏色/字體/間距/圓角皆 CSS 變數）+ 少量規則。
+  之後請 Claude Design 出新設計時，可「只替換樣式層」或「整頁重做」，
+  完全不需動後端路由（/ui、/studio、/api 不變）。此頁即「待重新設計」的外觀層。
+-->
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eduStudio · 教學內容工作站</title>
+  <style>
+    /* ===== Design tokens（外觀層，可整批替換）===== */
+    :root {
+      --bg: #0f1115;
+      --surface: #1a1d24;
+      --surface-hover: #222630;
+      --border: #2a2f3a;
+      --text: #e8eaed;
+      --muted: #9aa0aa;
+      --accent: #4f9cf9;
+      --accent-soft: rgba(79, 156, 249, 0.12);
+      --radius: 14px;
+      --gap: 20px;
+      --maxw: 960px;
+      --font: "Noto Sans TC", "Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+    }
+    /* ===== 結構樣式（盡量薄，靠 tokens）===== */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: var(--font); line-height: 1.6;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    }
+    header { max-width: var(--maxw); width: 100%; padding: 56px 24px 24px; }
+    .brand { font-size: 28px; font-weight: 700; letter-spacing: 0.5px; }
+    .brand .dot { color: var(--accent); }
+    .tagline { color: var(--muted); margin-top: 6px; font-size: 15px; }
+    main { max-width: var(--maxw); width: 100%; padding: 8px 24px 56px; flex: 1; }
+    .grid {
+      display: grid; gap: var(--gap);
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+    .card {
+      display: block; text-decoration: none; color: inherit;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px 20px;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    }
+    .card:hover {
+      background: var(--surface-hover); border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .card .icon { font-size: 26px; }
+    .card .title { font-size: 18px; font-weight: 600; margin: 10px 0 4px; }
+    .card .desc { color: var(--muted); font-size: 14px; }
+    .card .path {
+      display: inline-block; margin-top: 12px; font-size: 12px;
+      color: var(--accent); background: var(--accent-soft);
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .card.soon { opacity: 0.7; }
+    .card.soon:hover { transform: none; border-color: var(--border); background: var(--surface); cursor: default; }
+    .badge-soon { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; margin-left: 8px; }
+    footer { max-width: var(--maxw); width: 100%; padding: 20px 24px 40px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">edu<span class="dot">Studio</span></div>
+    <div class="tagline">教學內容工作站 · 從任何來源 → 可審查、多語言的教學產製物 → 一鍵發布</div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <a class="card" href="/ui/">
+        <div class="icon">🎬</div>
+        <div class="title">影片產製站</div>
+        <div class="desc">考卷／講義 → 旁白影片 + 字幕 + YouTube 上傳，含人工 review gate。</div>
+        <span class="path">/ui</span>
+      </a>
+
+      <a class="card" href="/studio/">
+        <div class="icon">🎨</div>
+        <div class="title">圖卡 · 簡報 · 漫畫</div>
+        <div class="desc">把內容轉成資訊圖卡、教學簡報、漫畫分鏡（Gemini 生成）。</div>
+        <span class="path">/studio</span>
+      </a>
+
+      <a class="card" href="/docs#/localization">
+        <div class="icon">🌐</div>
+        <div class="title">在地化 · 翻譯</div>
+        <div class="desc">多語翻譯、影片配音、OCR、會議摘要、單字卡學習（目前為 API）。</div>
+        <span class="path">/localization · API</span>
+      </a>
+
+      <a class="card" href="/docs">
+        <div class="icon">📖</div>
+        <div class="title">API 文件</div>
+        <div class="desc">所有端點的互動式 Swagger 文件，可直接測試。</div>
+        <span class="path">/docs</span>
+      </a>
+    </div>
+  </main>
+
+  <footer>
+    eduStudio · 合併工作站（autoSolver 基底 + infoCard + translateGemma 收編）。
+    本入口頁為過渡外觀，待統一設計套用。
+  </footer>
+</body>
+</html>

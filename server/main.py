@@ -61,6 +61,8 @@ setup_logging()
 WEB_DIST = PROJECT_ROOT / "web" / "dist"
 # eduStudio 合併 C-4: infoCard 前端 build（base=/studio/）serve 在此。
 WEB_STUDIO = PROJECT_ROOT / "web" / "studio"
+# eduStudio 合併 C-4 方案 A: 統一入口 landing（外觀可獨立替換，待 Claude Design 重做）。
+LANDING_PAGE = PROJECT_ROOT / "server" / "static" / "landing.html"
 
 
 def create_app() -> FastAPI:
@@ -180,9 +182,11 @@ def create_app() -> FastAPI:
             "font_mono_exists": os.path.exists(get_mono_font_path()),
         }
 
-    # 根路徑優先導 React UI, 沒 build 就退到 vanilla editor
+    # 根路徑 = 統一入口 landing（合併 C-4 方案 A）。landing 缺檔則 fallback 舊行為。
     @app.get("/", include_in_schema=False)
-    async def root() -> RedirectResponse:
+    async def root():
+        if LANDING_PAGE.is_file():
+            return FileResponse(LANDING_PAGE)
         target = "/ui/" if WEB_DIST.exists() else "/editor"
         return RedirectResponse(url=target, status_code=307)
 

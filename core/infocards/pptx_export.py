@@ -79,6 +79,16 @@ def _add_text(slide, x, y, w, h, text, *, size=18, bold=False, italic=False,
     return box
 
 
+def _lighten(hex6: str, amt: float = 0.82) -> str:
+    """把顏色往白色混（amt 越大越淡）→ 給裝飾性圓圈，避免蓋過文字。"""
+    try:
+        r, g, b = int(hex6[0:2], 16), int(hex6[2:4], 16), int(hex6[4:6], 16)
+    except (ValueError, IndexError):
+        return "e5e7eb"
+    f = lambda c: round(c + (255 - c) * amt)
+    return f"{f(r):02x}{f(g):02x}{f(b):02x}"
+
+
 def _add_rect(slide, x, y, w, h, color):
     from pptx.dml.color import RGBColor
     from pptx.enum.shapes import MSO_SHAPE
@@ -88,6 +98,20 @@ def _add_rect(slide, x, y, w, h, color):
     shp.fill.solid()
     shp.fill.fore_color.rgb = RGBColor.from_string(color)
     shp.line.fill.background()
+    return shp
+
+
+def _add_oval(slide, x, y, w, h, color):
+    """裝飾性圓圈（封面/章節/結論的背景視覺）。"""
+    from pptx.dml.color import RGBColor
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.util import Inches
+
+    shp = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(w), Inches(h))
+    shp.fill.solid()
+    shp.fill.fore_color.rgb = RGBColor.from_string(color)
+    shp.line.fill.background()
+    shp.shadow.inherit = False
     return shp
 
 
@@ -132,8 +156,10 @@ def _add_chart(slide, x, y, w, h, chart_data) -> bool:
         return False
 
 
-def _render_slide(prs, s: dict, accent: str) -> None:
-    from pptx.dml.color import RGBColor
+def _render_slide(prs, s: dict, theme: dict) -> None:
+    accent = theme["accent"]
+    accent2 = theme.get("accent2", accent)
+    tint = _lighten(accent)
 
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
@@ -148,16 +174,27 @@ def _render_slide(prs, s: dict, accent: str) -> None:
         _add_rect(slide, 0, 0, _SIDEBAR_W, 5.3, accent)
 
     if layout == "title_cover":
+        # 裝飾圓圈（masters extras）先畫於底層，文字疊上。
+        _add_oval(slide, -0.6, -0.6, 2.0, 2.0, tint)
+        _add_oval(slide, 7.5, 3.8, 2.2, 2.2, tint)
+        _add_oval(slide, 8.5, -0.5, 2.8, 2.8, tint)
+        _add_rect(slide, 3.5, 3.3, 3.0, 0.06, accent2)  # divider
         _add_text(slide, 0.8, 1.0, 8.4, 2.2, title, size=36, bold=True, align="center", valign="middle", color=accent)
         if s.get("subtitle") or content:
             _add_text(slide, 1.5, 3.5, 7.0, 1.4, s.get("subtitle") or content, size=18, align="center")
         return
     if layout == "section_header":
+        _add_oval(slide, 7.3, -1.1, 4.2, 4.2, tint)
+        _add_oval(slide, -0.8, 3.1, 2.8, 2.8, tint)
         _add_text(slide, 0.8, 1.6, 8.4, 1.6, title, size=42, bold=True, align="center", color=accent)
         if content:
             _add_text(slide, 1.5, 3.4, 7.0, 0.9, content, size=20, align="center")
         return
     if layout == "conclusion":
+        _add_oval(slide, 7.9, -0.5, 2.6, 2.6, tint)
+        _add_oval(slide, -0.3, 3.5, 2.0, 2.0, tint)
+        _add_text(slide, 4.0, 0.4, 2.0, 0.9, "✓", size=30, bold=True, align="center", color=accent2)
+        _add_rect(slide, 3.5, 2.15, 3.0, 0.04, accent2)  # divider
         _add_text(slide, 0.5, 1.1, 9.0, 0.9, title, size=34, bold=True, align="center", color=accent)
         body = content or "\n".join(_bullets(s))
         if body:
@@ -213,9 +250,11 @@ def _render_slide(prs, s: dict, accent: str) -> None:
             _add_text(slide, 5.5, 4.1, 4.2, 0.85, f"Ans: {s['statValue']}", size=18, bold=True, align="center", valign="middle", color=accent)
         return
     if layout == "quote":
+        _add_text(slide, 0.5, 0.15, 2.0, 1.4, "“", size=100, bold=True, color=tint)  # 大引號
+        _add_rect(slide, 0.4, 1.0, 0.12, 3.0, accent2)  # quote accent bar
         _add_text(slide, 0.85, 1.2, 8.0, 2.6, content or title, size=22, italic=True, valign="middle")
         if title and content:
-            _add_text(slide, 4.5, 4.08, 5.1, 0.6, f"— {title}", size=15, bold=True, align="right")
+            _add_text(slide, 4.5, 4.08, 5.1, 0.6, f"— {title}", size=15, bold=True, align="right", color=accent)
         return
     if layout == "swot_analysis":
         q = s.get("quadrants") or {}
@@ -266,10 +305,18 @@ def build_pptx(data: dict) -> bytes:
     from pptx import Presentation
     from pptx.util import Inches
 
+    from core.infocards.presentation_themes import get_theme_by_style
+
     prs = Presentation()
     prs.slide_width = Inches(SLIDE_W)
     prs.slide_height = Inches(SLIDE_H)
-    accent = _hex(data.get("themeColor"))
+    # accent 以 themeColor 為主（前端可能覆寫）；accentSecondary 由 presentationTheme 查表補。
+    base = get_theme_by_style(data.get("presentationTheme") or "professional")
+    theme = {
+        "accent": _hex(data.get("themeColor"), _hex(base["accent"])),
+        "accent2": _hex(base.get("accentSecondary"), _DEFAULT_ACCENT),
+        "bg": _hex(base.get("bgBase"), "ffffff"),
+    }
 
     slides = data.get("slides") or []
     if not slides:
@@ -277,10 +324,10 @@ def build_pptx(data: dict) -> bytes:
                    "subtitle": data.get("subtitle", "")}]
     for s in slides:
         try:
-            _render_slide(prs, s, accent)
+            _render_slide(prs, s, theme)
         except Exception:
             # 單頁渲染失敗不該毀掉整份匯出：退成標題頁。
-            _render_slide(prs, {"layout": "section_header", "title": s.get("title", "（此頁無法渲染）")}, accent)
+            _render_slide(prs, {"layout": "section_header", "title": s.get("title", "（此頁無法渲染）")}, theme)
 
     buf = io.BytesIO()
     prs.save(buf)

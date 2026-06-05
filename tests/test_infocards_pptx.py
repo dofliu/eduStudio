@@ -44,6 +44,16 @@ class TestHexHelper:
         assert px._hex(None) == px._DEFAULT_ACCENT
 
 
+class TestLighten:
+    def test_lightens_toward_white(self):
+        out = px._lighten("000000", 0.5)
+        assert out == "808080"  # 黑 → 中灰
+        assert px._lighten("ffffff", 0.82) == "ffffff"  # 白不變
+
+    def test_bad_input_safe(self):
+        assert px._lighten("zz") == "e5e7eb"
+
+
 class TestBuildPptx:
     def test_produces_valid_pptx_with_all_slides(self):
         from pptx import Presentation
@@ -83,6 +93,22 @@ class TestBuildPptx:
 
         prs = Presentation(io.BytesIO(px.build_pptx({"mainTitle": "空簡報", "slides": []})))
         assert len(prs.slides) == 1
+
+    def test_title_cover_has_decorative_ovals(self):
+        from pptx import Presentation
+        from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+        # 只含一張 title_cover → 應有裝飾圓圈（oval autoshapes）。
+        prs = Presentation(io.BytesIO(px.build_pptx(
+            {"mainTitle": "封面", "themeColor": "#1e3a5f", "presentationTheme": "navy",
+             "slides": [{"layout": "title_cover", "title": "封面標題", "subtitle": "副標"}]})))
+        ovals = 0
+        for shp in prs.slides[0].shapes:
+            if shp.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and shp.auto_shape_type is not None:
+                from pptx.enum.shapes import MSO_SHAPE
+                if shp.auto_shape_type == MSO_SHAPE.OVAL:
+                    ovals += 1
+        assert ovals == 3  # 三個裝飾圓圈
 
     def test_dimensions_16_9(self):
         from pptx import Presentation

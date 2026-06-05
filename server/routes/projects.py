@@ -31,6 +31,8 @@ from core.project import (
     Project,
     ProjectNotFoundError,
     ProjectStore,
+    Source,
+    SourceType,
 )
 
 from . import jobs as jobs_routes
@@ -63,6 +65,16 @@ class CreateProjectRequest(BaseModel):
     project_id: str
     title: str
     target_languages: list[str] = Field(default_factory=list)
+
+
+class AddSourceRequest(BaseModel):
+    """掛一筆來源素材到 Project（匯入 PDF/repo/url/影片/圖片/音訊）。"""
+
+    type: SourceType
+    path_or_url: str
+    lang: str = config.CANONICAL_LANG
+    source_id: str | None = None
+    indexed: bool = False
 
 
 class AddArtifactRequest(BaseModel):
@@ -176,6 +188,30 @@ async def add_artifact(
             artifact_id=req.artifact_id,
             citations=req.citations,
             links=req.links,
+        )
+    except ProjectNotFoundError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e
+
+
+@router.post(
+    "/{pid}/sources",
+    response_model=Source,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_source(
+    pid: str,
+    req: AddSourceRequest,
+    store: ProjectStore = Depends(get_default_project_store),
+) -> Source:
+    """掛一筆來源素材到 Project（不存在的 pid 回 404）。"""
+    try:
+        return store.add_source(
+            pid,
+            type=req.type,
+            path_or_url=req.path_or_url,
+            lang=req.lang,
+            source_id=req.source_id,
+            indexed=req.indexed,
         )
     except ProjectNotFoundError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e

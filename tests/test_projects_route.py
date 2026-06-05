@@ -158,3 +158,23 @@ class TestArtifactsAndNotebook:
             "kind": "image", "produced_by": "infoCard",
         })
         assert r.status_code == 404
+
+    def test_add_source_and_notebook(self, client):
+        c, project_store, job_store, tmp_path = client
+        c.post("/projects", json={"project_id": "p", "title": "T"})
+        r = c.post("/projects/p/sources", json={
+            "type": "exam_pdf", "path_or_url": "/data/exam.pdf", "lang": "zh-TW",
+        })
+        assert r.status_code == 201
+        assert r.json()["type"] == "exam_pdf"
+        # 落盤 + notebook 聚合看得到
+        assert len(project_store.get("p").sources) == 1
+        nb = c.get("/projects/p/notebook").json()
+        assert nb["counts"]["sources"] == 1
+
+    def test_add_source_missing_project_404(self, client):
+        c, *_ = client
+        r = c.post("/projects/ghost/sources", json={
+            "type": "url", "path_or_url": "http://x",
+        })
+        assert r.status_code == 404

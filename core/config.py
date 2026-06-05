@@ -39,6 +39,10 @@ JOBS_DIR = PROJECT_ROOT / "jobs"
 PROPOSALS_PATH = JOBS_DIR / "proposals.json"
 IDEATE_CONFIG_PATH = PROJECT_ROOT / "ideate_config.yaml"
 
+# eduStudio 合併 (PR-M1, 2026-06-05): Project 薄層的容器目錄。
+# 每個 Project 一個資料夾 projects/{pid}/，與 jobs/ 並列 (core/project.py 用)。
+PROJECTS_DIR = PROJECT_ROOT / "projects"
+
 
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)
@@ -76,6 +80,12 @@ def get_gemini_api_key() -> str | None:
 
 # ---------- LLM 模型 ----------
 GEMINI_MODEL = "gemini-2.5-flash"
+
+
+# ---------- 語言 ----------
+# eduStudio 合併 (PR-M1): 全系統 canonical 語言碼 (BCP-47 連字號)。
+# 底線式 zh_TW 只在 translateGemma 邊界出現 (core/langcode.py 負責轉換)。
+CANONICAL_LANG = "zh-TW"
 
 
 # ---------- 影片參數 ----------

@@ -210,9 +210,15 @@
         生圖無法依硬規則 #1 標 reviewed。server/routes/jobs.py 加 GET /jobs/{id}/images/{name}
         (鏡像 download_figure: 同 path-traversal 防呆 ../ \ / → 400, target 限 images/ 下,
         缺檔/目錄 → 404)。+6 tests。改 2 檔 (jobs.py + tests/test_song_images_route.py)。
-      - [ ] **M3e-3b JobEditor SongReviewPane** (前端, 動 web/ tsc): isSongDraft 分流新
-        SongReviewPane — 逐段顯示 [start–end] 歌詞 + image_path 圖預覽 (接 M3e-3a endpoint,
-        剝 images/ 前綴傳 basename) + reviewed 勾選 (RFC 手動 review 層)。
+      - [x] **M3e-3b JobEditor SongReviewPane** (2026-06-05, routine 自主, offline, 動 web/ tsc):
+        JobEditor isSongDraft 分流新 SongReviewPane — 逐段卡片顯示 [start–end] (mm:ss) + dur +
+        歌詞行 + image_path 圖預覽 (api.songImageUrl 剝 images/ 前綴傳 basename 接 M3e-3a
+        endpoint, 子目錄路徑回 null 對齊後端防呆) + reviewed checkbox (updateSegment mutator
+        immutable 換 segment, setDirty → 上方 💾 Save 走既有 saveDraft, awaiting_review 後端
+        強制不繞)。header emoji 🎵 + song title/subtitle (reviewed N/total) + 隱藏 outline 鈕。
+        無生圖段顯「渲染退純色」, end≤start 標 ⚠ 渲染跳過 (對齊 _valid_segment)。tsc --noEmit
+        綠 + 2229 pytest 不變 (0 Python)。改 2 檔 (api.ts + JobEditor.tsx)。**M3e 全完成 → SONG
+        M3 (M3a~M3e) 收尾。**
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板
 
 ### ✨ 新功能 backlog (2026-06-03 用戶挑選進場)

@@ -23,8 +23,8 @@ import { OutlineModal } from '../components/OutlineModal';
 import { SlideEditor } from '../components/SlideEditor';
 import { useToast } from '../components/Toast';
 import { Btn, StatusPill, SourceBadge, Meter } from '../components/ui';
-import type { Deck, Draft, Exam, JobRecord, Slide } from '../types';
-import { isDeckDraft, isExamDraft } from '../types';
+import type { Deck, Draft, Exam, JobRecord, Slide, SongDeck, SongSegment } from '../types';
+import { isDeckDraft, isExamDraft, isSongDraft } from '../types';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -91,6 +91,15 @@ export default function JobEditor() {
   // ── Exam mutator ───────────────────────────────────────────────────────
   const onExamChange = (next: Exam) => {
     setDraft(next);
+    setDirty(true);
+  };
+
+  // ── Song mutator (M3e-3b) ──────────────────────────────────────────────
+  const updateSegment = (segIdx: number, next: SongSegment) => {
+    if (!draft || !isSongDraft(draft)) return;
+    const segments = [...draft.segments];
+    segments[segIdx] = next;
+    setDraft({ ...draft, segments });
     setDirty(true);
   };
 
@@ -219,30 +228,41 @@ export default function JobEditor() {
 
   const isExam = isExamDraft(draft);
   const isDeck = isDeckDraft(draft);
+  const isSong = isSongDraft(draft);
 
-  if (!isExam && !isDeck) {
+  if (!isExam && !isDeck && !isSong) {
     return (
       <div className="px-10 py-8 max-w-4xl">
         <Link to="/" className="text-forest-600 hover:underline text-[12px] font-mono">← Back to Jobs</Link>
         <div className="bg-paper-card border border-paper-line rounded-sm p-8 text-center mt-4 text-ink-muted">
-          無法辨識 schema (既無 problems 也無 sections), 請檢查 jobs/&lt;id&gt;/deck.json
+          無法辨識 schema (既無 problems / sections / song segments), 請檢查 jobs/&lt;id&gt;/deck.json
         </div>
       </div>
     );
   }
 
-  const title = isExam ? (draft as Exam).exam_title : (draft as Deck).deck_title;
+  const title = isExam
+    ? (draft as Exam).exam_title
+    : isSong
+      ? ((draft as SongDeck).song_title || (draft as SongDeck).deck_title || '(untitled song)')
+      : (draft as Deck).deck_title;
   const subtitle = isExam
     ? (() => {
         const e = draft as Exam;
         const totalSteps = e.problems.reduce((s, p) => s + p.steps.length, 0);
         return `${e.problems.length} 題 · ${totalSteps} steps`;
       })()
-    : (() => {
-        const d = draft as Deck;
-        const totalSlides = d.sections.reduce((s, sec) => s + sec.slides.length, 0);
-        return `${d.sections.length} sections · ${totalSlides} slides`;
-      })();
+    : isSong
+      ? (() => {
+          const s = draft as SongDeck;
+          const reviewed = s.segments.filter((x) => x.reviewed).length;
+          return `${s.segments.length} 段 · reviewed ${reviewed}/${s.segments.length}`;
+        })()
+      : (() => {
+          const d = draft as Deck;
+          const totalSlides = d.sections.reduce((s, sec) => s + sec.slides.length, 0);
+          return `${d.sections.length} sections · ${totalSlides} slides`;
+        })();
 
   const mp4s = job.artifacts.filter((a) => a.kind === 'mp4');
   const finalMp4 = mp4s.find((a) => a.name === 'final.mp4');
@@ -262,7 +282,7 @@ export default function JobEditor() {
         <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-muted shrink-0">04 · EDIT</span>
 
         <h1 className="font-display text-[20px] leading-[1.15] text-forest-700 truncate flex-1 min-w-0">
-          {isExam ? '📝 ' : '🎬 '}{title}
+          {isExam ? '📝 ' : isSong ? '🎵 ' : '🎬 '}{title}
         </h1>
 
         <span className="text-[10.5px] text-ink-muted font-mono shrink-0 hidden md:inline">{subtitle}</span>
@@ -275,8 +295,8 @@ export default function JobEditor() {
         )}
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* iter 81 (D1 v1): outline 預覽 — exam_pdf 沒 outline 所以隱藏 */}
-          {!isExam && (
+          {/* iter 81 (D1 v1): outline 預覽 — exam_pdf / song 沒 outline 所以隱藏 */}
+          {!isExam && !isSong && (
             <Btn kind="ghost" size="sm" onClick={() => setOutlineOpen(true)}>
               📋 outline
             </Btn>
@@ -410,6 +430,13 @@ export default function JobEditor() {
           updateSectionTitle={updateSectionTitle}
           onRenderSection={onRenderSection}
           jobId={jobId}
+        />
+      ) : isSong ? (
+        <SongReviewPane
+          deck={draft as SongDeck}
+          jobId={jobId}
+          canEdit={canEdit}
+          updateSegment={updateSegment}
         />
       ) : (
         <div className="flex-1 overflow-y-auto scrollbar-thin px-10 py-4">
@@ -696,6 +723,124 @@ function SlidePreview({ slide, theme }: { slide: Slide; theme: string | null }) 
           <span>autoSolverVideo · preview</span>
           <span>{slide.id}</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Song review pane (M3e-3b) ────────────────────────────────────────────
+// SONG track 逐段 review: 對齊時間與 AI 生圖都是估值, reviewer 逐段看歌詞 +
+// 圖預覽再勾 reviewed (硬規則 #1). 渲染前後端仍強制 awaiting_review, 這裡只是
+// 給人逐段檢查的介面, 不繞 require_review. DeckThreePane / SlidePreview 同檔
+// inline 慣例, SongReviewPane 也放這裡.
+
+function fmtSongTime(sec: number): string {
+  if (!isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+interface SongReviewPaneProps {
+  deck: SongDeck;
+  jobId?: string;
+  canEdit: boolean;
+  updateSegment: (segIdx: number, next: SongSegment) => void;
+}
+
+function SongReviewPane({ deck, jobId, canEdit, updateSegment }: SongReviewPaneProps) {
+  const segs = deck.segments;
+  const reviewedCount = segs.filter((s) => s.reviewed).length;
+
+  return (
+    <div className="flex-1 overflow-y-auto scrollbar-thin px-8 py-5 paper-grain min-h-0">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-5 flex items-center gap-3 text-[12px] text-ink-muted flex-wrap">
+          <span>逐段確認歌詞對齊 + AI 生圖, 勾 reviewed 後按上方 💾 Save 存草稿。</span>
+          <span className="ml-auto font-mono">
+            reviewed {reviewedCount} / {segs.length}
+          </span>
+        </div>
+
+        {deck.visual_style && (
+          <div className="mb-4 text-[11.5px] text-ink-muted border-l-2 border-accent-plum pl-3 py-1">
+            統一畫風: <span className="text-ink">{deck.visual_style}</span>
+          </div>
+        )}
+
+        {segs.length === 0 ? (
+          <div className="text-[12px] text-ink-muted text-center py-10">
+            song.json 沒有 segments
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {segs.map((seg, i) => {
+              const imgUrl = jobId ? api.songImageUrl(jobId, seg.image_path) : null;
+              const dur = seg.end - seg.start;
+              const invalid = !(seg.end > seg.start);
+              return (
+                <div
+                  key={seg.id ?? i}
+                  className={
+                    'rounded-sm border bg-paper-card p-4 flex gap-4 ' +
+                    (seg.reviewed ? 'border-forest-500' : 'border-paper-line')
+                  }
+                >
+                  {/* 圖預覽 (接 M3e-3a /jobs/{id}/images/{name}) */}
+                  <div className="w-[200px] shrink-0">
+                    {imgUrl ? (
+                      <img
+                        src={imgUrl}
+                        alt={`segment ${i + 1}`}
+                        className="w-full rounded-sm border border-paper-edge object-cover bg-black"
+                        style={{ aspectRatio: '16/9' }}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div
+                        className="w-full rounded-sm border border-dashed border-paper-line flex items-center justify-center text-[11px] text-ink-faint"
+                        style={{ aspectRatio: '16/9' }}
+                      >
+                        無生圖 (渲染退純色)
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 歌詞 + 時間 + reviewed */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 text-[11px] font-mono text-ink-muted flex-wrap">
+                      <span className="text-ink-faint">#{String(i + 1).padStart(2, '0')}</span>
+                      <span className={invalid ? 'text-accent-coral' : ''}>
+                        [{fmtSongTime(seg.start)} – {fmtSongTime(seg.end)}]
+                      </span>
+                      {invalid ? (
+                        <span className="text-accent-coral">⚠ end ≤ start, 渲染會跳過此段</span>
+                      ) : (
+                        <span className="text-ink-faint">{dur.toFixed(1)}s</span>
+                      )}
+                    </div>
+                    <div className="text-[14px] leading-relaxed text-ink whitespace-pre-wrap break-words">
+                      {seg.lines.length > 0
+                        ? seg.lines.join('\n')
+                        : <span className="text-ink-muted italic">(無歌詞)</span>}
+                    </div>
+                    <label className="mt-3 inline-flex items-center gap-2 text-[12px] cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!seg.reviewed}
+                        disabled={!canEdit}
+                        onChange={(e) => updateSegment(i, { ...seg, reviewed: e.target.checked })}
+                      />
+                      <span className={seg.reviewed ? 'text-forest-700' : 'text-ink-muted'}>
+                        {seg.reviewed ? '✓ 已 review' : '標記為已 review'}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

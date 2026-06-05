@@ -168,6 +168,19 @@ export const api = {
     return `/slide_images/${encodeURIComponent(m[1])}/${encodeURIComponent(m[2])}`;
   },
 
+  // ---------- Song segment images (SONG M3e-3) ----------
+
+  /** Song 逐段 AI 生圖預覽 URL — segment.image_path 是 ingest_song 改寫後的相對
+   * "images/<name>" (M3b). 剝掉 images/ 前綴傳 basename 給 M3e-3a endpoint
+   * (/jobs/{id}/images/{name})。給 <img src> 直接用。仍含子目錄 / 的不合法
+   * (後端 path-traversal 防呆也會 400) → 回 null。 */
+  songImageUrl: (jobId: string, imagePath: string | null | undefined): string | null => {
+    if (!imagePath) return null;
+    const base = imagePath.replace(/\\/g, '/').replace(/^images\//, '');
+    if (!base || base.includes('/')) return null;
+    return `/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(base)}`;
+  },
+
   // ---------- Upload (PR-3k) ----------
 
   /** 上傳檔案 + 建 job. 不走 call() 因為 multipart 不能 set Content-Type 為 JSON. */

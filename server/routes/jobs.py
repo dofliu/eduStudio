@@ -12,6 +12,7 @@
     GET    /jobs/{id}/image-frames        批次 image_frames summary (iter 109 E1-4 backend)
     POST   /jobs/{id}/approve             從 awaiting_review 進入 render
     GET    /jobs/{id}/artifacts/{name}    下載產物檔
+    GET    /jobs/{id}/images/{name}       下載 song 逐段生圖 (SONG M3e-3 預覽)
 """
 from __future__ import annotations
 
@@ -449,4 +450,28 @@ async def download_figure(
     target = store.job_dir(job_id) / "figures" / name
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"figure 不存在: {name}")
+    return FileResponse(target, filename=name)
+
+
+# ---------- Song segment images (SONG M3e) ----------
+
+@router.get("/{job_id}/images/{name}")
+async def download_song_image(
+    job_id: str, name: str, store: JobStore = Depends(get_default_store),
+) -> FileResponse:
+    """下載 / 預覽單張 song 逐段生圖. <img src="..."> 直接吃這條.
+
+    ingest_song (M3b) 把逐段圖複製到 jobs/<id>/images/ 並把 segment.image_path
+    改寫成相對路徑 "images/<name>". SongReviewPane (M3e-3) 預覽時只傳 basename
+    (前端剝掉 "images/" 前綴) — 跟 figures endpoint 同 path-traversal 防呆, target
+    限定 images/ 下, 確保 reviewer 看得到 AI 生圖才能依硬規則 #1 標 reviewed.
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    if "/" in name or "\\" in name or ".." in name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 image 檔名")
+    target = store.job_dir(job_id) / "images" / name
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"image 不存在: {name}")
     return FileResponse(target, filename=name)

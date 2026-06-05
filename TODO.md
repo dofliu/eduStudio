@@ -204,8 +204,15 @@
       說明 banner。`isSong` 收斂面板: 隱藏長寬比/解析度 + 講者頭像 + 整排渲染 checkbox
       (字幕/intro/outro/mock 對 MV 分流全 no-op, review 後端強制硬規則 #1) → 比照 exam
       收斂。tsc --noEmit 綠 + 2110 pytest 不變 (0 Python)。改 1 檔 (CreateJobForm.tsx)。
-    - [ ] **M3e-3 JobEditor song review**: isSongDraft 分流新 SongReviewPane — 逐段顯示
-      [start–end] 歌詞 + image_path 圖預覽 + reviewed 勾選 (RFC 手動 review 層)。
+    - **M3e-3 JobEditor song review** (圖預覽需後端 endpoint, 故再拆兩半守 ≤3 檔):
+      - [x] **M3e-3a song 圖預覽 endpoint** (2026-06-05, routine 自主, offline): song 逐段圖
+        存 jobs/<id>/images/<name> (M3b 複製), 既無 endpoint 可預覽 → reviewer 看不到 AI
+        生圖無法依硬規則 #1 標 reviewed。server/routes/jobs.py 加 GET /jobs/{id}/images/{name}
+        (鏡像 download_figure: 同 path-traversal 防呆 ../ \ / → 400, target 限 images/ 下,
+        缺檔/目錄 → 404)。+6 tests。改 2 檔 (jobs.py + tests/test_song_images_route.py)。
+      - [ ] **M3e-3b JobEditor SongReviewPane** (前端, 動 web/ tsc): isSongDraft 分流新
+        SongReviewPane — 逐段顯示 [start–end] 歌詞 + image_path 圖預覽 (接 M3e-3a endpoint,
+        剝 images/ 前綴傳 basename) + reviewed 勾選 (RFC 手動 review 層)。
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板
 
 ### ✨ 新功能 backlog (2026-06-03 用戶挑選進場)

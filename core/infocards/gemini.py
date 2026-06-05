@@ -32,20 +32,23 @@ def _client(api_key: str | None):
 
 
 def generate_json(prompt: str, *, model: str | None = None,
-                  api_key: str | None = None, temperature: float = 0.4) -> dict:
+                  api_key: str | None = None, temperature: float = 0.4,
+                  response_schema=None) -> dict:
     """呼叫 Gemini 產 JSON（response_mime_type=application/json），回 parsed dict。
 
-    對齊 infoCard：模型回 JSON 字串 → 去圍欄 → json.loads。解析失敗回 {}（呼叫端決定後續）。
+    response_schema（pydantic model 或 dict）約束輸出結構 —— 對齊 infoCard 原本用
+    responseSchema 強制 JSON 形狀的做法，避免模型自由發揮回錯誤鍵。解析失敗回 {}。
     """
     from google.genai import types
 
     client = _client(api_key)
+    cfg: dict = {"response_mime_type": "application/json", "temperature": temperature}
+    if response_schema is not None:
+        cfg["response_schema"] = response_schema
     resp = client.models.generate_content(
         model=model or DEFAULT_TEXT_MODEL,
         contents=[prompt],
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json", temperature=temperature,
-        ),
+        config=types.GenerateContentConfig(**cfg),
     )
     try:
         return json.loads(_strip_fence(resp.text or "{}"))

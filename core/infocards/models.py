@@ -5,14 +5,16 @@
 from __future__ import annotations
 
 # ── 文字 / 邏輯模型 ──
+# 註：原 infoCard 用 preview model id（gemini-3-flash-preview 等），未必 GA；改用 autoSolver
+# 已驗證可用的 gemini-2.5 系列（與 core.config.GEMINI_MODEL 一致），確保實際呼叫成功。
 TEXT_MODELS: dict[str, dict[str, str]] = {
     "flash": {
-        "id": "gemini-3-flash-preview",
-        "label": "⚡ Flash 3 (速度優先)",
+        "id": "gemini-2.5-flash",
+        "label": "⚡ Flash (速度優先)",
         "description": "一般邏輯處理，高速回應",
     },
     "pro": {
-        "id": "gemini-3.1-pro-preview",
+        "id": "gemini-2.5-pro",
         "label": "🚀 Pro (深度推理)",
         "description": "深度邏輯處理，進階推理能力",
     },

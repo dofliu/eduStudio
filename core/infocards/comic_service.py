@@ -5,8 +5,28 @@
 """
 from __future__ import annotations
 
+from pydantic import BaseModel
+
 from core.infocards.gemini import generate_image_b64, generate_json
 from core.infocards.schemas import ComicData
+
+
+# 生成用 schema（約束 Gemini 輸出結構）：只含模型該產的欄位；
+# style/promptUsed 由後端補、imageUrl 之後生圖填，故不在此。
+class _PanelGen(BaseModel):
+    id: str
+    panelNumber: int
+    description: str
+    dialogue: str
+    cameraDetail: str
+    imagePrompt: str
+
+
+class _ComicGen(BaseModel):
+    title: str
+    storySummary: str
+    characterVisualBible: str
+    panels: list[_PanelGen]
 
 
 def _build_comic_prompt(text: str, style: str, custom: str, panels: int) -> str:
@@ -32,7 +52,7 @@ def generate_comic_script(
 ) -> ComicData:
     """內容 → 漫畫分鏡 ComicData（不含圖；imageUrl 之後由 generate_comic_images 填）。"""
     prompt = _build_comic_prompt(text, style, custom, panels)
-    data = generate_json(prompt, model=model)
+    data = generate_json(prompt, model=model, response_schema=_ComicGen)
     # 對齊 infoCard：style / promptUsed 由後端補（非模型輸出）。
     data["style"] = style
     data["promptUsed"] = prompt

@@ -71,7 +71,7 @@ _FAKE_COMIC = {
 
 class TestComicService:
     def test_generate_script_sets_style_and_prompt(self, monkeypatch):
-        monkeypatch.setattr(comic, "generate_json", lambda prompt, model=None: dict(_FAKE_COMIC))
+        monkeypatch.setattr(comic, "generate_json", lambda prompt, model=None, response_schema=None: dict(_FAKE_COMIC))
         data = comic.generate_comic_script("向量加法", "comic", panels=2)
         assert isinstance(data, ComicData)
         assert data.style == "comic"
@@ -82,7 +82,7 @@ class TestComicService:
     def test_custom_style_in_prompt(self, monkeypatch):
         seen = {}
 
-        def fake_json(prompt, model=None):
+        def fake_json(prompt, model=None, response_schema=None):
             seen["prompt"] = prompt
             return dict(_FAKE_COMIC)
 

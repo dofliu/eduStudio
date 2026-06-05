@@ -18,9 +18,9 @@ from core.infocards.schemas import (
 # ── models ──
 class TestModels:
     def test_model_ids(self):
-        assert models.TEXT_MODELS["flash"]["id"] == "gemini-3-flash-preview"
+        assert models.TEXT_MODELS["flash"]["id"] == "gemini-2.5-flash"
         assert models.IMAGE_MODELS["pro"]["id"] == "gemini-3-pro-image-preview"
-        assert models.DEFAULT_TEXT_MODEL == "gemini-3-flash-preview"
+        assert models.DEFAULT_TEXT_MODEL == "gemini-2.5-flash"
         assert models.DEFAULT_IMAGE_MODEL == "gemini-2.5-flash-image"
 
     def test_pricing_keyed_by_image_id(self):

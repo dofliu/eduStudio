@@ -29,6 +29,7 @@ from .jobs import get_default_store
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
 from .routes import library as library_routes
+from .routes import localization as localization_routes
 from .routes import projects as projects_routes
 from .routes import proposals as proposals_routes
 from .routes import slides as slides_routes
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(proposals_routes.router)  # v4 階段 2 B iter 14
     app.include_router(themes_routes.router)     # iter 72: theme gallery
     app.include_router(projects_routes.router)   # eduStudio 合併 PR-M1: Project 薄層
+    app.include_router(localization_routes.router)  # eduStudio 合併 B-2: translateGemma 收編
 
     # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor
     # 用 StaticFiles mount /ui/assets 處理已知 asset 檔, 其餘 /ui/* 走 SPA fallback

@@ -43,6 +43,15 @@ IDEATE_CONFIG_PATH = PROJECT_ROOT / "ideate_config.yaml"
 # 每個 Project 一個資料夾 projects/{pid}/，與 jobs/ 並列 (core/project.py 用)。
 PROJECTS_DIR = PROJECT_ROOT / "projects"
 
+# eduStudio 合併 (B-2): translateGemma 學習工具 (單字卡 SM-2) 的 SQLite db。
+# 預設落 PROJECT_ROOT/learning.db；env LEARNING_DB_PATH 可覆寫 (測試用 tmp)。
+LEARNING_DB_PATH = PROJECT_ROOT / "learning.db"
+
+
+def get_learning_db_path() -> str:
+    """學習工具 db 路徑。env LEARNING_DB_PATH 可覆寫。"""
+    return os.environ.get("LEARNING_DB_PATH", str(LEARNING_DB_PATH))
+
 
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)

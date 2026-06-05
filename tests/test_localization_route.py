@@ -91,3 +91,79 @@ class TestLearningEndpoints:
             "original": "", "user_input": "", "target_lang": "zh-TW",
         })
         assert r.status_code == 200 and "請提供" in r.json()["result"]
+
+
+# ---------- 檔案端點（mock 模組，不打真 media/Gemini）----------
+class TestFileEndpoints:
+    def test_translate_image_boundary_and_result(self, client, monkeypatch):
+        seen = {}
+
+        def fake_image(path, target_code, source_code):
+            seen["target"] = target_code
+            seen["source"] = source_code
+            yield "OCR+翻譯結果"
+
+        monkeypatch.setattr(svc.translator, "translate_image", fake_image)
+        r = client.post(
+            "/localization/translate/image",
+            files={"file": ("x.png", b"fakepng", "image/png")},
+            data={"target_lang": "zh-TW", "source_lang": "en-US"},
+        )
+        assert r.status_code == 200
+        assert r.json()["result"] == "OCR+翻譯結果"
+        assert seen["target"] == "zh_TW"  # 邊界轉底線
+        assert seen["source"] == "en_US"
+
+    def test_translate_pdf(self, client, monkeypatch):
+        monkeypatch.setattr(
+            svc.translator, "translate_pdf",
+            lambda path, t, s: iter(["PDF 翻譯完成"]),
+        )
+        r = client.post(
+            "/localization/translate/pdf",
+            files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")},
+            data={"target_lang": "zh-TW"},
+        )
+        assert r.status_code == 200 and r.json()["result"] == "PDF 翻譯完成"
+
+    def test_meeting_summarize(self, client, monkeypatch):
+        import core.meeting.summarizer as msum
+        from core.meeting.summarizer import MeetingSummaryResult
+
+        def fake_process(video_path, language, summary_types):
+            return MeetingSummaryResult(
+                transcript="逐字稿", transcript_with_time="[00:00] 逐字稿",
+                summary={"full_summary": "摘要"}, duration=12.5, language="zh",
+            )
+
+        monkeypatch.setattr(msum.meeting_summarizer, "process_video", fake_process)
+        r = client.post(
+            "/localization/meeting/summarize",
+            files={"file": ("m.mp4", b"fake", "video/mp4")},
+            data={"language": "zh-TW", "summary_types": "full_summary"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["summary"] == {"full_summary": "摘要"}
+        assert body["duration"] == 12.5
+
+    def test_dub_requires_source(self, client):
+        # 不給 url 也不給 file → error
+        r = client.post("/localization/dub", data={"target_lang": "zh-TW"})
+        assert r.status_code == 200 and "error" in r.json()
+
+    def test_dub_with_url_mocked(self, client, monkeypatch):
+        import server.routes.localization as loc
+
+        class _FakeDubber:
+            def process_video(self, source, src, tgt, burn_subtitles=False):
+                return {"dubbed_video": "/tmp/out.mp4", "_args": [source, src, tgt]}
+
+        monkeypatch.setattr(loc, "get_video_dubber", lambda: _FakeDubber())
+        r = client.post("/localization/dub", data={
+            "url": "https://youtu.be/x", "target_lang": "zh-TW", "source_lang": "auto",
+        })
+        assert r.status_code == 200
+        results = r.json()["results"]
+        assert results["dubbed_video"] == "/tmp/out.mp4"
+        assert results["_args"] == ["https://youtu.be/x", "auto", "zh_TW"]  # 邊界轉換

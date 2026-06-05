@@ -4,17 +4,22 @@
 core.langcode.to_underscore() 轉成服務內部吃的底線式（zh_TW）。翻譯後端 = 雲端 Gemini
 （core.translation.service，已退 Ollama）。
 
-本批先上 text-based 端點（translate + 學習工具），都不需重依賴、可單元測試。
-image/pdf/dub/stt/tts 等需檔案上傳 + OCR/whisper/edge-tts 的端點待 video_dubber/meeting
-模組搬入後再加（MERGE_PLAN §5.5 B-2 續）。
+text-based 端點（translate + 學習工具）不需重依賴；檔案端點（image/pdf/dub/meeting）走
+multipart 上傳 + 已搬入的模組（OCR/whisper/edge-tts，lazy）。長任務（dub/meeting）為同步
+端點，呼叫端需容忍較久處理時間（之後可改 autoSolver job runner 背景化）。
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+import os
+import tempfile
+
+from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel, Field
 
 from core.langcode import LANGUAGES, to_underscore
+from core.meeting.summarizer import meeting_summarizer
 from core.translation.service import translator
+from core.video.dubber import get_video_dubber
 
 router = APIRouter(prefix="/localization", tags=["localization"])
 
@@ -22,6 +27,15 @@ router = APIRouter(prefix="/localization", tags=["localization"])
 def _u(code: str | None) -> str:
     """canonical 連字號 → 服務內部底線式（唯一邊界轉換）。'auto'/None 安全。"""
     return to_underscore(code) or "auto"
+
+
+def _save_upload(upload: UploadFile, suffix: str = "") -> str:
+    """把上傳檔存到暫存路徑，回路徑（呼叫端負責清理）。"""
+    suffix = suffix or os.path.splitext(upload.filename or "")[1] or ""
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    with os.fdopen(fd, "wb") as f:
+        f.write(upload.file.read())
+    return path
 
 
 # ---------- 請求模型 ----------
@@ -134,3 +148,98 @@ async def dictation_check(req: DictationCheckRequest) -> dict:
     result = translator.dictation_check(
         req.original, req.user_input, _u(req.target_lang))
     return {"result": result}
+
+
+# ---------- 檔案端點（multipart 上傳 + 已搬入模組）----------
+@router.post("/translate/image")
+async def translate_image(
+    file: UploadFile = File(...),
+    target_lang: str = Form("zh-TW"),
+    source_lang: str = Form("auto"),
+) -> dict:
+    """圖片 OCR + 翻譯（pytesseract，lazy）。回最終翻譯文字。"""
+    path = _save_upload(file)
+    try:
+        result = _first(translator.translate_image(path, _u(target_lang), _u(source_lang)))
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    return {"result": result, "target_lang": target_lang}
+
+
+@router.post("/translate/pdf")
+async def translate_pdf(
+    file: UploadFile = File(...),
+    target_lang: str = Form("zh-TW"),
+    source_lang: str = Form("en-US"),
+) -> dict:
+    """PDF 逐頁翻譯（PyMuPDF，lazy）。回最終彙整文字。"""
+    path = _save_upload(file, suffix=".pdf")
+    try:
+        result = _first(translator.translate_pdf(path, _u(target_lang), _u(source_lang)))
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    return {"result": result, "target_lang": target_lang}
+
+
+@router.post("/meeting/summarize")
+async def meeting_summarize(
+    file: UploadFile = File(...),
+    language: str = Form("auto"),
+    summary_types: str = Form("full_summary"),
+) -> dict:
+    """會議影片摘要（ffmpeg+whisper+Gemini）。長任務，同步處理。
+
+    summary_types 以逗號分隔（如 'key_points,decisions'）。
+    """
+    path = _save_upload(file)
+    types = [t.strip() for t in summary_types.split(",") if t.strip()]
+    try:
+        res = meeting_summarizer.process_video(path, _u(language), types or None)
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    return {
+        "transcript": res.transcript,
+        "transcript_with_time": res.transcript_with_time,
+        "summary": res.summary,
+        "duration": res.duration,
+        "language": res.language,
+    }
+
+
+@router.post("/dub")
+async def dub_video(
+    target_lang: str = Form("zh-TW"),
+    source_lang: str = Form("auto"),
+    burn_subtitles: bool = Form(False),
+    url: str = Form(""),
+    file: UploadFile | None = File(None),
+) -> dict:
+    """影片配音（下載/上傳 → STT → 翻譯 → TTS → 合成）。長任務，同步處理。
+
+    來源二選一：url（YouTube）或上傳 file。回各產出物路徑。
+    """
+    path = ""
+    if not url:
+        if file is None:
+            return {"error": "需提供 url 或上傳 file"}
+        path = _save_upload(file, suffix=".mp4")
+    source = url or path
+    try:
+        results = get_video_dubber().process_video(
+            source, _u(source_lang), _u(target_lang), burn_subtitles=burn_subtitles)
+    finally:
+        if path:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    return {"results": results, "target_lang": target_lang}

@@ -15,9 +15,14 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from core.infocards.chart_suggester import (
+    build_chart_data_for_slide,
+    is_renderable_chart_data,
+)
 from core.infocards.gemini import generate_image_b64, generate_json
 from core.infocards.presentation_themes import get_theme_by_style
 from core.infocards.schemas import PresentationData
+from core.infocards.slide_budget import enforce_teaching_layout_budget_dict
 
 # 允許 AI 生圖的版型（對齊 layouts.ts needsAIImage：imagePolicy required/optional）。
 # 其餘版型由前端 SVG/CSS/icon 原生繪製，即使 AI 填了 imagePrompt 也丟棄（省成本 + 視覺一致）。
@@ -176,16 +181,32 @@ def _build_prompt(text: str, style: str, custom: str, slide_count: int,
 
 
 def _coerce(data: dict) -> dict:
-    """Gemini 回的 Literal 欄位越界值退安全預設；同時依生圖政策丟棄不該有的 imagePrompt。"""
+    """Gemini 輸出的純函式校正（對齊 presentationService.ts 的零 API 後處理）：
+
+    1. layout/chart.type Literal 越界值退安全預設。
+    2. 依生圖政策丟棄 native/icon/chart 版型多填的 imagePrompt（對齊 needsAIImage 過濾）。
+    3. chart_focus 版型若無可渲染 chartData，從投影片文字偵測數列回填（不覆蓋有效數據）。
+    4. 教學版型 bulletPoints 套用 budget 裁切（只裁數量不裁文字）。
+    """
     for sl in data.get("slides") or []:
         if sl.get("layout") not in _LAYOUTS:
             sl["layout"] = "bullet_list"
-        # native/icon/chart 版型即使 AI 填了 imagePrompt 也丟棄（對齊 needsAIImage 過濾）。
-        if sl.get("imagePrompt") and not needs_ai_image(sl["layout"]):
+        layout = sl["layout"]
+        if sl.get("imagePrompt") and not needs_ai_image(layout):
             sl["imagePrompt"] = None
         ch = sl.get("chartData")
         if isinstance(ch, dict) and ch.get("type") not in _CHART_TYPES:
             ch["type"] = "bar"
+        # chart_focus 數據回填：AI 未給可渲染 chartData 時，從標題+內容+要點偵測數列。
+        if layout == "chart_focus" and not is_renderable_chart_data(sl.get("chartData")):
+            slide_text = "\n".join(
+                str(x) for x in [sl.get("title"), sl.get("content"), *(sl.get("bulletPoints") or [])] if x
+            )
+            inferred = build_chart_data_for_slide(layout, slide_text)
+            if inferred:
+                sl["chartData"] = inferred
+        # 教學版型條列數量預算（worked_example/exercise/code_block）。
+        enforce_teaching_layout_budget_dict(sl)
     return data
 
 

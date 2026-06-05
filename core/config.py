@@ -53,6 +53,15 @@ def get_learning_db_path() -> str:
     return os.environ.get("LEARNING_DB_PATH", str(LEARNING_DB_PATH))
 
 
+# eduStudio 合併 (B-2): translateGemma 翻譯歷史 SQLite db。env HISTORY_DB_PATH 可覆寫。
+HISTORY_DB_PATH = PROJECT_ROOT / "translate_history.db"
+
+
+def get_history_db_path() -> str:
+    """翻譯歷史 db 路徑。env HISTORY_DB_PATH 可覆寫。"""
+    return os.environ.get("HISTORY_DB_PATH", str(HISTORY_DB_PATH))
+
+
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)
 # 環境變數 CLAUDE_FONT_PATH / CLAUDE_FALLBACK_FONT_PATH 可覆寫

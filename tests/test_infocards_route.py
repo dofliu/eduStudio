@@ -13,7 +13,7 @@ pytest.importorskip("multipart", reason="server.main 內 upload route 需要")
 from fastapi.testclient import TestClient
 
 import server.routes.infocards as ic
-from core.infocards.schemas import ComicData, InfographicData
+from core.infocards.schemas import ComicData, InfographicData, PresentationData
 from core.infocards.share_store import ShareStore
 from server.main import create_app
 
@@ -42,6 +42,7 @@ class TestHealth:
         assert body["status"] == "ok"
         assert "comic" in body["implemented"] and "poster" in body["implemented"]
         assert "infographic" in body["implemented"]
+        assert "presentation" in body["implemented"]
 
 
 class TestGenerate:
@@ -82,9 +83,21 @@ class TestGenerate:
         assert body["success"] is True and body["type"] == "infographic"
         assert body["data"]["mainTitle"] == "圖卡"
 
-    def test_presentation_not_implemented(self, client):
-        r = client.post("/api/generate", json={"mode": "presentation", "text": "t"})
-        assert r.status_code == 501
+    def test_presentation_mode(self, client, monkeypatch):
+        fake = PresentationData.model_validate({
+            "mainTitle": "簡報", "subtitle": "副標", "themeColor": "#1e3a5f", "style": "navy",
+            "slides": [{"id": "s1", "layout": "title_cover", "title": "封面", "content": "",
+                        "speakerNotes": "開場"}],
+        })
+        monkeypatch.setattr(ic.presentation_service, "generate_presentation_data",
+                            lambda text, style, **kw: fake)
+        monkeypatch.setattr(ic.presentation_service, "generate_presentation_images",
+                            lambda data, **kw: data)
+        r = client.post("/api/generate", json={"mode": "presentation", "text": "t", "style": "navy"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is True and body["type"] == "presentation"
+        assert body["data"]["mainTitle"] == "簡報"
 
     def test_unknown_mode_400(self, client):
         r = client.post("/api/generate", json={"mode": "bogus", "text": "t"})

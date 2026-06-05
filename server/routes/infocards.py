@@ -9,7 +9,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from core.infocards import comic_service, infographic_service, poster_service
+from core.infocards import (
+    comic_service,
+    infographic_service,
+    poster_service,
+    presentation_service,
+)
 from core.infocards.models import DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL
 from core.infocards.share_store import get_share_store
 
@@ -48,7 +53,7 @@ def health() -> dict:
         "status": "ok",
         "service": "infocards",
         "modes": list(_SUPPORTED_MODES),
-        "implemented": ["comic", "poster", "infographic"],   # presentation 移植進行中
+        "implemented": ["comic", "poster", "infographic", "presentation"],
     }
 
 
@@ -81,8 +86,13 @@ def generate(req: GenerateRequest) -> dict:
                 "imageUrl": result["imageUrl"], "prompt": result["prompt"]}
 
     if mode == "presentation":
-        # presentationService.ts 拉約 10 helper，移植進行中（MERGE_PLAN §5.6）。
-        raise HTTPException(status_code=501, detail="presentation 模式移植進行中")
+        data = presentation_service.generate_presentation_data(
+            req.text, req.style, custom=req.customStylePrompt,
+            slide_count=req.slideCount, density=req.density,
+            typography=req.typography or "modern", model=req.textModel)
+        data = presentation_service.generate_presentation_images(
+            data, style=req.style, custom=req.customStylePrompt, image_model=req.imageModel)
+        return {"success": True, "type": "presentation", "data": data.model_dump()}
 
     raise HTTPException(status_code=400, detail=f"未知 mode：{req.mode}（支援 {_SUPPORTED_MODES}）")
 

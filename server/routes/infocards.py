@@ -7,6 +7,7 @@ presentation 移植進行中，暫回 501。
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from core.infocards import (
@@ -44,6 +45,13 @@ class ShareRequest(BaseModel):
     type: str
     title: str = ""
     data: dict | list | None = None
+
+
+class ExportPptxRequest(BaseModel):
+    """把生成的簡報 PresentationData 匯出成 .pptx。data 接 /api/generate 回的 data 物件。"""
+
+    data: dict
+    filename: str = "presentation"
 
 
 @router.get("/health")
@@ -95,6 +103,29 @@ def generate(req: GenerateRequest) -> dict:
         return {"success": True, "type": "presentation", "data": data.model_dump()}
 
     raise HTTPException(status_code=400, detail=f"未知 mode：{req.mode}（支援 {_SUPPORTED_MODES}）")
+
+
+@router.post("/export/pptx")
+def export_pptx(req: ExportPptxRequest) -> Response:
+    """簡報 PresentationData → .pptx 下載（python-pptx，座標對齊 slideMasters）。"""
+    from core.infocards.pptx_export import build_pptx
+
+    from urllib.parse import quote
+
+    try:
+        blob = build_pptx(req.data)
+    except Exception as e:  # 匯出失敗回 400 帶原因，不讓 500 把細節吞掉
+        raise HTTPException(status_code=400, detail=f"PPTX 匯出失敗：{e}") from e
+    name = (req.filename or "presentation").replace('"', "").replace("\\", "").strip() or "presentation"
+    # Content-Disposition 走 latin-1：中文檔名用 RFC 5987 filename*（UTF-8 百分號編碼），
+    # 另給純 ASCII fallback 給不支援 filename* 的舊客戶端。
+    ascii_name = name.encode("ascii", "ignore").decode() or "presentation"
+    disp = f"attachment; filename=\"{ascii_name}.pptx\"; filename*=UTF-8''{quote(name)}.pptx"
+    return Response(
+        content=blob,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": disp},
+    )
 
 
 @router.post("/share", status_code=201)

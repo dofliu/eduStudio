@@ -1,17 +1,17 @@
-"""雙語字幕翻譯層 — 呼叫本機 Ollama translategemma 把 narration 翻成第二語言。
+"""雙語字幕翻譯層 — 把 narration 翻成第二語言,預設用雲端 Gemini。
 
-劉老師 2026-06-04 決定: 翻譯後端用**本機 Ollama** translategemma (不是雲端
-Gemini / GCP) → 本機推論不燒雲端額度, offline-first 約束不擋。產出的
-`narration_secondary` 餵 core.srt.build_bilingual_srt_tracks 出第二語言 SRT 軌
-(格式 B, 雙獨立軌)。第二語言字幕軌**跳過 review** (用戶授權, 屬附加產出);
-中文主軌的 require_review 不動 (學術誠信底線)。
+劉老師 2026-06-04 定案(推翻當天稍早的 Ollama 決定): 翻譯後端**預設改用雲端
+Gemini API**。理由: 解除「全系統須本地」限制讓 core/RAG/Shell 能上雲;且 autoSolver
+本就用 Gemini(Vision 讀題、outline、diagram),Ollama 本地翻譯是整個棧唯一的本地 AI
+異類。narration / bullet 級文字用量小,成本可忽略。產出的 `narration_secondary`
+餵 core.srt.build_bilingual_srt_tracks 出第二語言 SRT 軌(格式 B, 雙獨立軌)。
 
-只用標準庫 urllib 打 Ollama HTTP API (/api/generate), **不加 pip dep**。Ollama
-服務需在本機跑 (`ollama serve`) 且已 `ollama pull translategemma`。
+後端切換: 環境變數 TRANSLATION_BACKEND(預設 'gemini')。設 'ollama' 走本機
+translategemma fallback(保留一個 release 週期作離線退路);Ollama 路徑用標準庫
+urllib 打 /api/generate,需本機 `ollama serve` 且已 `ollama pull translategemma`。
 
-注意 (待劉老師本機實測調整): translategemma 的最佳 prompt 格式我未實測, 這裡
-用通用 instruction prompt + 可配置 (translate_text 的 prompt_template), 本機跑
-過確認翻譯品質後再調 _build_prompt 預設。
+語言碼 canonical = 'zh-TW'(BCP-47 連字號);底線式 zh_TW 只在 translateGemma 服務
+邊界出現,本模組一律用連字號。
 """
 from __future__ import annotations
 
@@ -20,11 +20,21 @@ import os
 import urllib.error
 import urllib.request
 
-# Ollama 標準 env (OLLAMA_HOST), 退預設本機 port
+from core.config import GEMINI_MODEL, get_gemini_api_key
+
+# 翻譯後端切換: 預設 gemini,設 TRANSLATION_BACKEND=ollama 走本機 fallback。
+_BACKEND_ENV = "TRANSLATION_BACKEND"
+
+
+def _resolve_backend() -> str:
+    return os.environ.get(_BACKEND_ENV, "gemini").strip().lower()
+
+
+# Ollama fallback 設定(標準庫 urllib, 不加 pip dep)。
 DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 DEFAULT_MODEL = "translategemma"
 
-# target_lang code → prompt 用的語言全名
+# target_lang code → prompt 用的語言全名。canonical 用 BCP-47 連字號(zh-TW)。
 _LANG_NAMES = {
     "en": "English",
     "ja": "Japanese",
@@ -32,11 +42,13 @@ _LANG_NAMES = {
     "es": "Spanish",
     "fr": "French",
     "de": "German",
+    "zh": "Chinese (Simplified)",
+    "zh-TW": "Traditional Chinese",  # canonical 連字號;不接受底線式 zh_TW
 }
 
 
 class TranslateError(RuntimeError):
-    """Ollama 呼叫失敗 (服務沒開 / 模型缺 / 逾時 / 回傳異常)。"""
+    """翻譯呼叫失敗(Gemini 金鑰缺 / API 錯,或 Ollama 服務沒開 / 模型缺 / 逾時)。"""
 
 
 def _lang_name(target_lang: str) -> str:
@@ -44,11 +56,45 @@ def _lang_name(target_lang: str) -> str:
 
 
 def _build_prompt(text: str, target_lang: str) -> str:
-    """通用翻譯 instruction prompt (繁中 → 目標語)。待本機對 translategemma 實測調整。"""
+    """通用翻譯 instruction prompt(繁中 → 目標語)。Gemini / Ollama 共用。"""
     return (
         f"Translate the following Traditional Chinese text to {_lang_name(target_lang)}. "
         f"Output only the translation, no explanation, no quotes:\n\n{text}"
     )
+
+
+def translate_with_gemini(
+    text: str | None,
+    *,
+    target_lang: str = "zh-TW",
+    api_key: str | None = None,
+) -> str:
+    """用雲端 Gemini 翻譯一段文字到 target_lang。空 / None 原樣回 ""(不浪費呼叫)。
+
+    沿用本 repo 既有 Gemini 呼叫模式(outliner.py / diagram_gen.py):
+    `from google import genai` → `genai.Client(api_key=)` → `client.models.generate_content`。
+    溫度壓低(0.1)讓翻譯穩定。例外統一包成 TranslateError,且**不把 api_key 寫進訊息**(防外洩)。
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+    key = api_key or get_gemini_api_key()
+    if not key:
+        raise TranslateError("缺少 GEMINI_API_KEY 環境變數(或傳 api_key)")
+
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=key)
+    try:
+        resp = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[_build_prompt(text, target_lang)],
+            config=types.GenerateContentConfig(temperature=0.1),
+        )
+    except Exception as e:  # SDK 各種 API 錯統一包成 TranslateError(不洩 key)
+        raise TranslateError(f"Gemini 翻譯失敗: {e}") from e
+    return (resp.text or "").strip()
 
 
 def _call_ollama(
@@ -58,7 +104,10 @@ def _call_ollama(
     host: str,
     timeout: float,
 ) -> str:
-    """打 Ollama /api/generate (非串流), 回 response 字串。失敗丟 TranslateError。"""
+    """打 Ollama /api/generate(非串流), 回 response 字串。失敗丟 TranslateError。
+
+    fallback 路徑(TRANSLATION_BACKEND=ollama 時才走);預設後端為 Gemini。
+    """
     url = host.rstrip("/") + "/api/generate"
     payload = json.dumps(
         {"model": model, "prompt": prompt, "stream": False}
@@ -82,26 +131,37 @@ def _call_ollama(
 def translate_text(
     text: str | None,
     *,
-    target_lang: str = "en",
+    target_lang: str = "zh-TW",
+    backend: str | None = None,
+    api_key: str | None = None,
     model: str = DEFAULT_MODEL,
     host: str = DEFAULT_OLLAMA_HOST,
     timeout: float = 60.0,
 ) -> str:
-    """翻譯一段文字到 target_lang。空 / None 原樣回 "" (不浪費呼叫)。"""
+    """翻譯一段文字到 target_lang。空 / None 原樣回 ""(不浪費呼叫)。
+
+    backend 預設讀 TRANSLATION_BACKEND(預設 'gemini');'ollama' 走本機 fallback。
+    model / host / timeout 只在 ollama backend 生效(gemini 不用)。
+    """
     text = (text or "").strip()
     if not text:
         return ""
-    return _call_ollama(
-        _build_prompt(text, target_lang), model=model, host=host, timeout=timeout
-    )
+    backend = backend or _resolve_backend()
+    if backend == "ollama":
+        return _call_ollama(
+            _build_prompt(text, target_lang), model=model, host=host, timeout=timeout
+        )
+    return translate_with_gemini(text, target_lang=target_lang, api_key=api_key)
 
 
 def translate_steps(
     steps: list[dict],
     *,
-    target_lang: str = "en",
+    target_lang: str = "zh-TW",
     field: str = "narration",
     out_field: str = "narration_secondary",
+    backend: str | None = None,
+    api_key: str | None = None,
     model: str = DEFAULT_MODEL,
     host: str = DEFAULT_OLLAMA_HOST,
     timeout: float = 60.0,
@@ -121,7 +181,13 @@ def translate_steps(
         existing = (new.get(out_field) or "").strip()
         if src and not existing:
             new[out_field] = translate_text(
-                src, target_lang=target_lang, model=model, host=host, timeout=timeout
+                src,
+                target_lang=target_lang,
+                backend=backend,
+                api_key=api_key,
+                model=model,
+                host=host,
+                timeout=timeout,
             )
         out.append(new)
     return out

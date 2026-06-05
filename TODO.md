@@ -197,8 +197,13 @@
       track_type==='song' && segments list, 與 isExamDraft/isDeckDraft 不互撞) + Draft union
       加 SongDeck。SourceBadge.tsx SOURCE_META 加 'song' 條目 (唯一 exhaustive Record<SourceType>,
       不加 tsc 紅)。tsc 綠 + 2099 pytest 不變。改 2 檔 (types.ts + SourceBadge.tsx + TODO/STATUS)。
-    - [ ] **M3e-2 CreateJobForm**: source_type 下拉加 song 選項 + song 建 job 輸入流
-      (audio 檔 + 歌詞; song 不適用 theme/length_mode 等 deck 選項, 比照 exam 收斂面板)。
+    - [x] **M3e-2 CreateJobForm** (2026-06-05, routine 自主, offline, 動 web/ tsc 綠): source_type
+      下拉加 `song` 選項 + song 走 **path-only → song.json** 輸入流 (PATH_ONLY 加 'song';
+      build song.json 需離線對齊 GATE, 不是 web 表單做的, 故指向已產好的 song.json,
+      ingest_song 以其所在目錄解析 sibling audio/圖)。path 區 song 專屬提示 + 強制 review
+      說明 banner。`isSong` 收斂面板: 隱藏長寬比/解析度 + 講者頭像 + 整排渲染 checkbox
+      (字幕/intro/outro/mock 對 MV 分流全 no-op, review 後端強制硬規則 #1) → 比照 exam
+      收斂。tsc --noEmit 綠 + 2110 pytest 不變 (0 Python)。改 1 檔 (CreateJobForm.tsx)。
     - [ ] **M3e-3 JobEditor song review**: isSongDraft 分流新 SongReviewPane — 逐段顯示
       [start–end] 歌詞 + image_path 圖預覽 + reviewed 勾選 (RFC 手動 review 層)。
 - 對齊策略 (WhisperX ASR→文字對齊 vs align() 強制對齊已知歌詞) 在 M0 spike 拍板

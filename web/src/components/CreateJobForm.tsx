@@ -19,7 +19,10 @@ interface Props {
 }
 
 const FILE_UPLOADABLE: SourceType[] = ['exam_pdf', 'slides_pdf', 'document'];
-const PATH_ONLY: SourceType[] = ['repo'];
+// M3e-2: song 走 path-only — source.path 指向離線產好的 song.json,
+// ingest_song 以 song.json 所在目錄解析 audio / 逐段圖 (相對路徑), 再複製進 job dir。
+// 上傳單檔會讓 song.json 的 sibling 資產解析不到, 故不開 upload。
+const PATH_ONLY: SourceType[] = ['repo', 'song'];
 const URL_ONLY: SourceType[] = ['url'];
 
 type InputMode = 'upload' | 'path' | 'url';
@@ -117,6 +120,8 @@ export function CreateJobForm({ onCreated }: Props) {
 
   const supportsUpload = FILE_UPLOADABLE.includes(sourceType);
   const supportsPath = !URL_ONLY.includes(sourceType);
+  // M3e-2: song 是獨立 MV 渲染分流 (繞 v0 pipeline), 多數 deck/影片調校選項對它都 no-op
+  const isSong = sourceType === 'song';
 
   // theme 只對走 pptx renderer 的 source 有效 (repo / document / url)
   const themeApplicable: SourceType[] = ['repo', 'document', 'url'];
@@ -256,6 +261,7 @@ export function CreateJobForm({ onCreated }: Props) {
             <option value="repo">repo — 資料夾</option>
             <option value="document">document — PDF / MD / TXT 單檔</option>
             <option value="url">url — 網頁文章</option>
+            <option value="song">song — 歌曲 MV (song.json)</option>
           </select>
         </div>
 
@@ -311,14 +317,24 @@ export function CreateJobForm({ onCreated }: Props) {
 
       {inputMode === 'path' && (
         <div className="mt-3">
-          <label className="field-label">本機絕對路徑</label>
+          <label className="field-label">
+            {isSong ? 'song.json 路徑' : '本機絕對路徑'}
+          </label>
           <input
             type="text"
             className="field-input font-mono"
             value={path}
             onChange={(e) => setPath(e.target.value)}
-            placeholder="D:/path/to/source"
+            placeholder={isSong ? 'D:/path/to/song.json' : 'D:/path/to/source'}
           />
+          {isSong && (
+            <div className="text-xs text-ink-muted mt-1 leading-relaxed">
+              🎵 指向離線產好的 <code>song.json</code> (對齊 + 逐段生圖由
+              <code> tools/song_mv.py</code> / 生圖工具產出)。引用的音檔與逐段圖
+              以 song.json 所在目錄解析, 建 job 時會複製進 job dir。對齊與生圖皆 AI
+              估值 → song job 一律停 <b>awaiting_review</b> 等逐段人工微調。
+            </div>
+          )}
         </div>
       )}
 
@@ -476,7 +492,8 @@ export function CreateJobForm({ onCreated }: Props) {
         </div>
       )}
 
-      {/* iter 83 (B1+B2): 長寬比 + 解析度 */}
+      {/* iter 83 (B1+B2): 長寬比 + 解析度 — song MV 走獨立分流, 不吃這些 (M3e-2 隱藏) */}
+      {!isSong && (
       <div className="mt-3 flex gap-3">
         <div className="flex-1">
           <label className="field-label">長寬比</label>
@@ -507,8 +524,10 @@ export function CreateJobForm({ onCreated }: Props) {
           </select>
         </div>
       </div>
+      )}
 
-      {/* iter 92: 講者頭像策略 */}
+      {/* iter 92: 講者頭像策略 — song MV 無講者頭像 (M3e-2 隱藏) */}
+      {!isSong && (
       <div className="mt-3">
         <label className="field-label">右下角講者頭像</label>
         <select
@@ -524,6 +543,7 @@ export function CreateJobForm({ onCreated }: Props) {
           短影片 / 9:16 / ultra_quick / 短影片 layout 任一觸發「短片」判定
         </div>
       </div>
+      )}
 
       {/* iter 92 L2: scriptor 教學風格 (只 repo/document/url 用 scriptor) */}
       {showLengthMode && (
@@ -560,6 +580,17 @@ export function CreateJobForm({ onCreated }: Props) {
         </div>
       )}
 
+      {/* M3e-2: song 的渲染選項 (字幕/intro/outro/mock 等) 對 MV 分流都 no-op,
+          且 review 由後端強制 (對齊+生圖皆 AI 估值, 硬規則 #1) → 收斂成單一說明 */}
+      {isSong && (
+        <div className="mt-3 text-sm text-ink-muted bg-paper-warm border border-paper-line rounded px-3 py-2">
+          ✅ song job 一律 <b>強制停在 awaiting_review</b> (對齊時間軸 + 逐段生圖皆 AI
+          估值, 須逐段人工確認後再渲染)。MV 走獨立渲染分流, 其餘影片調校選項 (字幕樣式 /
+          長寬比 / 講者頭像 / intro·outro 串接 / mock) 對它不適用, 已隱藏。
+        </div>
+      )}
+
+      {!isSong && (
       <div className="flex items-center gap-4 mt-3 text-sm flex-wrap">
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
@@ -780,6 +811,7 @@ export function CreateJobForm({ onCreated }: Props) {
           mock (不打 Gemini)
         </label>
       </div>
+      )}
 
       <div className="mt-4 flex gap-2">
         <button onClick={submit} disabled={!canSubmit} className="btn btn-primary">

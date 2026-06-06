@@ -32,6 +32,14 @@ ingesting/awaiting_review/rendering/done/failed；JobRecord.stages[]=各階段 n
 
 ---
 
+## 🆕 第二批功能（2026-06-06 劉老師指定）
+
+- [x] **B1 影片瀏覽/播放區**（2026-06-06, infoCard `85e6f1e`）：發布站「影片庫」卡片模式內嵌 `<video controls>` 播放(mp4 range 206)+ 清單模式 + 切換。
+- [x] **B2 多選批次刪除**（同上 `85e6f1e`）：影片庫勾選多片 → 批次刪除 DELETE /jobs/{id}(去重+確認)。
+- [x] **B3 歌曲 MV song.json AI 產生**（2026-06-06, autoSolver `28ecb53` + infoCard `79de888`）：`core/song_build` whisper 轉錄 → song.json；`POST /localization/song/transcribe`；影音工具「歌曲歌詞抽取」+ 下載。
+- [x] **B4 設定頁**（2026-06-06, autoSolver `dda4683` + infoCard `961e61f`）：`core/settings`+`/settings`,SettingsDrawer(齒輪開):模型選擇(text/image)、Gemini API Key(遮罩)、個人品牌(講者/單位/連結)。get_gemini_api_key + /api/generate 模型解析改設定頁優先。
+  - 註：視覺站生成模型現可在設定頁選；**影片 render pipeline 的 GEMINI_MODEL 仍是常數**(要設定頁驅動需另改 config，未做)；個人品牌已存但**接進封面/outro 渲染待後續**(autoSolver approve options 那條)。
+
 ## 背景：三套 UI 並存
 
 合併後同一個 Python server（`http://127.0.0.1:8000`）同時掛三套前端：

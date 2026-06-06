@@ -63,6 +63,7 @@ __all__ = [
     "get_youtube_credentials",
     # PR-3f: server 用 YouTube helper
     "publish_artifact",
+    "upload_captions",
     "auto_youtube_meta",
     "OAuthBootstrapRequired",
 ]
@@ -101,11 +102,17 @@ def __getattr__(name: str):
             "upload_caption": upload_caption,
             "get_youtube_credentials": get_credentials,
         }[name]
-    if name in ("publish_artifact", "auto_youtube_meta", "OAuthBootstrapRequired"):
+    if name in ("publish_artifact", "upload_captions", "auto_youtube_meta", "OAuthBootstrapRequired"):
         # PR-3f: server 用的 YouTube helper, 不靠 sys.exit, 給 progress callback
-        from .youtube import publish_artifact, auto_youtube_meta, OAuthBootstrapRequired
+        from .youtube import (
+            auto_youtube_meta,
+            OAuthBootstrapRequired,
+            publish_artifact,
+            upload_captions,
+        )
         return {
             "publish_artifact": publish_artifact,
+            "upload_captions": upload_captions,
             "auto_youtube_meta": auto_youtube_meta,
             "OAuthBootstrapRequired": OAuthBootstrapRequired,
         }[name]

@@ -216,3 +216,81 @@ async def youtube_status(
         # 沒上傳過視為 pending 空白 record (前端輪詢前可能就跑這條)
         return YoutubeUpload()
     return upload
+
+
+# ---------- 多語字幕軌（發布站多語上傳，方案 A）----------
+
+class CaptionsRequest(BaseModel):
+    """為已上傳的影片加多語字幕軌。languages = 目標語言（canonical 連字號）。"""
+
+    languages: list[str]
+    source_lang: str = "zh-TW"
+
+
+async def _do_translate_and_upload(video_id: str, srt_text: str, source_lang: str,
+                                   languages: list[str]) -> list[dict]:
+    """逐語言翻譯 SRT → 暫存 → 上傳字幕軌。translate/上傳都 blocking → to_thread。"""
+    import os
+    import tempfile
+
+    from core.caption_translate import translate_srt
+    from core.langcode import to_underscore
+    from core.translation.service import translator
+
+    def _translate_fn(text: str, s: str, t: str) -> str:
+        return translator.translate(text, to_underscore(s) or "auto", to_underscore(t) or t)
+
+    captions, temp_paths = [], []
+    for lang in languages:
+        translated = await asyncio.to_thread(
+            translate_srt, srt_text, source_lang, lang, _translate_fn)
+        fd, path = tempfile.mkstemp(suffix=f".{lang}.srt")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(translated)
+        temp_paths.append(path)
+        captions.append({"language": lang, "name": lang, "srt_path": Path(path)})
+    try:
+        from core import upload_captions
+        return await asyncio.to_thread(upload_captions, video_id, captions)
+    finally:
+        for p in temp_paths:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+
+@router.post("/{job_id}/artifacts/{name}/captions", status_code=status.HTTP_202_ACCEPTED)
+async def add_captions(
+    job_id: str, name: str, req: CaptionsRequest,
+    store: JobStore = Depends(get_default_store),
+) -> dict:
+    """為已上傳的影片加多語字幕軌：翻譯既有 SRT → 各語上傳成 caption track。
+
+    前置：該 artifact 必須已上傳（youtube_uploads[name].state==DONE 且有 video_id），
+    且 artifacts/ 下有同名 .srt 當翻譯來源。回各語言上傳結果。
+    """
+    rec, _video = _require_artifact(job_id, name, store)
+    upload = rec.youtube_uploads.get(name)
+    if upload is None or upload.state != YoutubeUploadState.DONE or not upload.video_id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "請先把影片上傳到 YouTube，再加多語字幕軌",
+        )
+    srt_path = store.artifacts_dir(job_id) / (Path(name).stem + ".srt")
+    if not srt_path.exists():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"找不到來源字幕 {srt_path.name}，無法翻譯成多語",
+        )
+    if not req.languages:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "languages 不可為空")
+
+    srt_text = srt_path.read_text(encoding="utf-8")
+    from core import OAuthBootstrapRequired
+    try:
+        results = await _do_translate_and_upload(
+            upload.video_id, srt_text, req.source_lang, req.languages)
+    except OAuthBootstrapRequired as e:
+        raise HTTPException(status.HTTP_412_PRECONDITION_FAILED, str(e)) from e
+    return {"video_id": upload.video_id, "captions": results}

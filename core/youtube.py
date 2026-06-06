@@ -417,3 +417,41 @@ def publish_artifact(
             result.caption_error = str(e)
 
     return result
+
+
+def _build_youtube_client():
+    """建 YouTube API client（共用 OAuth）；token 不存在丟 OAuthBootstrapRequired。"""
+    if not YOUTUBE_TOKEN_PATH.exists():
+        raise OAuthBootstrapRequired(
+            f"找不到 {YOUTUBE_TOKEN_PATH.name}。請先在本機完成一次 OAuth 授權。"
+        )
+    from publish import get_credentials
+    from googleapiclient.discovery import build
+
+    try:
+        creds = get_credentials()
+    except SystemExit as e:
+        raise OAuthBootstrapRequired(str(e)) from e
+    return build("youtube", "v3", credentials=creds)
+
+
+def upload_captions(video_id: str, captions: list[dict]) -> list[dict]:
+    """為「已上傳的影片」加多語字幕軌（發布站多語字幕）。
+
+    captions: [{language, name, srt_path}]。逐軌上傳，單軌失敗只記該軌 error 不中斷其他。
+    回 [{language, caption_id?|error?}]。OAuth token 不存在丟 OAuthBootstrapRequired。
+    """
+    from publish import upload_caption
+
+    youtube = _build_youtube_client()
+    results: list[dict] = []
+    for cap in captions:
+        lang = cap.get("language", "")
+        srt_path = cap.get("srt_path")
+        try:
+            cid = upload_caption(youtube, video_id, srt_path,
+                                 language=lang, name=cap.get("name", lang))
+            results.append({"language": lang, "caption_id": cid})
+        except Exception as e:
+            results.append({"language": lang, "error": str(e)})
+    return results

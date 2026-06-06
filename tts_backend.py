@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import subprocess
 from abc import ABC, abstractmethod
@@ -431,7 +432,11 @@ class FallbackTTS(TTSBackend):
         if not self._primary_disabled:
             if await self.primary.synthesize(text, out_path):
                 return True
-            print(f"[tts] primary '{self.primary.name}' 失敗,後續改用 '{self.fallback.name}'")
+            # 改 logging（原為 print）→ 進 job log.jsonl,前端「詳情」看得到聲音其實 fallback 了。
+            # 否則使用者選了 f5(劉老師)卻聽到 edge 也不知道為什麼。
+            logging.getLogger("tts").warning(
+                "聲音後端 '%s' 失敗，本片改用備援 '%s'（選的聲音不會生效，請檢查 F5/GPU/ref 音檔）",
+                self.primary.name, self.fallback.name)
             self._primary_disabled = True
         return await self.fallback.synthesize(text, out_path)
 

@@ -27,8 +27,10 @@
 - [x] 🟡 **Project 站寫入**:建 Project / 匯入來源 / 多 Project 切換 — 全可寫(2026-06-06, infoCard `7f31024`)
 - [x] 🟢 **視覺站結果「加入 Project / 分享」**:`POST /projects/{id}/artifacts`,`/api/share`(2026-06-06, infoCard `d3805ee`)
 - [ ] 🟢 **發布站發布語言版本**驅動多語上傳(現只是視覺)
-- [ ] 🟢 **成本面板真實用量統計** — 現全 mock,**需新後端**(或先標「示意」)
-- [ ] 🟢 **review gate 逐段編輯存回** / source 刪改 — 需新 server 端點
+- [x] 🟢 **source 刪除** — `DELETE /projects/{pid}/sources/{sid}` + Project 站來源列垃圾桶鈕(2026-06-06, autoSolver `0ff72e9` / infoCard `ed25ab2`)
+- [ ] 🟡 **發布站多語上傳** — 需 per-language artifacts 機制(現 /library 不分語言追蹤),需設計
+- [ ] 🟡 **成本面板真實用量統計** — 現全 mock,**需新後端**(跨 Gemini 呼叫 token 計帳子系統,或先標「示意」)— 等劉老師決定
+- [ ] 🟡 **review gate 逐段編輯存回** — 需 server 端 deck-patch 端點 + segment↔deck 映射(較複雜)
 
 ---
 

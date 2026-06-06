@@ -135,6 +135,21 @@ def get_settings_path() -> str:
 GEMINI_MODEL = "gemini-2.5-flash"
 
 
+def get_gemini_model() -> str:
+    """Gemini 文字模型：設定頁 text_model 優先，否則預設 GEMINI_MODEL。
+
+    讓影片 pipeline（outliner/scriptor/翻譯）與視覺站一樣吃設定頁選的模型。
+    """
+    try:
+        from core.settings import get_setting
+        m = get_setting("text_model")
+        if m:
+            return m
+    except Exception:
+        pass
+    return GEMINI_MODEL
+
+
 # ---------- 語言 ----------
 # eduStudio 合併 (PR-M1): 全系統 canonical 語言碼 (BCP-47 連字號)。
 # 底線式 zh_TW 只在 translateGemma 邊界出現 (core/langcode.py 負責轉換)。
@@ -287,14 +302,24 @@ DEFAULT_COVER_SPEAKER = "劉瑞弘 副教授"
 DEFAULT_COVER_ORG = "國立勤益科技大學 · 智慧自動化工程系 · DofLab"
 
 
+def _brand_setting(key: str) -> str | None:
+    """讀設定頁的個人品牌欄位（brand_speaker/brand_org/brand_url）；失敗回 None。"""
+    try:
+        from core.settings import get_setting
+        v = get_setting(key)
+        return v or None
+    except Exception:
+        return None
+
+
 def get_cover_speaker() -> str:
-    """封面講者欄位. env CLAUDE_COVER_SPEAKER 可覆寫."""
-    return os.environ.get("CLAUDE_COVER_SPEAKER", DEFAULT_COVER_SPEAKER)
+    """封面講者. 優先序: 設定頁個人品牌 > env CLAUDE_COVER_SPEAKER > 預設."""
+    return _brand_setting("brand_speaker") or os.environ.get("CLAUDE_COVER_SPEAKER") or DEFAULT_COVER_SPEAKER
 
 
 def get_cover_org() -> str:
-    """封面單位欄位. env CLAUDE_COVER_ORG 可覆寫."""
-    return os.environ.get("CLAUDE_COVER_ORG", DEFAULT_COVER_ORG)
+    """封面單位. 優先序: 設定頁 > env CLAUDE_COVER_ORG > 預設."""
+    return _brand_setting("brand_org") or os.environ.get("CLAUDE_COVER_ORG") or DEFAULT_COVER_ORG
 
 
 # ---------- 結尾頁預設 (iter 63) ----------
@@ -310,10 +335,10 @@ def get_outro_thanks() -> str:
 
 
 def get_outro_url() -> str:
-    """結尾頁聯絡 URL. env CLAUDE_OUTRO_URL 可覆寫.
+    """結尾頁聯絡 URL. 優先序: 設定頁個人品牌 brand_url > env CLAUDE_OUTRO_URL > 預設.
 
     不檢查 URL 格式 — 給用戶自由 (可放 GitHub / email / lab 網址 / 任何字串)."""
-    return os.environ.get("CLAUDE_OUTRO_URL", DEFAULT_OUTRO_URL)
+    return _brand_setting("brand_url") or os.environ.get("CLAUDE_OUTRO_URL") or DEFAULT_OUTRO_URL
 
 
 # iter 67: 結尾頁 QR code — 第二個 URL 給 YouTube 頻道用

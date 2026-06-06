@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .config import GEMINI_MODEL, get_gemini_api_key
+from .config import get_gemini_api_key, get_gemini_model
 from .deck import normalize_deck
 from .text_utils import clean_json_escapes, strip_latex
 
@@ -446,7 +446,7 @@ def _call_with_retry(client, types, prompt: str, section_id: str, sec_outline: d
                 except Exception:
                     pass
             resp = client.models.generate_content(
-                model=GEMINI_MODEL,
+                model=get_gemini_model(),
                 contents=[prompt],
                 config=types.GenerateContentConfig(**cfg_kwargs),
             )

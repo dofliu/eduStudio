@@ -56,6 +56,36 @@ class TestApiKeyOverride:
         assert config.get_gemini_api_key() == "only-env"
 
 
+class TestModelOverride:
+    def test_default_when_unset(self, settings_path):
+        assert config.get_gemini_model() == config.GEMINI_MODEL
+
+    def test_settings_overrides_model(self, settings_path):
+        from core import settings as st
+        st.update({"text_model": "gemini-2.5-pro"})
+        assert config.get_gemini_model() == "gemini-2.5-pro"
+
+
+class TestBrandOverride:
+    def test_cover_speaker_org_url_from_settings(self, settings_path, monkeypatch):
+        from core import settings as st
+        # 無設定 → 預設
+        monkeypatch.delenv("CLAUDE_COVER_SPEAKER", raising=False)
+        assert config.get_cover_speaker() == config.DEFAULT_COVER_SPEAKER
+        # 設定頁覆寫
+        st.update({"brand_speaker": "劉瑞弘 教授", "brand_org": "NCUT", "brand_url": "doflab.cc"})
+        assert config.get_cover_speaker() == "劉瑞弘 教授"
+        assert config.get_cover_org() == "NCUT"
+        assert config.get_outro_url() == "doflab.cc"
+
+    def test_settings_beats_env(self, settings_path, monkeypatch):
+        from core import settings as st
+        monkeypatch.setenv("CLAUDE_COVER_SPEAKER", "from-env")
+        assert config.get_cover_speaker() == "from-env"
+        st.update({"brand_speaker": "from-settings"})
+        assert config.get_cover_speaker() == "from-settings"   # 設定頁優先
+
+
 class TestSettingsRoute:
     @pytest.fixture
     def client(self, settings_path):

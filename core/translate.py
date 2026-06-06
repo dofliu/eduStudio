@@ -20,7 +20,7 @@ import os
 import urllib.error
 import urllib.request
 
-from core.config import GEMINI_MODEL, get_gemini_api_key
+from core.config import get_gemini_api_key, get_gemini_model
 
 # 翻譯後端切換: 預設 gemini,設 TRANSLATION_BACKEND=ollama 走本機 fallback。
 _BACKEND_ENV = "TRANSLATION_BACKEND"
@@ -88,7 +88,7 @@ def translate_with_gemini(
     client = genai.Client(api_key=key)
     try:
         resp = client.models.generate_content(
-            model=GEMINI_MODEL,
+            model=get_gemini_model(),
             contents=[_build_prompt(text, target_lang)],
             config=types.GenerateContentConfig(temperature=0.1),
         )

@@ -39,7 +39,7 @@ def _gemini_complete(prompt: str) -> str:
     為什麼溫度 0.2：翻譯/批改/學習這類任務要穩定、低發散。金鑰缺則丟 RuntimeError，
     由各方法的 try/except 轉成使用者可讀的失敗字串（保留 translateGemma 原行為）。
     """
-    from core.config import GEMINI_MODEL, get_gemini_api_key
+    from core.config import get_gemini_api_key, get_gemini_model
 
     key = get_gemini_api_key()
     if not key:
@@ -48,9 +48,10 @@ def _gemini_complete(prompt: str) -> str:
     from google import genai
     from google.genai import types
 
+    used_model = get_gemini_model()
     client = genai.Client(api_key=key)
     resp = client.models.generate_content(
-        model=GEMINI_MODEL,
+        model=used_model,
         contents=[prompt],
         config=types.GenerateContentConfig(temperature=0.2),
     )
@@ -61,7 +62,7 @@ def _gemini_complete(prompt: str) -> str:
 
         from core import usage
         usage.record_text("language", len(prompt), len(text),
-                          model=GEMINI_MODEL, ts=datetime.now(timezone.utc).isoformat())
+                          model=used_model, ts=datetime.now(timezone.utc).isoformat())
     except Exception:
         pass
     return text

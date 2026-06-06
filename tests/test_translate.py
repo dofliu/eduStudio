@@ -93,7 +93,8 @@ class TestTranslateWithGemini:
         out = translate.translate_with_gemini("力矩", target_lang="en", api_key="fake")
         assert out == "Moment"  # 前後空白被 strip
         assert cap["api_key"] == "fake"
-        assert cap["model"] == translate.GEMINI_MODEL
+        from core import config
+        assert cap["model"] == config.GEMINI_MODEL   # 無設定頁覆寫時 = 預設
         assert "English" in cap["contents"][0]
 
     def test_api_error_wrapped(self, monkeypatch):

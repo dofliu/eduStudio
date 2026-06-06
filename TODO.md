@@ -24,8 +24,8 @@
 - [x] 🟡 **影片站 TaskCard 次要動作**:即時預覽→/editor、取消→DELETE、重試→重POST、發布→切站(2026-06-06, infoCard `30e9c08`)
 - [x] 🟡 **影片站篩選 tab**(全部/待審/生成中)— 真篩選(2026-06-06, 同上)
 - [ ] 🟡 **translateGemma 配音 / 會議摘要 進影片站**:`/localization/dub`,`/localization/meeting/summarize` 現成,需新 UI(語言/聲音選項)
-- [ ] 🟡 **Project 站寫入**:建 Project(`POST /projects`)/ 匯入來源(`POST /projects/{id}/sources`)/ 多 Project 切換(`GET /projects`)— 現只讀
-- [ ] 🟢 **視覺站結果「加入 Project / 分享」**:`POST /projects/{id}/artifacts`,`/api/share`
+- [x] 🟡 **Project 站寫入**:建 Project / 匯入來源 / 多 Project 切換 — 全可寫(2026-06-06, infoCard `7f31024`)
+- [x] 🟢 **視覺站結果「加入 Project / 分享」**:`POST /projects/{id}/artifacts`,`/api/share`(2026-06-06, infoCard `d3805ee`)
 - [ ] 🟢 **發布站發布語言版本**驅動多語上傳(現只是視覺)
 - [ ] 🟢 **成本面板真實用量統計** — 現全 mock,**需新後端**(或先標「示意」)
 - [ ] 🟢 **review gate 逐段編輯存回** / source 刪改 — 需新 server 端點

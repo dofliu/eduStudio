@@ -18,10 +18,12 @@
 - [x] **I3 inline 詳情/log**（2026-06-06, infoCard `12d696b`）：TaskCard「詳情」展開 stages 徽章 +
       log tail（GET /jobs/{id}/log,running 每 4s 刷新),次要出口連舊編輯器。不跳舊 /ui。
       **已驗證**：repo path-create → pending→rendering（ingest:done, render:running）1s 內,進度即時。
-- [ ] **I4 voice/TTS 選擇**：create panel 加旁白聲音選擇(GET /voices → options.tts_provider/voice),
-      讓劉老師選自己的 F5 複製聲音。這是 /ui 有、/app 缺的關鍵教學影片參數。
-- [ ] **（後續）/app 對等剩餘**：Proposals(資料夾掃描自動片單)、逐章 section re-render、主題預覽。
-      評估後決定哪些搬進 /app、舊 /ui /studio 何時退場或標「進階」。
+- [x] **I4 旁白聲音選擇**（2026-06-06, infoCard `bdc7299`）：create panel 接 GET /voices(9 聲音含
+      劉老師 F5 複製),選擇→POST /voices 設全域。實測 current=f5:teacher。
+- [x] **I5 AI 提案片單(Proposals 對等)**（2026-06-06, infoCard `ef15001`）：ProposalsPanel 掃資料夾
+      (scan-folder/async + 輪詢 scan-status)→ 列提案 → 核准建 job(/approve)/忽略(/ignore)。GET 實測通。
+- [ ] **（後續）/app 對等剩餘**：逐章 section re-render、主題預覽。舊 /ui /studio 何時退場或標「進階」由劉老師定。
+      **影片站核心已與 /ui 對等：6 來源 + 進度恢復 + inline 詳情 + 聲音 + 提案片單。**
 
 job 模型參考：SourceType= exam_pdf/slides_pdf/repo/document/url/song；JobState= pending/
 ingesting/awaiting_review/rendering/done/failed；JobRecord.stages[]=各階段 name+state。

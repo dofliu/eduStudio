@@ -71,6 +71,15 @@ def get_share_db_path() -> str:
     return os.environ.get("SHARE_DB_PATH", str(SHARE_DB_PATH))
 
 
+# eduStudio 統一介面：Gemini 用量計帳 SQLite db（成本面板真實統計）。
+USAGE_DB_PATH = PROJECT_ROOT / "usage.db"
+
+
+def get_usage_db_path() -> str:
+    """用量計帳 db 路徑。env USAGE_DB_PATH 可覆寫（測試用 tmp）。"""
+    return os.environ.get("USAGE_DB_PATH", str(USAGE_DB_PATH))
+
+
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)
 # 環境變數 CLAUDE_FONT_PATH / CLAUDE_FALLBACK_FONT_PATH 可覆寫

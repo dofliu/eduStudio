@@ -69,6 +69,17 @@ class RefineSlideRequest(BaseModel):
     textModel: str = DEFAULT_TEXT_MODEL
 
 
+@router.get("/usage")
+def usage_summary() -> dict:
+    """Gemini 用量真實統計（成本面板）。涵蓋視覺站 + 在地化的呼叫；budget 為設定值。"""
+    from core.usage import get_usage_store
+
+    s = get_usage_store().summary()
+    s["budget"] = 30.0           # 月預算（設定值，無真實來源）
+    s["note"] = "已涵蓋視覺站／在地化的 Gemini 呼叫；影片 render pipeline 用量另計"
+    return s
+
+
 @router.get("/health")
 def health() -> dict:
     """infoCard 風格健康檢查（模式清單 + 服務資訊）。"""

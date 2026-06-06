@@ -54,7 +54,17 @@ def _gemini_complete(prompt: str) -> str:
         contents=[prompt],
         config=types.GenerateContentConfig(temperature=0.2),
     )
-    return (resp.text or "").strip()
+    text = (resp.text or "").strip()
+    # 用量計帳（在地化站）；吞例外不拖垮翻譯。
+    try:
+        from datetime import datetime, timezone
+
+        from core import usage
+        usage.record_text("language", len(prompt), len(text),
+                          model=GEMINI_MODEL, ts=datetime.now(timezone.utc).isoformat())
+    except Exception:
+        pass
+    return text
 
 
 class TranslateGemmaService:

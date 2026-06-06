@@ -3,6 +3,27 @@
 > 盤點日期：2026-06-06　·　對象：`web/eduapp`（源碼在 `infoCard/edustudio/app.jsx`）
 > 用途：列出統一介面 `/app` 每個控制項「接後端了沒」，當作補完的工作清單。
 
+## 🔧 影片站完整化計畫（2026-06-06，劉老師 review 後）
+
+劉老師實測發現兩個整合問題：(1) `/app` 與舊 `/ui`/`/studio` 並存、舊的更完整；
+(2) 影片站只剩「解題」，原本的 考卷/簡報/repo/文件/網址 source type 不見了（被我硬塞進
+「任務類型」框架，slides_pdf/repo/song 沒入口；source type 跑到 Project 匯入但生成沒接）。
+
+**決議：一步步來，先把影片站做完整 + 進度狀態可恢復；介面可改（Claude Design 只是樣版）。**
+
+- [x] **I1 影片站來源類型完整化**（2026-06-06, infoCard `4f6b228`）：source-type 為主，6 來源全列,
+      file→/upload、url/path→/jobs,repo/document/url 可選 theme。影音工具維持獨立。
+- [x] **I2 進度／狀態恢復**（2026-06-06, infoCard `b20983d`）：esJobProgress 從 stages 算進度+步驟標籤,
+      有 active job 時每 4 秒輪詢,TaskCard 顯示進度條+步驟,重整不丟(JobStore 持久化)。
+- [ ] **I3 易用性 polish**：running job 的「即時預覽」改 inline 顯示 stages + log tail(GET /jobs/{id}/log),
+      不跳舊 /ui;清楚空狀態/引導。讓新介面比舊的更好用。
+- [ ] **（後續）/app 對等後，舊 /ui /studio 退場或標記為進階**。
+
+job 模型參考：SourceType= exam_pdf/slides_pdf/repo/document/url/song；JobState= pending/
+ingesting/awaiting_review/rendering/done/failed；JobRecord.stages[]=各階段 name+state。
+
+---
+
 ## 背景：三套 UI 並存
 
 合併後同一個 Python server（`http://127.0.0.1:8000`）同時掛三套前端：

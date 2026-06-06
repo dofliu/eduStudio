@@ -22,8 +22,10 @@
       劉老師 F5 複製),選擇→POST /voices 設全域。實測 current=f5:teacher。
 - [x] **I5 AI 提案片單(Proposals 對等)**（2026-06-06, infoCard `ef15001`）：ProposalsPanel 掃資料夾
       (scan-folder/async + 輪詢 scan-status)→ 列提案 → 核准建 job(/approve)/忽略(/ignore)。GET 實測通。
-- [ ] **（後續）/app 對等剩餘**：逐章 section re-render、主題預覽。舊 /ui /studio 何時退場或標「進階」由劉老師定。
-      **影片站核心已與 /ui 對等：6 來源 + 進度恢復 + inline 詳情 + 聲音 + 提案片單。**
+- [x] **I6 逐章 section re-render**（2026-06-06, infoCard `d490f66`）：TaskCard 詳情(done/failed)列 deck 章節,
+      每章「重渲染」→ POST /jobs/{id}/sections/{id}/render。實測 done job deck 列 4 章。
+- [ ] **（剩餘，需劉老師決定）**：主題預覽(很次要)、**舊 /ui /studio 何時退場或標「進階」**。
+      **✅ 影片站達成與 /ui 完整對等：6 來源 + 進度恢復 + inline 詳情/log + 旁白聲音 + AI 提案片單 + 逐章重渲染 + 影音工具(配音/會議)。**
 
 job 模型參考：SourceType= exam_pdf/slides_pdf/repo/document/url/song；JobState= pending/
 ingesting/awaiting_review/rendering/done/failed；JobRecord.stages[]=各階段 name+state。

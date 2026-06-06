@@ -10,6 +10,32 @@
 
 ---
 
+## 🎓 eduStudio 整合 (2026-06 進行中)
+
+本 repo 是 **eduStudio** 的物理基底:把三個專案合併成**單一 Python FastAPI server**,可整包部署:
+
+- **autoSolver**(本體)— 考卷/講義 → 旁白教學影片 + 字幕 + YouTube
+- **infoCard**(已移植成 Python)— 簡報 / 圖卡 / 海報 / 漫畫(Gemini 生成 + PPTX 匯出)
+- **translateGemma**(已移植成 Python)— 翻譯 / 配音 / OCR / 會議摘要 / 學習工具
+
+同一個 server(`port 8000`)掛三套前端:
+
+| 路徑 | 內容 | 狀態 |
+|------|------|------|
+| **`/app`** | Claude Design 統一重設計(4 工作站:影片/視覺/素材·Project/發布) | **薄殼**:每站主生成動作已接後端,多數選項/次要動作待補 |
+| `/studio` | 原版 infoCard 全功能 UI | 完整,但 client-side 直連 Gemini |
+| `/ui` | 原版 autoSolver 影片 UI | 完整 |
+
+**後端 API 大多齊備**(生成 `/api/generate`、大綱、微調 `/api/refine`、PPTX 匯出 `/api/export/pptx`、
+翻譯/配音/會議/學習 `/localization/*`、Project `/projects`、發布 `/library`+YouTube)。
+目前缺口主要在 **`/app` 把這些能力 surface 出來的 UI 控制項**(風格/張數/來源/學習工具…多為純前端接線)。
+
+> 📋 完整接線盤點與補完清單見 **[docs/EDUSTUDIO_UI_WIRING.md](docs/EDUSTUDIO_UI_WIRING.md)**。
+> 前端源碼在 `infoCard/edustudio/app.jsx`,build 進 `web/eduapp`:
+> `cd infoCard && npx vite build --config vite.edustudio.config.ts --base=/app/`(**`--base=/app/` 不可漏**,否則 `/app` 整頁空白 404)。
+
+---
+
 ## 目前能做到什麼 (2026-05-09 更新)
 
 - **5 種輸入** (`source_type`):`exam_pdf` / `slides_pdf` / `repo` / `document` / `url`

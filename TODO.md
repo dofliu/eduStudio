@@ -13,6 +13,25 @@
 
 ---
 
+## 🌟 eduStudio 統一介面 `/app` — UI 接線補完 (2026-06-06)
+
+> 完整盤點見 **[docs/EDUSTUDIO_UI_WIRING.md](docs/EDUSTUDIO_UI_WIRING.md)**。
+> `/app` 是薄殼:每站主生成動作已接後端,但多數選項/次要動作是 placeholder。
+> 後端大多現成(⚙️),多數是純前端接線。前端源碼 `infoCard/edustudio/app.jsx`。
+
+- [ ] 🔴 **視覺站選項真化**:風格(16 主題)/張數/格數/自訂 prompt/密度/長寬比 — 現寫死,`/api/generate` 已收這些參數,純前端加 select
+- [ ] 🔴 **學習工具箱接線**:單字卡/寫作糾錯/會話/聽寫 — 按鈕無 onClick,`/localization/learning/*` 現成
+- [ ] 🟡 **影片站 TaskCard 次要動作**:即時預覽/重試/取消/發布 — 死按鈕,後端現成(artifact_url / 重 POST / DELETE /jobs / youtube)
+- [ ] 🟡 **影片站篩選 tab**(全部/待審/生成中)— onChange 空,純前端
+- [ ] 🟡 **translateGemma 配音 / 會議摘要 進影片站**:`/localization/dub`,`/localization/meeting/summarize` 現成,需新 UI(語言/聲音選項)
+- [ ] 🟡 **Project 站寫入**:建 Project(`POST /projects`)/ 匯入來源(`POST /projects/{id}/sources`)/ 多 Project 切換(`GET /projects`)— 現只讀
+- [ ] 🟢 **視覺站結果「加入 Project / 分享」**:`POST /projects/{id}/artifacts`,`/api/share`
+- [ ] 🟢 **發布站發布語言版本**驅動多語上傳(現只是視覺)
+- [ ] 🟢 **成本面板真實用量統計** — 現全 mock,**需新後端**(或先標「示意」)
+- [ ] 🟢 **review gate 逐段編輯存回** / source 刪改 — 需新 server 端點
+
+---
+
 ## 🌟 等用戶介入 (routine 不該動)
 
 > routine 不該自己決策的事 — 等劉老師實機反饋 / 給樣本 / 給 API key.
@@ -271,6 +290,65 @@
     flatten; 渲染燒一軌 + publish.py captions.insert 上第二軌 (碰 YouTube OAuth = GATE)。
 - [ ] **學生提問 → RAG → 解答影片** (🟢 探索, 戰略價值高工程重): 串 RAG 研究
   (Kiwi/Christian) + EdTech 論文 + 課程網站整合。先寫 RFC 拆子系統, 不急著動 code。
+
+### 🖼️ CARD 軸 — 資訊圖卡 → 講解影片 (新 source_type, 🟡 中, 2026-06-03 用戶提)
+
+> **需求 (劉老師 2026-06-03)**: 常有「把某主題/章節 → 1~5 張資訊圖卡」的需求。希望
+> 拿那幾張圖 **+ 它們原本的生圖提示詞** 當影片內容 → AI 轉口述旁白 → 出圖卡講解影片
+> (配 SRT, 走既有 TTS/YouTube 通道)。
+>
+> **關鍵發現 (省一半工)**: infoCard poster service 已現成 —
+> `core/infocards/poster_service.py` `generate_poster()` 回 `{imageUrl, prompt}`,
+> 「圖卡 + 原始生圖 prompt」本來就一起出。原料齊備。
+>
+> **架構定位**: 比 SONG 軸**簡單** — 圖卡是靜態圖、每張配一段旁白 → **走既有 deck/slides
+> 的 TTS+SRT+render pipeline**, 不需要 SONG 的 forced alignment (無歌詞時間軸問題)。
+> 本質上是「slides_pdf 流, 但每張 slide = 一張全幅資訊圖卡」。新東西只有「prompt→narration」
+> 那一步 + 全幅圖渲染 mode。
+>
+> **建議流程**:
+> 1. 主題/章節 → infoCard poster_service 產 1~5 張卡 (已有 imageUrl + prompt)
+> 2. (卡圖 + 該卡生圖 prompt + 主題) → Gemini/Claude 產逐卡旁白 → **強制 review (硬規則 #1,
+>    AI 產 narration)**, 停 awaiting_review
+> 3. flatten 成 deck-like schema: 每「slide」= 1 張卡全幅背景 + narration (複用 `core/deck.py`)
+> 4. 既有 pipeline: TTS → SRT → render → mp4 → YouTube (幾乎全複用)
+>
+> **複用 vs 新建**:
+> - 複用: poster_service / TTS / srt.narration_to_cues / publish.py / review gate / Library
+> - 新建: ① source_type 註冊 (名稱待定: `infocard` / `card_video`?) ② prompt→narration 生成層
+>   (GATE: 碰 Gemini/Claude 額度, offline-first 寫 proposal 等開額度) ③ 全幅圖渲染 mode
+>   (SlideRenderer 已有 full/split-left, 全幅背景圖可能要小調) ④ type guard `is_card_schema`
+>   (硬規則 #9) ⑤ web UI: 觸發 + 逐卡 narration review
+>
+> **開放問題 (待拍板, 不自行假設)**:
+> 1. source_type 命名 + 是否獨立 track 還是掛在 infoCard studio 流程下
+> 2. 圖卡來源: 一律 infoCard 現生? 還是允許上傳已有圖卡 + 手填 prompt?
+> 3. 一張卡一段旁白 (≤5 段短片), 還是允許一張卡多段 (像 slides 逐 bullet)?
+> 4. 轉場/動態: 純切換 / ken burns 推鏡 (SONG 軸 `build_song_mv_kenburns_cmd` 可借)?
+>
+> **下一步**: 等劉老師對上述 4 點拍板 → 寫 `docs/CARD_VIDEO_RFC.md` 拆 PR (比照 SONG M0~M3)。
+> offline-first: 渲染/schema/type guard 可先做, prompt→narration 碰額度寫 proposal STOP。
+
+- [ ] **CARD-0 設計拍板**: 上述 4 個開放問題, 劉老師選定後寫 RFC。
+
+### 📚 EBOOK 軸 — 電子書輸出 EduForge (🔴 大功能, v5.0, 2026-06-05 用戶提)
+
+> **需求**: 在不動 video pipeline 前提下, 加**第二條輸出管道** — 同一份教材 → 多版本
+> EPUB 電子書 + 練習/測驗題 + 教學簡報 .pptx。Job 狀態機加 `output_type` 概念。
+> 完整規格 (模組/API/UI/實作順序/開放問題) 見 **[docs/EBOOK_OUTPUT_RFC.md](docs/EBOOK_OUTPUT_RFC.md)**
+> (原 issue `D:\Dropbox\ISSUE_ebook_output.md` 已落地進 repo)。
+>
+> **新模組**: `core/versioner.py` (Claude 多版本改寫) / `epub_builder.py` (ebooklib 打包) /
+> `quiz_gen.py` (出題) / `pptx_export.py` (接 pptx-jliu-style) + `server/routes/ebook.py`。
+> **硬規則**: 計算題/AI 內容仍走 `require_review=True` (#1); 動 server/runner/schemas 跑 pytest (#7);
+> type guard dispatch output_type (#9)。
+>
+> **估**: 3~4 週 (Phase A 核心 2w / B 題庫 1w / C 簡報+UI 1w)。**待拍板問題見 RFC §9**
+> (版本選擇 UI / 封面圖 / EPUB 2 vs 3 / 公式渲染 — repo 已有 formula_render 可複用 /
+> 中文內嵌字型 / 改寫出題用 Claude vs Gemini)。新 dep: `ebooklib`, `anthropic`。
+
+- [ ] **EBOOK-0 設計拍板 + 排程**: RFC §9 六個開放問題拍板 + 決定何時插隊 (這是 v5.0
+  大功能, 與 SONG/CARD 軸排序)。
 
 ### 🎬 V 軸 — 動態視覺 (N 軸全完成後啟動)
 

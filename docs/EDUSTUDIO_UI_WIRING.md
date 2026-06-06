@@ -15,9 +15,13 @@
       file→/upload、url/path→/jobs,repo/document/url 可選 theme。影音工具維持獨立。
 - [x] **I2 進度／狀態恢復**（2026-06-06, infoCard `b20983d`）：esJobProgress 從 stages 算進度+步驟標籤,
       有 active job 時每 4 秒輪詢,TaskCard 顯示進度條+步驟,重整不丟(JobStore 持久化)。
-- [ ] **I3 易用性 polish**：running job 的「即時預覽」改 inline 顯示 stages + log tail(GET /jobs/{id}/log),
-      不跳舊 /ui;清楚空狀態/引導。讓新介面比舊的更好用。
-- [ ] **（後續）/app 對等後，舊 /ui /studio 退場或標記為進階**。
+- [x] **I3 inline 詳情/log**（2026-06-06, infoCard `12d696b`）：TaskCard「詳情」展開 stages 徽章 +
+      log tail（GET /jobs/{id}/log,running 每 4s 刷新),次要出口連舊編輯器。不跳舊 /ui。
+      **已驗證**：repo path-create → pending→rendering（ingest:done, render:running）1s 內,進度即時。
+- [ ] **I4 voice/TTS 選擇**：create panel 加旁白聲音選擇(GET /voices → options.tts_provider/voice),
+      讓劉老師選自己的 F5 複製聲音。這是 /ui 有、/app 缺的關鍵教學影片參數。
+- [ ] **（後續）/app 對等剩餘**：Proposals(資料夾掃描自動片單)、逐章 section re-render、主題預覽。
+      評估後決定哪些搬進 /app、舊 /ui /studio 何時退場或標「進階」。
 
 job 模型參考：SourceType= exam_pdf/slides_pdf/repo/document/url/song；JobState= pending/
 ingesting/awaiting_review/rendering/done/failed；JobRecord.stages[]=各階段 name+state。

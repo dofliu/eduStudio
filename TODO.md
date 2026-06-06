@@ -19,10 +19,10 @@
 > `/app` 是薄殼:每站主生成動作已接後端,但多數選項/次要動作是 placeholder。
 > 後端大多現成(⚙️),多數是純前端接線。前端源碼 `infoCard/edustudio/app.jsx`。
 
-- [ ] 🔴 **視覺站選項真化**:風格(16 主題)/張數/格數/自訂 prompt/密度/長寬比 — 現寫死,`/api/generate` 已收這些參數,純前端加 select
-- [ ] 🔴 **學習工具箱接線**:單字卡/寫作糾錯/會話/聽寫 — 按鈕無 onClick,`/localization/learning/*` 現成
-- [ ] 🟡 **影片站 TaskCard 次要動作**:即時預覽/重試/取消/發布 — 死按鈕,後端現成(artifact_url / 重 POST / DELETE /jobs / youtube)
-- [ ] 🟡 **影片站篩選 tab**(全部/待審/生成中)— onChange 空,純前端
+- [x] 🔴 **視覺站選項真化**:風格/張數/格數/自訂 prompt/密度/字型/長寬比 — 真 select 餵 `/api/generate`(2026-06-06, infoCard `f273a5c`)
+- [x] 🔴 **學習工具箱接線**:單字卡/寫作糾錯/會話 — 內嵌表單接 `/localization/learning/*`(2026-06-06, infoCard `c20c2ba`)
+- [x] 🟡 **影片站 TaskCard 次要動作**:即時預覽→/editor、取消→DELETE、重試→重POST、發布→切站(2026-06-06, infoCard `30e9c08`)
+- [x] 🟡 **影片站篩選 tab**(全部/待審/生成中)— 真篩選(2026-06-06, 同上)
 - [ ] 🟡 **translateGemma 配音 / 會議摘要 進影片站**:`/localization/dub`,`/localization/meeting/summarize` 現成,需新 UI(語言/聲音選項)
 - [ ] 🟡 **Project 站寫入**:建 Project(`POST /projects`)/ 匯入來源(`POST /projects/{id}/sources`)/ 多 Project 切換(`GET /projects`)— 現只讀
 - [ ] 🟢 **視覺站結果「加入 Project / 分享」**:`POST /projects/{id}/artifacts`,`/api/share`

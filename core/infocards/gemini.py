@@ -43,14 +43,36 @@ def _record_text(station: str, model: str, prompt: str, text: str) -> None:
         pass
 
 
+def _build_contents(prompt: str, files):
+    """組多模態 contents：把上傳檔（PDF/圖片 base64）當 inline part + prompt 文字。
+
+    files: [{mimeType, data(base64 str 或 bytes)}]。無檔則回 [prompt]（純文字，行為不變）。
+    """
+    if not files:
+        return [prompt]
+    from google.genai import types
+
+    parts = []
+    for f in files:
+        data = f.get("data") if isinstance(f, dict) else None
+        if not data:
+            continue
+        raw = base64.b64decode(data) if isinstance(data, str) else data
+        mime = (f.get("mimeType") if isinstance(f, dict) else None) or "application/octet-stream"
+        parts.append(types.Part.from_bytes(data=raw, mime_type=mime))
+    parts.append(types.Part.from_text(text=prompt))
+    return parts
+
+
 def generate_json(prompt: str, *, model: str | None = None,
                   api_key: str | None = None, temperature: float = 0.4,
-                  response_schema=None, station: str = "visual") -> dict:
+                  response_schema=None, station: str = "visual", files=None) -> dict:
     """呼叫 Gemini 產 JSON（response_mime_type=application/json），回 parsed dict。
 
     response_schema（pydantic model 或 dict）約束輸出結構 —— 對齊 infoCard 原本用
     responseSchema 強制 JSON 形狀的做法，避免模型自由發揮回錯誤鍵。解析失敗回 {}。
     station 標記成本歸屬（成本面板用，預設 visual）。
+    files：多模態參考檔（PDF/圖片 inline data），讓生成讀取使用者真實教材而非只靠標題。
     """
     from google.genai import types
 
@@ -61,7 +83,7 @@ def generate_json(prompt: str, *, model: str | None = None,
         cfg["response_schema"] = response_schema
     resp = client.models.generate_content(
         model=used_model,
-        contents=[prompt],
+        contents=_build_contents(prompt, files),
         config=types.GenerateContentConfig(**cfg),
     )
     text = resp.text or "{}"

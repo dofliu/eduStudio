@@ -104,7 +104,7 @@ class TestPresentationIntegration:
             ],
         }
         monkeypatch.setattr(pres, "generate_json",
-                            lambda prompt, model=None, response_schema=None: fake)
+                            lambda prompt, model=None, response_schema=None, files=None: fake)
         data = pres.generate_presentation_data("x", "navy")
         assert isinstance(data, PresentationData)
         # chart 回填
@@ -123,7 +123,7 @@ class TestPresentationIntegration:
             ],
         }
         monkeypatch.setattr(pres, "generate_json",
-                            lambda prompt, model=None, response_schema=None: fake)
+                            lambda prompt, model=None, response_schema=None, files=None: fake)
         data = pres.generate_presentation_data("x", "navy")
         cd = data.slides[0].chartData
         assert cd.labels == ["X", "Y"] and cd.type == "pie"  # 不覆蓋 AI 有效數據

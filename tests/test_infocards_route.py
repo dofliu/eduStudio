@@ -48,7 +48,7 @@ class TestHealth:
 class TestGenerate:
     def test_comic_mode(self, client, monkeypatch):
         monkeypatch.setattr(ic.comic_service, "generate_comic_script",
-                            lambda text, style, custom="", panels=4, model=None: _FAKE_COMIC)
+                            lambda text, style, custom="", panels=4, model=None, files=None: _FAKE_COMIC)
         monkeypatch.setattr(ic.comic_service, "generate_comic_images",
                             lambda data, model=None, custom="": data)
         r = client.post("/api/generate", json={"mode": "comic", "text": "向量", "style": "comic"})
@@ -74,7 +74,7 @@ class TestGenerate:
             "statistics": [{"id": "st1", "value": "1", "label": "x"}],
         })
         monkeypatch.setattr(ic.infographic_service, "generate_infographic_data",
-                            lambda text, style, custom="", aspect_ratio="vertical", model=None: fake)
+                            lambda text, style, custom="", aspect_ratio="vertical", model=None, files=None: fake)
         monkeypatch.setattr(ic.infographic_service, "generate_infographic_images",
                             lambda data, model=None, custom="": data)
         r = client.post("/api/generate", json={"mode": "infographic", "text": "牛頓", "style": "academic"})

@@ -40,6 +40,18 @@ class TestGeminiHelper:
         monkeypatch.setattr(gem, "_client", lambda api_key=None: _FakeClient(_FakeResp("not json")))
         assert gem.generate_json("p") == {}
 
+    def test_build_contents_text_only(self):
+        # 無檔 → 純文字（行為不變）
+        assert gem._build_contents("hello", None) == ["hello"]
+        assert gem._build_contents("hello", []) == ["hello"]
+
+    def test_build_contents_with_files(self):
+        import base64
+        b64 = base64.b64encode(b"PDFBYTES").decode()
+        parts = gem._build_contents("describe this", [{"mimeType": "application/pdf", "data": b64}])
+        # 兩個 part：inline 檔 + prompt 文字
+        assert len(parts) == 2
+
     def test_generate_image_b64(self, monkeypatch):
         monkeypatch.setattr(gem, "_client", lambda api_key=None: _FakeClient(_FakeResp(None)))
         import core.diagram_image_gen as dig
@@ -71,7 +83,7 @@ _FAKE_COMIC = {
 
 class TestComicService:
     def test_generate_script_sets_style_and_prompt(self, monkeypatch):
-        monkeypatch.setattr(comic, "generate_json", lambda prompt, model=None, response_schema=None: dict(_FAKE_COMIC))
+        monkeypatch.setattr(comic, "generate_json", lambda prompt, model=None, response_schema=None, files=None: dict(_FAKE_COMIC))
         data = comic.generate_comic_script("向量加法", "comic", panels=2)
         assert isinstance(data, ComicData)
         assert data.style == "comic"
@@ -82,7 +94,7 @@ class TestComicService:
     def test_custom_style_in_prompt(self, monkeypatch):
         seen = {}
 
-        def fake_json(prompt, model=None, response_schema=None):
+        def fake_json(prompt, model=None, response_schema=None, files=None):
             seen["prompt"] = prompt
             return dict(_FAKE_COMIC)
 

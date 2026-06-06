@@ -99,7 +99,7 @@ _FAKE_OUTLINES = {
 class TestGenerateOutlines:
     def test_outlines_reconciled_and_normalized(self, monkeypatch):
         monkeypatch.setattr(pres, "generate_json",
-                            lambda prompt, model=None, response_schema=None: {
+                            lambda prompt, model=None, response_schema=None, files=None: {
                                 "outlines": [dict(o, slides=[dict(s) for s in o["slides"]])
                                              for o in _FAKE_OUTLINES["outlines"]]})
         outs = pres.generate_presentation_outlines("控制系統", "navy", slide_count=3)
@@ -122,7 +122,7 @@ class TestSelectedOutlineGeneration:
     def test_selected_outline_uses_its_theme_typography(self, monkeypatch):
         captured = {}
 
-        def fake_json(prompt, model=None, response_schema=None):
+        def fake_json(prompt, model=None, response_schema=None, files=None):
             captured["prompt"] = prompt
             return {"mainTitle": "T", "subtitle": "S", "themeColor": "#111", "style": "forest",
                     "slides": [{"id": "s1", "layout": "title_cover", "title": "封面",

@@ -248,6 +248,7 @@ def generate_presentation_data(
     animation: str = "fade",
     selected_outline: dict | None = None,
     model: str | None = None,
+    files=None,
 ) -> PresentationData:
     """內容 → 簡報結構 PresentationData（不含圖；imageUrl 之後由 images 步驟填）。
 
@@ -261,7 +262,7 @@ def generate_presentation_data(
     theme = get_theme_by_style("professional" if effective_style == "custom" else effective_style)
     prompt = _build_prompt(text, effective_style, custom, slide_count, density, typography,
                            theme, selected_outline)
-    data = generate_json(prompt, model=model, response_schema=_PresentationGen)
+    data = generate_json(prompt, model=model, response_schema=_PresentationGen, files=files)
     data = _coerce(data)
     # 後端補（非模型輸出，對齊 presentationService.ts）。
     data["typography"] = typography
@@ -339,6 +340,7 @@ def generate_presentation_outlines(
     custom: str = "",
     slide_count: int = 10,
     model: str | None = None,
+    files=None,
 ) -> list[PresentationOutline]:
     """Stage 1：產 3 個大綱方案（低成本，不生圖）。
 
@@ -357,7 +359,7 @@ def generate_presentation_outlines(
 【待處理內容】
 {text or '請根據內容規劃簡報大綱。'}"""
 
-    data = generate_json(prompt, model=model, response_schema=_OutlinesGen)
+    data = generate_json(prompt, model=model, response_schema=_OutlinesGen, files=files)
     outlines = data.get("outlines") or []
 
     for i, o in enumerate(outlines):

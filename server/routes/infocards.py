@@ -38,6 +38,7 @@ class GenerateRequest(BaseModel):
     aspectRatio: str = "vertical"
     refinement: str = ""
     selectedOutline: dict | None = None
+    files: list[dict] = Field(default_factory=list)   # 多模態參考檔 [{mimeType, data(base64)}]
     imageModel: str = DEFAULT_IMAGE_MODEL
     textModel: str = DEFAULT_TEXT_MODEL
 
@@ -98,7 +99,7 @@ def generate(req: GenerateRequest) -> dict:
     if mode == "comic":
         data = comic_service.generate_comic_script(
             req.text, req.style, custom=req.customStylePrompt,
-            panels=req.panels, model=req.textModel)
+            panels=req.panels, model=req.textModel, files=req.files)
         data = comic_service.generate_comic_images(data, model=req.imageModel,
                                                    custom=req.customStylePrompt)
         return {"success": True, "type": "comic", "data": data.model_dump()}
@@ -106,7 +107,7 @@ def generate(req: GenerateRequest) -> dict:
     if mode in ("infographic", "card"):
         data = infographic_service.generate_infographic_data(
             req.text, req.style, custom=req.customStylePrompt,
-            aspect_ratio=req.aspectRatio, model=req.textModel)
+            aspect_ratio=req.aspectRatio, model=req.textModel, files=req.files)
         data = infographic_service.generate_infographic_images(
             data, model=req.imageModel, custom=req.customStylePrompt)
         return {"success": True, "type": "infographic", "data": data.model_dump()}
@@ -123,7 +124,7 @@ def generate(req: GenerateRequest) -> dict:
         # 兩階段 Stage 1：產 3 個大綱方案（低成本，不生圖）。
         outlines = presentation_service.generate_presentation_outlines(
             req.text, req.style, custom=req.customStylePrompt,
-            slide_count=req.slideCount, model=req.textModel)
+            slide_count=req.slideCount, model=req.textModel, files=req.files)
         return {"success": True, "type": "outline",
                 "data": {"outlines": [o.model_dump() for o in outlines]}}
 
@@ -132,7 +133,7 @@ def generate(req: GenerateRequest) -> dict:
             req.text, req.style, custom=req.customStylePrompt,
             slide_count=req.slideCount, density=req.density,
             typography=req.typography or "modern", selected_outline=req.selectedOutline,
-            model=req.textModel)
+            model=req.textModel, files=req.files)
         data = presentation_service.generate_presentation_images(
             data, style=req.style, custom=req.customStylePrompt, image_model=req.imageModel)
         return {"success": True, "type": "presentation", "data": data.model_dump()}

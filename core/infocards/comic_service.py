@@ -49,10 +49,11 @@ def generate_comic_script(
     custom: str = "",
     panels: int = 4,
     model: str | None = None,
+    files=None,
 ) -> ComicData:
     """內容 → 漫畫分鏡 ComicData（不含圖；imageUrl 之後由 generate_comic_images 填）。"""
     prompt = _build_comic_prompt(text, style, custom, panels)
-    data = generate_json(prompt, model=model, response_schema=_ComicGen)
+    data = generate_json(prompt, model=model, response_schema=_ComicGen, files=files)
     # 對齊 infoCard：style / promptUsed 由後端補（非模型輸出）。
     data["style"] = style
     data["promptUsed"] = prompt

@@ -49,7 +49,7 @@ class TestNeedsAIImage:
 class TestGeneratePresentationData:
     def test_sets_backend_fields(self, monkeypatch):
         monkeypatch.setattr(pres, "generate_json",
-                            lambda prompt, model=None, response_schema=None: dict(_FAKE))
+                            lambda prompt, model=None, response_schema=None, files=None: dict(_FAKE))
         data = pres.generate_presentation_data("控制系統", "navy", slide_count=3,
                                                density="detailed", typography="mono")
         assert isinstance(data, PresentationData)
@@ -63,7 +63,7 @@ class TestGeneratePresentationData:
         bad = dict(_FAKE)
         bad["themeColor"] = "#000000"
         monkeypatch.setattr(pres, "generate_json",
-                            lambda prompt, model=None, response_schema=None: bad)
+                            lambda prompt, model=None, response_schema=None, files=None: bad)
         data = pres.generate_presentation_data("x", "forest")
         assert data.themeColor == get_theme_by_style("forest")["accent"]
 
@@ -77,7 +77,7 @@ class TestGeneratePresentationData:
             ],
         }
         monkeypatch.setattr(pres, "generate_json",
-                            lambda prompt, model=None, response_schema=None: bad)
+                            lambda prompt, model=None, response_schema=None, files=None: bad)
         data = pres.generate_presentation_data("x", "navy")
         assert data.slides[0].layout == "bullet_list"
         assert data.slides[1].chartData.type == "bar"
@@ -91,14 +91,14 @@ class TestGeneratePresentationData:
             ],
         }
         monkeypatch.setattr(pres, "generate_json",
-                            lambda prompt, model=None, response_schema=None: bad)
+                            lambda prompt, model=None, response_schema=None, files=None: bad)
         data = pres.generate_presentation_data("x", "navy")
         assert data.slides[0].imagePrompt is None  # native 版型 imagePrompt 被丟棄
 
     def test_custom_style_uses_professional_theme(self, monkeypatch):
         seen = {}
 
-        def fake(prompt, model=None, response_schema=None):
+        def fake(prompt, model=None, response_schema=None, files=None):
             seen["prompt"] = prompt
             return dict(_FAKE)
 

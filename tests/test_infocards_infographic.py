@@ -29,7 +29,7 @@ _FAKE = {
 class TestInfographicService:
     def test_generate_data_sets_style_aspect_prompt(self, monkeypatch):
         monkeypatch.setattr(info, "generate_json",
-                            lambda prompt, model=None, response_schema=None: dict(_FAKE))
+                            lambda prompt, model=None, response_schema=None, files=None: dict(_FAKE))
         data = info.generate_infographic_data("牛頓定律", "academic", aspect_ratio="square")
         assert isinstance(data, InfographicData)
         assert data.style == "academic"
@@ -41,7 +41,7 @@ class TestInfographicService:
     def test_custom_style_in_prompt(self, monkeypatch):
         seen = {}
 
-        def fake_json(prompt, model=None, response_schema=None):
+        def fake_json(prompt, model=None, response_schema=None, files=None):
             seen["prompt"] = prompt
             return dict(_FAKE)
 
@@ -58,7 +58,7 @@ class TestInfographicService:
         bad["charts"] = [{"id": "c1", "title": "x", "type": "doughnut",
                           "data": [{"label": "a", "value": 1.0}]}]
         monkeypatch.setattr(info, "generate_json",
-                            lambda prompt, model=None, response_schema=None: bad)
+                            lambda prompt, model=None, response_schema=None, files=None: bad)
         data = info.generate_infographic_data("x", "professional")
         assert data.layout == "grid"
         assert data.sections[0].iconType == "info"

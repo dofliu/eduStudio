@@ -97,10 +97,11 @@ def generate_infographic_data(
     custom: str = "",
     aspect_ratio: str = "vertical",
     model: str | None = None,
+    files=None,
 ) -> InfographicData:
     """內容 → 資訊圖卡結構 InfographicData（不含圖；imageUrl 之後由 images 步驟填）。"""
     prompt = _build_prompt(text, style, custom)
-    data = generate_json(prompt, model=model, response_schema=_InfographicGen)
+    data = generate_json(prompt, model=model, response_schema=_InfographicGen, files=files)
     data = _coerce(data)
     # 對齊 infoCard：style / aspectRatio / promptUsed 由後端補（非模型輸出）。
     data["style"] = style

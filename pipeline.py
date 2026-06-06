@@ -47,9 +47,24 @@ PIPELINE_CONFIG_PATH = BASE_DIR / "pipeline_config.json"
 # pronunciation.json 套用、分數展開、變數下標等前處理已下移到 tts_backend.py 的
 # normalize_text(), 由 backend.synthesize() 自動套用。pipeline.py 只管編排。
 _TTS_BACKEND = None
+_TTS_CONFIG_MTIME = None
 def _get_tts_backend():
-    global _TTS_BACKEND
-    if _TTS_BACKEND is None: _TTS_BACKEND = load_tts_backend()
+    """建 TTS backend；tts_config.json 改過(換聲音)就重載，否則沿用快取。
+
+    修「換聲音不生效，被鎖在首次載入的 backend」：長駐 server 下，舊版把 backend 快取成
+    module 單例、永不重讀 tts_config，所以第一個 job 載入哪個聲音，後面全 job 都用那個
+    (劉老師回報「選了劉老師最後都一樣 被固定了」)。改成依 tts_config.json mtime 失效快取——
+    換聲音(POST /voices 改寫 tts_config)後下一個 job 會重載，但同一 job 內不變(F5 模型不必重載)。
+    """
+    global _TTS_BACKEND, _TTS_CONFIG_MTIME
+    from tts_backend import CONFIG_PATH
+    try:
+        mtime = os.path.getmtime(CONFIG_PATH)
+    except OSError:
+        mtime = None
+    if _TTS_BACKEND is None or mtime != _TTS_CONFIG_MTIME:
+        _TTS_BACKEND = load_tts_backend()
+        _TTS_CONFIG_MTIME = mtime
     return _TTS_BACKEND
 
 async def gen_tts(text, out_path):

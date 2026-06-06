@@ -227,6 +227,17 @@ class ProjectStore:
             self._save(project)
             return source
 
+    def remove_source(self, project_id: str, source_id: str) -> bool:
+        """移除一筆 source 並落盤；移除成功回 True，找不到該 source_id 回 False。"""
+        with self._lock:
+            project = self.get(project_id)
+            before = len(project.sources)
+            project.sources = [s for s in project.sources if s.source_id != source_id]
+            if len(project.sources) == before:
+                return False
+            self._save(project)
+            return True
+
     def add_artifact(
         self,
         project_id: str,

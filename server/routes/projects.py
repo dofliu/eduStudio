@@ -217,6 +217,18 @@ async def add_source(
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e
 
 
+@router.delete("/{pid}/sources/{sid}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_source(
+    pid: str, sid: str, store: ProjectStore = Depends(get_default_project_store)
+) -> None:
+    """從 Project 移除一筆來源素材；project 不存在或 source 不存在皆回 404。"""
+    try:
+        if not store.remove_source(pid, sid):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"source 不存在: {sid}")
+    except ProjectNotFoundError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e
+
+
 @router.get("/{pid}/notebook", response_model=NotebookView)
 async def get_notebook(
     pid: str, store: ProjectStore = Depends(get_default_project_store)

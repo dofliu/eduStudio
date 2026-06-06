@@ -178,3 +178,20 @@ class TestArtifactsAndNotebook:
             "type": "url", "path_or_url": "http://x",
         })
         assert r.status_code == 404
+
+    def test_remove_source(self, client):
+        c, project_store, job_store, tmp_path = client
+        c.post("/projects", json={"project_id": "p", "title": "T"})
+        sid = c.post("/projects/p/sources", json={
+            "type": "url", "path_or_url": "http://x",
+        }).json()["source_id"]
+        # 刪除 → 204，notebook 看不到
+        r = c.delete(f"/projects/p/sources/{sid}")
+        assert r.status_code == 204
+        assert len(project_store.get("p").sources) == 0
+        # 再刪同一個 → 404
+        assert c.delete(f"/projects/p/sources/{sid}").status_code == 404
+
+    def test_remove_source_missing_project_404(self, client):
+        c, *_ = client
+        assert c.delete("/projects/ghost/sources/src_x").status_code == 404

@@ -111,7 +111,24 @@ TTS_PROVIDER_ENV = "TTS_PROVIDER"
 
 
 def get_gemini_api_key() -> str | None:
+    """Gemini 金鑰：設定頁(settings.json)優先，否則環境變數。"""
+    try:
+        from core.settings import get_setting
+        k = get_setting("gemini_api_key")
+        if k:
+            return k
+    except Exception:
+        pass
     return os.environ.get(GEMINI_API_KEY_ENV)
+
+
+# eduStudio 設定頁（個人品牌 / API / 模型）持久化檔。
+SETTINGS_PATH = PROJECT_ROOT / "settings.json"
+
+
+def get_settings_path() -> str:
+    """設定 json 路徑。env ES_SETTINGS_PATH 可覆寫（測試用 tmp）。"""
+    return os.environ.get("ES_SETTINGS_PATH", str(SETTINGS_PATH))
 
 
 # ---------- LLM 模型 ----------

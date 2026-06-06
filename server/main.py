@@ -33,6 +33,7 @@ from .routes import library as library_routes
 from .routes import localization as localization_routes
 from .routes import projects as projects_routes
 from .routes import proposals as proposals_routes
+from .routes import settings as settings_routes
 from .routes import slides as slides_routes
 from .routes import themes as themes_routes
 from .routes import uploads as uploads_routes
@@ -100,6 +101,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_routes.router)   # eduStudio 合併 PR-M1: Project 薄層
     app.include_router(localization_routes.router)  # eduStudio 合併 B-2: translateGemma 收編
     app.include_router(infocards_routes.router)   # eduStudio 合併 C-4: infoCard 收編
+    app.include_router(settings_routes.router)    # eduStudio 設定頁: 品牌/API/模型
 
     # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor
     # 用 StaticFiles mount /ui/assets 處理已知 asset 檔, 其餘 /ui/* 走 SPA fallback

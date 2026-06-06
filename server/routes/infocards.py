@@ -39,8 +39,8 @@ class GenerateRequest(BaseModel):
     refinement: str = ""
     selectedOutline: dict | None = None
     files: list[dict] = Field(default_factory=list)   # 多模態參考檔 [{mimeType, data(base64)}]
-    imageModel: str = DEFAULT_IMAGE_MODEL
-    textModel: str = DEFAULT_TEXT_MODEL
+    imageModel: str = ""   # 空＝採設定頁/預設（見 generate 解析）
+    textModel: str = ""
 
 
 class ShareRequest(BaseModel):
@@ -92,22 +92,31 @@ def health() -> dict:
     }
 
 
+def _resolve_models(req: "GenerateRequest") -> tuple[str, str]:
+    """模型解析優先序：請求顯式 > 設定頁 > 程式預設。"""
+    from core.settings import get_setting
+    tm = req.textModel or get_setting("text_model") or DEFAULT_TEXT_MODEL
+    im = req.imageModel or get_setting("image_model") or DEFAULT_IMAGE_MODEL
+    return tm, im
+
+
 @router.post("/generate")
 def generate(req: GenerateRequest) -> dict:
     """生成簡報/海報/漫畫。後端呼叫 Gemini（comic/poster 已實作）。"""
     mode = req.mode.lower()
+    text_model, image_model = _resolve_models(req)
     if mode == "comic":
         data = comic_service.generate_comic_script(
             req.text, req.style, custom=req.customStylePrompt,
-            panels=req.panels, model=req.textModel, files=req.files)
-        data = comic_service.generate_comic_images(data, model=req.imageModel,
+            panels=req.panels, model=text_model, files=req.files)
+        data = comic_service.generate_comic_images(data, model=image_model,
                                                    custom=req.customStylePrompt)
         return {"success": True, "type": "comic", "data": data.model_dump()}
 
     if mode in ("infographic", "card"):
         data = infographic_service.generate_infographic_data(
             req.text, req.style, custom=req.customStylePrompt,
-            aspect_ratio=req.aspectRatio, model=req.textModel, files=req.files)
+            aspect_ratio=req.aspectRatio, model=text_model, files=req.files)
         data = infographic_service.generate_infographic_images(
             data, model=req.imageModel, custom=req.customStylePrompt)
         return {"success": True, "type": "infographic", "data": data.model_dump()}
@@ -116,7 +125,7 @@ def generate(req: GenerateRequest) -> dict:
         result = poster_service.generate_poster(
             req.text, req.style, custom_style_prompt=req.customStylePrompt,
             aspect_ratio=req.aspectRatio, refinement=req.refinement,
-            density=req.density, image_model=req.imageModel)
+            density=req.density, image_model=image_model)
         return {"success": True, "type": "poster",
                 "imageUrl": result["imageUrl"], "prompt": result["prompt"]}
 
@@ -124,7 +133,7 @@ def generate(req: GenerateRequest) -> dict:
         # 兩階段 Stage 1：產 3 個大綱方案（低成本，不生圖）。
         outlines = presentation_service.generate_presentation_outlines(
             req.text, req.style, custom=req.customStylePrompt,
-            slide_count=req.slideCount, model=req.textModel, files=req.files)
+            slide_count=req.slideCount, model=text_model, files=req.files)
         return {"success": True, "type": "outline",
                 "data": {"outlines": [o.model_dump() for o in outlines]}}
 
@@ -133,9 +142,9 @@ def generate(req: GenerateRequest) -> dict:
             req.text, req.style, custom=req.customStylePrompt,
             slide_count=req.slideCount, density=req.density,
             typography=req.typography or "modern", selected_outline=req.selectedOutline,
-            model=req.textModel, files=req.files)
+            model=text_model, files=req.files)
         data = presentation_service.generate_presentation_images(
-            data, style=req.style, custom=req.customStylePrompt, image_model=req.imageModel)
+            data, style=req.style, custom=req.customStylePrompt, image_model=image_model)
         return {"success": True, "type": "presentation", "data": data.model_dump()}
 
     raise HTTPException(status_code=400, detail=f"未知 mode：{req.mode}（支援 {_SUPPORTED_MODES}）")

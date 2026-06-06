@@ -28,9 +28,12 @@
 - [x] 🟢 **視覺站結果「加入 Project / 分享」**:`POST /projects/{id}/artifacts`,`/api/share`(2026-06-06, infoCard `d3805ee`)
 - [ ] 🟢 **發布站發布語言版本**驅動多語上傳(現只是視覺)
 - [x] 🟢 **source 刪除** — `DELETE /projects/{pid}/sources/{sid}` + Project 站來源列垃圾桶鈕(2026-06-06, autoSolver `0ff72e9` / infoCard `ed25ab2`)
-- [ ] 🟡 **發布站多語上傳** — 需 per-language artifacts 機制(現 /library 不分語言追蹤),需設計
-- [ ] 🟡 **成本面板真實用量統計** — 現全 mock,**需新後端**(跨 Gemini 呼叫 token 計帳子系統,或先標「示意」)— 等劉老師決定
-- [ ] 🟡 **review gate 逐段編輯存回** — 需 server 端 deck-patch 端點 + segment↔deck 映射(較複雜)
+- [x] 🟡 **成本面板真實用量統計** — `core/usage.py` 計帳子系統 + `/api/usage`,instrument 視覺/在地化 Gemini chokepoint(2026-06-06, autoSolver `6b3dfa6`/`f8907cb` + infoCard `51bf91d`)
+- [x] 🟡 **review gate 逐段編輯存回** — 接既有 `PUT /jobs/{id}/draft`,前端 _path 寫回(2026-06-06, infoCard `1ff47c0`)
+- [ ] 🟡 **發布站多語上傳** — **真設計缺口**:/library 不追蹤 per-language 影片變體。兩條真路徑(見下),需劉老師選:
+      - (A) **多語字幕軌**:單一影片 + 多語 caption(YouTube 支援);需擴 `core.publish_artifact` 收多 srt + caption API per-lang + UI 選字幕語言。
+      - (B) **per-language 影片變體**:dub pipeline 把各語配音 mp4 寫回成 job artifact 進 /library,再各自上傳;需改 dub 產出落點 + artifact 模型。
+      不做半套假的(選語言但實際只傳同一支)。
 
 ---
 

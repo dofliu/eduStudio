@@ -215,6 +215,33 @@ async def meeting_summarize(
     }
 
 
+@router.post("/song/transcribe")
+async def song_transcribe(
+    file: UploadFile = File(...),
+    song_title: str = Form(""),
+    language: str = Form("auto"),
+) -> dict:
+    """上傳 mp3/mp4 → whisper 轉錄抽歌詞(含時間戳) → song.json。長任務,同步處理。
+
+    回 {song: {...}}（song.json dict）。前端可下載/存檔/建 song job。每段 reviewed=False，
+    對齊硬規則 #1（AI 轉錄/對齊為估值，需人工微調）。
+    """
+    from core.song_build import build_song_json_from_media
+
+    suffix = os.path.splitext(file.filename or "")[1] or ".mp3"
+    path = _save_upload(file, suffix=suffix)
+    try:
+        song = build_song_json_from_media(path, song_title, language=language)
+        # audio_path 用上傳原始檔名（呼叫端之後自行放檔）
+        song["audio_path"] = file.filename or os.path.basename(path)
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    return {"song": song, "segments": len(song.get("segments", []))}
+
+
 @router.post("/dub")
 async def dub_video(
     target_lang: str = Form("zh-TW"),

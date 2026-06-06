@@ -30,10 +30,9 @@
 - [x] 🟢 **source 刪除** — `DELETE /projects/{pid}/sources/{sid}` + Project 站來源列垃圾桶鈕(2026-06-06, autoSolver `0ff72e9` / infoCard `ed25ab2`)
 - [x] 🟡 **成本面板真實用量統計** — `core/usage.py` 計帳子系統 + `/api/usage`,instrument 視覺/在地化 Gemini chokepoint(2026-06-06, autoSolver `6b3dfa6`/`f8907cb` + infoCard `51bf91d`)
 - [x] 🟡 **review gate 逐段編輯存回** — 接既有 `PUT /jobs/{id}/draft`,前端 _path 寫回(2026-06-06, infoCard `1ff47c0`)
-- [ ] 🟡 **發布站多語上傳** — **真設計缺口**:/library 不追蹤 per-language 影片變體。兩條真路徑(見下),需劉老師選:
-      - (A) **多語字幕軌**:單一影片 + 多語 caption(YouTube 支援);需擴 `core.publish_artifact` 收多 srt + caption API per-lang + UI 選字幕語言。
-      - (B) **per-language 影片變體**:dub pipeline 把各語配音 mp4 寫回成 job artifact 進 /library,再各自上傳;需改 dub 產出落點 + artifact 模型。
-      不做半套假的(選語言但實際只傳同一支)。
+- [x] 🟡 **發布站多語上傳(方案 A 多語字幕軌)** — `core/caption_translate.py`(翻譯 SRT 保留時間碼)+ `core.upload_captions` + `POST /jobs/{id}/artifacts/{name}/captions`(翻譯既有 SRT → 上傳多語 caption track)+ 發布站「多語字幕」鈕。需 YouTube OAuth(未授權回 412)(2026-06-06, autoSolver `f966013` + infoCard `9a3ebde`)。方案 B(per-language 影片變體)未做,需要時另開。
+
+**🏁 eduStudio UI 接線全部完成（2026-06-06）：** 視覺站選項/學習工具/影片站動作+影音工具/Project 寫入+source 刪除/視覺結果動作/review 存回/成本統計/多語字幕,全套 2358 tests 綠。剩 PR-M23~M25 + UI 接線。詳見 docs/EDUSTUDIO_UI_WIRING.md。
 
 ---
 

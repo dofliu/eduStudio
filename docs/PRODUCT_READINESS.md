@@ -52,9 +52,12 @@
   結論：**唯一必填仍是 `GEMINI_API_KEY`**，其餘 24 個皆選用（DB 路徑預設 repo 內、品牌走設定頁、
   ollama 預設 localhost、whisper 自動偵測），故全部以註解列出當完整參考（不強迫設定）。改檔名
   標題 autoSolverVideo→eduStudio。
-- [ ] 🟡 **P0-4 CONTRIBUTING.md + issue/PR 範本**（offline）— 開源協作基本盤；放
-  `.github/ISSUE_TEMPLATE/`、`CONTRIBUTING.md`（含「怎麼跑測試 / 硬規則摘要 / offline-first
-  紀律」）。
+- [x] 🟡 **P0-4 CONTRIBUTING.md + issue/PR 範本**（offline）— ✅ 2026-06-07 完成。新增
+  `CONTRIBUTING.md`（本機開發 + 跑測試 + **不可妥協規則**：review gate / offline-first /
+  pytest / 字型不寫死 / config 集中 / type guard / 別 commit 機密，含 English summary）、
+  `.github/ISSUE_TEMPLATE/`（bug_report / feature_request 含 offline-first 影響範圍勾選 +
+  config.yml 把安全漏洞導向 SECURITY.md）、`.github/PULL_REQUEST_TEMPLATE.md`（含「未繞 review
+  gate」自我檢查）。對外版把硬規則 #2/#3（劉老師個人工作流）轉成「先開 issue 討論」。
 - [ ] 🟢 **P0-5 SECURITY.md**（offline）— 漏洞回報窗口 + 「請勿把 server 直接裸奔公網」警語。
 
 ---

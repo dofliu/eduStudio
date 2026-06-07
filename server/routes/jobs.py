@@ -36,6 +36,7 @@ from ..schemas import (
     JobRecord,
     JobState,
     UpdateDeckRequest,
+    utc_now,
 )
 
 
@@ -300,8 +301,11 @@ async def approve_job(job_id: str, store: JobStore = Depends(get_default_store))
     # FAILED 但沒 deck.json → ingest 沒跑完, 該從頭重跑整條 pipeline
     # (走 schedule_job 經 run_job 從 ingest 開始, 而非 schedule_render 直接跳 render)
     if rec.state == JobState.FAILED and not store.deck_path(job_id).exists():
+        # 要重跑 ingest 產生新內容 → 不在此標 reviewed (run_job 會再停 awaiting_review)
         schedule_job(store, job_id)
     else:
+        # R-2: 人工 approve = 通過審查 (硬規則 #1)。render 入口會 assert reviewed。
+        store.update(job_id, reviewed=True, reviewed_at=utc_now())
         schedule_render(store, job_id)
     return store.get(job_id)
 

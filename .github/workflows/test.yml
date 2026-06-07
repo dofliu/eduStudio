@@ -62,14 +62,16 @@ jobs:
       # monkeypatch.setattr(core, "solve_pdf", ...) 透過 core.__getattr__ lazy
       # import solve → solve 頂層 import fitz 踩到, 之後越來越多 test 會貼近
       # production import path, 早晚要裝.
-      # 不裝 google-genai / f5-tts 等更重型 + 平台相依的東西, 因為純函式測試
-      # 用不到 (相關 test 有 importorskip / skipif)。
       # matplotlib (2026-06-04 加): LaTeX 公式渲染 core/formula_render.py 升為核心
       # 依賴, test_formula_render.py 直接跑 (非 skip), prebuilt wheel 各平台齊。
+      # google-genai (2026-06-07 加): eduStudio 整合後 infocards 視覺生成 + 影片
+      # pipeline 都靠它, tests/test_infocards_*.py 的 gemini helper 測試直接 import
+      # `from google.genai import types`(非 importorskip)→ 不裝會 ModuleNotFoundError。
+      # 純 Python wheel, 不卡 build。f5-tts 等重型平台相依仍不裝(相關 test 有 skipif)。
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode pymupdf matplotlib
+          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode pymupdf matplotlib google-genai
           pip install -r requirements-dev.txt
 
       - name: Run pytest

@@ -160,13 +160,15 @@ class VideoDubber:
         return segments
 
     def get_audio_duration(self, audio_path: str) -> float:
-        result = subprocess.run([
-            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1', audio_path,
-        ], capture_output=True, text=True)
+        # ffprobe 不存在(FileNotFoundError/OSError)、壞路徑、或輸出無法解析 → 一律回 0（優雅降級，
+        # 不讓缺 ffprobe 的環境炸掉；CI 無 ffmpeg 時這條才不會 FileNotFoundError）。
         try:
+            result = subprocess.run([
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', audio_path,
+            ], capture_output=True, text=True)
             return float(result.stdout.strip())
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, FileNotFoundError, OSError):
             return 0.0
 
     def adjust_audio_speed(self, audio_path: str, target_duration: float) -> str:

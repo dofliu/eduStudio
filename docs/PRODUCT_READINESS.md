@@ -12,7 +12,8 @@
 
 ## 怎麼用這份文件（給 routine）
 
-- 由上而下做：**Phase 0 → 7**，phase 內按 🔴 → 🟡 → 🟢。
+- 由上而下做：**Phase 0 → 9**（0~5 是「能推了」的門檻，6~7 收尾，8~9 是長尾/差異化；
+  Phase 4 內含 **M 軸 模型抽象**），phase 內按 🔴 → 🟡 → 🟢。
 - 每項標了 **offline / GATE**：
   - `offline` = routine 可自主（純 code、不打 Gemini/GCP、低風險、有測試）。
   - `GATE` = 需劉老師拍板架構 / 開 API 額度 / 做安全決策，**routine 不自主碰**，寫
@@ -34,8 +35,8 @@
 > 沒這些不能公開掛上去。多為一次性、offline。
 
 - [ ] 🔴 **P0-1 加 LICENSE**（offline）— 目前**無 LICENSE 檔**，開源前必加。
-  待拍板授權條款（MIT / Apache-2.0 / 其他），預設建議 **MIT**（最寬鬆、學界友善）。
-  → **GATE 一個小決策**：劉老師選授權條款後 routine 落檔 + README badge。
+  **已拍板：MIT**（2026-06-07）。routine 落 `LICENSE`（作者 劉瑞弘 Juihung Liu）+ README
+  授權 badge + `pyproject.toml` license 欄。
 - [ ] 🔴 **P0-2 secret 全歷史稽核**（offline）— 現況：`.gitignore` 已蓋
   `settings.json` / `.env` / `client_secret*.json` / `youtube_token.json` / `tts_config.json`，
   current tree 無硬編 key（已查）。但**開源前要掃整個 git 歷史**確認沒有任一 commit
@@ -56,12 +57,19 @@
 > 燒你的 Gemini 額度、刪 job、讀檔。對「localhost 自己用」OK，對「自架暴露在內網/公網」
 > 不可接受。開源版必須給自架者一個安全預設。
 
-- [ ] 🔴 **S-1 單一 API token 驗證層**（GATE 設計 → offline 實作）— 加一個
-  `EDUSTUDIO_API_TOKEN` 環境變數；設了就所有 `/jobs /api /localization /projects /settings`
-  寫入端點要帶 `Authorization: Bearer`（或 header token）。沒設 token → 印明顯警告
-  「server 無驗證，請勿暴露公網」。前端 `/app` 帶 token。
-  → **GATE 拍板**：token 放 header 還是 cookie session？`/app` 怎麼拿 token（設定頁輸入存
-  localStorage / 啟動印一次）？read-only 端點（看影片）要不要也擋？拍板後 routine 實作 + 測試。
+- [ ] 🔴 **S-1 單一共享 token 驗證層**（offline，**設計已拍板 2026-06-07**）— 設計定案：
+  - 共享密鑰 `EDUSTUDIO_API_TOKEN`（環境變數）。**沒設 → server 照跑但啟動大聲警告**
+    「未驗證，勿暴露公網」（保留 localhost 自用方便）。
+  - **瀏覽器走 session cookie**：`/app` 出登入框 → `POST /auth` 比對 token → 種
+    `HttpOnly; SameSite=Strict`（https 時加 `Secure`）cookie。**API + 媒體（mp4/png）一律靠
+    cookie**（同源自動帶，解決 `<video>`/`<img>` 無法帶 `Authorization` header 的硬限制 →
+    一致保護、媒體照常播放）。
+  - **CLI / skill / curl 走 Bearer**：同時接受 `Authorization: Bearer <token>`（自動化用）。
+  - CSRF：`SameSite=Strict` + 單一同源 `/app` 對自架單機已足夠，**不另做 CSRF token**。
+  - **不做帳號系統**（拍板開源自架、非多租戶，單一共享 token 即可）。
+  → 實作：FastAPI dependency 統一掛在所有 router（read 與 write 都擋，因威脅含「讀你的
+  job/影片」）；`/auth` + `/app` 登入 UI；啟動警告；測試（無 token 開放+警告 / 有 token：
+  cookie 通過、Bearer 通過、無憑證 401 / 媒體端點受保護 / SameSite 屬性）。
 - [ ] 🔴 **S-2 CORS 收緊**（offline）— `allow_origins=["*"]` 改成讀環境變數
   `EDUSTUDIO_ALLOWED_ORIGINS`（預設 `http://127.0.0.1:8000`）。同源 `/app` 不受影響。
   server/main.py:85 一處 + 測試。
@@ -90,10 +98,14 @@
   狀態，缺的是啟動時掃 `pending/ingesting/rendering` 的 job → 標 `failed`（附「server 重啟
   中斷，請重試」）或自動重排。先做「標 failed + 可一鍵重試」這個最小止血（不需要 worker
   架構）。動 runner/jobs，跑 pytest。
-- [ ] 🟡 **R-2 review gate enforcement 不可繞**（GATE 設計）— 現況 `require_review=True`
-  靠 server flag 擋，理論可繞（硬規則 #1 的根因 #4）。做法選項：① job 狀態機強制
-  `awaiting_review` 必經、approve 才能進 render（已部分如此，補測試鎖死）② 在 render 入口
-  assert `reviewed` 旗標。→ 拍板要不要更強（如簽章），還是「狀態機強制 + 測試鎖」就夠。
+- [ ] 🟡 **R-2 review gate enforcement 不可繞**（offline，**設計已拍板 2026-06-07**）— 現況
+  `require_review=True` 靠 server flag 擋，理論可繞（硬規則 #1 的根因 #4）。定案：
+  **狀態機強制 + render 入口 assert + 測試鎖死，不做密碼學簽章**。
+  - 對 `require_review=True` 的來源（考卷/歌曲等含 AI 數值），job 進 `rendering` **必須**先經
+    `awaiting_review` → 明確 approve（state 寫 `reviewed_at`/`reviewed=True`）。
+  - render 入口（`_run_render_phase`/inner）直接 assert reviewed，否則 raise。
+  - 測試「嘗試跳過審查 → 被擋」鎖死。
+  威脅模型是「不小心跳過」非「內部惡意竄改」，簽章對自架單人過度設計，故不做。
 - [ ] 🟡 **R-3 sync I/O 阻 event loop 收口**（offline）— F5 已用 `asyncio.to_thread` 包，
   但無全面 enforcement。審 runner/routes 裡的同步重 I/O（PDF 解析、ffmpeg、檔案搬運）有沒有
   漏網的同步呼叫卡 event loop，補 `to_thread`。低風險、逐處補。
@@ -114,10 +126,11 @@
 - [ ] 🔴 **U-1 `/studio` 直連 Gemini 改走後端**（offline，前端 + 確認後端端點）— 把 `/studio`
   仍 client-side 呼叫 Gemini 的路徑改打 `/api/generate` 等後端端點（後端大多現成），堵住
   「繞過計費 + 繞過審查」漏洞。或者若 U-3 直接退場 /studio，則本項併入「功能搬進 /app」。
-- [ ] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能**（offline）— 盤點顯示 `/app` 視覺站缺
-  「海報/圖卡逐區 refine、區域選擇」（後端 refine 圖卡未移植 = 唯一「大」缺口）。逐區 refine
-  後端要不要移植 = 先確認，再前端接。其餘（16 主題/密度/長寬比/自訂 prompt）UI_WIRING 標
-  已接完。
+- [ ] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
+  2026-06-07**）— 盤點顯示 `/app` 視覺站缺「海報/圖卡逐區 refine、區域選擇」（後端 refine
+  圖卡未移植 = 唯一「大」缺口）。**定案：移植後端逐區 refine + 前端區域選擇 UI**（不是首發
+  砍項）。其餘（16 主題/密度/長寬比/自訂 prompt）UI_WIRING 標已接完。拆小：①後端 refine
+  圖卡端點移植 ②前端區域選擇/逐區 refine UI ③測試。
 - [ ] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— 在舊 UI 頁頂加 banner「此介面
   將退場，請用 /app」+ README/介面表標 legacy。完全移除 build 產物等 `/app` 功能對等確認後
   再做（避免反悔）。
@@ -141,13 +154,38 @@
 - [ ] 🟡 **C-2 單價對齊真實**（GATE，需查官方定價）— 現況單價是估算。對齊 Gemini 3 系列 +
   GCP TTS + （未來）image 真實單價。定價會變動 → 抽成設定常數 + 文件註明「以官方為準」。
 - [ ] 🟡 **C-3 旁白模型遷 3.x**（GATE，需開額度驗證品質）— `slide_ingest.py:43`
-  `MODEL = "gemini-2.5-flash"`（將淘汰）。3.5-flash 實測接受 `thinking_budget=0`，但**旁白
-  品質要先驗**再換。寫成 A/B proposal，劉老師開額度跑過再切。
+  `MODEL = "gemini-2.5-flash"`（將淘汰）。**M 軸完成後這只是改角色表 `text.fast` 一個值**。
+  3.5-flash 實測接受 `thinking_budget=0`，但**旁白品質要先驗**再換。寫成 A/B proposal，劉老師
+  開額度跑過再切。（劉老師 2026-06-07：需額度會給權限。）
 - [ ] 🟢 **C-4 `gemini-3.1-pro-image` 等開放再換**（GATE）— 劉老師想用但 API 未開放。等開放
   從 `gemini-3-pro-image` 換（`core/infocards/models.py`）。掛追蹤。
 - [ ] 🟢 **C-5 模型 id 自我健檢**（offline）— 加一個 `tools/check_models.py` 跑
   `client.models.list()` 比對設定頁用的 id 是否還存在（這 repo 有用過 preview id 404 前科），
-  自架者換 key 後可自查。
+  自架者換 key 後可自查。（並進 M 軸：比對角色登錄表全部 id。）
+
+### M 軸 — 模型抽象與可插拔後端（🔴 結構性，劉老師 2026-06-07 指定）
+
+> **痛點（劉老師提）**：模型 id **散落**（`slide_ingest.py:43` 寫死 `gemini-2.5-flash`、
+> `core/infocards/models.py`、`settings.py`、`config.py`、scriptor/outliner…）+ 名稱/版號不
+> 一致 + preview id 會 404。要讓「模型設定/修改**獨立於專案之外**」，未來 4.0/5.0/6.0 出來
+> 系統零（或極小）改動。
+> **拍板（2026-06-07）：做 Option A（角色登錄表）+ 介面設計成 B-ready**（provider 抽象之後
+> 再加，不重構）。B 的「本機 provider」就是 Phase 9 F9-3 本機可插拔模型。
+
+- [ ] 🔴 **M-1 角色登錄表 `core/models.py`（offline，A 核心）**— 定義**邏輯角色** →
+  具體 model id 的單一真實來源（角色：`text.fast` / `text.pro` / `vision` / `image.fast` /
+  `image.pro` / `tts`）。`resolve(role)` 讀設定頁(settings.json) → fallback 內建預設表。
+  介面預留 provider 維度（`resolve(role) -> (provider, model_id)`，A 階段 provider 恆 gemini）。
+  +測試鎖角色集合 + fallback。
+- [ ] 🔴 **M-2 全面換掉寫死 id（offline）**— 把 `slide_ingest.py` / `core/infocards/models.py` /
+  scriptor / outliner / translate / 其餘 chokepoint 的硬編 model id **全部改呼叫 `resolve()`**。
+  一處一處改、跑 pytest（硬規則 #7）。完成後「換模型 = 改一個表/設定頁」。
+- [ ] 🟡 **M-3 設定頁模型管理升級（offline）**— 設定頁從「文字/圖片各一個下拉」升級成
+  **逐角色可配**（或維持精簡但底層走角色表），未知 id 顯示健檢結果（接 C-5）。
+- [ ] 🟢 **M-4 provider adapter 介面（B-ready stub，offline）**— 定義 `Provider` 協定
+  （`generate_text` / `generate_image` / `tts`）+ gemini adapter 包現有呼叫。**只抽介面不換行為**，
+  讓 Phase 9 F9-3（ollama/claude provider）能 slot-in。是否現在做或等 F9-3 一起做，routine 視
+  M-1/M-2 完成後評估。
 
 ---
 
@@ -224,16 +262,45 @@
 
 ---
 
+## Phase 9 — 產品差異化新功能（🟡 劉老師 2026-06-07 挑選納入）
+
+> 互動 session 從建議清單挑這 4 個進場（貼合「老師內容工作站 + 人工把關 + 自架」主軸）。
+> 沿用 offline-first：碰 Gemini/雲端額度的部分寫 proposal STOP。各項先寫小 RFC 再拆 PR。
+
+- [ ] 🟡 **F9-1 review 數值二次校驗**（GATE，強化核心賣點）— AI 產出的數字/公式自動標「可疑
+  點」輔助 reviewer：① 二次獨立模型 pass 比對數值 ② 數學步驟符號/單位一致性檢查。**只標記不
+  自動改**（不繞硬規則 #1，是輔助人工不是取代）。降低 reviewer 負擔 = 把核心差異化做深。
+  先寫 `docs/REVIEW_ASSIST_RFC.md` 拆子任務。碰額度（二次模型）→ proposal。
+- [ ] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
+  **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
+  「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；
+  自動建議術語碰額度 → proposal。
+- [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
+  **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
+  translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選
+  provider。與 offline-first 主軸高度契合。先寫 `docs/LOCAL_MODEL_RFC.md`（哪些角色支援本機 /
+  品質落差 / 自動退雲端）。
+- [ ] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
+  不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
+  regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。
+
+> （備案，未納入：**LMS/Moodle/SCORM 匯出** — 教學剛需但 ROADMAP 已列遠期、最遠，要提前再議。）
+
+---
+
 ## 待劉老師拍板（卡住 routine 的決策點）
 
-> 這些一旦拍板，後面一串 routine 就能自主推。建議優先回這幾個：
+> 主要決策（授權/驗證/review gate/逐區 refine/模型抽象/新功能）已於 2026-06-07 拍板，
+> 寫進各對應項。**剩餘需要你的只有「開額度 / 本機實機跑」這幾項**：
 
-1. **P0-1 授權條款**：MIT（建議）/ Apache-2.0 / 其他？→ 解鎖 Phase 0。
-2. **S-1 驗證機制**：API token 放 header/cookie？`/app` 怎麼拿 token？read-only 要不要擋？
-   → 解鎖整個 Phase 1。
-3. **R-2 review gate**：「狀態機強制 + 測試鎖」夠不夠，還是要更強的不可繞機制？
-4. **U-2 海報/圖卡逐區 refine**：後端要不要移植進 /app（唯一「大」前端缺口），還是首發先不做？
-5. **C-3 旁白模型遷 3.x**、**D-1 docker 實測**、**D-4 GPU**：都需要你開額度 / 本機實機跑。
+1. **C-2 單價對齊**：以 Gemini/GCP 官方定價為準的數字，需要時給我查。
+2. **C-3 旁白模型遷 3.x**：開額度跑 A/B 驗品質後切（M 軸做完只改一個值）。
+3. **D-1 docker compose 跨平台實測 / D-4 F5 GPU passthrough**：需你本機（Win/含 GPU）實跑。
+4. **S-5 secret 靜態加密**：自架單機明文（已 gitignore）可接受 vs 要不要加 Fernet 加密 — 低優先，要不要做你定。
+5. **F-3 CARD 軸 / F-4 EBOOK 軸**：RFC 開放問題待拍板（這兩個非首發必要）。
+6. **DOC-5 demo 影片**：需你錄 60 秒 demo 放 README。
+
+> 劉老師 2026-06-07：「需要額度我會給你權限」→ 上述開額度項 routine 寫好 proposal 後可請你開。
 
 ---
 
@@ -241,3 +308,7 @@
 
 - 2026-06-07：建檔。基於整合後現況稽核（README/claude.md/HANDOFF/ROADMAP/TODO/UI_WIRING +
   server/core 結構 + CI/安全掃描），對齊「公開開源自架 + /app 單一 + 全面稽核」三項拍板。
+- 2026-06-07（同日 review session）：拍板落定 — P0-1 授權 **MIT** / S-1 驗證 **cookie+Bearer
+  單一共享 token** / R-2 **狀態機強制+assert+測試（不簽章）** / U-2 **逐區 refine 要做** /
+  新增 **M 軸 模型抽象**（A 現在+B 介面預留）/ 新增 **Phase 9** 四個差異化功能
+  （review 二次校驗 / 課程 glossary / 本機可插拔模型 / 影片版本管理）。

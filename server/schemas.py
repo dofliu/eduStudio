@@ -375,6 +375,10 @@ class JobRecord(BaseModel):
     stages: list[StageInfo] = Field(default_factory=list)
     artifacts: list[Artifact] = Field(default_factory=list)
     error: str | None = None
+    # R-2 review gate: require_review job 必須經人工 approve 才能 render。
+    # reviewed=True 由 /approve 端點寫入; render 入口會 assert (硬規則 #1 不可繞)。
+    reviewed: bool = False
+    reviewed_at: AwareDatetime | None = None
     # 內部欄位: ingest 後的 deck path, render 後的 output dir
     deck_path: str | None = None
     output_dir: str | None = None

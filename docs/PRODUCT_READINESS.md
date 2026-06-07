@@ -149,13 +149,16 @@
   `AWAITING_REVIEW`（等人工）合法暫停不動、`DONE/FAILED` 終態不動。在 `main.py` startup hook
   呼叫並印出受影響數。補 `tests/test_resume_interrupted.py` 4 測（in-flight 標 failed / 暫停與
   終態不動 / 持久化跨 reload / idempotent）。最小止血、不需 worker 架構。全套 2423 passed。
-- [ ] 🟡 **R-2 review gate enforcement 不可繞**（offline，**設計已拍板 2026-06-07**）— 現況
-  `require_review=True` 靠 server flag 擋，理論可繞（硬規則 #1 的根因 #4）。定案：
-  **狀態機強制 + render 入口 assert + 測試鎖死，不做密碼學簽章**。
-  - 對 `require_review=True` 的來源（考卷/歌曲等含 AI 數值），job 進 `rendering` **必須**先經
-    `awaiting_review` → 明確 approve（state 寫 `reviewed_at`/`reviewed=True`）。
-  - render 入口（`_run_render_phase`/inner）直接 assert reviewed，否則 raise。
-  - 測試「嘗試跳過審查 → 被擋」鎖死。
+- [x] 🟡 **R-2 review gate enforcement 不可繞**（offline）— ✅ 2026-06-07 完成。實作（狀態機強制
+  + render 入口 assert + 測試鎖死，**不做簽章**）：
+  - JobRecord 加 `reviewed`/`reviewed_at`（`extra="allow"` → 舊 state.json 無痛相容）。
+  - `_run_render_phase` **入口 assert**：`require_review=True` 且 `reviewed=False` → 拒絕渲染、標
+    FAILED + 硬規則 #1 訊息、不進 render（涵蓋 `/approve`、section render、任何呼叫此入口的路徑）。
+  - `/approve`（從 awaiting_review/done）標 `reviewed=True`+`reviewed_at`；`run_job` 進
+    `awaiting_review` 時重置 `reviewed=False`（防 re-ingest 挾帶舊 reviewed 直接 render）。
+  - `tests/test_review_gate.py` 5 測（未審被擋無 artifact / 已審放行 / 非 require_review 不擋 /
+    approve 標記 / 預設 False）；修 `test_runner_render_phase` fixture 標 reviewed=True（反映
+    render 只在審後跑）。全套 2428 passed。
   威脅模型是「不小心跳過」非「內部惡意竄改」，簽章對自架單人過度設計，故不做。
 - [ ] 🟡 **R-3 sync I/O 阻 event loop 收口**（offline）— F5 已用 `asyncio.to_thread` 包，
   但無全面 enforcement。審 runner/routes 裡的同步重 I/O（PDF 解析、ffmpeg、檔案搬運）有沒有

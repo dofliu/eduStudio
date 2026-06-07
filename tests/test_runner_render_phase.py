@@ -67,6 +67,9 @@ def job_id(store: JobStore) -> str:
         source=JobSource(path="/fake.pdf"),
         options=JobOptions(),
     ))
+    # render phase 在生產中只在人工 approve 後才跑 → 標 reviewed=True,
+    # 否則 R-2 review gate (硬規則 #1) 會在入口擋下 (那是 test_review_gate.py 的範圍)。
+    store.update(rec.id, reviewed=True)
     store.artifacts_dir(rec.id).mkdir(parents=True, exist_ok=True)
     return rec.id
 

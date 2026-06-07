@@ -1184,7 +1184,9 @@ async def run_job(store: JobStore, job_id: str) -> None:
         # ---- 2. Pause for review? ----
         rec = store.get(job_id)  # refresh
         if rec.options.require_review:
-            store.update(job_id, state=JobState.AWAITING_REVIEW)
+            # R-2: 進 awaiting_review 時清 reviewed (新 ingest 內容要重新審, 即使
+            # 上次 approve 過; 防 re-ingest 後挾帶舊的 reviewed=True 直接 render)。
+            store.update(job_id, state=JobState.AWAITING_REVIEW, reviewed=False)
             logger.info("等候 review (require_review=True)")
             return  # 等 /approve
 
@@ -1221,6 +1223,18 @@ async def _run_render_phase(
         token = current_job_id.set(job_id)
 
     try:
+        # R-2 review gate (硬規則 #1, 不可繞): require_review job 必須先經人工 approve
+        # (reviewed=True) 才能進 render。任何想跳過審查直接 render 的路徑在此被擋死。
+        rec_gate = store.get(job_id)
+        if rec_gate is not None and rec_gate.options.require_review and not rec_gate.reviewed:
+            msg = (
+                "拒絕渲染: 此 job require_review=True 但尚未通過人工審查 "
+                "(硬規則 #1: AI 產出數值必須經人工 review)。請先 /approve。"
+            )
+            logger.error(msg)
+            store.update(job_id, state=JobState.FAILED, error=msg)
+            return
+
         store.update(job_id, state=JobState.RENDERING, error=None)
         stage_name = f"render-section-{section_id}" if section_id else "render"
         _start_stage(store, job_id, stage_name)

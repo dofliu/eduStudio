@@ -1,6 +1,9 @@
 """core/infocards/poster_service 測試（Phase C-2）。prompt 建構 deterministic + mock 生圖。"""
 from __future__ import annotations
 
+import base64
+import io
+
 import core.infocards.poster_service as poster
 from core.infocards.poster_service import build_poster_prompt, generate_poster
 
@@ -66,5 +69,40 @@ class TestGeneratePoster:
         seen = {}
         monkeypatch.setattr(poster, "generate_image_b64",
                             lambda prompt, model=None, api_key=None, files=None: (seen.update(files=files), "x")[1])
+        monkeypatch.setattr("core.config.get_brand_footer", lambda: "")
         generate_poster("牛頓", "forest", files=[{"mimeType": "application/pdf", "data": "abc"}])
         assert seen["files"] == [{"mimeType": "application/pdf", "data": "abc"}]
+
+
+class TestBrandOverlay:
+    """個人品牌底部品牌帶（#4）：生成後 overlay，文字才正確。"""
+
+    def _png_url(self, w=200, h=300):
+        from PIL import Image
+        img = Image.new("RGB", (w, h), (255, 255, 255))
+        buf = io.BytesIO(); img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    def test_no_footer_unchanged(self):
+        url = self._png_url()
+        assert poster._overlay_brand_footer(url, "") == url
+
+    def test_footer_overlaid_valid_png_same_size(self):
+        from PIL import Image
+        src = self._png_url(200, 300)
+        out = poster._overlay_brand_footer(src, "劉瑞弘 · NCUT · doflab.cc")
+        assert out != src and out.startswith("data:image/png;base64,")
+        img = Image.open(io.BytesIO(base64.b64decode(out.split(",", 1)[1])))
+        assert img.size == (200, 300)   # 疊帶在底部，尺寸不變
+
+    def test_invalid_image_safe_noop(self):
+        bad = "data:image/png;base64,NOTANIMAGE"
+        assert poster._overlay_brand_footer(bad, "x") == bad   # 壞圖不炸，回原值
+
+    def test_generate_poster_applies_when_brand_set(self, monkeypatch):
+        src = self._png_url(120, 120)
+        monkeypatch.setattr(poster, "generate_image_b64",
+                            lambda prompt, model=None, api_key=None, files=None: src)
+        monkeypatch.setattr("core.config.get_brand_footer", lambda: "劉 · NCUT")
+        out = generate_poster("t", "navy")
+        assert out["imageUrl"] != src   # 設定有品牌→底部疊了品牌帶

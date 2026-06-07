@@ -12,8 +12,49 @@
 """
 from __future__ import annotations
 
+import base64
+import io
+import logging
+
 from core.infocards.gemini import generate_image_b64
 from core.infocards.models import IMAGE_MODELS
+
+
+def _overlay_brand_footer(data_url: str, footer: str) -> str:
+    """在生成好的海報/圖卡底部疊一條半透明帶 + 個人品牌文字（講者·單位·連結）。
+
+    生成後 overlay（而非塞進 prompt）才能保證文字正確 —— AI 生圖的文字渲染不可靠。
+    任何步驟失敗都回原圖（品牌帶是加值，不能毀掉成品）。"""
+    if not data_url or not data_url.startswith("data:") or not footer:
+        return data_url
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        from core.config import get_font_path
+
+        b64 = data_url.split(",", 1)[1]
+        img = Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGBA")
+        W, H = img.size
+        strip_h = max(34, H // 20)
+        fsize = max(16, int(strip_h * 0.42))
+        try:
+            font = ImageFont.truetype(get_font_path(), fsize)
+        except Exception:
+            font = ImageFont.load_default()
+        strip = Image.new("RGBA", (W, strip_h), (17, 17, 17, 150))
+        draw = ImageDraw.Draw(strip)
+        try:
+            tw = draw.textlength(footer, font=font)
+        except Exception:
+            tw = len(footer) * fsize * 0.6
+        draw.text((max(12, W - tw - 20), (strip_h - fsize) // 2 - 2), footer,
+                  fill=(255, 255, 255, 240), font=font)
+        img.alpha_composite(strip, (0, H - strip_h))
+        out = io.BytesIO()
+        img.convert("RGB").save(out, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(out.getvalue()).decode()
+    except Exception:  # noqa: BLE001
+        logging.getLogger("infocards").warning("海報品牌頁尾疊加失敗", exc_info=True)
+        return data_url
 
 # 文字渲染 + 4K 品質要求（從 geminiClient.HIGH_QUALITY_TEXT_PROMPT 原樣移植）。
 HIGH_QUALITY_TEXT_PROMPT = """
@@ -107,4 +148,8 @@ def generate_poster(
     )
     model = image_model or IMAGE_MODELS["pro"]["id"]
     image_url = generate_image_b64(prompt, model=model, api_key=api_key, files=files)
+    # 設定頁有填個人品牌 → 底部疊固定品牌帶（生成後 overlay，文字才正確）。
+    if image_url:
+        from core.config import get_brand_footer
+        image_url = _overlay_brand_footer(image_url, get_brand_footer())
     return {"imageUrl": image_url, "prompt": prompt}

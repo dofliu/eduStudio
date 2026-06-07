@@ -350,6 +350,14 @@ def get_outro_url() -> str:
     return _brand_setting("brand_url") or os.environ.get("CLAUDE_OUTRO_URL") or DEFAULT_OUTRO_URL
 
 
+def get_brand_footer() -> str:
+    """個人品牌頁尾「講者 · 單位 · 連結」字串，給簡報母片頁尾 / 圖卡底部共用。
+    只取設定頁實際填的欄位（不帶預設值）；都沒填回空字串（呼叫端據此略過頁尾）。"""
+    parts = [_brand_setting(k) for k in ("brand_speaker", "brand_org", "brand_url")]
+    parts = [str(p).strip() for p in parts if p and str(p).strip()]
+    return "  ·  ".join(parts)
+
+
 # iter 67: 結尾頁 QR code — 第二個 URL 給 YouTube 頻道用
 DEFAULT_OUTRO_YOUTUBE_URL = "https://www.youtube.com/@dofliu"
 

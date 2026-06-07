@@ -301,7 +301,10 @@ def _render_table(slide, headers, rows, accent) -> None:
 
 
 def build_pptx(data: dict) -> bytes:
-    """PresentationData(dict) → .pptx bytes。空 slides 也產出僅封面的最小檔。"""
+    """PresentationData(dict) → .pptx bytes。空 slides 也產出僅封面的最小檔。
+
+    若設定頁有填個人品牌（講者/單位/連結），每頁置底加固定頁尾（母片式品牌資訊）。
+    """
     from pptx import Presentation
     from pptx.util import Inches
 
@@ -322,12 +325,21 @@ def build_pptx(data: dict) -> bytes:
     if not slides:
         slides = [{"layout": "title_cover", "title": data.get("mainTitle", "簡報"),
                    "subtitle": data.get("subtitle", "")}]
+    from core.config import get_brand_footer
+    footer = get_brand_footer()
     for s in slides:
         try:
             _render_slide(prs, s, theme)
         except Exception:
             # 單頁渲染失敗不該毀掉整份匯出：退成標題頁。
             _render_slide(prs, {"layout": "section_header", "title": s.get("title", "（此頁無法渲染）")}, theme)
+        # 母片式品牌頁尾：每頁置底固定資訊（不擋匯出，失敗略過該頁尾）。
+        if footer:
+            try:
+                _add_text(prs.slides[-1], 0.3, SLIDE_H - 0.34, SLIDE_W - 0.6, 0.3,
+                          footer, size=8, color="9aa0a6", align="right", valign="bottom")
+            except Exception:
+                pass
 
     buf = io.BytesIO()
     prs.save(buf)

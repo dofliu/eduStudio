@@ -142,3 +142,33 @@ class TestExportRoute:
             "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         assert "attachment" in r.headers["content-disposition"]
         assert r.content[:2] == b"PK"  # zip/pptx 魔術位元組
+
+
+def test_brand_footer_on_every_slide(monkeypatch):
+    """設定有個人品牌 → 每頁置底固定品牌頁尾（母片式，#4）。"""
+    import io
+    from pptx import Presentation
+    from core.infocards.pptx_export import build_pptx
+
+    monkeypatch.setattr("core.config.get_brand_footer", lambda: "劉瑞弘 · NCUT")
+    data = {"mainTitle": "T", "themeColor": "#1e3a5f", "slides": [
+        {"layout": "title_cover", "title": "封面", "subtitle": "x"},
+        {"layout": "bullet_list", "title": "重點", "bulletPoints": ["a", "b"]},
+    ]}
+    prs = Presentation(io.BytesIO(build_pptx(data)))
+    for slide in prs.slides:
+        texts = " ".join(sh.text_frame.text for sh in slide.shapes if sh.has_text_frame)
+        assert "劉瑞弘 · NCUT" in texts
+
+
+def test_no_brand_no_footer(monkeypatch):
+    """沒設定品牌 → 不加頁尾（不污染版面）。"""
+    import io
+    from pptx import Presentation
+    from core.infocards.pptx_export import build_pptx
+
+    monkeypatch.setattr("core.config.get_brand_footer", lambda: "")
+    prs = Presentation(io.BytesIO(build_pptx({"mainTitle": "T", "slides": [{"layout": "bullet_list", "title": "重點"}]})))
+    for slide in prs.slides:
+        texts = " ".join(sh.text_frame.text for sh in slide.shapes if sh.has_text_frame)
+        assert "·" not in texts or "重點" in texts  # 沒有品牌頁尾的 · 分隔

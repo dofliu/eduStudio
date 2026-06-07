@@ -33,7 +33,9 @@ IMAGE_MODELS: dict[str, dict[str, str]] = {
         "description": "快速生圖主力，低延遲",
     },
     "pro": {
-        "id": "gemini-3-pro-image-preview",
+        # 註：劉老師網頁看到 gemini-3.1-pro-image，但本 key 的 API models.list 無此 id（404）；
+        # 實際可用的 pro 圖片模型是 gemini-3-pro-image（GA）。3.1-pro-image 未經 API 開放再換。
+        "id": "gemini-3-pro-image",
         "label": "👑 Pro Image (最高畫質)",
         "description": "專業品質，最高畫質繪圖",
     },

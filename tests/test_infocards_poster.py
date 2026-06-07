@@ -54,7 +54,7 @@ class TestGeneratePoster:
         assert out["imageUrl"] == "data:image/png;base64,POSTER"
         assert "ASPECT RATIO: 1:1" in out["prompt"]
         # 預設用 pro 圖片模型
-        assert seen["model"] == "gemini-3-pro-image-preview"
+        assert seen["model"] == "gemini-3-pro-image"
 
     def test_blank_image_on_failure(self, monkeypatch):
         monkeypatch.setattr(poster, "generate_image_b64", lambda prompt, model=None, api_key=None, files=None: "")

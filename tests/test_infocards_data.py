@@ -20,13 +20,13 @@ class TestModels:
     def test_model_ids(self):
         # 2026-06 更新為 Gemini 3 系列（2.5 將停用）；id 均 live 實測可用。
         assert models.TEXT_MODELS["flash"]["id"] == "gemini-3.5-flash"
-        assert models.IMAGE_MODELS["pro"]["id"] == "gemini-3-pro-image-preview"
+        assert models.IMAGE_MODELS["pro"]["id"] == "gemini-3-pro-image"
         assert models.DEFAULT_TEXT_MODEL == "gemini-3.5-flash"
         assert models.DEFAULT_IMAGE_MODEL == "gemini-3.1-flash-image"
 
     def test_pricing_keyed_by_image_id(self):
         assert models.MODEL_PRICING["image"]["gemini-3.1-flash-image"] == 0.003
-        assert models.MODEL_PRICING["image"]["gemini-3-pro-image-preview"] == 0.04
+        assert models.MODEL_PRICING["image"]["gemini-3-pro-image"] == 0.04
 
     def test_options_helpers(self):
         assert len(models.text_model_options()) == 3
@@ -36,11 +36,11 @@ class TestModels:
 # ── cost ──
 class TestCost:
     def test_image_only_cost(self):
-        c = estimate_cost(0, 0, 10, "gemini-3-pro-image-preview")
+        c = estimate_cost(0, 0, 10, "gemini-3-pro-image")
         assert c["totalCost"] == 0.4  # 10 * 0.04
         assert c["currency"] == "USD"
         assert c["breakdown"]["imageCount"] == 10
-        assert c["breakdown"]["imageModel"] == "gemini-3-pro-image-preview"
+        assert c["breakdown"]["imageModel"] == "gemini-3-pro-image"
 
     def test_text_cost(self):
         c = estimate_cost(1000, 1000, 0, "gemini-2.5-flash-image")

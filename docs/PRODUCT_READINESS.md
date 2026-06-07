@@ -47,8 +47,11 @@
   （`find_client_secrets()`、glob、gitignore 樣式），非金鑰本體。
   - 縱深防護：CI 已掛 **GitGuardian Security Checks**（每個 PR gating）+ `.gitignore` 已蓋全部
     敏感檔，持續防未來誤 commit。BFG/history rewrite **不需要**。
-- [ ] 🟡 **P0-3 `.env.example` / 設定範本完整度檢查**（offline）— 確認陌生人照範本能配齊
-  所有必要環境變數（GEMINI_API_KEY、字型路徑、TRACK_B_URL…），缺的補進範本 + 註解。
+- [x] 🟡 **P0-3 `.env.example` / 設定範本完整度檢查**（offline）— ✅ 2026-06-07 完成。對全 code
+  `getenv`/`environ` 盤點出 **25 個**環境變數，原範本只列 7 個 → 補齊全部並分區註明預設值/用途。
+  結論：**唯一必填仍是 `GEMINI_API_KEY`**，其餘 24 個皆選用（DB 路徑預設 repo 內、品牌走設定頁、
+  ollama 預設 localhost、whisper 自動偵測），故全部以註解列出當完整參考（不強迫設定）。改檔名
+  標題 autoSolverVideo→eduStudio。
 - [ ] 🟡 **P0-4 CONTRIBUTING.md + issue/PR 範本**（offline）— 開源協作基本盤；放
   `.github/ISSUE_TEMPLATE/`、`CONTRIBUTING.md`（含「怎麼跑測試 / 硬規則摘要 / offline-first
   紀律」）。

@@ -46,8 +46,8 @@ outputs:
   - course
   - presentation
   - api
-description: "Three input types (exam PDF / slides PDF / blog-or-doc) -> Gemini -> human review -> MP4 + SRT -> YouTube. Production-ready, content quality roadmap iterating."
-description_zh: "三種輸入(考題 PDF / 教學簡報 PDF / blog 或文件)→ Gemini 處理 → 人工 review → MP4 + SRT → YouTube。production 可用, 內容品質持續迭代中。"
+description: "Self-hostable AI teaching-content studio. Exams / slides / docs / repos / audio -> narrated teaching videos + subtitles + YouTube, slide decks / infographics / posters, and translation / dubbing / meeting-summary / learning tools. Unified per-course workspace with a human review gate over every AI output. Single FastAPI server + React 19 app, powered by Gemini 3 + F5-TTS voice cloning."
+description_zh: "可自架的 AI 教學內容工作站。考卷 / 簡報 / 文件 / 程式碼 / 音檔 → 旁白教學影片+字幕+YouTube、簡報 / 圖卡 / 海報、翻譯 / 配音 / 會議摘要 / 學習工具。一門課一工作空間,每個 AI 產出都有人工審查關卡。單一 FastAPI server + React 19 前端,Gemini 3 + F5-TTS 聲音複製驅動。"
 
 key_metrics: |
   測試覆蓋: 2229 tests passed, CI 4 組 matrix (ubuntu/win × py 3.10/3.12) +

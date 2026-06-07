@@ -2434,13 +2434,32 @@ const VLIB_TYPE_META = {
   infographic: { label: "資訊圖卡", icon: "layout-grid", hue: "var(--es-ws-material)" },
 };
 
+// 開圖：Chrome 禁止 window.open() 直接導向 data: URL（會「無法連上這個網站」），
+// 先把 data URL 轉成 Blob URL 再開新分頁（blob: 允許頂層導覽）。非 data: 直接開。
+function esOpenImage(src) {
+  if (!src) return;
+  if (!src.startsWith("data:")) { window.open(src, "_blank"); return; }
+  try {
+    const [head, b64] = src.split(",");
+    const mime = (head.match(/data:([^;]+)/) || [])[1] || "image/png";
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([arr], { type: mime }));
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);   // 留時間讓新分頁載入
+  } catch (e) {
+    window.open(src, "_blank");   // 退回原本行為
+  }
+}
+
 // 視覺素材縮圖卡（素材庫 / 課程成品共用）。
 function VlibCard({ item, onDelete }) {
   const t = VLIB_TYPE_META[item.type] || VLIB_TYPE_META.poster;
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ position: "relative", aspectRatio: "1 / 1", background: "var(--es-bg-2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: item.thumb ? "pointer" : "default" }}
-        onClick={() => item.thumb && window.open(item.thumb, "_blank")}>
+        onClick={() => esOpenImage(item.thumb)}>
         {item.thumb
           ? <img src={item.thumb} alt={item.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : <Icon name={t.icon} size={28} style={{ color: t.hue }} />}

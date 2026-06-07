@@ -13,7 +13,12 @@ eduStudio 是設計給**個人 / 單位自架**的工具。請注意目前的安
   （讓 cookie 帶 `Secure`）並可再疊一層存取控制（VPN / Cloudflare Access / Tailscale 等），
   **不要**直接把 `0.0.0.0:8000` 裸奔到公開網際網路。
 - 保護好你的金鑰與機密檔：`.env`、`settings.json`、`client_secret*.json`、`youtube_token.json`、
-  `tts_config.json` 都不應該外流（已被 `.gitignore` 保護，請勿強制提交）。
+  `tts_config.json` 含 API key / OAuth token，**以明文存放在本機**（已被 `.gitignore` 保護，請勿
+  強制提交）。基於自架單機定位，**這些檔不做應用層加密**；請你自己負責：
+  - **不要**放在共享磁碟 / 雲端同步資料夾（Dropbox / OneDrive / 網路磁碟）。
+  - **不要**讓它們進到未加密的備份；要備份就用磁碟層級加密（FileVault / BitLocker / LUKS）。
+  - 收緊檔案權限（例如 `chmod 600 .env settings.json`），只有執行 server 的帳號讀得到。
+  - 金鑰外洩時立即到對應主控台（Google AI Studio / GCP）撤銷重發。
 
 > 一句話：**把它當成你自己內網的私人工具**，不是面向公眾的服務。
 

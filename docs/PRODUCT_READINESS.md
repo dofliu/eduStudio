@@ -91,10 +91,15 @@
   `server/main.py` 套用、補 `tests/test_cors_config.py`（6 測：預設/空白/逗號解析/萬用 +
   白名單 origin 拿到 CORS header、非白名單拿不到）、`.env.example` 補該變數。本機全套
   2367 passed（3 個 font-pixel 斷言失敗是容器缺 Noto CJK 的字型替代假象，CI 有裝字型）。
-- [ ] 🔴 **S-3 path-traversal 全面審**（offline）— 既有部分端點有 `_sanitize_filename` /
-  `../` 防呆（uploads / library / song images），但**沒系統性審過全部吃 path/filename 的
-  端點**（jobs artifacts / slides images / projects sources / editor…）。逐一審 + 補一組
-  共用 `safe_join` helper + traversal 測試（`../`、絕對路徑、symlink、Windows `\`）。
+- [x] 🔴 **S-3 path-traversal 全面審**（offline）— ✅ 2026-06-07 完成。系統性審過所有吃
+  path/filename 的端點（jobs artifacts/figures/images、slide_images、uploads、voices sample、
+  projects、library、editor、infocards、localization、youtube SRT、themes）。**發現缺口**：3 個
+  jobs 端點（artifacts/figures/images）只有字元黑名單、**缺 resolve-containment 二次防護**；其餘
+  端點已用白名單 / `safe_id` / temp file / slides 的 resolve-containment，安全。**修補**：抽出共用
+  `server/path_safety.py::safe_join`（字元檢查 + `.resolve()` + `relative_to` 三道），套到 3 個
+  jobs 端點，並把 slides.py 重構成用同一 helper（消除重複、單一真相）。補 `tests/test_path_safety.py`
+  18 測（`..`/絕對路徑/分隔符/前導點/**symlink 逃脫**/Windows `\`/多碎片其一壞 + 端點整合）。
+  全套 2387 passed（1 個 QR 像素斷言失敗為容器缺 Noto 字型假象，CI 有字型）。
 - [ ] 🟡 **S-4 上傳硬化**（offline）— 既有 `MAX_UPLOAD_SIZE` 200MB + Content-Length 預檢。
   補：副檔名/MIME 白名單（只收 pdf/mp3/wav/png…）、解壓/解析前大小複查、檔名 NFC 正規化。
 - [ ] 🟡 **S-5 secret 落地強化**（GATE）— 現況 settings.json / youtube_token.json 明文存盤

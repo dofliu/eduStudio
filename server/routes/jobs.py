@@ -26,6 +26,7 @@ from core.icon_picker import suggest_for_deck
 from core.image_frames import summarize_for_deck
 
 from ..jobs import JobStore, get_default_store
+from ..path_safety import safe_join
 from ..runner import schedule_job, schedule_render, schedule_section_render
 from ..schemas import (
     CreateJobRequest,
@@ -382,10 +383,8 @@ async def download_artifact(job_id: str, name: str, store: JobStore = Depends(ge
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    # 防 path traversal: 只接受 name 為單純檔名,不能含 / 或 ..
-    if "/" in name or "\\" in name or ".." in name:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 artifact 檔名")
-    target = store.artifacts_dir(job_id) / name
+    # 防 path traversal: 字元檢查 + resolve + 限定在 artifacts/ 下 (S-3 共用 safe_join)
+    target = safe_join(store.artifacts_dir(job_id), name)
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"artifact 不存在: {name}")
     return FileResponse(target, filename=name)
@@ -445,9 +444,7 @@ async def download_figure(
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    if "/" in name or "\\" in name or ".." in name:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 figure 檔名")
-    target = store.job_dir(job_id) / "figures" / name
+    target = safe_join(store.job_dir(job_id) / "figures", name)
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"figure 不存在: {name}")
     return FileResponse(target, filename=name)
@@ -469,9 +466,7 @@ async def download_song_image(
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
-    if "/" in name or "\\" in name or ".." in name:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 image 檔名")
-    target = store.job_dir(job_id) / "images" / name
+    target = safe_join(store.job_dir(job_id) / "images", name)
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"image 不存在: {name}")
     return FileResponse(target, filename=name)

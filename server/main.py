@@ -25,6 +25,7 @@ from core.config import PROJECT_ROOT, get_allowed_origins
 from core.logging_setup import setup_logging
 from core.runtime import setup_utf8_stdout
 
+from .auth import install_auth, warn_if_open
 from .jobs import get_default_store
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
@@ -90,6 +91,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # S-1: 單一共享 token 驗證層 (沒設 EDUSTUDIO_API_TOKEN 時為 no-op)。
+    install_auth(app)
 
     app.include_router(jobs_routes.router)
     app.include_router(youtube_routes.router)
@@ -222,6 +226,8 @@ def create_app() -> FastAPI:
         # eager init store, 把 jobs/ 既有 state 讀回 cache
         store = get_default_store()
         print(f"[server] job store ready: {len(store.list())} 筆既有 job")
+        # S-1: 沒設 token 就大聲警告勿暴露公網
+        warn_if_open()
 
     return app
 

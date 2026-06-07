@@ -4,12 +4,14 @@
 
 eduStudio 是設計給**個人 / 單位自架**的工具。請注意目前的安全假設：
 
-- **目前後端尚未內建身分驗證**（單一共享 token 驗證層為規劃中項目）。在它就緒之前，**任何能連到
-  你 server 的人都能呼叫 API、看你的 job 與產出、消耗你的 Gemini 額度**。
+- **後端內建單一共享 token 驗證，但預設關閉。** 設定環境變數 `EDUSTUDIO_API_TOKEN=<夠長的隨機
+  密鑰>` 即啟用：瀏覽器走 `/app` 登入框種 cookie、CLI 帶 `Authorization: Bearer <token>`。**沒設
+  → server 照跑但無驗證**（啟動會大聲警告），此時**任何能連到你 server 的人都能呼叫 API、看你的
+  job 與產出、消耗你的 Gemini 額度**。**暴露到 localhost 以外前，務必先設 token。**
 - 預設範例用 `--host 127.0.0.1`（只有本機可連），**請維持這個預設**，除非你清楚知道自己在做什麼。
-- 若要從區網/外部存取，**務必**放在可信任的反向代理（Nginx/Caddy）後面並自行加上存取控制
-  （HTTP Basic Auth / VPN / Cloudflare Access / Tailscale 等），**不要**直接把
-  `0.0.0.0:8000` 暴露到公開網際網路。
+- 即使設了 token，從區網/外部存取仍建議放在可信任的反向代理（Nginx/Caddy）後面、走 HTTPS
+  （讓 cookie 帶 `Secure`）並可再疊一層存取控制（VPN / Cloudflare Access / Tailscale 等），
+  **不要**直接把 `0.0.0.0:8000` 裸奔到公開網際網路。
 - 保護好你的金鑰與機密檔：`.env`、`settings.json`、`client_secret*.json`、`youtube_token.json`、
   `tts_config.json` 都不應該外流（已被 `.gitignore` 保護，請勿強制提交）。
 
@@ -56,11 +58,13 @@ eduStudio 是設計給**個人 / 單位自架**的工具。請注意目前的安
 
 ## English summary
 
-eduStudio is built for **self-hosting**. **The backend currently ships without built-in
-authentication** — until a shared-token auth layer lands, anyone who can reach your server can call
-the API, see your jobs/outputs, and spend your Gemini quota. Keep the default `127.0.0.1` bind; if you
-need remote access, put it behind a trusted reverse proxy with access control (Basic Auth / VPN /
-Cloudflare Access / Tailscale). **Do not expose `0.0.0.0:8000` to the public internet.**
+eduStudio is built for **self-hosting**. The backend has built-in **shared-token auth, off by
+default**: set `EDUSTUDIO_API_TOKEN=<long random secret>` to enable it (browser logs in at `/app` →
+cookie; CLI sends `Authorization: Bearer <token>`). **If it is unset the server runs with no auth**
+(loud startup warning) and anyone who can reach it can call the API, see your jobs/outputs, and spend
+your Gemini quota — **always set the token before exposing beyond localhost.** Keep the default
+`127.0.0.1` bind; for remote access put it behind a trusted reverse proxy over HTTPS (so the cookie is
+`Secure`). **Do not expose `0.0.0.0:8000` to the public internet.**
 
 **Do not file public issues for vulnerabilities.** Use GitHub's **private vulnerability reporting**
 (repo **Security** tab → *Report a vulnerability*) or contact the maintainer

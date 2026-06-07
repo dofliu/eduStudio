@@ -197,8 +197,11 @@
   補完後，把成本面板數字接真 `/api/usage`，移除「示意」假數字。
 - [ ] 🟢 **U-5 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰
   YouTube OAuth + 多語 metadata（方案 A 多語字幕軌後端已有），補前端驅動。
-- [ ] 🟢 **U-6 前端建置流程文件化**（offline）— `--base=/app/` 必帶這個雷寫進 README/CONTRIBUTING，
-  自架者改前端不踩。考慮加 `npm run build:app` script 包死 flag。
+- [x] 🟢 **U-6 前端建置流程文件化**（offline）— ✅ 2026-06-07 完成。直接**把 `base:'/app/'` 寫死
+  進 `frontend/vite.config.ts`**（最徹底消除 footgun：連 `vite build` 都對，不必記 CLI flag）+ 加
+  `npm run build:app` 語意別名 + CONTRIBUTING 補「前端建置須知」（/app 唯一正式前端、base 已寫死、
+  web//studio 為 legacy）。本機 node22 實 build 驗證產物 `index.html` 正確引用 `/app/assets/...`
+  且與既有 commit 產物**完全一致**（零 diff）。
 
 ---
 

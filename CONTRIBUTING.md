@@ -22,11 +22,20 @@ pip install -r requirements.txt          # 核心依賴
 pip install -r requirements-dev.txt      # 測試/開發依賴
 uvicorn server.main:app --host 127.0.0.1 --port 8000
 
-# 前端 (React + Vite)
-cd frontend && npm install && npm run build
+# 前端 — 統一 /app（React 19 + Vite，原始碼在 frontend/edustudio/）
+cd frontend && npm install && npm run build   # 或 npm run build:app
 ```
 
 需要 `GEMINI_API_KEY`（`cp .env.example .env` 後填入）。其餘環境變數都有預設值，見 `.env.example`。
+
+### 前端建置須知（重要）
+
+- `/app` 是**唯一的正式前端**，原始碼自包含在 `frontend/edustudio/`，build 產物輸出到
+  `web/eduapp/`，server serve 在 `/app`。
+- **base 已在 `frontend/vite.config.ts` 寫死成 `/app/`** → 直接 `npm run build`（或語意別名
+  `npm run build:app`）即可，**不必**再記得在 CLI 帶 `--base=/app/`（以前漏了會整頁空白 404）。
+- `web/`（serve 在 `/ui`）與 `web/studio/`（`/studio`，外部 infoCard 預建產物）為 **legacy**，
+  正在收斂退場，新前端功能一律進 `/app`。
 
 ## 跑測試（送 PR 前必做）
 

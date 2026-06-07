@@ -181,9 +181,36 @@ def _build_outline_instruction(outline: dict | None) -> str:
 """
 
 
+# 視覺取向（preferredVisualStyle）→ 生成指令（對齊 infoCard PresentationStylePanel）。
+_VISUAL_EMPHASIS = {
+    "visual": "圖像豐富：多用 text_and_image / diagram_image / full_image 版型，文字精簡",
+    "balanced": "均衡呈現：圖文並重，版型多樣交錯",
+    "text": "條列精煉：以 bullet_list / two_column 文字重點為主，少用大圖",
+}
+
+
+def _build_steer(steer: dict | None) -> str:
+    """受眾／目的／語氣／視覺取向 → 注入 prompt 的引導區塊（對齊 infoCard brandConfig 受眾設定）。"""
+    if not steer:
+        return ""
+    lines = []
+    if steer.get("audience"):
+        lines.append(f"- 目標受眾：{steer['audience']}（用詞深淺、舉例與類比貼合此受眾）")
+    if steer.get("purpose"):
+        lines.append(f"- 簡報目的：{steer['purpose']}（敘事結構與重點分配配合此目的）")
+    if steer.get("tone"):
+        lines.append(f"- 語氣風格：{steer['tone']}（講稿 speakerNotes 與標題口吻一致）")
+    ve = steer.get("visualEmphasis")
+    if ve:
+        lines.append(f"- 視覺取向：{_VISUAL_EMPHASIS.get(ve, ve)}")
+    if not lines:
+        return ""
+    return "【受眾與語氣設定 - 請融入全簡報】\n" + "\n".join(lines) + "\n"
+
+
 def _build_prompt(text: str, style: str, custom: str, slide_count: int,
                   density: str, typography: str, theme: dict,
-                  outline: dict | None = None) -> str:
+                  outline: dict | None = None, steer: dict | None = None) -> str:
     if style == "custom":
         style_header = f"THEME: {custom}"
     else:
@@ -202,7 +229,7 @@ def _build_prompt(text: str, style: str, custom: str, slide_count: int,
 - 排版風格：{_TYPOGRAPHY.get(typography, _TYPOGRAPHY['modern'])}
 - 目標頁數：精確生成 {slide_count} 頁（含封面和總結頁）
 - 語言：繁體中文（台灣）
-{_build_outline_instruction(outline)}
+{_build_steer(steer)}{_build_outline_instruction(outline)}
 【待處理內容】
 {text or '請分析內容，生成完整的專業簡報。'}"""
 
@@ -247,6 +274,7 @@ def generate_presentation_data(
     typography: str = "modern",
     animation: str = "fade",
     selected_outline: dict | None = None,
+    steer: dict | None = None,
     model: str | None = None,
     files=None,
 ) -> PresentationData:
@@ -261,7 +289,7 @@ def generate_presentation_data(
         typography = selected_outline.get("suggestedTypography") or typography
     theme = get_theme_by_style("professional" if effective_style == "custom" else effective_style)
     prompt = _build_prompt(text, effective_style, custom, slide_count, density, typography,
-                           theme, selected_outline)
+                           theme, selected_outline, steer)
     data = generate_json(prompt, model=model, response_schema=_PresentationGen, files=files)
     data = _coerce(data)
     # 後端補（非模型輸出，對齊 presentationService.ts）。
@@ -339,6 +367,7 @@ def generate_presentation_outlines(
     *,
     custom: str = "",
     slide_count: int = 10,
+    steer: dict | None = None,
     model: str | None = None,
     files=None,
 ) -> list[PresentationOutline]:
@@ -356,7 +385,7 @@ def generate_presentation_outlines(
 - {style_hint}
 - 目標頁數：每個方案精確 {slide_count} 頁（含封面和總結頁）
 - 語言：繁體中文（台灣）
-【待處理內容】
+{_build_steer(steer)}【待處理內容】
 {text or '請根據內容規劃簡報大綱。'}"""
 
     data = generate_json(prompt, model=model, response_schema=_OutlinesGen, files=files)

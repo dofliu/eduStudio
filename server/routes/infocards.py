@@ -41,6 +41,16 @@ class GenerateRequest(BaseModel):
     files: list[dict] = Field(default_factory=list)   # 多模態參考檔 [{mimeType, data(base64)}]
     imageModel: str = ""   # 空＝採設定頁/預設（見 generate 解析）
     textModel: str = ""
+    # 簡報受眾／語氣引導（對齊 infoCard brandConfig；空字串＝不指定）。
+    animation: str = "fade"
+    audience: str = ""
+    purpose: str = ""
+    tone: str = ""
+    visualEmphasis: str = ""
+
+    def _steer(self) -> dict:
+        return {"audience": self.audience, "purpose": self.purpose,
+                "tone": self.tone, "visualEmphasis": self.visualEmphasis}
 
 
 class ShareRequest(BaseModel):
@@ -133,7 +143,7 @@ def generate(req: GenerateRequest) -> dict:
         # 兩階段 Stage 1：產 3 個大綱方案（低成本，不生圖）。
         outlines = presentation_service.generate_presentation_outlines(
             req.text, req.style, custom=req.customStylePrompt,
-            slide_count=req.slideCount, model=text_model, files=req.files)
+            slide_count=req.slideCount, steer=req._steer(), model=text_model, files=req.files)
         return {"success": True, "type": "outline",
                 "data": {"outlines": [o.model_dump() for o in outlines]}}
 
@@ -141,7 +151,8 @@ def generate(req: GenerateRequest) -> dict:
         data = presentation_service.generate_presentation_data(
             req.text, req.style, custom=req.customStylePrompt,
             slide_count=req.slideCount, density=req.density,
-            typography=req.typography or "modern", selected_outline=req.selectedOutline,
+            typography=req.typography or "modern", animation=req.animation,
+            selected_outline=req.selectedOutline, steer=req._steer(),
             model=text_model, files=req.files)
         data = presentation_service.generate_presentation_images(
             data, style=req.style, custom=req.customStylePrompt, image_model=image_model)

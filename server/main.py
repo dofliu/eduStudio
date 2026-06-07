@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.config import PROJECT_ROOT
+from core.config import PROJECT_ROOT, get_allowed_origins
 from core.logging_setup import setup_logging
 from core.runtime import setup_utf8_stdout
 
@@ -80,10 +80,12 @@ def create_app() -> FastAPI:
         version="0.2.0",
     )
 
-    # 開發階段全開 CORS, 部署時要收緊到實際前端 origin
+    # CORS 收緊 (S-2): 預設只放行本機 origin, 部署時用 EDUSTUDIO_ALLOWED_ORIGINS 覆寫。
+    # 同源 /app 不經過 CORS, 不受影響。設 "*" 可臨時全開除錯。
+    allowed_origins = get_allowed_origins()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -85,9 +85,12 @@
   → 實作：FastAPI dependency 統一掛在所有 router（read 與 write 都擋，因威脅含「讀你的
   job/影片」）；`/auth` + `/app` 登入 UI；啟動警告；測試（無 token 開放+警告 / 有 token：
   cookie 通過、Bearer 通過、無憑證 401 / 媒體端點受保護 / SameSite 屬性）。
-- [ ] 🔴 **S-2 CORS 收緊**（offline）— `allow_origins=["*"]` 改成讀環境變數
-  `EDUSTUDIO_ALLOWED_ORIGINS`（預設 `http://127.0.0.1:8000`）。同源 `/app` 不受影響。
-  server/main.py:85 一處 + 測試。
+- [x] 🔴 **S-2 CORS 收緊**（offline）— ✅ 2026-06-07 完成。`allow_origins=["*"]` → 讀
+  `EDUSTUDIO_ALLOWED_ORIGINS`（逗號分隔，預設 `http://127.0.0.1:8000` + `localhost:8000`，
+  `*` 可臨時全開）。helper `core.config.get_allowed_origins()`（符合硬規則 #6 集中）、
+  `server/main.py` 套用、補 `tests/test_cors_config.py`（6 測：預設/空白/逗號解析/萬用 +
+  白名單 origin 拿到 CORS header、非白名單拿不到）、`.env.example` 補該變數。本機全套
+  2367 passed（3 個 font-pixel 斷言失敗是容器缺 Noto CJK 的字型替代假象，CI 有裝字型）。
 - [ ] 🔴 **S-3 path-traversal 全面審**（offline）— 既有部分端點有 `_sanitize_filename` /
   `../` 防呆（uploads / library / song images），但**沒系統性審過全部吃 path/filename 的
   端點**（jobs artifacts / slides images / projects sources / editor…）。逐一審 + 補一組

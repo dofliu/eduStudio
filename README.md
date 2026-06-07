@@ -13,6 +13,7 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Gemini](https://img.shields.io/badge/Google-Gemini%203-4285F4?logo=googlegemini&logoColor=white)
 ![Status](https://img.shields.io/badge/status-active-success)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [English](#-english) · [繁體中文](#-繁體中文)
 
@@ -142,5 +143,7 @@ eduStudio/
 **作者 Author** · 劉瑞弘 Juihung Liu — 國立勤益科技大學 智慧自動化工程系 副教授 · [DOF Lab](https://doflab.cc)
 
 *三個前身專案（autoSolver / infoCard / translateGemma）已整合於此，並保留原 repo 供細項功能參考。*
+
+**授權 License** · [MIT](LICENSE) — © 2026 劉瑞弘 Juihung Liu
 
 </div>

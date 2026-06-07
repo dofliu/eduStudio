@@ -49,10 +49,10 @@ class VideoDubber:
         log.info("VideoDubber initialized with output_dir: %s", self.output_dir)
 
     def _get_whisper_model(self):
-        """lazy-load whisper。"""
+        """lazy-load whisper（共用 loader：large-v3 + GPU 優先；base 本機缺）。"""
         if self.whisper_model is None:
-            from faster_whisper import WhisperModel
-            self.whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+            from core.whisper_util import load_whisper_model
+            self.whisper_model = load_whisper_model()
         return self.whisper_model
 
     def _create_job_dir(self, prefix="job"):

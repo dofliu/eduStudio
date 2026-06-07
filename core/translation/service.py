@@ -458,11 +458,12 @@ Translate the following text:
     # ---------- STT（faster-whisper，lazy）----------
     def speech_to_text(self, audio_path: str, language: str = "auto") -> tuple[str, str]:
         try:
-            from faster_whisper import WhisperModel
+            import faster_whisper  # noqa: F401 — 僅檢查是否已安裝
         except ImportError:
             return "未安裝 faster-whisper，請先執行：pip install faster-whisper", ""
+        from core.whisper_util import load_whisper_model
         try:
-            model = WhisperModel("base", device="cpu", compute_type="int8")
+            model = load_whisper_model()
             whisper_lang_map = {
                 "zh_TW": "zh", "zh_CN": "zh", "en_US": "en", "ja_JP": "ja",
                 "ko_KR": "ko", "de_DE": "de", "fr_FR": "fr", "es_ES": "es",

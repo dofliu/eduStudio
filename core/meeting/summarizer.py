@@ -86,10 +86,10 @@ class MeetingSummarizer:
         self._whisper_model = None
 
     def _get_whisper_model(self):
-        """lazy-load whisper。"""
+        """lazy-load whisper（共用 loader：large-v3 + GPU 優先；base 本機缺）。"""
         if self._whisper_model is None:
-            from faster_whisper import WhisperModel
-            self._whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+            from core.whisper_util import load_whisper_model
+            self._whisper_model = load_whisper_model()
         return self._whisper_model
 
     def extract_audio(self, video_path: str, output_dir: str | None = None) -> str:

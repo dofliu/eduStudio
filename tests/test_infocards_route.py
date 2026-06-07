@@ -26,8 +26,14 @@ def client(tmp_path, monkeypatch):
     import core.infocards.visual_library as vl
     store = vl.VisualLibraryStore(db_path=str(tmp_path / "vlib.db"))
     monkeypatch.setattr(vl, "get_visual_library", lambda: store)
+    # Project store 用 tmp root（避免歸屬污染真實 projects/）
+    import server.routes.projects as proj_routes
+    from core.project import ProjectStore
+    pstore = ProjectStore(root=str(tmp_path / "projects"))
+    monkeypatch.setattr(proj_routes, "get_default_project_store", lambda: pstore)
     app = create_app()
     with TestClient(app) as c:
+        c._pstore = pstore   # 測試取用
         yield c
 
 
@@ -186,3 +192,39 @@ class TestVisualLibrary:
 
     def test_get_missing_404(self, client):
         assert client.get("/api/visual-library/nope").status_code == 404
+
+
+class TestProjectAttach:
+    """一課一工作空間：生成帶 projectId → 成品掛進 Project.artifacts，links 連回素材庫 id。"""
+
+    def test_poster_attaches_to_project(self, client, monkeypatch):
+        client._pstore.create(project_id="course_x", title="課程 X")
+        monkeypatch.setattr(
+            ic.poster_service, "generate_poster",
+            lambda text, style, **kw: {"imageUrl": "data:image/png;base64,P", "prompt": "P"})
+        client.post("/api/generate", json={"mode": "poster", "text": "牛頓", "style": "navy",
+                                           "projectId": "course_x"})
+        proj = client._pstore.get("course_x")
+        assert len(proj.artifacts) == 1
+        art = proj.artifacts[0]
+        assert art.kind == "image" and art.produced_by == "infoCard"
+        # links 連回素材庫 id，且該 id 真的在素材庫裡
+        lib_id = art.links["library_id"]
+        assert client.get(f"/api/visual-library/{lib_id}").status_code == 200
+
+    def test_no_project_id_no_attach(self, client, monkeypatch):
+        client._pstore.create(project_id="course_y", title="課程 Y")
+        monkeypatch.setattr(
+            ic.poster_service, "generate_poster",
+            lambda text, style, **kw: {"imageUrl": "data:image/png;base64,P", "prompt": "P"})
+        client.post("/api/generate", json={"mode": "poster", "text": "t", "style": "navy"})
+        assert len(client._pstore.get("course_y").artifacts) == 0
+
+    def test_bad_project_id_still_generates(self, client, monkeypatch):
+        """歸屬到不存在 Project 不該讓生成失敗（只記 log）。"""
+        monkeypatch.setattr(
+            ic.poster_service, "generate_poster",
+            lambda text, style, **kw: {"imageUrl": "data:image/png;base64,P", "prompt": "P"})
+        r = client.post("/api/generate", json={"mode": "poster", "text": "t", "style": "navy",
+                                               "projectId": "nope"})
+        assert r.status_code == 200 and r.json()["imageUrl"]

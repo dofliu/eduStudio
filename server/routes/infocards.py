@@ -41,6 +41,7 @@ class GenerateRequest(BaseModel):
     files: list[dict] = Field(default_factory=list)   # 多模態參考檔 [{mimeType, data(base64)}]
     imageModel: str = ""   # 空＝採設定頁/預設（見 generate 解析）
     textModel: str = ""
+    projectId: str = ""    # 可選：歸屬的 Project（一課一工作空間），空＝只存全域素材庫
     # 簡報受眾／語氣引導（對齊 infoCard brandConfig；空字串＝不指定）。
     animation: str = "fade"
     audience: str = ""
@@ -117,14 +118,37 @@ def _lib_title(req: "GenerateRequest", fallback: str) -> str:
     return first or fallback
 
 
-def _auto_save_library(asset_type: str, title: str, data: dict, thumb: str = "") -> None:
-    """成功生成 → 自動寫進視覺素材庫（#6）。失敗只記 log，絕不讓存庫拖垮生成回應。"""
+def _auto_save_library(asset_type: str, title: str, data: dict, thumb: str = "") -> str | None:
+    """成功生成 → 自動寫進視覺素材庫（#6），回 library id（給 Project 歸屬連結用）。
+    失敗只記 log 回 None，絕不讓存庫拖垮生成回應。"""
     try:
         from core.infocards.visual_library import get_visual_library
-        get_visual_library().add(asset_type, title, data, thumb=thumb)
+        return get_visual_library().add(asset_type, title, data, thumb=thumb)
     except Exception:  # noqa: BLE001 — 存庫是加值，壞了不能影響主流程
         import logging
         logging.getLogger("infocards").warning("視覺素材庫自動保存失敗", exc_info=True)
+        return None
+
+
+# 視覺成品型別 → Project ArtifactKind（一課一工作空間歸屬）。
+_ARTIFACT_KIND = {"poster": "image", "presentation": "deck", "infographic": "infographic"}
+
+
+def _attach_to_project(project_id: str, asset_type: str, title: str, library_id: str | None) -> None:
+    """有帶 project_id 且存庫成功 → 把成品掛進 Project.artifacts[]，links 連回素材庫 id。
+    Project 不存在/出錯只記 log，不讓歸屬失敗拖垮生成。"""
+    if not project_id or not library_id:
+        return
+    try:
+        from .projects import get_default_project_store
+        get_default_project_store().add_artifact(
+            project_id, kind=_ARTIFACT_KIND.get(asset_type, "image"),
+            produced_by="infoCard", state="draft",
+            links={"library_id": library_id, "title": title},
+        )
+    except Exception:  # noqa: BLE001
+        import logging
+        logging.getLogger("infocards").warning("成品歸屬 Project 失敗", exc_info=True)
 
 
 def _first_slide_thumb(deck: dict) -> str:
@@ -155,8 +179,9 @@ def generate(req: GenerateRequest) -> dict:
         data = infographic_service.generate_infographic_images(
             data, model=req.imageModel, custom=req.customStylePrompt)
         dd = data.model_dump()
-        _auto_save_library("infographic", dd.get("mainTitle") or _lib_title(req, "資訊圖卡"),
-                           dd, thumb=_first_slide_thumb(dd))
+        title = dd.get("mainTitle") or _lib_title(req, "資訊圖卡")
+        lid = _auto_save_library("infographic", title, dd, thumb=_first_slide_thumb(dd))
+        _attach_to_project(req.projectId, "infographic", title, lid)
         return {"success": True, "type": "infographic", "data": dd}
 
     if mode == "poster":
@@ -165,9 +190,11 @@ def generate(req: GenerateRequest) -> dict:
             aspect_ratio=req.aspectRatio, refinement=req.refinement,
             density=req.density, image_model=image_model, files=req.files)
         if result["imageUrl"]:   # 生圖成功才存（空＝失敗，不存）
-            _auto_save_library("poster", _lib_title(req, "圖卡 · 海報"),
-                               {"imageUrl": result["imageUrl"], "prompt": result["prompt"]},
-                               thumb=result["imageUrl"])
+            title = _lib_title(req, "圖卡 · 海報")
+            lid = _auto_save_library("poster", title,
+                                     {"imageUrl": result["imageUrl"], "prompt": result["prompt"]},
+                                     thumb=result["imageUrl"])
+            _attach_to_project(req.projectId, "poster", title, lid)
         return {"success": True, "type": "poster",
                 "imageUrl": result["imageUrl"], "prompt": result["prompt"]}
 
@@ -189,8 +216,9 @@ def generate(req: GenerateRequest) -> dict:
         data = presentation_service.generate_presentation_images(
             data, style=req.style, custom=req.customStylePrompt, image_model=image_model)
         dd = data.model_dump()
-        _auto_save_library("presentation", dd.get("mainTitle") or _lib_title(req, "教學簡報"),
-                           dd, thumb=_first_slide_thumb(dd))
+        title = dd.get("mainTitle") or _lib_title(req, "教學簡報")
+        lid = _auto_save_library("presentation", title, dd, thumb=_first_slide_thumb(dd))
+        _attach_to_project(req.projectId, "presentation", title, lid)
         return {"success": True, "type": "presentation", "data": dd}
 
     raise HTTPException(status_code=400, detail=f"未知 mode：{req.mode}（支援 {_SUPPORTED_MODES}）")

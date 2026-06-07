@@ -95,12 +95,18 @@ async def upload_and_create_job(
         "{}",
         description="JobOptions 的 JSON 字串 (例: {\"mock\": true, \"require_review\": true})",
     ),
+    project_id: str = Form(
+        "", description="可選：歸屬的 Project（一課一工作空間）。空＝不歸屬，建全域 job",
+    ),
     store: JobStore = Depends(get_default_store),
 ) -> CreateJobResponse:
     """收 multipart 檔案, 存到 pdfs/, 然後建 job 並排程。
 
     跟 /jobs POST 走完全一樣的流程, 差別只在 source.path 由 server 端決定
     (= 上傳後的儲存路徑), 不需要 caller 提供。
+
+    project_id 有帶時把建好的 job 掛進該 Project.jobs[]（不存在的 pid 回 404，
+    不靜默丟掉使用者選的歸屬）。
     """
     if source_type not in UPLOADABLE_SOURCE_TYPES:
         raise HTTPException(
@@ -164,6 +170,15 @@ async def upload_and_create_job(
     )
     rec = store.create(req)
     schedule_job(store, rec.id)
+
+    # 歸屬到 Project（一課一工作空間）：有帶 project_id 就掛進 project.jobs[]。
+    if project_id:
+        from core.project import ProjectNotFoundError
+        from .projects import get_default_project_store
+        try:
+            get_default_project_store().add_job(project_id, rec.id)
+        except ProjectNotFoundError as e:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {project_id}") from e
 
     return CreateJobResponse(
         job_id=rec.id,

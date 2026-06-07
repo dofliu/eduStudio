@@ -34,9 +34,10 @@
 
 > 沒這些不能公開掛上去。多為一次性、offline。
 
-- [ ] 🔴 **P0-1 加 LICENSE**（offline）— 目前**無 LICENSE 檔**，開源前必加。
-  **已拍板：MIT**（2026-06-07）。routine 落 `LICENSE`（作者 劉瑞弘 Juihung Liu）+ README
-  授權 badge + `pyproject.toml` license 欄。
+- [x] 🔴 **P0-1 加 LICENSE**（offline）— ✅ 2026-06-07 完成。落 `LICENSE`（MIT，© 2026 劉瑞弘
+  Juihung Liu）+ README 授權 badge + footer 授權說明。`pyproject.toml` 因目前是純 pytest 設定
+  （無 `[project]` 打包表，檔頭明言「不打算 build/package」），**不另塞 license 欄**避免造出
+  半套打包設定；待日後真要打包再補 `[project] license`。
 - [ ] 🔴 **P0-2 secret 全歷史稽核**（offline）— 現況：`.gitignore` 已蓋
   `settings.json` / `.env` / `client_secret*.json` / `youtube_token.json` / `tts_config.json`，
   current tree 無硬編 key（已查）。但**開源前要掃整個 git 歷史**確認沒有任一 commit

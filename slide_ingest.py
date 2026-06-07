@@ -21,6 +21,7 @@ slide_ingest.py — 簡報 PDF → exam.json (扁平 slide 模式)
 import argparse
 import base64
 import json
+import logging
 import os
 import re
 import sys
@@ -31,11 +32,17 @@ import fitz  # pymupdf
 # LaTeX 後處理改從 core 拿 (PR-1 重構): 之前 from solve import 會連帶觸發 solve.py 副作用
 from core.text_utils import strip_latex, clean_json_escapes
 
+# logger 取代 print: 走統一 logging → runner attach 的 per-job handler 會收進 jobs/<id>/log.jsonl,
+# UI 才看得到 ingest 逐頁進度 (之前 print 只進 console, UI 看 ingest 像卡死)。
+logger = logging.getLogger("slide_ingest")
+
 BASE_DIR = Path(__file__).parent
 SLIDES_ROOT = BASE_DIR / "slides"
 EXAMS_ROOT = BASE_DIR / "exams"
 
 MODEL = "gemini-2.5-flash"
+# Gemini HTTP 逾時 (毫秒): 不設的話連線 stall 會無限掛住 (140 頁論文出過此狀況)。
+GEMINI_TIMEOUT_MS = 90_000
 SLIDE_DPI = 200          # 1920px 寬左右 (16:9 投影片)
 THUMB_WIDTH = 640        # 章節切分用縮圖, 省 token
 NARRATION_MAX_TOKENS = 4096  # 詳盡模式上限 240 字 ≈ 700 tokens, 留 retry 餘裕
@@ -166,13 +173,18 @@ def detect_chapters_with_gemini(thumbs: list[bytes], total_pages: int) -> list[d
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=api_key,
+                          http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS))
 
     parts = [types.Part.from_bytes(data=t, mime_type="image/png") for t in thumbs]
     resp = client.models.generate_content(
         model=MODEL,
         contents=parts + [CHAPTER_PROMPT],
-        config=types.GenerateContentConfig(temperature=0.1, max_output_tokens=4096),
+        # thinking_budget=0: 2.5-flash 預設開 thinking, 會吃掉 max_output_tokens 導致回空/截斷,
+        # 且每次呼叫慢 5 倍 (11s→2s)。章節切分/旁白都不需要 thinking。
+        config=types.GenerateContentConfig(
+            temperature=0.1, max_output_tokens=4096,
+            thinking_config=types.ThinkingConfig(thinking_budget=0)),
     )
     raw = (resp.text or "").strip()
     if "```" in raw:
@@ -297,6 +309,8 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                 config=types.GenerateContentConfig(
                     temperature=temp,
                     max_output_tokens=NARRATION_MAX_TOKENS,
+                    # 關 thinking: 開著會吃掉 token 讓旁白被截斷 (反而觸發 retry) + 慢 5 倍
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
             text = _clean_narration(resp.text)
@@ -399,26 +413,29 @@ def ingest(pdf_path: Path, out_json: Path, *,
     stem = pdf_path.stem
     slide_dir = SLIDES_ROOT / stem
 
-    print(f"[ingest] 渲染 PDF → PNG (DPI={SLIDE_DPI}) ...")
+    logger.info(f"渲染 PDF → PNG（DPI={SLIDE_DPI}）...")
     page_paths = render_pdf_pages(pdf_path, slide_dir)
     total = len(page_paths)
-    print(f"[ingest] {total} 頁已存到 {slide_dir.relative_to(BASE_DIR)}")
+    logger.info(f"共 {total} 頁")
+    if total > 40 and not mock:
+        # 140 頁論文等大檔: 每頁一支 Gemini 呼叫, 先提醒這會跑一陣子 (UI 才不會以為當掉)
+        logger.warning(f"PDF 達 {total} 頁，逐頁生成旁白約需數分鐘，請耐心等候")
 
     # 章節切分: ≤ 12 頁直接單章 (對應一支 12~15 分鐘影片), 因為再切就太碎
     if mock or single or total <= 12:
         if total <= 12 and not single:
-            print(f"[ingest] 頁數 ≤ 12, 跳過章節切分 (單章模式)")
+            logger.info("頁數 ≤ 12，跳過章節切分（單章模式）")
         chapters = [{"title": "全部內容", "start_page": 1, "end_page": total}]
     else:
-        print(f"[ingest] Pass 1: 章節切分 ...")
+        logger.info("Pass 1: 章節切分 ...")
         thumbs = render_thumbs(pdf_path)
         chapters = detect_chapters_with_gemini(thumbs, total)
-        print(f"[ingest] 切成 {len(chapters)} 章:")
+        logger.info(f"切成 {len(chapters)} 章")
         for c in chapters:
-            print(f"   ch: p.{c['start_page']:>3}~{c['end_page']:>3}  {c['title']}")
+            logger.info(f"  章節 p.{c['start_page']}~{c['end_page']}  {c['title']}")
 
     style_label = "簡短" if brief else "詳盡"
-    print(f"\n[ingest] Pass 2: 逐頁產 narration (mock={mock}, 風格={style_label}) ...")
+    logger.info(f"Pass 2: 逐頁產旁白（mock={mock}, 風格={style_label}）...")
     narrations: list[str] = [""] * total
 
     if mock:
@@ -426,17 +443,19 @@ def ingest(pdf_path: Path, out_json: Path, *,
             narrations[i] = f"(投影片 {i+1} 佔位旁白, 請至 Web UI 編輯)"
     else:
         from google import genai
+        from google.genai import types
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key,
+                              http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS))
 
         for ch in chapters:
             s, e = ch["start_page"], ch["end_page"]
             chapter_pages = e - s + 1
             prev = ""
             for offset, p in enumerate(range(s, e + 1), start=1):
-                print(f"   -> p{p:03d}/{total} ({ch['title']}, 章內 {offset}/{chapter_pages})")
+                logger.info(f"旁白生成 p{p:03d}/{total}（{ch['title']} 章內 {offset}/{chapter_pages}）")
                 png_bytes = page_paths[p - 1].read_bytes()
                 text = narrate_page_with_gemini(
                     client, png_bytes, ch["title"], chapter_pages, offset, prev,

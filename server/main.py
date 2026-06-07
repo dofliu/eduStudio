@@ -27,6 +27,7 @@ from core.runtime import setup_utf8_stdout
 
 from .auth import install_auth, warn_if_open
 from .jobs import get_default_store
+from .ratelimit import install_limiter
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
 from .routes import infocards as infocards_routes
@@ -94,6 +95,9 @@ def create_app() -> FastAPI:
 
     # S-1: 單一共享 token 驗證層 (沒設 EDUSTUDIO_API_TOKEN 時為 no-op)。
     install_auth(app)
+
+    # S-6: per-IP rate limit (每個 app 一個獨立 limiter)。
+    install_limiter(app)
 
     app.include_router(jobs_routes.router)
     app.include_router(youtube_routes.router)

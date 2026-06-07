@@ -27,6 +27,7 @@ from core.image_frames import summarize_for_deck
 
 from ..jobs import JobStore, get_default_store
 from ..path_safety import safe_join
+from ..ratelimit import rate_limit
 from ..runner import schedule_job, schedule_render, schedule_section_render
 from ..schemas import (
     CreateJobRequest,
@@ -51,7 +52,12 @@ def _require_job(job_id: str, store: JobStore = Depends(get_default_store)) -> J
 
 # ---------- CRUD ----------
 
-@router.post("", response_model=CreateJobResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=CreateJobResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit)],
+)
 async def create_job(req: CreateJobRequest, store: JobStore = Depends(get_default_store)) -> CreateJobResponse:
     """建立 job 並立即在背景排程。回應裡的 status_url 可拿來 poll 狀態。"""
     from ..schemas import SourceType

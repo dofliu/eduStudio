@@ -128,8 +128,12 @@
   （明文 + gitignore，自架單機可接受，Fernet 靜態加密過度設計、徒增金鑰管理負擔）。改為在
   `SECURITY.md` 把機密檔處置講清楚：明文存放、**別放共享磁碟/雲端同步、別進未加密備份**（要備份
   用磁碟層級加密）、`chmod 600` 收權限、外洩即撤銷重發。無 code 變更。
-- [ ] 🟢 **S-6 速率限制 / 濫用防護**（offline）— 對 `/api/generate` 等燒額度端點加簡單
-  per-IP rate limit（slowapi 或自寫 token bucket），防自架者被內網誤觸刷爆額度。
+- [x] 🟢 **S-6 速率限制 / 濫用防護**（offline）— ✅ 2026-06-07 完成。**自寫 token bucket**
+  （`server/ratelimit.py`，純標準庫、不引入 slowapi 依賴），per-IP、預設 30/min、env
+  `EDUSTUDIO_RATE_LIMIT_PER_MIN` 可調（<=0 關閉）。掛到燒額度端點：`/api/generate`、`/api/refine`、
+  建 job（`POST /jobs`）、上傳（`POST /upload`），超限回 429。limiter 掛 `app.state`（per-app，
+  測試每次 `create_app` 拿新滿桶，不會跨測試誤觸）。補 `tests/test_ratelimit.py` 9 測（bucket
+  容量/補充/per-IP 隔離/關閉/env 解析/dependency 429）。全套 2419 passed。
 
 ---
 

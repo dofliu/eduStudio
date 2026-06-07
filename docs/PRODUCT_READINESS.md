@@ -38,11 +38,15 @@
   Juihung Liu）+ README 授權 badge + footer 授權說明。`pyproject.toml` 因目前是純 pytest 設定
   （無 `[project]` 打包表，檔頭明言「不打算 build/package」），**不另塞 license 欄**避免造出
   半套打包設定；待日後真要打包再補 `[project] license`。
-- [ ] 🔴 **P0-2 secret 全歷史稽核**（offline）— 現況：`.gitignore` 已蓋
-  `settings.json` / `.env` / `client_secret*.json` / `youtube_token.json` / `tts_config.json`，
-  current tree 無硬編 key（已查）。但**開源前要掃整個 git 歷史**確認沒有任一 commit
-  曾誤入金鑰（用 `gitleaks` 或 `git log -p | grep -E "AIza|client_secret"`）。若有 →
-  決定要不要 rewrite history（BFG）。產出稽核結論寫進本檔。
+- [x] 🔴 **P0-2 secret 全歷史稽核**（offline）— ✅ 2026-06-07 完成，**結論：乾淨、無需 history
+  rewrite**。掃描全 52 個 commit / 所有分支（`git log -p --all`）查：① 真實 Google API key 值
+  `AIza+35` → **0** ② OAuth token `ya29.` / refresh `1//` → 無 ③ PRIVATE KEY block → **0**
+  ④ OpenAI/AWS/Slack/GitHub token（`sk-`/`AKIA`/`xox`/`ghp_`）→ 無 ⑤ 曾被 commit 的實際 secret
+  檔（settings.json/.env/youtube_token.json/tts_config.json/client_secret*.json）→ **從未** ⑥
+  硬編 `api_key="..."` 賦值 → 無。歷史中的 `client_secret` 字串全是**程式碼/文件引用檔名**
+  （`find_client_secrets()`、glob、gitignore 樣式），非金鑰本體。
+  - 縱深防護：CI 已掛 **GitGuardian Security Checks**（每個 PR gating）+ `.gitignore` 已蓋全部
+    敏感檔，持續防未來誤 commit。BFG/history rewrite **不需要**。
 - [ ] 🟡 **P0-3 `.env.example` / 設定範本完整度檢查**（offline）— 確認陌生人照範本能配齊
   所有必要環境變數（GEMINI_API_KEY、字型路徑、TRACK_B_URL…），缺的補進範本 + 註解。
 - [ ] 🟡 **P0-4 CONTRIBUTING.md + issue/PR 範本**（offline）— 開源協作基本盤；放

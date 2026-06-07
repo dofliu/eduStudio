@@ -103,7 +103,10 @@ def setup_logging(level: int = logging.INFO) -> None:
     root.addHandler(stderr_handler)
 
     # 第三方 lib 的 log 太吵, 限 WARNING+ (uvicorn / httpx 自己有適合的層級)
-    for noisy in ("urllib3", "httpx", "httpcore", "uvicorn.access", "asyncio"):
+    # google_genai: 每次 Gemini 呼叫印 "AFC is enabled with max remote calls: 10 /
+    # AFC remote call N is done"(自動函式呼叫 INFO log), slides/repo 多次呼叫會洗版 job log → 降級。
+    for noisy in ("urllib3", "httpx", "httpcore", "uvicorn.access", "asyncio",
+                  "google_genai", "google_genai.models", "google.genai"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     _configured = True

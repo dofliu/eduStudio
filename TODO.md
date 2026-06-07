@@ -3,6 +3,10 @@
 短期可立刻做、小而具體的事項。大方向看 [ROADMAP.md](ROADMAP.md), 內容品質
 看 [docs/CONTENT_QUALITY_ROADMAP.md](docs/CONTENT_QUALITY_ROADMAP.md).
 
+> 🚀 **推出去主線（產品等級稽核清單）**：見 [docs/PRODUCT_READINESS.md](docs/PRODUCT_READINESS.md)
+> （安全/可靠性/UI 收斂/計費/部署/文件/測試/功能收尾，分 Phase 0~8 排好優先序）。
+> 目標 = 公開開源自架。routine 優先從那邊 Phase 0→ 往下挑。
+
 規則:
 - 完成的打勾, 定期把勾完的搬去 ROADMAP 或刪掉
 - 新增項目加日期當引用 (方便追)

@@ -71,6 +71,15 @@ def get_share_db_path() -> str:
     return os.environ.get("SHARE_DB_PATH", str(SHARE_DB_PATH))
 
 
+# eduStudio: 視覺成品素材庫 SQLite db（每次成功生成自動保存，免手動加入 Project）。
+VISUAL_LIBRARY_DB_PATH = PROJECT_ROOT / "infocard_visual_library.db"
+
+
+def get_visual_library_db_path() -> str:
+    """視覺素材庫 db 路徑。env VISUAL_LIBRARY_DB_PATH 可覆寫（測試用 tmp）。"""
+    return os.environ.get("VISUAL_LIBRARY_DB_PATH", str(VISUAL_LIBRARY_DB_PATH))
+
+
 # eduStudio 統一介面：Gemini 用量計帳 SQLite db（成本面板真實統計）。
 USAGE_DB_PATH = PROJECT_ROOT / "usage.db"
 

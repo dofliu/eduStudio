@@ -110,6 +110,31 @@ def _resolve_models(req: "GenerateRequest") -> tuple[str, str]:
     return tm, im
 
 
+def _lib_title(req: "GenerateRequest", fallback: str) -> str:
+    """素材庫標題：取內容第一行（截 40 字），無內容則用 fallback。"""
+    raw = (req.text or "").strip()
+    first = raw.splitlines()[0][:40] if raw else ""
+    return first or fallback
+
+
+def _auto_save_library(asset_type: str, title: str, data: dict, thumb: str = "") -> None:
+    """成功生成 → 自動寫進視覺素材庫（#6）。失敗只記 log，絕不讓存庫拖垮生成回應。"""
+    try:
+        from core.infocards.visual_library import get_visual_library
+        get_visual_library().add(asset_type, title, data, thumb=thumb)
+    except Exception:  # noqa: BLE001 — 存庫是加值，壞了不能影響主流程
+        import logging
+        logging.getLogger("infocards").warning("視覺素材庫自動保存失敗", exc_info=True)
+
+
+def _first_slide_thumb(deck: dict) -> str:
+    """簡報 deck → 首張有圖 slide 的 imageUrl（素材庫縮圖）；無則空字串。"""
+    for s in deck.get("slides") or []:
+        if s.get("imageUrl"):
+            return s["imageUrl"]
+    return ""
+
+
 @router.post("/generate")
 def generate(req: GenerateRequest) -> dict:
     """生成簡報/海報/漫畫。後端呼叫 Gemini（comic/poster 已實作）。"""
@@ -129,13 +154,20 @@ def generate(req: GenerateRequest) -> dict:
             aspect_ratio=req.aspectRatio, model=text_model, files=req.files)
         data = infographic_service.generate_infographic_images(
             data, model=req.imageModel, custom=req.customStylePrompt)
-        return {"success": True, "type": "infographic", "data": data.model_dump()}
+        dd = data.model_dump()
+        _auto_save_library("infographic", dd.get("mainTitle") or _lib_title(req, "資訊圖卡"),
+                           dd, thumb=_first_slide_thumb(dd))
+        return {"success": True, "type": "infographic", "data": dd}
 
     if mode == "poster":
         result = poster_service.generate_poster(
             req.text, req.style, custom_style_prompt=req.customStylePrompt,
             aspect_ratio=req.aspectRatio, refinement=req.refinement,
             density=req.density, image_model=image_model, files=req.files)
+        if result["imageUrl"]:   # 生圖成功才存（空＝失敗，不存）
+            _auto_save_library("poster", _lib_title(req, "圖卡 · 海報"),
+                               {"imageUrl": result["imageUrl"], "prompt": result["prompt"]},
+                               thumb=result["imageUrl"])
         return {"success": True, "type": "poster",
                 "imageUrl": result["imageUrl"], "prompt": result["prompt"]}
 
@@ -156,9 +188,39 @@ def generate(req: GenerateRequest) -> dict:
             model=text_model, files=req.files)
         data = presentation_service.generate_presentation_images(
             data, style=req.style, custom=req.customStylePrompt, image_model=image_model)
-        return {"success": True, "type": "presentation", "data": data.model_dump()}
+        dd = data.model_dump()
+        _auto_save_library("presentation", dd.get("mainTitle") or _lib_title(req, "教學簡報"),
+                           dd, thumb=_first_slide_thumb(dd))
+        return {"success": True, "type": "presentation", "data": dd}
 
     raise HTTPException(status_code=400, detail=f"未知 mode：{req.mode}（支援 {_SUPPORTED_MODES}）")
+
+
+@router.get("/visual-library")
+def visual_library_list() -> dict:
+    """視覺素材庫清單（新到舊，含縮圖，不含完整 data）。"""
+    from core.infocards.visual_library import get_visual_library
+
+    return {"items": get_visual_library().list()}
+
+
+@router.get("/visual-library/{asset_id}")
+def visual_library_get(asset_id: str) -> dict:
+    """取單筆完整成品（含 data，供重新檢視/下載/分享）。"""
+    from core.infocards.visual_library import get_visual_library
+
+    item = get_visual_library().get(asset_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="素材不存在")
+    return item
+
+
+@router.delete("/visual-library/{asset_id}")
+def visual_library_delete(asset_id: str) -> dict:
+    """刪除一筆素材。"""
+    from core.infocards.visual_library import get_visual_library
+
+    return {"deleted": get_visual_library().delete(asset_id)}
 
 
 @router.post("/refine")

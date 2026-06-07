@@ -22,6 +22,10 @@ from server.main import create_app
 def client(tmp_path, monkeypatch):
     # share 用 tmp store
     monkeypatch.setattr(ic, "get_share_store", lambda: ShareStore(db_path=str(tmp_path / "s.db")))
+    # 視覺素材庫用 tmp db（避免自動保存污染真實 db）
+    import core.infocards.visual_library as vl
+    store = vl.VisualLibraryStore(db_path=str(tmp_path / "vlib.db"))
+    monkeypatch.setattr(vl, "get_visual_library", lambda: store)
     app = create_app()
     with TestClient(app) as c:
         yield c
@@ -133,3 +137,52 @@ class TestShare:
 
     def test_share_missing_404(self, client):
         assert client.get("/api/share/nope").status_code == 404
+
+
+class TestVisualLibrary:
+    """成功生成自動存入素材庫 + 清單/取單筆/刪除（#6）。"""
+
+    def test_poster_autosaves_and_round_trip(self, client, monkeypatch):
+        monkeypatch.setattr(
+            ic.poster_service, "generate_poster",
+            lambda text, style, **kw: {"imageUrl": "data:image/png;base64,POSTER", "prompt": "P"})
+        # 生成前素材庫空
+        assert client.get("/api/visual-library").json()["items"] == []
+        client.post("/api/generate", json={"mode": "poster", "text": "牛頓定律\n第二行", "style": "navy"})
+        items = client.get("/api/visual-library").json()["items"]
+        assert len(items) == 1
+        it = items[0]
+        assert it["type"] == "poster"
+        assert it["title"] == "牛頓定律"          # 取內容第一行
+        assert it["thumb"] == "data:image/png;base64,POSTER"
+        # 取單筆含完整 data
+        full = client.get(f"/api/visual-library/{it['id']}").json()
+        assert full["data"]["imageUrl"] == "data:image/png;base64,POSTER"
+        # 刪除
+        assert client.delete(f"/api/visual-library/{it['id']}").json()["deleted"] is True
+        assert client.get("/api/visual-library").json()["items"] == []
+
+    def test_blank_poster_not_saved(self, client, monkeypatch):
+        monkeypatch.setattr(ic.poster_service, "generate_poster",
+                            lambda text, style, **kw: {"imageUrl": "", "prompt": "P"})
+        client.post("/api/generate", json={"mode": "poster", "text": "t", "style": "navy"})
+        assert client.get("/api/visual-library").json()["items"] == []
+
+    def test_presentation_autosaves_with_title(self, client, monkeypatch):
+        fake = PresentationData.model_validate({
+            "mainTitle": "動量守恆", "subtitle": "副標", "themeColor": "#1e3a5f", "style": "navy",
+            "slides": [{"id": "s1", "layout": "title_cover", "title": "封面", "content": "",
+                        "speakerNotes": "開場", "imageUrl": "data:image/png;base64,SLIDE"}],
+        })
+        monkeypatch.setattr(ic.presentation_service, "generate_presentation_data",
+                            lambda text, style, **kw: fake)
+        monkeypatch.setattr(ic.presentation_service, "generate_presentation_images",
+                            lambda data, **kw: data)
+        client.post("/api/generate", json={"mode": "presentation", "text": "x", "style": "navy"})
+        items = client.get("/api/visual-library").json()["items"]
+        assert len(items) == 1
+        assert items[0]["type"] == "presentation" and items[0]["title"] == "動量守恆"
+        assert items[0]["thumb"] == "data:image/png;base64,SLIDE"   # 首張有圖 slide
+
+    def test_get_missing_404(self, client):
+        assert client.get("/api/visual-library/nope").status_code == 404

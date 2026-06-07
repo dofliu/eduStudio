@@ -4,46 +4,51 @@
 """
 from __future__ import annotations
 
-# ── 文字 / 邏輯模型 ──
-# 註：原 infoCard 用 preview model id（gemini-3-flash-preview 等），未必 GA；改用 autoSolver
-# 已驗證可用的 gemini-2.5 系列（與 core.config.GEMINI_MODEL 一致），確保實際呼叫成功。
+# ── 文字 / 邏輯模型（2026-06 劉老師更新為 Gemini 3 系列；2.5 將逐步停止支援）──
+# id 均經 live API 實測可用（gemini-3.1-pro 不存在→正解 gemini-3.1-pro-preview）。
 TEXT_MODELS: dict[str, dict[str, str]] = {
     "flash": {
-        "id": "gemini-2.5-flash",
-        "label": "⚡ Flash (速度優先)",
-        "description": "一般邏輯處理，高速回應",
+        "id": "gemini-3.5-flash",
+        "label": "⚡ 3.5 Flash (主力 · 速度品質兼顧)",
+        "description": "一般生成主力，速度與品質平衡",
+    },
+    "lite": {
+        "id": "gemini-3.1-flash-lite",
+        "label": "🪶 3.1 Flash Lite (最省)",
+        "description": "最低成本，簡單任務適用",
     },
     "pro": {
-        "id": "gemini-2.5-pro",
-        "label": "🚀 Pro (深度推理)",
-        "description": "深度邏輯處理，進階推理能力",
+        "id": "gemini-3.1-pro-preview",
+        "label": "🚀 3.1 Pro (深度推理)",
+        "description": "最強推理，複雜內容/長文",
     },
 }
 
 # ── 圖片生成模型 ──
+# 註：劉老師列的 gemini-3.1-pro-image 經實測 404 不存在，正解為 gemini-3-pro-image-preview。
 IMAGE_MODELS: dict[str, dict[str, str]] = {
     "flash": {
-        "id": "gemini-2.5-flash-image",
-        "label": "⚡ Flash Image (快速)",
-        "description": "速度優先，低延遲",
-    },
-    "balanced": {
-        "id": "gemini-3.1-flash-image-preview",
-        "label": "🎨 Flash Image 2 (效能均衡)",
-        "description": "效能與品質兼顧",
+        "id": "gemini-3.1-flash-image",
+        "label": "⚡ 3.1 Flash Image (主力 · 快速)",
+        "description": "快速生圖主力，低延遲",
     },
     "pro": {
         "id": "gemini-3-pro-image-preview",
         "label": "👑 Pro Image (最高畫質)",
-        "description": "專業品質，進階推理繪圖",
+        "description": "專業品質，最高畫質繪圖",
+    },
+    "legacy": {
+        "id": "gemini-2.5-flash-image",
+        "label": "🕘 2.5 Flash Image (舊版 · 將停用)",
+        "description": "舊版，Google 預計逐步停止支援",
     },
 }
 
 # ── 預設模型 ──
-DEFAULT_TEXT_MODEL = TEXT_MODELS["flash"]["id"]
-DEFAULT_IMAGE_MODEL = IMAGE_MODELS["flash"]["id"]
+DEFAULT_TEXT_MODEL = TEXT_MODELS["flash"]["id"]    # gemini-3.5-flash
+DEFAULT_IMAGE_MODEL = IMAGE_MODELS["flash"]["id"]  # gemini-3.1-flash-image
 
-# ── 成本定價（USD）──
+# ── 成本定價（USD，估算值）──
 MODEL_PRICING: dict = {
     "text": {
         "input_per_1k_chars": 0.00001875,   # ~$0.075 / 1M tokens
@@ -51,8 +56,8 @@ MODEL_PRICING: dict = {
     },
     "image": {
         IMAGE_MODELS["flash"]["id"]: 0.003,
-        IMAGE_MODELS["balanced"]["id"]: 0.008,
         IMAGE_MODELS["pro"]["id"]: 0.04,
+        IMAGE_MODELS["legacy"]["id"]: 0.003,
     },
 }
 

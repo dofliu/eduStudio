@@ -18,17 +18,18 @@ from core.infocards.schemas import (
 # ── models ──
 class TestModels:
     def test_model_ids(self):
-        assert models.TEXT_MODELS["flash"]["id"] == "gemini-2.5-flash"
+        # 2026-06 更新為 Gemini 3 系列（2.5 將停用）；id 均 live 實測可用。
+        assert models.TEXT_MODELS["flash"]["id"] == "gemini-3.5-flash"
         assert models.IMAGE_MODELS["pro"]["id"] == "gemini-3-pro-image-preview"
-        assert models.DEFAULT_TEXT_MODEL == "gemini-2.5-flash"
-        assert models.DEFAULT_IMAGE_MODEL == "gemini-2.5-flash-image"
+        assert models.DEFAULT_TEXT_MODEL == "gemini-3.5-flash"
+        assert models.DEFAULT_IMAGE_MODEL == "gemini-3.1-flash-image"
 
     def test_pricing_keyed_by_image_id(self):
-        assert models.MODEL_PRICING["image"]["gemini-2.5-flash-image"] == 0.003
+        assert models.MODEL_PRICING["image"]["gemini-3.1-flash-image"] == 0.003
         assert models.MODEL_PRICING["image"]["gemini-3-pro-image-preview"] == 0.04
 
     def test_options_helpers(self):
-        assert len(models.text_model_options()) == 2
+        assert len(models.text_model_options()) == 3
         assert len(models.image_model_options()) == 3
 
 

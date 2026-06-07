@@ -160,9 +160,14 @@
     approve 標記 / 預設 False）；修 `test_runner_render_phase` fixture 標 reviewed=True（反映
     render 只在審後跑）。全套 2428 passed。
   威脅模型是「不小心跳過」非「內部惡意竄改」，簽章對自架單人過度設計，故不做。
-- [ ] 🟡 **R-3 sync I/O 阻 event loop 收口**（offline）— F5 已用 `asyncio.to_thread` 包，
-  但無全面 enforcement。審 runner/routes 裡的同步重 I/O（PDF 解析、ffmpeg、檔案搬運）有沒有
-  漏網的同步呼叫卡 event loop，補 `to_thread`。低風險、逐處補。
+- [x] 🟡 **R-3 sync I/O 阻 event loop 收口**（offline）— ✅ 2026-06-07 完成。審過 runner/routes
+  的 async handler。**發現漏網**：① `runner._run_render_inner` 的 merge 路徑直接跑
+  `get_video_duration`（ffprobe subprocess）沒包 to_thread ② `routes/localization.py` 11 個 async
+  handler（translate/learning ×5/image/pdf/meeting/song transcribe/dub）全部 inline 跑 blocking
+  的 Gemini/whisper/ffmpeg/OCR。**修補**：全部改 `await asyncio.to_thread(...)`（generator 方法
+  靠 lazy 特性在 worker thread 迭代）。runner 其餘重活（ingest/render_video/ffmpeg/concat/intro）
+  原本已包 to_thread，確認無漏。行為不變（既有 208 個相關測試 + 全套 2428 passed 驗證），純
+  非阻塞改善。R-4/R-5（schema migration / 持久化 worker）為 GATE 遠期，留待與 V4 worker 一起。
 - [ ] 🟢 **R-4 schema migration 框架**（GATE）— 對應 P0 #3，Round 2 已踩 naive↔aware
   datetime。要不要正式引入版本化 schema migration 是架構決策，建議**跟全面 worker（V4 D）
   一起做**，不單獨提前。先在本檔掛追蹤。

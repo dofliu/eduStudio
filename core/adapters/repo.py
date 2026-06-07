@@ -9,7 +9,7 @@
 raw_content schema:
 {
   "source_kind": "repo",
-  "root_name": "autoSolverVideo",
+  "root_name": "eduStudio",
   "tree": "文字版檔樹 (限頂層 2~3 層)",
   "lang_stats": {"python": 5132, "markdown": 800},
   "primary_language": "python",
@@ -40,7 +40,7 @@ SKIP_DIRS = frozenset({
     ".venv", "venv", "env",
     "dist", "build", "out", "target", ".next", ".nuxt", ".cache",
     ".idea", ".vscode",
-    "videos", "videos_test", "output", "work", "slides",  # autoSolverVideo 自身產物
+    "videos", "videos_test", "output", "work", "slides",  # eduStudio 自身產物
     "jobs",  # server runtime
     "exams",  # 考卷檔案夾, 不算 repo 內容
     "pdfs", "photos", "voices",  # 人類資源檔

@@ -94,7 +94,7 @@ def render_mermaid_to_png(syntax: str, out_path: Path, *, timeout: float = 15.0)
         url = f"{MERMAID_INK_BASE}/{encoded}?type=png"
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "autoSolverVideo/mermaid-render"},
+            headers={"User-Agent": "eduStudio/mermaid-render"},
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()

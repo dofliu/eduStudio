@@ -118,6 +118,23 @@ GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 TTS_PROVIDER_ENV = "TTS_PROVIDER"
 
+# CORS 允許來源。預設只給本機自用，部署時用環境變數放行實際前端 origin。
+ALLOWED_ORIGINS_ENV = "EDUSTUDIO_ALLOWED_ORIGINS"
+DEFAULT_ALLOWED_ORIGINS = ["http://127.0.0.1:8000", "http://localhost:8000"]
+
+
+def get_allowed_origins() -> list[str]:
+    """CORS allow_origins 清單。
+
+    讀環境變數 EDUSTUDIO_ALLOWED_ORIGINS（逗號分隔），未設則回預設本機 origin。
+    同源 `/app` 不經過 CORS，不受此清單影響；此清單只管跨 origin 的瀏覽器呼叫。
+    設成 `*` 可全開（不建議，僅供臨時除錯）。
+    """
+    raw = os.environ.get(ALLOWED_ORIGINS_ENV)
+    if not raw or not raw.strip():
+        return list(DEFAULT_ALLOWED_ORIGINS)
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
 
 def get_gemini_api_key() -> str | None:
     """Gemini 金鑰：設定頁(settings.json)優先，否則環境變數。"""

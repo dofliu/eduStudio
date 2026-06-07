@@ -94,15 +94,17 @@ def generate_poster(
     density: str = "balanced",
     image_model: str | None = None,
     api_key: str | None = None,
+    files=None,
 ) -> dict:
     """內容 → 單張海報圖。回 {imageUrl(base64 data URL 或 ""), prompt}。
 
-    預設用 pro 圖片模型（對齊 infoCard 海報模式）。
+    預設用 pro 圖片模型（對齊 infoCard 海報模式）。files：上傳的參考檔（PDF/圖片），
+    傳給生圖模型讓海報依使用者真實內容（不只標題）。
     """
     prompt = build_poster_prompt(
         text, style, custom_style_prompt=custom_style_prompt,
         density=density, aspect_ratio=aspect_ratio, refinement=refinement,
     )
     model = image_model or IMAGE_MODELS["pro"]["id"]
-    image_url = generate_image_b64(prompt, model=model, api_key=api_key)
+    image_url = generate_image_b64(prompt, model=model, api_key=api_key, files=files)
     return {"imageUrl": image_url, "prompt": prompt}

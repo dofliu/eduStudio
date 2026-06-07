@@ -95,10 +95,11 @@ def generate_json(prompt: str, *, model: str | None = None,
 
 
 def generate_image_b64(prompt: str, *, model: str | None = None,
-                       api_key: str | None = None) -> str:
+                       api_key: str | None = None, files=None) -> str:
     """呼叫 Gemini 生圖，回 base64 data URL（前端 <img src> 可直接用）；失敗回 ""。
 
     沿用 autoSolver core/diagram_image_gen 的 image bytes 抽取（SDK 回 bytes 或 base64 str 都處理）。
+    files：多模態參考檔（上傳的 PDF/圖片 inline data），讓生圖讀使用者真實內容而非只靠標題。
     """
     from google.genai import types
 
@@ -106,7 +107,7 @@ def generate_image_b64(prompt: str, *, model: str | None = None,
     try:
         resp = client.models.generate_content(
             model=model or DEFAULT_IMAGE_MODEL,
-            contents=[prompt],
+            contents=_build_contents(prompt, files),
             config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
         )
     except Exception:

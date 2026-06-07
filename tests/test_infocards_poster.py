@@ -44,7 +44,7 @@ class TestGeneratePoster:
     def test_returns_image_and_prompt(self, monkeypatch):
         seen = {}
 
-        def fake_img(prompt, model=None, api_key=None):
+        def fake_img(prompt, model=None, api_key=None, files=None):
             seen["model"] = model
             seen["prompt"] = prompt
             return "data:image/png;base64,POSTER"
@@ -57,6 +57,14 @@ class TestGeneratePoster:
         assert seen["model"] == "gemini-3-pro-image-preview"
 
     def test_blank_image_on_failure(self, monkeypatch):
-        monkeypatch.setattr(poster, "generate_image_b64", lambda prompt, model=None, api_key=None: "")
+        monkeypatch.setattr(poster, "generate_image_b64", lambda prompt, model=None, api_key=None, files=None: "")
         out = generate_poster("t", "navy")
         assert out["imageUrl"] == "" and out["prompt"]
+
+    def test_passes_files_to_image_model(self, monkeypatch):
+        """上傳檔要傳給生圖（修「海報只看標題、不管上傳檔」）。"""
+        seen = {}
+        monkeypatch.setattr(poster, "generate_image_b64",
+                            lambda prompt, model=None, api_key=None, files=None: (seen.update(files=files), "x")[1])
+        generate_poster("牛頓", "forest", files=[{"mimeType": "application/pdf", "data": "abc"}])
+        assert seen["files"] == [{"mimeType": "application/pdf", "data": "abc"}]

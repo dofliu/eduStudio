@@ -125,7 +125,7 @@ def generate(req: GenerateRequest) -> dict:
         result = poster_service.generate_poster(
             req.text, req.style, custom_style_prompt=req.customStylePrompt,
             aspect_ratio=req.aspectRatio, refinement=req.refinement,
-            density=req.density, image_model=image_model)
+            density=req.density, image_model=image_model, files=req.files)
         return {"success": True, "type": "poster",
                 "imageUrl": result["imageUrl"], "prompt": result["prompt"]}
 

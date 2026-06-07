@@ -744,7 +744,8 @@ async def _run_render_inner(
                 # 用實際影片時長當 SRT offset (不是 SRT 自身結束時間)
                 try:
                     from core import video_concat as _vc
-                    seg_dur = _vc.get_video_duration(ch_mp4)
+                    # R-3: ffprobe 是 blocking subprocess → to_thread 不阻 event loop
+                    seg_dur = await asyncio.to_thread(_vc.get_video_duration, ch_mp4)
                 except Exception:
                     seg_dur = 0.0
                 section_srts.append((srt_text, seg_dur))

@@ -10,6 +10,7 @@ multipart 上傳 + 已搬入的模組（OCR/whisper/edge-tts，lazy）。長任�
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import tempfile
 
@@ -103,7 +104,9 @@ async def list_languages() -> dict:
 @router.post("/translate")
 async def translate_text(req: TranslateRequest) -> dict:
     """文字翻譯。對外 zh-TW，邊界轉 zh_TW 後送 Gemini 服務。"""
-    translated = translator.translate(
+    # R-3: 翻譯是 blocking (Gemini HTTP) → to_thread 不阻 event loop
+    translated = await asyncio.to_thread(
+        translator.translate,
         req.text, _u(req.source_lang), _u(req.target_lang),
         glossary=req.glossary, style=req.style,
     )
@@ -116,28 +119,28 @@ async def translate_text(req: TranslateRequest) -> dict:
 
 @router.post("/learning/translate")
 async def learning_translate(req: LearningTranslateRequest) -> dict:
-    result = _first(translator.translate_learning(
+    result = await asyncio.to_thread(_first, translator.translate_learning(
         req.text, _u(req.source_lang), _u(req.target_lang)))
     return {"result": result, "target_lang": req.target_lang}
 
 
 @router.post("/learning/flashcards")
 async def learning_flashcards(req: FlashcardRequest) -> dict:
-    result = _first(translator.generate_flashcards(
+    result = await asyncio.to_thread(_first, translator.generate_flashcards(
         req.text, _u(req.source_lang), _u(req.target_lang), count=req.count))
     return {"result": result}
 
 
 @router.post("/learning/writing-correction")
 async def writing_correction(req: WritingCorrectionRequest) -> dict:
-    result = _first(translator.writing_correction(
+    result = await asyncio.to_thread(_first, translator.writing_correction(
         req.text, _u(req.lang), _u(req.native_lang)))
     return {"result": result}
 
 
 @router.post("/learning/conversation")
 async def conversation(req: ConversationRequest) -> dict:
-    result = _first(translator.conversation_practice(
+    result = await asyncio.to_thread(_first, translator.conversation_practice(
         req.scenario, req.user_message,
         _u(req.practice_lang), _u(req.native_lang), history=req.history))
     return {"result": result}
@@ -145,7 +148,8 @@ async def conversation(req: ConversationRequest) -> dict:
 
 @router.post("/learning/dictation-check")
 async def dictation_check(req: DictationCheckRequest) -> dict:
-    result = translator.dictation_check(
+    result = await asyncio.to_thread(
+        translator.dictation_check,
         req.original, req.user_input, _u(req.target_lang))
     return {"result": result}
 
@@ -160,7 +164,8 @@ async def translate_image(
     """圖片 OCR + 翻譯（pytesseract，lazy）。回最終翻譯文字。"""
     path = _save_upload(file)
     try:
-        result = _first(translator.translate_image(path, _u(target_lang), _u(source_lang)))
+        result = await asyncio.to_thread(
+            _first, translator.translate_image(path, _u(target_lang), _u(source_lang)))
     finally:
         try:
             os.remove(path)
@@ -178,7 +183,8 @@ async def translate_pdf(
     """PDF 逐頁翻譯（PyMuPDF，lazy）。回最終彙整文字。"""
     path = _save_upload(file, suffix=".pdf")
     try:
-        result = _first(translator.translate_pdf(path, _u(target_lang), _u(source_lang)))
+        result = await asyncio.to_thread(
+            _first, translator.translate_pdf(path, _u(target_lang), _u(source_lang)))
     finally:
         try:
             os.remove(path)
@@ -200,7 +206,8 @@ async def meeting_summarize(
     path = _save_upload(file)
     types = [t.strip() for t in summary_types.split(",") if t.strip()]
     try:
-        res = meeting_summarizer.process_video(path, _u(language), types or None)
+        res = await asyncio.to_thread(
+            meeting_summarizer.process_video, path, _u(language), types or None)
     finally:
         try:
             os.remove(path)
@@ -231,7 +238,8 @@ async def song_transcribe(
     suffix = os.path.splitext(file.filename or "")[1] or ".mp3"
     path = _save_upload(file, suffix=suffix)
     try:
-        song = build_song_json_from_media(path, song_title, language=language)
+        song = await asyncio.to_thread(
+            build_song_json_from_media, path, song_title, language=language)
         # audio_path 用上傳原始檔名（呼叫端之後自行放檔）
         song["audio_path"] = file.filename or os.path.basename(path)
     finally:
@@ -261,7 +269,9 @@ async def dub_video(
         path = _save_upload(file, suffix=".mp4")
     source = url or path
     try:
-        results = get_video_dubber().process_video(
+        dubber = get_video_dubber()
+        results = await asyncio.to_thread(
+            dubber.process_video,
             source, _u(source_lang), _u(target_lang), burn_subtitles=burn_subtitles)
     finally:
         if path:

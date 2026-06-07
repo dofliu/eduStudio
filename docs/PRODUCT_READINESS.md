@@ -143,11 +143,12 @@
 > 「個人用 OK、交給別人自架不可接受」的根因。**全面 D（持久化 worker）是大工程**，但可以
 > 先做低成本的止血。
 
-- [ ] 🔴 **R-1 啟動時 resume 卡住的 job**（offline，止血）— 現況 `asyncio.create_task`
-  即起即忘，server 重啟後 in-flight job 永遠停在 `ingesting/rendering`。JobStore 已持久化
-  狀態，缺的是啟動時掃 `pending/ingesting/rendering` 的 job → 標 `failed`（附「server 重啟
-  中斷，請重試」）或自動重排。先做「標 failed + 可一鍵重試」這個最小止血（不需要 worker
-  架構）。動 runner/jobs，跑 pytest。
+- [x] 🔴 **R-1 啟動時 resume 卡住的 job**（offline，止血）— ✅ 2026-06-07 完成。
+  `JobStore.resume_interrupted()`：啟動時掃 `PENDING/INGESTING/RENDERING`（重啟前在跑/排隊、
+  task 已沒）→ 標 `FAILED` + 訊息「server 重啟導致中斷，請重試此 job。」（寫盤持久化）。
+  `AWAITING_REVIEW`（等人工）合法暫停不動、`DONE/FAILED` 終態不動。在 `main.py` startup hook
+  呼叫並印出受影響數。補 `tests/test_resume_interrupted.py` 4 測（in-flight 標 failed / 暫停與
+  終態不動 / 持久化跨 reload / idempotent）。最小止血、不需 worker 架構。全套 2423 passed。
 - [ ] 🟡 **R-2 review gate enforcement 不可繞**（offline，**設計已拍板 2026-06-07**）— 現況
   `require_review=True` 靠 server flag 擋，理論可繞（硬規則 #1 的根因 #4）。定案：
   **狀態機強制 + render 入口 assert + 測試鎖死，不做密碼學簽章**。

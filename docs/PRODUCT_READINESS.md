@@ -124,9 +124,10 @@
   + `_validate_upload` 單元 + NFC）。全套 2410 passed。
   - 註：`localization.py` 的 dub 上傳走 `tempfile`（OS 管理路徑，audit 評為低風險），本輪未動；
     若要一併套白名單可開後續小 PR。
-- [ ] 🟡 **S-5 secret 落地強化**（GATE）— 現況 settings.json / youtube_token.json 明文存盤
-  （已 gitignore）。自架單機可接受，但要在文件講清楚「這些檔含金鑰、別放共享磁碟/別進
-  備份」。是否要加靜態加密（如 `cryptography` Fernet + 機器金鑰）= 拍板後再做。
+- [x] 🟡 **S-5 secret 落地強化**（GATE→已拍板）— ✅ 2026-06-07 完成。**劉老師拍板：不加密**
+  （明文 + gitignore，自架單機可接受，Fernet 靜態加密過度設計、徒增金鑰管理負擔）。改為在
+  `SECURITY.md` 把機密檔處置講清楚：明文存放、**別放共享磁碟/雲端同步、別進未加密備份**（要備份
+  用磁碟層級加密）、`chmod 600` 收權限、外洩即撤銷重發。無 code 變更。
 - [ ] 🟢 **S-6 速率限制 / 濫用防護**（offline）— 對 `/api/generate` 等燒額度端點加簡單
   per-IP rate limit（slowapi 或自寫 token bucket），防自架者被內網誤觸刷爆額度。
 

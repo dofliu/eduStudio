@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from core.config import PROJECT_ROOT
 
 from ..jobs import JobStore, get_default_store
+from ..ratelimit import rate_limit
 from ..runner import schedule_job
 from ..schemas import (
     CreateJobRequest,
@@ -123,7 +124,12 @@ def _unique_target_path(directory: Path, filename: str) -> Path:
 
 
 
-@router.post("", response_model=CreateJobResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=CreateJobResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit)],
+)
 async def upload_and_create_job(
     request: Request,
     file: UploadFile = File(..., description="PDF / MD / TXT 檔案"),

@@ -6,8 +6,10 @@ presentation 移植進行中，暫回 501。
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+
+from ..ratelimit import rate_limit
 from pydantic import BaseModel, Field
 
 from core.infocards import (
@@ -159,7 +161,7 @@ def _first_slide_thumb(deck: dict) -> str:
     return ""
 
 
-@router.post("/generate")
+@router.post("/generate", dependencies=[Depends(rate_limit)])
 def generate(req: GenerateRequest) -> dict:
     """生成簡報/海報/漫畫。後端呼叫 Gemini（comic/poster 已實作）。"""
     mode = req.mode.lower()
@@ -251,7 +253,7 @@ def visual_library_delete(asset_id: str) -> dict:
     return {"deleted": get_visual_library().delete(asset_id)}
 
 
-@router.post("/refine")
+@router.post("/refine", dependencies=[Depends(rate_limit)])
 def refine_slide(req: RefineSlideRequest) -> dict:
     """單頁微調：依指令重生該頁並套用與整份生成一致的後處理。回 refined slide。"""
     from core.infocards import refine_service

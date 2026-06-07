@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -59,10 +60,46 @@ UPLOADABLE_SOURCE_TYPES = {
     SourceType.DOCUMENT,
 }
 
+# S-4 上傳硬化: 副檔名白名單 (per source_type)。pdf 類只收 .pdf;
+# document 另收純文字/markdown。
+_PDF_EXTS = {".pdf"}
+_DOC_EXTS = {".pdf", ".md", ".markdown", ".txt"}
+ALLOWED_EXTS_BY_SOURCE = {
+    SourceType.EXAM_PDF: _PDF_EXTS,
+    SourceType.SLIDES_PDF: _PDF_EXTS,
+    SourceType.DOCUMENT: _DOC_EXTS,
+}
+
+# MIME 白名單 (寬鬆): 瀏覽器常回 octet-stream 或空字串, 不能硬擋;
+# 只擋「有給且明顯不是文件」的類型 (image/zip/executable…)。
+_ALLOWED_CONTENT_TYPES = {
+    "application/pdf", "application/x-pdf", "application/acrobat",
+    "text/plain", "text/markdown", "text/x-markdown",
+    "application/octet-stream", "",
+}
+
+
+def _validate_upload(filename: str, source_type: SourceType, content_type: str | None) -> None:
+    """S-4: 副檔名 + MIME 白名單檢查。副檔名為強 gate, MIME 寬鬆輔助。"""
+    ext = Path(filename).suffix.lower()
+    allowed = ALLOWED_EXTS_BY_SOURCE[source_type]
+    if ext not in allowed:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"不接受的副檔名 {ext or '(無)'}; {source_type.value} 只收 {sorted(allowed)}",
+        )
+    ct = (content_type or "").split(";")[0].strip().lower()
+    if ct and ct not in _ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"不接受的 MIME 類型: {ct}（只收 PDF / 純文字 / Markdown）",
+        )
+
 
 def _sanitize_filename(name: str) -> str:
     """清理上傳檔名 — 保留中文 / 英數 / 底線 / 橫線, 移除路徑字元跟 Windows 保留字。"""
-    name = name.strip()
+    # S-4: 先做 Unicode NFC 正規化, 避免同形不同碼 / 組合字造成的檔名混淆。
+    name = unicodedata.normalize("NFC", name).strip()
     name = _FNAME_BAD.sub("", name)
     name = re.sub(r"\.\.+", "", name)
     name = name.strip(". ")
@@ -118,6 +155,9 @@ async def upload_and_create_job(
 
     if not file.filename:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "缺檔名")
+
+    # S-4: 副檔名 + MIME 白名單 (擋掉非文件類檔案)
+    _validate_upload(file.filename, source_type, file.content_type)
 
     # 預檢 Content-Length: 避免明顯超大檔吃 await file.read() 把記憶體打滿
     content_length = request.headers.get("content-length")

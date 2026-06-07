@@ -116,8 +116,14 @@
   jobs 端點，並把 slides.py 重構成用同一 helper（消除重複、單一真相）。補 `tests/test_path_safety.py`
   18 測（`..`/絕對路徑/分隔符/前導點/**symlink 逃脫**/Windows `\`/多碎片其一壞 + 端點整合）。
   全套 2387 passed（1 個 QR 像素斷言失敗為容器缺 Noto 字型假象，CI 有字型）。
-- [ ] 🟡 **S-4 上傳硬化**（offline）— 既有 `MAX_UPLOAD_SIZE` 200MB + Content-Length 預檢。
-  補：副檔名/MIME 白名單（只收 pdf/mp3/wav/png…）、解壓/解析前大小複查、檔名 NFC 正規化。
+- [x] 🟡 **S-4 上傳硬化**（offline）— ✅ 2026-06-07 完成。在主檔案進口 `POST /upload` 補：
+  **副檔名白名單**（per source_type：exam/slides_pdf 只收 `.pdf`，document 收 `.pdf/.md/.markdown/
+  .txt`，強 gate）+ **MIME 寬鬆白名單**（擋 image/zip/exe 等明顯非文件，但放行瀏覽器常見的
+  octet-stream/空）+ **檔名 NFC 正規化**（`unicodedata.normalize`，防組合字混淆）。大小上限/
+  Content-Length 預檢/讀後複查既有已具備。`tests/test_upload.py` 補 11 測（HTTP 層擋副檔名/MIME
+  + `_validate_upload` 單元 + NFC）。全套 2410 passed。
+  - 註：`localization.py` 的 dub 上傳走 `tempfile`（OS 管理路徑，audit 評為低風險），本輪未動；
+    若要一併套白名單可開後續小 PR。
 - [ ] 🟡 **S-5 secret 落地強化**（GATE）— 現況 settings.json / youtube_token.json 明文存盤
   （已 gitignore）。自架單機可接受，但要在文件講清楚「這些檔含金鑰、別放共享磁碟/別進
   備份」。是否要加靜態加密（如 `cryptography` Fernet + 機器金鑰）= 拍板後再做。

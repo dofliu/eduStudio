@@ -144,9 +144,15 @@ class TestValidation:
 # 純 Python, 不需 TestClient, 不需 multipart, 跑超快.
 # ---------------------------------------------------------------------------
 
+import unicodedata
 from pathlib import Path
 
-from server.routes.uploads import _sanitize_filename, _unique_target_path
+from server.routes.uploads import (
+    _sanitize_filename,
+    _unique_target_path,
+    _validate_upload,
+)
+from server.schemas import SourceType
 
 
 class TestSanitizeFilenameHappyPath:
@@ -281,3 +287,95 @@ class TestUniqueTargetPath:
         # → base="archive.tar", ext="gz" → "archive.tar_TS.gz"
         assert out.name.startswith("archive.tar_")
         assert out.name.endswith(".gz")
+
+
+# ---------------------------------------------------------------------------
+# S-4 上傳硬化 — 副檔名/MIME 白名單 + NFC 正規化
+# ---------------------------------------------------------------------------
+
+import pytest  # noqa: E402
+
+from fastapi import HTTPException  # noqa: E402
+
+
+class TestUploadHardeningHTTP:
+    """HTTP 層: 非文件副檔名 / 壞 MIME 應在進 schedule 前被 400 擋。"""
+
+    def test_exam_pdf_rejects_non_pdf_extension(self, client):
+        resp = client.post(
+            "/upload",
+            files={"file": ("sneaky.png", b"x" * 64, "application/pdf")},
+            data={"source_type": "exam_pdf"},
+        )
+        assert resp.status_code == 400
+        assert "副檔名" in resp.text
+
+    def test_document_rejects_executable_extension(self, client):
+        resp = client.post(
+            "/upload",
+            files={"file": ("malware.exe", b"x" * 64, "application/octet-stream")},
+            data={"source_type": "document"},
+        )
+        assert resp.status_code == 400
+        assert "副檔名" in resp.text
+
+    def test_rejects_bad_mime_even_with_ok_extension(self, client):
+        resp = client.post(
+            "/upload",
+            files={"file": ("real.pdf", b"x" * 64, "image/png")},
+            data={"source_type": "exam_pdf"},
+        )
+        assert resp.status_code == 400
+        assert "MIME" in resp.text
+
+    def test_document_accepts_markdown(self, client):
+        # .md 通過白名單 → 不因驗證被 400 擋 (後續 schedule 與本測試無關)
+        resp = client.post(
+            "/upload",
+            files={"file": ("notes.md", b"# hi\n", "text/markdown")},
+            data={"source_type": "document"},
+        )
+        assert resp.status_code != 400
+
+
+class TestValidateUploadUnit:
+    """_validate_upload 純函式: 副檔名強 gate, MIME 寬鬆。"""
+
+    def test_pdf_source_accepts_pdf(self):
+        _validate_upload("a.pdf", SourceType.EXAM_PDF, "application/pdf")  # 不 raise
+
+    def test_pdf_source_rejects_txt(self):
+        with pytest.raises(HTTPException) as e:
+            _validate_upload("a.txt", SourceType.SLIDES_PDF, "text/plain")
+        assert e.value.status_code == 400
+
+    def test_document_accepts_txt_md_pdf(self):
+        for fn, ct in [("a.txt", "text/plain"), ("a.md", "text/markdown"), ("a.pdf", "application/pdf")]:
+            _validate_upload(fn, SourceType.DOCUMENT, ct)  # 不 raise
+
+    def test_empty_or_missing_content_type_ok(self):
+        # 瀏覽器常給空 / octet-stream, 不該因此被擋
+        _validate_upload("a.pdf", SourceType.EXAM_PDF, "")
+        _validate_upload("a.pdf", SourceType.EXAM_PDF, "application/octet-stream")
+        _validate_upload("a.pdf", SourceType.EXAM_PDF, None)
+
+    def test_rejects_known_bad_mime(self):
+        with pytest.raises(HTTPException) as e:
+            _validate_upload("a.pdf", SourceType.EXAM_PDF, "application/zip")
+        assert e.value.status_code == 400
+
+    def test_no_extension_rejected(self):
+        with pytest.raises(HTTPException) as e:
+            _validate_upload("noext", SourceType.DOCUMENT, "text/plain")
+        assert e.value.status_code == 400
+
+
+class TestNFCNormalization:
+    """S-4: 檔名做 Unicode NFC 正規化 (組合字 → 等價單碼)。"""
+
+    def test_decomposed_form_normalized_to_nfc(self):
+        # "é" 的分解形式 (e + 組合重音 U+0301) 應被正規化成 NFC 單碼形式
+        decomposed = "café.pdf"  # café.pdf (NFD)
+        out = _sanitize_filename(decomposed)
+        assert out == unicodedata.normalize("NFC", "café.pdf")
+        assert "́" not in out

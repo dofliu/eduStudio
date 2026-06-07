@@ -58,7 +58,11 @@
   `.github/ISSUE_TEMPLATE/`（bug_report / feature_request 含 offline-first 影響範圍勾選 +
   config.yml 把安全漏洞導向 SECURITY.md）、`.github/PULL_REQUEST_TEMPLATE.md`（含「未繞 review
   gate」自我檢查）。對外版把硬規則 #2/#3（劉老師個人工作流）轉成「先開 issue 討論」。
-- [ ] 🟢 **P0-5 SECURITY.md**（offline）— 漏洞回報窗口 + 「請勿把 server 直接裸奔公網」警語。
+- [x] 🟢 **P0-5 SECURITY.md**（offline）— ✅ 2026-06-07 完成。新增 `SECURITY.md`：①「**部署前必讀**」
+  強烈警告——目前後端**尚無內建驗證**（S-1 規劃中），維持 `127.0.0.1` 預設、要遠端存取請放反向代理
+  + 存取控制、別裸奔 `0.0.0.0` 公網、保護機密檔 ②支援版本（僅 `main`）③漏洞回報走 **GitHub 私密
+  漏洞回報 / 私訊 maintainer**（不開公開 issue）+ 3 工作天回覆承諾 + English summary。issue 範本
+  config.yml 已把安全項導向本檔。
 
 ---
 

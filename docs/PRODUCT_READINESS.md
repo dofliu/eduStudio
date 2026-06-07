@@ -72,7 +72,23 @@
 > 燒你的 Gemini 額度、刪 job、讀檔。對「localhost 自己用」OK，對「自架暴露在內網/公網」
 > 不可接受。開源版必須給自架者一個安全預設。
 
-- [ ] 🔴 **S-1 單一共享 token 驗證層**（offline，**設計已拍板 2026-06-07**）— 設計定案：
+- [x] 🔴 **S-1 單一共享 token 驗證層**（offline）— ✅ 2026-06-07 完成。實作見 `server/auth.py`：
+  **HTTP middleware**（非 per-router Depends，因要一致涵蓋靜態 mount 與媒體 FileResponse）+ `/auth`
+  登入端點 + `/auth/logout` + 極簡 server-rendered 登入頁（不動 React build）。沒設
+  `EDUSTUDIO_API_TOKEN` → middleware no-op 全開 + 啟動大聲警告（既有 ~2400 測試零影響）；設了 →
+  Bearer（CLI）或 cookie（瀏覽器，`HttpOnly`+`SameSite=Strict`+https 時 `Secure`）任一通過，否則
+  瀏覽器 HTML 請求回登入框、API/媒體回 401。`/auth` 用 `hmac.compare_digest` 常數時間比對、擋 open
+  redirect、表單與 JSON 皆收；`/health` 豁免（監控用、不含密鑰）。補 `tests/test_auth.py` 12 測 +
+  `.env.example`/`SECURITY.md` 同步更新。全套 2399 passed（1 QR 字型假象）。設計細節：
+  - 共享密鑰 `EDUSTUDIO_API_TOKEN`（環境變數）。**沒設 → server 照跑但啟動大聲警告**
+    「未驗證，勿暴露公網」（保留 localhost 自用方便）。
+  - **瀏覽器走 session cookie**：`/app` 出登入框 → `POST /auth` 比對 token → 種
+    `HttpOnly; SameSite=Strict`（https 時加 `Secure`）cookie。**API + 媒體（mp4/png）一律靠
+    cookie**（同源自動帶，解決 `<video>`/`<img>` 無法帶 `Authorization` header 的硬限制 →
+    一致保護、媒體照常播放）。
+  - **CLI / skill / curl 走 Bearer**：同時接受 `Authorization: Bearer <token>`（自動化用）。
+  - CSRF：`SameSite=Strict` + 單一同源 `/app` 對自架單機已足夠，**不另做 CSRF token**。
+  - **不做帳號系統**（拍板開源自架、非多租戶，單一共享 token 即可）。
   - 共享密鑰 `EDUSTUDIO_API_TOKEN`（環境變數）。**沒設 → server 照跑但啟動大聲警告**
     「未驗證，勿暴露公網」（保留 localhost 自用方便）。
   - **瀏覽器走 session cookie**：`/app` 出登入框 → `POST /auth` 比對 token → 種

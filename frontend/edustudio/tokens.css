@@ -1,0 +1,149 @@
+/* ============================================================
+   eduStudio — Design Tokens
+   Dark-first "teaching content workstation" theme.
+   Architecture (token grouping, 4pt spacing, status-accent
+   left-border pattern, elevation ramp) is carried over from the
+   InduSpect design system; the palette is re-skinned for a
+   tech + education product: violet primary on deep-slate ink,
+   teal accent for localization / multilingual states.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+:root {
+  /* ── Brand / Primary — Violet ───────────────────────────── */
+  --es-primary:       #7C5CFF;   /* main brand */
+  --es-primary-deep:  #6344E8;   /* pressed */
+  --es-primary-mid:   #8E72FF;   /* hover */
+  --es-primary-soft:  #A48BFF;   /* focus glow / accents */
+  --es-primary-tint:  rgba(124, 92, 255, 0.14);  /* selected bg */
+  --es-primary-line:  rgba(124, 92, 255, 0.32);
+  --es-primary-on:    #FFFFFF;
+
+  /* ── Accent — Teal (localization / multilingual) ────────── */
+  --es-accent:        #2DD4BF;
+  --es-accent-deep:   #14B8A6;
+  --es-accent-soft:   #5EEAD4;
+  --es-accent-tint:   rgba(45, 212, 191, 0.14);
+  --es-accent-line:   rgba(45, 212, 191, 0.34);
+
+  /* ── Neutrals — Deep slate ──────────────────────────────── */
+  --es-bg:        #0B0E14;   /* app background, deepest */
+  --es-bg-alt:    #0F131C;   /* rail / sidebar */
+  --es-surface:   #141925;   /* primary panels */
+  --es-surface-2: #1B2230;   /* cards */
+  --es-surface-3: #232C3D;   /* inset rows, hover */
+  --es-surface-4: #2B3548;   /* active hover */
+
+  --es-border:    #283143;
+  --es-border-2:  #36425A;
+  --es-divider:   #1E2636;
+
+  /* ── Foreground ─────────────────────────────────────────── */
+  --es-fg:        #ECEFF6;   /* primary text */
+  --es-fg-2:      #AEB8CC;   /* secondary */
+  --es-fg-3:      #7F8AA1;   /* captions / helpers */
+  --es-fg-mute:   #5B6577;   /* disabled / placeholder */
+  --es-fg-faint:  #424B5C;   /* inactive icon */
+
+  /* ── Semantic / status ──────────────────────────────────── */
+  --es-success:      #34D399;
+  --es-success-bg:   rgba(52, 211, 153, 0.14);
+  --es-success-line: rgba(52, 211, 153, 0.40);
+
+  --es-warning:      #FBBF24;
+  --es-warning-bg:   rgba(251, 191, 36, 0.14);
+  --es-warning-line: rgba(251, 191, 36, 0.40);
+
+  --es-error:        #F87171;
+  --es-error-bg:     rgba(248, 113, 113, 0.14);
+  --es-error-line:   rgba(248, 113, 113, 0.42);
+
+  --es-info:         #60A5FA;
+  --es-info-bg:      rgba(96, 165, 250, 0.14);
+  --es-info-line:    rgba(96, 165, 250, 0.40);
+
+  /* Workstation accent hues (nav + chrome cues) */
+  --es-ws-video:   #7C5CFF;   /* violet */
+  --es-ws-visual:  #F472B6;   /* pink */
+  --es-ws-material:#38BDF8;   /* sky */
+  --es-ws-publish: #34D399;   /* green */
+
+  /* Task / review status */
+  --es-st-draft:    var(--es-fg-3);
+  --es-st-queued:   var(--es-info);
+  --es-st-running:  var(--es-primary-soft);
+  --es-st-review:   var(--es-warning);
+  --es-st-approved: var(--es-success);
+  --es-st-failed:   var(--es-error);
+
+  /* ── Type ───────────────────────────────────────────────── */
+  --es-font-sans: "Noto Sans TC", system-ui, -apple-system, "Segoe UI",
+                  "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --es-font-display: "Space Grotesk", "Noto Sans TC", system-ui, sans-serif;
+  --es-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+                  Consolas, monospace;
+
+  --es-display-size: 30px; --es-display-weight: 700;
+  --es-h1-size: 22px;  --es-h1-weight: 700;
+  --es-h2-size: 18px;  --es-h2-weight: 600;
+  --es-h3-size: 15px;  --es-h3-weight: 600;
+  --es-body-size: 14px;   --es-body-weight: 400;
+  --es-body2-size: 13px;  --es-body2-weight: 400;
+  --es-cap-size: 12px;    --es-cap-weight: 400;
+  --es-overline-size: 11px; --es-overline-weight: 600;
+
+  --es-lh-tight: 1.25;
+  --es-lh-base:  1.6;
+  --es-lh-loose: 1.75;
+
+  /* ── Spacing (4pt) ──────────────────────────────────────── */
+  --es-sp-xs: 4px;
+  --es-sp-sm: 8px;
+  --es-sp-md: 16px;
+  --es-sp-lg: 24px;
+  --es-sp-xl: 32px;
+  --es-sp-xxl: 48px;
+
+  /* ── Radii ──────────────────────────────────────────────── */
+  --es-radius-sm: 6px;
+  --es-radius-md: 9px;
+  --es-radius-lg: 12px;
+  --es-radius-xl: 16px;
+  --es-radius-pill: 999px;
+
+  /* ── Elevation ──────────────────────────────────────────── */
+  --es-shadow-1: 0 1px 2px rgba(0,0,0,0.30);
+  --es-shadow-2: 0 4px 12px rgba(0,0,0,0.35);
+  --es-shadow-3: 0 12px 32px rgba(0,0,0,0.45);
+  --es-shadow-modal: 0 28px 64px rgba(0,0,0,0.60);
+  --es-focus-ring: 0 0 0 3px rgba(124, 92, 255, 0.30);
+  --es-glow-primary: 0 0 0 1px var(--es-primary-line), 0 8px 24px rgba(124,92,255,0.20);
+}
+
+/* ── Base ─────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--es-font-sans);
+  background: var(--es-bg);
+  color: var(--es-fg);
+  font-size: var(--es-body-size);
+  line-height: var(--es-lh-base);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: var(--es-primary-line); color: #fff; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--es-surface-3); border-radius: 999px;
+  border: 2px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--es-surface-4); background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+h1,h2,h3,h4,p { margin: 0; }
+button { font-family: inherit; }
+.es-mono { font-family: var(--es-font-mono); font-variant-numeric: tabular-nums; }
+.es-num  { font-variant-numeric: tabular-nums; }

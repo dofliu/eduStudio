@@ -1,0 +1,175 @@
+/* ============================================================
+   eduStudio — Theme variants
+   Three swappable visual styles sharing one token architecture.
+   Default (no [data-theme]) = "Aurora" (defined in tokens.css).
+   Applied by setting data-theme on <html>. Higher specificity
+   (:root[data-theme]) guarantees override of the base :root set.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&display=swap");
+
+/* ════════════════════════════════════════════════════════════
+   LUMEN — light academic / editorial. Warm paper, indigo ink,
+   emerald multilingual accent, serif display, crisp corners.
+   ════════════════════════════════════════════════════════════ */
+:root[data-theme="lumen"] {
+  --es-primary:       #4F46E5;
+  --es-primary-deep:  #4338CA;
+  --es-primary-mid:   #6366F1;
+  --es-primary-soft:  #4F46E5;
+  --es-primary-tint:  rgba(79, 70, 229, 0.10);
+  --es-primary-line:  rgba(79, 70, 229, 0.26);
+  --es-primary-on:    #FFFFFF;
+
+  --es-accent:        #0D9488;
+  --es-accent-deep:   #0F766E;
+  --es-accent-soft:   #0D9488;
+  --es-accent-tint:   rgba(13, 148, 136, 0.10);
+  --es-accent-line:   rgba(13, 148, 136, 0.30);
+
+  --es-bg:        #F3F0E9;
+  --es-bg-alt:    #EEEAE0;
+  --es-surface:   #FFFFFF;
+  --es-surface-2: #FFFFFF;
+  --es-surface-3: #F2EFE7;
+  --es-surface-4: #E8E3D7;
+
+  --es-border:    #E3DDD0;
+  --es-border-2:  #CFC7B5;
+  --es-divider:   #EDE8DE;
+
+  --es-fg:        #26221C;
+  --es-fg-2:      #595247;
+  --es-fg-3:      #8A8174;
+  --es-fg-mute:   #ABA290;
+  --es-fg-faint:  #C9C1B0;
+
+  --es-success:      #047857;
+  --es-success-bg:   rgba(4, 120, 87, 0.10);
+  --es-success-line: rgba(4, 120, 87, 0.30);
+  --es-warning:      #B45309;
+  --es-warning-bg:   rgba(180, 83, 9, 0.10);
+  --es-warning-line: rgba(180, 83, 9, 0.30);
+  --es-error:        #B91C1C;
+  --es-error-bg:     rgba(185, 28, 28, 0.09);
+  --es-error-line:   rgba(185, 28, 28, 0.30);
+  --es-info:         #1D4ED8;
+  --es-info-bg:      rgba(29, 78, 216, 0.10);
+  --es-info-line:    rgba(29, 78, 216, 0.30);
+
+  --es-ws-video:    #4F46E5;
+  --es-ws-visual:   #DB2777;
+  --es-ws-material: #0284C7;
+  --es-ws-publish:  #047857;
+
+  --es-font-display: "Spectral", "Noto Serif TC", Georgia, "Songti TC", serif;
+
+  --es-radius-sm: 4px;
+  --es-radius-md: 6px;
+  --es-radius-lg: 9px;
+  --es-radius-xl: 12px;
+
+  --es-shadow-1: 0 1px 2px rgba(40,33,20,0.06), 0 1px 3px rgba(40,33,20,0.05);
+  --es-shadow-2: 0 2px 8px rgba(40,33,20,0.07), 0 6px 16px rgba(40,33,20,0.05);
+  --es-shadow-3: 0 12px 28px rgba(40,33,20,0.13);
+  --es-shadow-modal: 0 24px 56px rgba(40,33,20,0.22);
+  --es-focus-ring: 0 0 0 3px rgba(79,70,229,0.22);
+  --es-glow-primary: 0 0 0 1px var(--es-primary-line), 0 8px 24px rgba(79,70,229,0.16);
+}
+/* Lumen: serif headings carry the editorial voice */
+:root[data-theme="lumen"] .es-h1,
+:root[data-theme="lumen"] .es-gate-title,
+:root[data-theme="lumen"] .es-cost-big,
+:root[data-theme="lumen"] .es-pv-h { font-family: var(--es-font-display); letter-spacing: -0.01em; }
+:root[data-theme="lumen"] .es-brand-name { font-family: var(--es-font-display); font-weight: 700; }
+/* lighter scrollbars + selection ink stays readable */
+:root[data-theme="lumen"] ::selection { color: #fff; }
+
+/* ════════════════════════════════════════════════════════════
+   CARBON — true-black studio tool. Warm orange primary, mint
+   multilingual accent, sharp corners, hard shadows.
+   ════════════════════════════════════════════════════════════ */
+:root[data-theme="carbon"] {
+  --es-primary:       #FF6A3D;
+  --es-primary-deep:  #E8501F;
+  --es-primary-mid:   #FF8159;
+  --es-primary-soft:  #FFA985;
+  --es-primary-tint:  rgba(255, 106, 61, 0.14);
+  --es-primary-line:  rgba(255, 106, 61, 0.34);
+  --es-primary-on:    #2A1000;
+
+  --es-accent:        #2DE1B6;
+  --es-accent-deep:   #14C9A0;
+  --es-accent-soft:   #6BF0D6;
+  --es-accent-tint:   rgba(45, 225, 182, 0.13);
+  --es-accent-line:   rgba(45, 225, 182, 0.34);
+
+  --es-bg:        #0A0A0B;
+  --es-bg-alt:    #0E0E10;
+  --es-surface:   #131316;
+  --es-surface-2: #18191D;
+  --es-surface-3: #212329;
+  --es-surface-4: #2B2E36;
+
+  --es-border:    #26282E;
+  --es-border-2:  #3A3D45;
+  --es-divider:   #1C1D22;
+
+  --es-fg:        #F3F4F6;
+  --es-fg-2:      #A8ACB5;
+  --es-fg-3:      #767B85;
+  --es-fg-mute:   #565B64;
+  --es-fg-faint:  #3A3D45;
+
+  --es-success:      #3DD68C;
+  --es-success-bg:   rgba(61, 214, 140, 0.13);
+  --es-success-line: rgba(61, 214, 140, 0.38);
+  --es-warning:      #FBBF24;
+  --es-warning-bg:   rgba(251, 191, 36, 0.13);
+  --es-warning-line: rgba(251, 191, 36, 0.38);
+  --es-error:        #FB6F6F;
+  --es-error-bg:     rgba(251, 111, 111, 0.13);
+  --es-error-line:   rgba(251, 111, 111, 0.40);
+  --es-info:         #5AA8FF;
+  --es-info-bg:      rgba(90, 168, 255, 0.13);
+  --es-info-line:    rgba(90, 168, 255, 0.38);
+
+  --es-ws-video:    #FF6A3D;
+  --es-ws-visual:   #FF4FA3;
+  --es-ws-material: #36C5F0;
+  --es-ws-publish:  #3DD68C;
+
+  --es-radius-sm: 3px;
+  --es-radius-md: 4px;
+  --es-radius-lg: 6px;
+  --es-radius-xl: 9px;
+
+  --es-shadow-1: 0 1px 2px rgba(0,0,0,0.50);
+  --es-shadow-2: 0 4px 14px rgba(0,0,0,0.55);
+  --es-shadow-3: 0 14px 36px rgba(0,0,0,0.60);
+  --es-shadow-modal: 0 30px 70px rgba(0,0,0,0.70);
+  --es-focus-ring: 0 0 0 3px rgba(255,106,61,0.30);
+  --es-glow-primary: 0 0 0 1px var(--es-primary-line), 0 8px 24px rgba(255,106,61,0.20);
+}
+/* Carbon: mono eyebrow + brand for a technical, control-room feel */
+:root[data-theme="carbon"] .es-brand-name { letter-spacing: -0.02em; }
+:root[data-theme="carbon"] .es-pv-eyebrow { font-family: var(--es-font-mono); letter-spacing: 0.06em; }
+
+/* ── Theme switcher (topbar) ─────────────────────────────── */
+.es-themesel { position: relative; }
+.es-theme-swatches { display: inline-flex; gap: 3px; }
+.es-theme-swatch { width: 9px; height: 9px; border-radius: 999px; display: block; }
+.es-theme-opt {
+  display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px;
+  border: 1px solid transparent; background: transparent; cursor: pointer;
+  border-radius: var(--es-radius-sm); text-align: left; color: var(--es-fg);
+}
+.es-theme-opt:hover { background: var(--es-surface-3); }
+.es-theme-opt.is-active { background: var(--es-primary-tint); border-color: var(--es-primary-line); }
+.es-theme-chip {
+  width: 38px; height: 38px; flex: none; border-radius: 9px; position: relative;
+  border: 1px solid var(--es-border-2); overflow: hidden; display: flex;
+}
+.es-theme-chip span { flex: 1; }
+.es-theme-name { font-size: 13.5px; font-weight: 600; }
+.es-theme-desc { font-size: 11.5px; color: var(--es-fg-3); }

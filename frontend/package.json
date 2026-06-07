@@ -1,0 +1,20 @@
+{
+  "name": "edustudio-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "eduStudio 統一 /app 前端（React 19 + Vite）。原始碼自包含於本 repo，build 進 ../web/eduapp。",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^6.2.0"
+  }
+}

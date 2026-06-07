@@ -99,3 +99,8 @@ tools/song.json
 tools/*.srt
 tools/*.mp4
 tools/images/
+
+# eduStudio 執行期本地資料（不入庫；settings.json 含 API key）
+settings.json
+*.db
+projects/

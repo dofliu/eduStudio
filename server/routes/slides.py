@@ -11,36 +11,21 @@ React 的 SlideEditor 把這個路徑拆成 stem + filename, 透過此端點抓�
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
 
 from core.config import SLIDES_DIR
 
+from ..path_safety import safe_join
+
 
 router = APIRouter(prefix="/slide_images", tags=["slides"])
 
 
-def _safe_part(part: str) -> bool:
-    """禁止 path traversal / 絕對路徑碎片。"""
-    return not (
-        "/" in part or "\\" in part or ".." in part or part.startswith(".")
-    )
-
-
 @router.get("/{stem}/{filename}")
 async def slide_image(stem: str, filename: str) -> FileResponse:
-    if not _safe_part(stem) or not _safe_part(filename):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法 stem / filename")
-
-    target = (SLIDES_DIR / stem / filename).resolve()
-    # 二次防護: resolve 後仍要在 SLIDES_DIR 之下
-    try:
-        target.relative_to(SLIDES_DIR.resolve())
-    except ValueError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
-
+    # 字元檢查 + resolve + 限定在 SLIDES_DIR 下 (S-3 共用 safe_join)
+    target = safe_join(SLIDES_DIR, stem, filename)
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"找不到圖片: {stem}/{filename}")
 

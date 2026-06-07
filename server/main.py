@@ -230,6 +230,10 @@ def create_app() -> FastAPI:
         # eager init store, 把 jobs/ 既有 state 讀回 cache
         store = get_default_store()
         print(f"[server] job store ready: {len(store.list())} 筆既有 job")
+        # R-1: 把因重啟中斷而卡住的 in-flight job 標 failed (可一鍵重試)
+        interrupted = store.resume_interrupted()
+        if interrupted:
+            print(f"[server] R-1: 標記 {len(interrupted)} 個重啟中斷的 job 為 failed: {interrupted}")
         # S-1: 沒設 token 就大聲警告勿暴露公網
         warn_if_open()
 

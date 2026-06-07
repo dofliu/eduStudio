@@ -69,6 +69,15 @@ def _resolve_default_review(source_type: SourceType, opt_value: bool | None) -> 
     return source_type in (SourceType.EXAM_PDF, SourceType.SONG)
 
 
+# R-1: 重啟時被視為「中斷」的 in-flight 狀態。
+# AWAITING_REVIEW 是合法暫停(等人工)、DONE/FAILED 是終態, 都不算中斷。
+_INTERRUPTED_STATES = frozenset({
+    JobState.PENDING,
+    JobState.INGESTING,
+    JobState.RENDERING,
+})
+
+
 # ---------- Store (thread-safe in-memory + write-through) ----------
 
 class JobStore:
@@ -97,6 +106,30 @@ class JobStore:
                 self._cache[rec.id] = rec
             except Exception as e:
                 print(f"[jobstore] 略過無法解析的 state: {sub} ({e})")
+
+    def resume_interrupted(self) -> list[str]:
+        """R-1 止血: 啟動時把因 server 重啟而卡住的 in-flight job 標 FAILED。
+
+        runner 用 `asyncio.create_task` 即起即忘, server 一重啟, 正在 pending/ingesting/
+        rendering 的 job 對應的 task 就沒了, 狀態會永遠卡著。這裡在啟動時掃一遍, 把這些
+        job 標 failed + 明確訊息, 讓使用者一鍵重試(不需要完整持久化 worker 架構)。
+
+        AWAITING_REVIEW(等人工審查)是合法暫停, 不動; DONE/FAILED 是終態, 不動。
+        回傳被標記的 job id 清單。
+        """
+        affected: list[str] = []
+        with self._lock:
+            for job_id, rec in list(self._cache.items()):
+                if rec.state in _INTERRUPTED_STATES:
+                    updated = rec.model_copy(update={
+                        "state": JobState.FAILED,
+                        "error": "server 重啟導致中斷，請重試此 job。",
+                        "updated_at": utc_now(),
+                    })
+                    self._cache[job_id] = updated
+                    self._persist(updated)
+                    affected.append(job_id)
+        return affected
 
     # ---- CRUD ----
 

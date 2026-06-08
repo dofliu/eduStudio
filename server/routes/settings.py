@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from core import settings as settings_store
 from core.infocards.models import image_model_options, text_model_options
+from core.models import role_catalog
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -21,6 +22,7 @@ class SettingsPatch(BaseModel):
     gemini_api_key: str | None = None
     text_model: str | None = None
     image_model: str | None = None
+    model_roles: dict[str, str] | None = None    # 逐角色 model id 覆寫（M-3）；{} ＝清除
     brand_speaker: str | None = None
     brand_org: str | None = None
     brand_url: str | None = None
@@ -30,6 +32,7 @@ def _payload() -> dict:
     view = settings_store.public_view()
     view["text_models"] = text_model_options()    # [{id,label,description}]
     view["image_models"] = image_model_options()
+    view["roles"] = role_catalog()                 # [{role,label,kind,default}] 逐角色管理用
     return view
 
 

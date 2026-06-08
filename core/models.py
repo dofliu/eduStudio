@@ -77,6 +77,42 @@ def all_roles() -> list[str]:
     return sorted(ROLES)
 
 
+# ── 設定頁逐角色管理（M-3）用的呈現資料 ──
+# tts 走獨立 TTS 子系統（TTS_PROVIDER / tts_config.json），不在設定頁逐角色下拉管理，
+# 避免「這裡選了卻不生效」的誤導；故 catalog 只列 resolve() 實際治理的 LLM/視覺/生圖角色。
+_ROLE_LABELS: dict[str, str] = {
+    TEXT_FAST:  "文字 · 主力（大綱／旁白／翻譯／解題／圖卡文字）",
+    TEXT_PRO:   "文字 · 深度推理（複雜內容／長文）",
+    VISION:     "視覺理解（讀圖／OCR／投影片頁面）",
+    IMAGE_FAST: "生圖 · 主力（快速）",
+    IMAGE_PRO:  "生圖 · 最高畫質（海報）",
+}
+# 逐角色用哪一組候選清單（前端據此挑 text_models / image_models 下拉）。
+_ROLE_KIND: dict[str, str] = {
+    TEXT_FAST: "text", TEXT_PRO: "text", VISION: "text",
+    IMAGE_FAST: "image", IMAGE_PRO: "image",
+}
+# 設定頁呈現順序（穩定，UI 用）。
+_CATALOG_ORDER: tuple[str, ...] = (TEXT_FAST, TEXT_PRO, VISION, IMAGE_FAST, IMAGE_PRO)
+
+
+def role_catalog() -> list[dict[str, str]]:
+    """設定頁逐角色管理用的角色清單（單一真實來源）。
+
+    每筆：``role``（key）/ ``label``（人類說明）/ ``kind``（text|image，挑哪組候選下拉）
+    / ``default``（內建預設 model id，下拉「預設」選項顯示用）。tts 不列（見上註）。
+    """
+    return [
+        {
+            "role": r,
+            "label": _ROLE_LABELS[r],
+            "kind": _ROLE_KIND[r],
+            "default": DEFAULTS[r][1],
+        }
+        for r in _CATALOG_ORDER
+    ]
+
+
 def _provider_for(role: str) -> str:
     """角色預設 provider（給只覆寫 model id 的 legacy/per-role override 沿用）。"""
     return DEFAULTS[role][0]

@@ -39,6 +39,18 @@ def test_every_role_has_a_default():
         assert role in models.DEFAULTS
 
 
+def test_role_catalog_shape_and_excludes_tts():
+    cat = models.role_catalog()
+    keys = [c["role"] for c in cat]
+    # tts 走獨立 TTS 子系統，不在逐角色設定頁管理
+    assert keys == ["text.fast", "text.pro", "vision", "image.fast", "image.pro"]
+    for c in cat:
+        assert set(c) == {"role", "label", "kind", "default"}
+        assert c["kind"] in ("text", "image")
+        assert c["default"] == models.DEFAULTS[c["role"]][1]   # 與登錄表單一真實來源一致
+        assert c["label"]
+
+
 # ---------- 預設表（無設定覆寫）----------
 
 def test_defaults_resolve_when_no_settings(settings_path):

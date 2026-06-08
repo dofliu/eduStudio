@@ -304,8 +304,18 @@
     遷到 3.5**，這正是 **C-3（旁白模型遷 3.x，GATE，需開額度 A/B 驗品質）**。故此部分留待 C-3 拍板/
     開額度後一併換（屆時就是「改登錄表一個值 + 換 call site」）。`mermaid_render.py`/`ideate`/`diagram_*`
     等 GATE 半成品（F-5）同理留待各自項目。
-- [ ] 🟡 **M-3 設定頁模型管理升級（offline）**— 設定頁從「文字/圖片各一個下拉」升級成
-  **逐角色可配**（或維持精簡但底層走角色表），未知 id 顯示健檢結果（接 C-5）。
+- [x] 🟡 **M-3 設定頁模型管理升級（offline）**— ✅ 2026-06-08 完成。設定頁從「文字/圖片各一個下拉」
+  升級成 **逐角色可配**：新增設定欄位 `model_roles`（dict，逐角色 model id 覆寫），`resolve()` 早已
+  最高優先讀它（M-1 預留），現在設定頁能寫入＝閉環。`core/models.py` 加 `role_catalog()`（單一真實
+  來源：role/label/kind/default，**tts 不列**——走獨立 TTS 子系統避免「選了不生效」誤導）；
+  `core/settings.py` 加 `model_roles` 至 `_KNOWN` + `_clean_model_roles()`（只留合法角色→非空字串、
+  空 dict 清除，呼應 type guard）+ `public_view` 曝光；`/settings` 端點補 `model_roles` patch 欄位
+  與 `roles` catalog。前端 `app.jsx` SettingsDrawer 改逐角色下拉（依 kind 挑 text/image 候選、留空＝
+  系統預設）。legacy `text_model`/`image_model` 仍留作 `resolve()` 較低優先 fallback（向後相容、不孤兒）。
+  補測 `test_settings.py`（roundtrip/清洗未知角色/空清除/非 dict/public_view/路由 catalog+寫入）+
+  `test_models_registry.py`（catalog 形狀+排除 tts）。本機 `npm run build`（vite/node22）編譯通過、全套
+  2466 passed（3 個 QR/journal 字型像素為容器缺 Noto 假象，CI 權威）。註：未知 id 健檢顯示（接 C-5）
+  待 C-5 工具落地後再串。
 - [ ] 🟢 **M-4 provider adapter 介面（B-ready stub，offline）**— 定義 `Provider` 協定
   （`generate_text` / `generate_image` / `tts`）+ gemini adapter 包現有呼叫。**只抽介面不換行為**，
   讓 Phase 9 F9-3（ollama/claude provider）能 slot-in。是否現在做或等 F9-3 一起做，routine 視

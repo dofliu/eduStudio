@@ -5,7 +5,8 @@ settings.json 存使用者在設定頁設定的值，覆寫環境變數預設。
 
 欄位：
 - gemini_api_key：Gemini API 金鑰（覆寫 env）
-- text_model / image_model：偏好模型 id（/api/generate 未指定時採用）
+- text_model / image_model：偏好模型 id（向後相容單值欄位；resolve() 的 legacy fallback）
+- model_roles：逐角色 model id 覆寫（dict，M-3 設定頁逐角色管理；resolve() 最高優先讀此）
 - brand_speaker / brand_org / brand_url：個人品牌（封面/結尾頁預設講者/單位/連結）
 """
 from __future__ import annotations
@@ -16,8 +17,23 @@ import threading
 from core import config
 
 _LOCK = threading.Lock()
-_KNOWN = ("gemini_api_key", "text_model", "image_model",
+_KNOWN = ("gemini_api_key", "text_model", "image_model", "model_roles",
           "brand_speaker", "brand_org", "brand_url")
+
+
+def _clean_model_roles(v) -> dict:
+    """只保留合法角色 → 非空字串 model id；其餘（未知角色/空值/非 dict）丟棄。
+
+    防設定頁/API 塞進打錯字的角色或空值默默污染登錄表（呼應 resolve() 的 type guard）。
+    """
+    if not isinstance(v, dict):
+        return {}
+    from core.models import ROLES
+    out: dict[str, str] = {}
+    for role, mid in v.items():
+        if role in ROLES and isinstance(mid, str) and mid.strip():
+            out[role] = mid.strip()
+    return out
 
 
 def _load() -> dict:
@@ -47,6 +63,13 @@ def update(patch: dict) -> dict:
         for k, v in (patch or {}).items():
             if k not in _KNOWN:
                 continue
+            if k == "model_roles":
+                cleaned = _clean_model_roles(v)
+                if cleaned:
+                    data[k] = cleaned          # 整批覆寫（前端送全集）
+                else:
+                    data.pop(k, None)          # 空 dict / 全無效 ＝ 清除逐角色覆寫
+                continue
             if v is None or v == "":
                 data.pop(k, None)
             else:
@@ -63,6 +86,7 @@ def public_view() -> dict:
         "has_gemini_api_key": bool(data.get("gemini_api_key")),
         "text_model": data.get("text_model", ""),
         "image_model": data.get("image_model", ""),
+        "model_roles": data.get("model_roles", {}),
         "brand_speaker": data.get("brand_speaker", ""),
         "brand_org": data.get("brand_org", ""),
         "brand_url": data.get("brand_url", ""),

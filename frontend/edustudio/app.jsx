@@ -3001,12 +3001,18 @@ function SettingsDrawer({ open, onClose }) {
     if (!open) return;
     fetch("/settings").then(r => r.json()).then(d => {
       setData(d);
-      setForm({ text_model: d.text_model || "", image_model: d.image_model || "",
+      setForm({ model_roles: d.model_roles || {},
         brand_speaker: d.brand_speaker || "", brand_org: d.brand_org || "", brand_url: d.brand_url || "", gemini_api_key: "" });
     }).catch(() => setMsg("讀取設定失敗"));
   }, [open]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // 逐角色 model 覆寫（M-3）：選空＝清除該角色（回退系統預設）。
+  const setRole = (role, v) => setForm(f => {
+    const mr = { ...(f.model_roles || {}) };
+    if (v) mr[role] = v; else delete mr[role];
+    return { ...f, model_roles: mr };
+  });
   const save = async () => {
     setBusy(true); setMsg("");
     try {
@@ -3032,19 +3038,20 @@ function SettingsDrawer({ open, onClose }) {
         </div>
         <div className="es-drawer-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <div className="es-cost-sec-title">AI 模型</div>
-            <Field label="文字模型（生成簡報/圖卡的邏輯）">
-              <select style={inputStyle} value={form.text_model} onChange={e => set("text_model", e.target.value)}>
-                <option value="">預設（gemini-3.5-flash）</option>
-                {(data?.text_models || []).map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
-              </select>
-            </Field>
-            <Field label="圖片模型（生圖）">
-              <select style={inputStyle} value={form.image_model} onChange={e => set("image_model", e.target.value)}>
-                <option value="">預設（gemini-3.1-flash-image）</option>
-                {(data?.image_models || []).map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
-              </select>
-            </Field>
+            <div className="es-cost-sec-title">AI 模型（逐角色）</div>
+            {(data?.roles || []).map(role => {
+              const opts = role.kind === "image" ? (data?.image_models || []) : (data?.text_models || []);
+              const cur = (form.model_roles || {})[role.role] || "";
+              return (
+                <Field key={role.role} label={role.label}>
+                  <select style={inputStyle} value={cur} onChange={e => setRole(role.role, e.target.value)}>
+                    <option value="">預設（{role.default}）</option>
+                    {opts.map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
+                  </select>
+                </Field>
+              );
+            })}
+            <div className="es-cap es-mut" style={{ marginTop: 4 }}>留空＝沿用系統預設。語音（TTS）後端於 .env / tts_config.json 設定。</div>
           </div>
 
           <div>

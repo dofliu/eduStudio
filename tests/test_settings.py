@@ -43,6 +43,43 @@ class TestSettingsStore:
         assert "secret-key-123" not in str(view)   # 明文不外洩
 
 
+class TestModelRoles:
+    """M-3：逐角色 model 覆寫（model_roles）持久化 + 清洗 + 對 resolve() 生效。"""
+
+    def test_roundtrip_and_resolve(self, settings_path):
+        from core import models
+        from core import settings as st
+        st.update({"model_roles": {"text.fast": "gemini-x", "image.pro": "img-y"}})
+        assert st.get_setting("model_roles") == {"text.fast": "gemini-x", "image.pro": "img-y"}
+        # 對 resolve() 最高優先生效
+        assert models.resolve_id("text.fast") == "gemini-x"
+        assert models.resolve_id("image.pro") == "img-y"
+        # 未覆寫的角色仍回預設
+        assert models.resolve_id("text.pro") == models.DEFAULTS["text.pro"][1]
+
+    def test_unknown_role_and_empty_value_dropped(self, settings_path):
+        from core import settings as st
+        st.update({"model_roles": {"text.fast": "ok", "bogus.role": "x", "image.fast": "  "}})
+        assert st.get_setting("model_roles") == {"text.fast": "ok"}
+
+    def test_empty_dict_clears(self, settings_path):
+        from core import settings as st
+        st.update({"model_roles": {"text.fast": "ok"}})
+        st.update({"model_roles": {}})
+        assert st.get_setting("model_roles") is None
+
+    def test_non_dict_ignored(self, settings_path):
+        from core import settings as st
+        st.update({"model_roles": "not-a-dict"})
+        assert st.get_setting("model_roles") is None
+
+    def test_public_view_exposes_model_roles(self, settings_path):
+        from core import settings as st
+        assert st.public_view()["model_roles"] == {}
+        st.update({"model_roles": {"text.fast": "m"}})
+        assert st.public_view()["model_roles"] == {"text.fast": "m"}
+
+
 class TestApiKeyOverride:
     def test_settings_overrides_env(self, settings_path, monkeypatch):
         from core import settings as st
@@ -111,3 +148,16 @@ class TestSettingsRoute:
         assert b2["has_gemini_api_key"] is True
         assert "gemini_api_key" not in b2          # 不回明文欄位
         assert "SECRET_XYZ_789" not in str(b2)     # 金鑰值不外洩
+
+    def test_roles_catalog_and_model_roles_write(self, client):
+        # GET 回逐角色 catalog（單一真實來源 core.models.role_catalog）
+        body = client.get("/settings").json()
+        roles = {r["role"] for r in body["roles"]}
+        assert {"text.fast", "text.pro", "vision", "image.fast", "image.pro"} == roles
+        assert "tts" not in roles                  # tts 走獨立子系統，不在逐角色管理
+        cat = next(r for r in body["roles"] if r["role"] == "image.pro")
+        assert cat["kind"] == "image" and cat["default"]
+        # POST 寫入逐角色覆寫；未知角色被清洗掉
+        r2 = client.post("/settings", json={"model_roles": {"text.fast": "gemini-z", "nope": "x"}})
+        assert r2.status_code == 200
+        assert r2.json()["model_roles"] == {"text.fast": "gemini-z"}

@@ -83,6 +83,19 @@ class RefineSlideRequest(BaseModel):
     textModel: str = DEFAULT_TEXT_MODEL
 
 
+class RefineSectionRequest(BaseModel):
+    """資訊圖卡逐區 refine：infographic 為整張資料，sectionId 指定要重生的區塊（區域選擇 UI 用）。"""
+
+    infographic: dict
+    sectionId: str
+    instruction: str
+    style: str = "professional"
+    customStylePrompt: str = ""
+    regenerateImage: bool = True
+    imageModel: str = DEFAULT_IMAGE_MODEL
+    textModel: str = DEFAULT_TEXT_MODEL
+
+
 @router.get("/usage")
 def usage_summary() -> dict:
     """Gemini 用量真實統計（成本面板）。涵蓋視覺站 + 在地化的呼叫；budget 為設定值。"""
@@ -263,6 +276,26 @@ def refine_slide(req: RefineSlideRequest) -> dict:
         persona=req.persona, slide_index=req.slideIndex, total_slides=req.totalSlides,
         model=req.textModel, image_model=req.imageModel)
     return {"success": True, "slide": slide.model_dump()}
+
+
+@router.post("/refine-section", dependencies=[Depends(rate_limit)])
+def refine_section(req: RefineSectionRequest) -> dict:
+    """資訊圖卡逐區 refine：依指令重生指定 section（區域選擇 UI 用）。回更新後的整張圖卡。"""
+    from core.infocards.schemas import InfographicData
+
+    try:
+        data = InfographicData.model_validate(req.infographic)
+    except Exception as e:  # 圖卡資料壞 → 400，不讓 500 吞掉原因
+        raise HTTPException(status_code=400, detail=f"infographic 資料無效：{e}") from e
+    try:
+        updated = infographic_service.refine_infographic_section(
+            data, req.sectionId, req.instruction,
+            style=req.style, custom=req.customStylePrompt,
+            model=req.textModel, image_model=req.imageModel,
+            regenerate_image=req.regenerateImage)
+    except ValueError as e:  # 找不到 sectionId
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {"success": True, "type": "infographic", "data": updated.model_dump()}
 
 
 @router.post("/export/pptx")

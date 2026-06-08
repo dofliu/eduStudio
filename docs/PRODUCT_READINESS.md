@@ -276,11 +276,17 @@
 > **拍板（2026-06-07）：做 Option A（角色登錄表）+ 介面設計成 B-ready**（provider 抽象之後
 > 再加，不重構）。B 的「本機 provider」就是 Phase 9 F9-3 本機可插拔模型。
 
-- [ ] 🔴 **M-1 角色登錄表 `core/models.py`（offline，A 核心）**— 定義**邏輯角色** →
-  具體 model id 的單一真實來源（角色：`text.fast` / `text.pro` / `vision` / `image.fast` /
-  `image.pro` / `tts`）。`resolve(role)` 讀設定頁(settings.json) → fallback 內建預設表。
-  介面預留 provider 維度（`resolve(role) -> (provider, model_id)`，A 階段 provider 恆 gemini）。
-  +測試鎖角色集合 + fallback。
+- [x] 🔴 **M-1 角色登錄表 `core/models.py`（offline，A 核心）**— ✅ 2026-06-08 完成。新增
+  `core/models.py`：6 個**邏輯角色**（`text.fast`/`text.pro`/`vision`/`image.fast`/`image.pro`/
+  `tts`）→ `(provider, model_id)` 單一真實來源。`resolve(role)` 解析優先序＝設定頁逐角色
+  `model_roles`（M-3 UI 會寫入，現在先讀＝向前相容）→ legacy 單值欄位 `text_model`/`image_model`
+  （向後相容，保留現行 `get_gemini_model()` 行為，讓 M-2 換接 runtime 不變）→ 內建 `DEFAULTS`。
+  provider 維度 B-ready（A 階段 LLM/視覺/生圖恆 gemini；tts 反映既有 edge/f5/google 後端，預設
+  `edge`，不硬塞未驗證 gemini TTS id 避免 preview 404）；未知角色 `ValueError`（type guard）。
+  預設 id 對齊既有 `core/infocards/models.py`（live 實測的 Gemini 3 系列）。補
+  `tests/test_models_registry.py` 12 測（鎖角色集合/預設表/type guard/legacy 覆寫/逐角色覆寫/
+  空值 fallback，**全 tmp 隔離不打 API**）。全套 2459 passed（3 個字型像素假象為容器缺 Noto CJK，
+  CI 權威）。換接散落硬編 id＝M-2、設定頁逐角色管理＝M-3、provider adapter 介面＝M-4。
 - [ ] 🔴 **M-2 全面換掉寫死 id（offline）**— 把 `slide_ingest.py` / `core/infocards/models.py` /
   scriptor / outliner / translate / 其餘 chokepoint 的硬編 model id **全部改呼叫 `resolve()`**。
   一處一處改、跑 pytest（硬規則 #7）。完成後「換模型 = 改一個表/設定頁」。

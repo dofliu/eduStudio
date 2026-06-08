@@ -17,7 +17,7 @@ import io
 import logging
 
 from core.infocards.gemini import generate_image_b64
-from core.infocards.models import IMAGE_MODELS
+from core.models import IMAGE_PRO, resolve_id
 
 
 def _overlay_brand_footer(data_url: str, footer: str) -> str:
@@ -146,7 +146,8 @@ def generate_poster(
         text, style, custom_style_prompt=custom_style_prompt,
         density=density, aspect_ratio=aspect_ratio, refinement=refinement,
     )
-    model = image_model or IMAGE_MODELS["pro"]["id"]
+    # M-2: 海報預設 pro 生圖模型走角色登錄表（image.pro）；caller 顯式傳則優先。
+    model = image_model or resolve_id(IMAGE_PRO)
     image_url = generate_image_b64(prompt, model=model, api_key=api_key, files=files)
     # 設定頁有填個人品牌 → 底部疊固定品牌帶（生成後 overlay，文字才正確）。
     if image_url:

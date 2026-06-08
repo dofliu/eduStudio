@@ -185,11 +185,19 @@
 - [ ] 🔴 **U-1 `/studio` 直連 Gemini 改走後端**（offline，前端 + 確認後端端點）— 把 `/studio`
   仍 client-side 呼叫 Gemini 的路徑改打 `/api/generate` 等後端端點（後端大多現成），堵住
   「繞過計費 + 繞過審查」漏洞。或者若 U-3 直接退場 /studio，則本項併入「功能搬進 /app」。
-- [ ] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
+- [~] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
   2026-06-07**）— 盤點顯示 `/app` 視覺站缺「海報/圖卡逐區 refine、區域選擇」（後端 refine
   圖卡未移植 = 唯一「大」缺口）。**定案：移植後端逐區 refine + 前端區域選擇 UI**（不是首發
   砍項）。其餘（16 主題/密度/長寬比/自訂 prompt）UI_WIRING 標已接完。拆小：①後端 refine
   圖卡端點移植 ②前端區域選擇/逐區 refine UI ③測試。
+  - ✅ 2026-06-08 **①後端逐區 refine 端點完成**（含測試③的後端部分）。`infographic_service.
+    refine_infographic_section()`：依指令重生指定 `section`（區域），merge 保留 AI 省略欄位、id
+    鎖死、iconType 越界退預設（比照 `_coerce`）、imagePrompt 變動才重生圖（prompt 清空則去圖、
+    `regenerate_image=False` 可只改文字省額度）；找不到 section → `ValueError`。新增 `POST
+    /api/refine-section`（404 找不到 section / 400 圖卡資料無效）。`tests/test_infocards_
+    infographic.py` 補 11 測（**全程 mock Gemini/生圖，不打真 API**＝offline-first；真實生圖燒額度
+    仍走人工觸發）。本機全套 2436 passed（3 個 font-pixel 斷言為容器缺 Noto 字型假象，CI 權威）。
+  - 待續：②`/app` 前端區域選擇/逐區 refine UI（接此端點）③前端整合驗收。
 - [ ] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— 在舊 UI 頁頂加 banner「此介面
   將退場，請用 /app」+ README/介面表標 legacy。完全移除 build 產物等 `/app` 功能對等確認後
   再做（避免反悔）。

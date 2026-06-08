@@ -69,7 +69,7 @@ ingesting/awaiting_review/rendering/done/failed；JobRecord.stages[]=各階段 n
 | **自訂風格 prompt** | 🔴 無 UI | ⚙️ 收 `customStylePrompt` | 小 |
 | **密度 / 長寬比 / 字型** | 🔴 無 UI | ⚙️ 收 `density`/`aspectRatio`/`typography` | 小 |
 | 結果「加入 Project / 存檔 / 分享」 | 🟠「重新生成」是死 Badge | ⚙️ `POST /projects/{id}/artifacts`、`/api/share` | 中 |
-| 海報/圖卡 逐區 refine、區域選擇 | 🔴 無 | （infoCard 有，後端未移植 refine 圖卡） | 大 |
+| 海報/圖卡 逐區 refine、區域選擇 | 🟠 後端已備、前端無 UI | ⚙️ `POST /api/refine-section`（2026-06-08 移植完成，逐 section 重生） | 中（剩前端區域選擇 UI） |
 
 ---
 

@@ -80,3 +80,134 @@ class TestInfographicService:
         data = InfographicData.model_validate(payload)
         out = info.generate_infographic_images(data)
         assert out.sections[0].imageUrl is None  # 無 imagePrompt → 不生圖
+
+
+class TestRefineSection:
+    """逐區 refine（區域選擇 → 重生單一 section，U-2）。全程 mock Gemini，不打真 API。"""
+
+    def _data(self):
+        return InfographicData.model_validate({**_FAKE, "style": "academic"})
+
+    def test_prompt_builder_includes_instruction_and_section(self):
+        p = info.build_refine_section_prompt(
+            {"id": "s1", "title": "第一定律", "content": "慣性", "iconType": "bulb"},
+            "講得更白話", main_title="牛頓定律")
+        assert "講得更白話" in p and "第一定律" in p
+        assert "牛頓定律" in p and "視覺風格：professional" in p
+
+    def test_prompt_builder_custom_style(self):
+        p = info.build_refine_section_prompt(
+            {"id": "s1", "title": "t", "content": "c", "iconType": "info"},
+            "x", style="custom", custom="水彩風")
+        assert "絕對優先風格指令" in p and "水彩風" in p
+
+    def test_merges_and_keeps_id(self, monkeypatch):
+        # AI 只回 title/content，iconType/imagePrompt 應由原 section 補回。
+        monkeypatch.setattr(info, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {
+                                "id": "evil", "title": "新標題", "content": "新內容"})
+        monkeypatch.setattr(info, "generate_image_b64",
+                            lambda prompt, model=None: "data:image/png;base64,IMG")
+        out = info.refine_infographic_section(self._data(), "s1", "改標題")
+        sec = next(s for s in out.sections if s.id == "s1")
+        assert sec.title == "新標題" and sec.content == "新內容"
+        assert sec.id == "s1"  # AI 想改 id 被擋
+        assert sec.iconType == "bulb"  # 原欄位保留
+        # 其他 section 不受影響
+        assert next(s for s in out.sections if s.id == "s2").title == "第二定律"
+
+    def test_unknown_section_raises(self, monkeypatch):
+        import pytest
+        monkeypatch.setattr(info, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {})
+        with pytest.raises(ValueError):
+            info.refine_infographic_section(self._data(), "nope", "x")
+
+    def test_coerce_bad_icontype(self, monkeypatch):
+        monkeypatch.setattr(info, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {
+                                "title": "t", "iconType": "rocket"})
+        monkeypatch.setattr(info, "generate_image_b64",
+                            lambda prompt, model=None: "data:image/png;base64,IMG")
+        out = info.refine_infographic_section(self._data(), "s1", "x")
+        assert next(s for s in out.sections if s.id == "s1").iconType == "info"
+
+    def test_regenerates_image_when_prompt_changes(self, monkeypatch):
+        monkeypatch.setattr(info, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {
+                                "imagePrompt": "a falling apple"})
+        monkeypatch.setattr(info, "generate_image_b64",
+                            lambda prompt, model=None: f"data:image/png;base64,IMG({prompt})")
+        out = info.refine_infographic_section(self._data(), "s1", "換圖")
+        sec = next(s for s in out.sections if s.id == "s1")
+        assert sec.imageUrl == "data:image/png;base64,IMG(a falling apple)"
+
+    def test_skip_image_when_flag_false(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(info, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {
+                                "imagePrompt": "new pic"})
+        monkeypatch.setattr(info, "generate_image_b64",
+                            lambda prompt, model=None: calls.append(prompt) or "X")
+        out = info.refine_infographic_section(self._data(), "s1", "x", regenerate_image=False)
+        assert calls == []  # 不生圖
+        assert next(s for s in out.sections if s.id == "s1").imagePrompt == "new pic"
+
+    def test_clearing_prompt_drops_image(self, monkeypatch):
+        # 先給 s1 一張圖，refine 把 imagePrompt 清空 → imageUrl 應一併去除。
+        data = self._data()
+        next(s for s in data.sections if s.id == "s1").imageUrl = "data:image/png;base64,OLD"
+        monkeypatch.setattr(info, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {"imagePrompt": ""})
+        out = info.refine_infographic_section(data, "s1", "移除圖片")
+        assert next(s for s in out.sections if s.id == "s1").imageUrl is None
+
+    def test_route(self, tmp_path, monkeypatch):
+        import pytest
+        pytest.importorskip("fastapi.testclient")
+        pytest.importorskip("multipart")
+        from fastapi.testclient import TestClient
+
+        import core.infocards.infographic_service as infs
+        import server.routes.infocards as ic
+        from core.infocards.share_store import ShareStore
+        from server.main import create_app
+
+        monkeypatch.setattr(ic, "get_share_store", lambda: ShareStore(db_path=str(tmp_path / "s.db")))
+        monkeypatch.setattr(infs, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {"title": "改好的區塊"})
+        monkeypatch.setattr(infs, "generate_image_b64",
+                            lambda prompt, model=None: "data:image/png;base64,IMG")
+        app = create_app()
+        with TestClient(app) as c:
+            r = c.post("/api/refine-section", json={
+                "infographic": {**_FAKE, "style": "academic"},
+                "sectionId": "s1", "instruction": "改標題",
+            })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is True and body["type"] == "infographic"
+        sec = next(s for s in body["data"]["sections"] if s["id"] == "s1")
+        assert sec["title"] == "改好的區塊"
+
+    def test_route_unknown_section_404(self, tmp_path, monkeypatch):
+        import pytest
+        pytest.importorskip("fastapi.testclient")
+        pytest.importorskip("multipart")
+        from fastapi.testclient import TestClient
+
+        import core.infocards.infographic_service as infs
+        import server.routes.infocards as ic
+        from core.infocards.share_store import ShareStore
+        from server.main import create_app
+
+        monkeypatch.setattr(ic, "get_share_store", lambda: ShareStore(db_path=str(tmp_path / "s.db")))
+        monkeypatch.setattr(infs, "generate_json",
+                            lambda prompt, model=None, response_schema=None: {})
+        app = create_app()
+        with TestClient(app) as c:
+            r = c.post("/api/refine-section", json={
+                "infographic": {**_FAKE, "style": "academic"},
+                "sectionId": "ghost", "instruction": "x",
+            })
+        assert r.status_code == 404

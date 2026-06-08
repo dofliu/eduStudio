@@ -113,6 +113,8 @@ const VISUAL_MODES = {
   slides: { label: "教學簡報", icon: "presentation", desc: "成套投影片 · 16:9", hue: "var(--es-ws-video)" },
   // 圖卡與海報合併為單一視覺成品（單張大圖），用版式(直式海報/方形圖卡/橫式)區分用途。
   poster: { label: "圖卡 · 海報", icon: "image",      desc: "單張視覺 · 印刷級", hue: "var(--es-ws-visual)" },
+  // 資訊圖卡：多區塊結構化版面，支援逐區（區域選擇）refine。
+  infographic: { label: "資訊圖卡", icon: "layout-grid", desc: "多區塊 · 可逐區微調", hue: "var(--es-ws-material)" },
 };
 
 const VISUAL_OUTPUTS = [
@@ -1917,10 +1919,38 @@ function VisualPreview({ mode }) {
   );
 }
 
-/* 真實後端 /api/generate 回傳的成品預覽（取代 mock VisualPreview） */
-function RealPreview({ mode, result }) {
+/* 真實後端 /api/generate 回傳的成品預覽（取代 mock VisualPreview）。
+   infographic 模式下傳 selectedSection / onPickSection → 區塊可點選（區域選擇 UI）。 */
+function RealPreview({ mode, result, selectedSection, onPickSection }) {
   if (mode === "poster" && result.imageUrl) {
     return <img src={result.imageUrl} alt="圖卡 · 海報" style={{ maxWidth: "100%", maxHeight: 380, borderRadius: 8, objectFit: "contain" }} />;
+  }
+  if (mode === "infographic" && result.data) {
+    const d = result.data;
+    const sections = d.sections || [];
+    const theme = d.themeColor || "var(--es-ws-material)";
+    return (
+      <div className="es-pv es-pv-slides" style={{ textAlign: "left", padding: 12, overflow: "auto", maxHeight: 380, width: "100%" }}>
+        <div style={{ fontWeight: 700, fontSize: 15, color: theme }}>{d.mainTitle}</div>
+        {d.subtitle && <div className="es-cap es-mut" style={{ marginBottom: 8 }}>{d.subtitle} · {sections.length} 區{onPickSection ? "（點選區塊即可逐區微調）" : ""}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {sections.map((s, i) => (
+            <div key={s.id || i} onClick={onPickSection ? () => onPickSection(i) : undefined}
+              style={{ border: "1px solid " + (selectedSection === i ? theme : "var(--es-border)"),
+                outline: selectedSection === i ? ("2px solid " + theme) : "none",
+                borderRadius: 6, overflow: "hidden", background: "var(--es-bg-1)", cursor: onPickSection ? "pointer" : "default" }}>
+              {s.imageUrl && <img src={s.imageUrl} alt="" style={{ width: "100%", height: 80, objectFit: "cover" }} />}
+              <div style={{ padding: "6px 8px" }}>
+                <div className="es-cap es-mut" style={{ fontSize: 10 }}>{i + 1} · {s.iconType}</div>
+                <div style={{ fontWeight: 600, fontSize: 12 }}>{s.title}</div>
+                <div className="es-cap es-mut es-clip" style={{ fontSize: 10, marginTop: 2 }}>{s.content}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {d.conclusion && <div className="es-cap es-mut" style={{ marginTop: 8, fontStyle: "italic" }}>{d.conclusion}</div>}
+      </div>
+    );
   }
   if (mode === "slides" && result.data) {
     const d = result.data;
@@ -2028,8 +2058,8 @@ function VisualComposer({ projectId }) {
   const [advOpen, setAdvOpen] = useState(false);
   const m = VISUAL_MODES[mode];
 
-  // 模式 → 後端 /api/generate mode。圖卡/海報合併走 poster（單張大圖）。
-  const backendMode = { poster: "poster", slides: "presentation" }[mode] || null;
+  // 模式 → 後端 /api/generate mode。圖卡/海報合併走 poster（單張大圖）；資訊圖卡走 infographic（多區塊）。
+  const backendMode = { poster: "poster", slides: "presentation", infographic: "infographic" }[mode] || null;
 
   // 切模式時重設數量為該模式預設，並清掉上一個結果/大綱。
   const pickMode = (k) => { setMode(k); setResult(null); setErr(""); setOutlines(null); setCount(ES_DEFAULT_COUNT[k] || 1); };
@@ -2116,7 +2146,7 @@ function VisualComposer({ projectId }) {
     } catch (e) { setErr("分享發生錯誤：" + ((e && e.message) || e)); }
   };
   // 加入第一個 Project 的成品庫：POST /projects/{pid}/artifacts。
-  const ES_MODE_ARTKIND = { poster: "image", slides: "deck" };
+  const ES_MODE_ARTKIND = { poster: "image", slides: "deck", infographic: "infographic" };
   const addToProject = async () => {
     if (!result) return;
     try {
@@ -2156,6 +2186,35 @@ function VisualComposer({ projectId }) {
       setRefineInstr(""); setRefineOpen(false);
     } catch (e) { setErr("微調發生錯誤：" + ((e && e.message) || e)); }
     finally { setRefineBusy(false); }
+  };
+
+  // 資訊圖卡逐區 refine：選一個區塊（區域選擇）送修改指令 → POST /api/refine-section →
+  // 後端回更新後的整張圖卡，整份替換 result.data。regenerateImage 可控是否一併重生配圖（省額度）。
+  const [secOpen, setSecOpen] = useState(false);
+  const [secIdx, setSecIdx] = useState(0);
+  const [secInstr, setSecInstr] = useState("");
+  const [secRegenImg, setSecRegenImg] = useState(false);
+  const [secBusy, setSecBusy] = useState(false);
+  const pickSection = (i) => { setSecIdx(i); setSecOpen(true); };
+  const refineSection = async () => {
+    if (!result || !result.data || !result.data.sections) return;
+    const sections = result.data.sections;
+    const idx = Math.max(0, Math.min(secIdx, sections.length - 1));
+    if (!secInstr.trim()) { setErr("請輸入修改指令"); return; }
+    setSecBusy(true); setErr("");
+    try {
+      const r = await fetch("/api/refine-section", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ infographic: result.data, sectionId: sections[idx].id,
+          instruction: secInstr, regenerateImage: secRegenImg,
+          style, customStylePrompt: style === "custom" ? customPrompt : "" }),
+      });
+      const data = await r.json();
+      if (!r.ok || data.success === false) throw new Error(data.detail || "逐區微調失敗");
+      setResult({ ...result, data: data.data });   // 後端回整張更新後圖卡
+      setSecInstr(""); setSecOpen(false);
+    } catch (e) { setErr("逐區微調發生錯誤：" + ((e && e.message) || e)); }
+    finally { setSecBusy(false); }
   };
 
   return (
@@ -2211,12 +2270,12 @@ function VisualComposer({ projectId }) {
                 </select>
               </Field>
               <Field label={mode === "slides" ? "張數" : "數量"}>
-                {mode === "poster" ? (
-                  <div className="es-select-fake">1 張</div>
-                ) : (
+                {mode === "slides" ? (
                   <select style={esSelectStyle} value={count} onChange={(e) => setCount(Number(e.target.value))}>
                     {[6, 8, 10, 12, 15, 20].map(n => <option key={n} value={n}>{n} 張</option>)}
                   </select>
+                ) : (
+                  <div className="es-select-fake">{mode === "infographic" ? "自動分區" : "1 張"}</div>
                 )}
               </Field>
             </div>
@@ -2238,7 +2297,7 @@ function VisualComposer({ projectId }) {
                   </select>
                 </Field>
               )}
-              {mode === "poster" && (
+              {(mode === "poster" || mode === "infographic") && (
                 <Field label="版式" hint="直式＝海報 · 方形＝圖卡">
                   <select style={esSelectStyle} value={aspect} onChange={(e) => setAspect(e.target.value)}>
                     {ES_ASPECT_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
@@ -2323,11 +2382,18 @@ function VisualComposer({ projectId }) {
 
         <div className="es-vc-preview">
           <div className="es-vc-preview-label"><Icon name="eye" size={13} /> {result ? "生成結果" : "即時預覽"} · {m.label}</div>
-          <div className="es-vc-stage">{result ? <RealPreview mode={mode} result={result} /> : <VisualPreview mode={mode} />}</div>
+          <div className="es-vc-stage">{result
+            ? <RealPreview mode={mode} result={result}
+                selectedSection={mode === "infographic" && secOpen ? secIdx : -1}
+                onPickSection={mode === "infographic" && result.data && result.data.sections ? pickSection : undefined} />
+            : <VisualPreview mode={mode} />}</div>
           <div className="es-row es-gap-sm" style={{ justifyContent: "center", flexWrap: "wrap" }}>
             <Button variant="ghost" size="sm" icon="refresh-cw" disabled={busy} onClick={generate}>重新生成</Button>
             {mode === "slides" && result && result.data && result.data.slides ? (
               <Button variant="default" size="sm" icon="pencil" onClick={() => setRefineOpen(o => !o)}>微調單頁</Button>
+            ) : null}
+            {mode === "infographic" && result && result.data && result.data.sections ? (
+              <Button variant="default" size="sm" icon="pencil" onClick={() => setSecOpen(o => !o)}>逐區微調</Button>
             ) : null}
             {mode === "slides" && result && result.data && (
               <Button variant="default" size="sm" icon="download" onClick={() => exportPptx(result.data)}>匯出 PPTX</Button>
@@ -2347,6 +2413,24 @@ function VisualComposer({ projectId }) {
                 style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)" }} />
               <Button variant="primary" size="sm" icon="wand" disabled={refineBusy} onClick={refineSlide}>
                 {refineBusy ? <><Spinner size={14} /> 微調中…</> : <>套用微調</>}
+              </Button>
+            </div>
+          )}
+          {secOpen && result && result.data && result.data.sections && (
+            <div style={{ marginTop: 10, padding: 10, border: "1px solid var(--es-border)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="es-field-label">選擇區塊（可直接點上方預覽的區塊）</div>
+              <select className="es-input" value={secIdx} onChange={e => setSecIdx(Number(e.target.value))}
+                style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)" }}>
+                {result.data.sections.map((s, i) => <option key={s.id || i} value={i}>第 {i + 1} 區 · {s.title}</option>)}
+              </select>
+              <input className="es-input" placeholder="修改指令，例如：數字改成 30%、語氣更精簡、換個比喻"
+                value={secInstr} onChange={e => setSecInstr(e.target.value)}
+                style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)" }} />
+              <label className="es-row es-gap-xs" style={{ fontSize: 12, color: "var(--es-fg-2)", cursor: "pointer" }}>
+                <input type="checkbox" checked={secRegenImg} onChange={e => setSecRegenImg(e.target.checked)} /> 一併重生此區配圖（較耗時／耗額度）
+              </label>
+              <Button variant="primary" size="sm" icon="wand" disabled={secBusy} onClick={refineSection}>
+                {secBusy ? <><Spinner size={14} /> 微調中…</> : <>套用逐區微調</>}
               </Button>
             </div>
           )}

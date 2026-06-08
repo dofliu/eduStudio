@@ -16,9 +16,9 @@ import argparse
 import mimetypes
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.config import PROJECT_ROOT, get_allowed_origins
@@ -68,6 +68,55 @@ WEB_STUDIO = PROJECT_ROOT / "web" / "studio"
 WEB_EDUAPP = PROJECT_ROOT / "web" / "eduapp"
 # eduStudio 合併 C-4 方案 A: 統一入口 landing（外觀可獨立替換，待 Claude Design 重做）。
 LANDING_PAGE = PROJECT_ROOT / "server" / "static" / "landing.html"
+
+
+def _legacy_banner_html(*, studio: bool) -> str:
+    """legacy UI (/ui, /studio) 頂部退場提示 banner（U-3）。
+
+    收斂到 `/app` 單一介面前的過渡步驟：在舊介面頂部固定一條提示，導使用者改用
+    `/app`。`/studio` 仍 client-side 直連 Gemini（繞過後端計費 + review gate，見 U-1），
+    故額外標警告。純前端提示、不移除任何功能、可逆（避免反悔）。
+    """
+    extra = (
+        "（此介面直連 Gemini、未走後端計費與 review 審查）"
+        if studio
+        else ""
+    )
+    return (
+        '<div role="alert" style="position:fixed;top:0;left:0;right:0;z-index:2147483647;'
+        "background:#b45309;color:#fff;padding:10px 16px;text-align:center;"
+        'font:14px/1.4 system-ui,-apple-system,"Noto Sans TC",sans-serif;'
+        'box-shadow:0 1px 4px rgba(0,0,0,.35)">'
+        "⚠ 此介面為 <b>legacy（即將退場）</b>" + extra + "，請改用統一介面 "
+        '<a href="/app/" style="color:#fff;font-weight:700;text-decoration:underline">/app</a>。'
+        "</div>"
+    )
+
+
+def _inject_legacy_banner(html: str, *, studio: bool) -> str:
+    """把 legacy banner 注入 index.html `<body>` 起始處（找不到 body 則前置）。"""
+    banner = _legacy_banner_html(studio=studio)
+    lowered = html.lower()
+    body_idx = lowered.find("<body")
+    if body_idx == -1:
+        return banner + html
+    close = html.find(">", body_idx)
+    if close == -1:
+        return banner + html
+    return html[: close + 1] + banner + html[close + 1 :]
+
+
+def _serve_legacy_spa(root: Path, full_path: str, *, studio: bool) -> FileResponse | HTMLResponse:
+    """legacy SPA 服務：實檔直接回，index.html / deep-link 回注入 banner 的 HTML。"""
+    target = (root / full_path).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
+    if target.is_file() and target.name != "index.html":
+        return FileResponse(target)
+    html = (root / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(_inject_legacy_banner(html, studio=studio))
 
 
 def create_app() -> FastAPI:
@@ -126,17 +175,10 @@ def create_app() -> FastAPI:
             )
 
         @app.get("/ui/{full_path:path}", include_in_schema=False)
-        async def spa_fallback(full_path: str) -> FileResponse:
-            # 防 path traversal
-            target = (WEB_DIST / full_path).resolve()
-            try:
-                target.relative_to(WEB_DIST.resolve())
-            except ValueError:
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
-            # 找得到實檔 (例如 /ui/vite.svg) 就回那個檔, 找不到就 fallback index.html
-            if target.is_file():
-                return FileResponse(target)
-            return FileResponse(WEB_DIST / "index.html")
+        async def spa_fallback(full_path: str) -> Response:
+            # 實檔 (例如 /ui/vite.svg) 直接回；index.html / deep-link 回注入退場
+            # banner (U-3) 的 HTML。防 path traversal 在 helper 內。
+            return _serve_legacy_spa(WEB_DIST, full_path, studio=False)
 
     # eduStudio 合併 C-4: infoCard 前端 (vite build --base=/studio/) 服務 /studio/*。
     # 同 /ui 模式：mount assets + SPA fallback。前端目前仍 client-side 呼叫 Gemini
@@ -151,15 +193,8 @@ def create_app() -> FastAPI:
             )
 
         @app.get("/studio/{full_path:path}", include_in_schema=False)
-        async def studio_spa(full_path: str) -> FileResponse:
-            target = (WEB_STUDIO / full_path).resolve()
-            try:
-                target.relative_to(WEB_STUDIO.resolve())
-            except ValueError:
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
-            if target.is_file():
-                return FileResponse(target)
-            return FileResponse(WEB_STUDIO / "index.html")
+        async def studio_spa(full_path: str) -> Response:
+            return _serve_legacy_spa(WEB_STUDIO, full_path, studio=True)
 
     # eduStudio 合併 C-4: 統一 app（Claude Design 設計）serve 在 /app/*（同 /ui 模式）。
     if WEB_EDUAPP.exists():

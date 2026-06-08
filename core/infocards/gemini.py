@@ -11,7 +11,7 @@ import json
 import re
 
 from core import config
-from core.infocards.models import DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL
+from core.models import IMAGE_FAST, TEXT_FAST, resolve_id
 
 _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 
@@ -77,7 +77,8 @@ def generate_json(prompt: str, *, model: str | None = None,
     from google.genai import types
 
     client = _client(api_key)
-    used_model = model or DEFAULT_TEXT_MODEL
+    # M-2: model id 走角色登錄表（text.fast）而非寫死常數；caller 顯式傳 model 則優先。
+    used_model = model or resolve_id(TEXT_FAST)
     cfg: dict = {"response_mime_type": "application/json", "temperature": temperature}
     if response_schema is not None:
         cfg["response_schema"] = response_schema
@@ -104,9 +105,11 @@ def generate_image_b64(prompt: str, *, model: str | None = None,
     from google.genai import types
 
     client = _client(api_key)
+    # M-2: 生圖 id 走角色登錄表（image.fast）；caller 顯式傳 model 則優先。
+    used_model = model or resolve_id(IMAGE_FAST)
     try:
         resp = client.models.generate_content(
-            model=model or DEFAULT_IMAGE_MODEL,
+            model=used_model,
             contents=_build_contents(prompt, files),
             config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
         )
@@ -121,7 +124,7 @@ def generate_image_b64(prompt: str, *, model: str | None = None,
         from datetime import datetime, timezone
 
         from core import usage
-        usage.record_image("visual", model or DEFAULT_IMAGE_MODEL,
+        usage.record_image("visual", used_model,
                            ts=datetime.now(timezone.utc).isoformat())
     except Exception:
         pass

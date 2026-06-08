@@ -287,9 +287,23 @@
   `tests/test_models_registry.py` 12 測（鎖角色集合/預設表/type guard/legacy 覆寫/逐角色覆寫/
   空值 fallback，**全 tmp 隔離不打 API**）。全套 2459 passed（3 個字型像素假象為容器缺 Noto CJK，
   CI 權威）。換接散落硬編 id＝M-2、設定頁逐角色管理＝M-3、provider adapter 介面＝M-4。
-- [ ] 🔴 **M-2 全面換掉寫死 id（offline）**— 把 `slide_ingest.py` / `core/infocards/models.py` /
+- [~] 🔴 **M-2 全面換掉寫死 id（offline）**— 把 `slide_ingest.py` / `core/infocards/models.py` /
   scriptor / outliner / translate / 其餘 chokepoint 的硬編 model id **全部改呼叫 `resolve()`**。
   一處一處改、跑 pytest（硬規則 #7）。完成後「換模型 = 改一個表/設定頁」。
+  - ✅ 2026-06-08 **視覺/infocards 世界已換接（行為不變）**。`core/infocards/gemini.py`（生 JSON/
+    生圖 fallback：`DEFAULT_TEXT_MODEL`/`DEFAULT_IMAGE_MODEL` → `resolve_id(text.fast/image.fast)`）、
+    `server/routes/infocards.py::_resolve_models`（`get_setting("text_model") or DEFAULT_*` 鏈 →
+    `resolve_id()`，並向前相容 M-3 逐角色設定）、`core/infocards/poster_service.py`（海報 pro 生圖
+    `IMAGE_MODELS["pro"]["id"]` → `resolve_id(image.pro)`）全部改走角色登錄表。**完全行為不變**：登錄表
+    預設 id 與這些 chokepoint 原本的 3.x 預設一字不差（text.fast=3.5-flash、image.fast=3.1-flash-image、
+    image.pro=3-pro-image），只是改成單一真實來源 + 多帶 `model_roles` 覆寫感知。本機全套 2459 passed
+    （3 個 QR/CJK 主題像素斷言為容器缺 Noto 字型假象，CI 權威）。
+  - ⏸️ **影片/解析文字 pipeline 的硬編 id 換接 = C-3 GATE，本輪不動。** `slide_ingest.py:43`、
+    `solve.py:30`、`core/config.py:170 GEMINI_MODEL` 等目前寫死 `gemini-2.5-flash`；而登錄表 `text.fast`
+    預設是 `gemini-3.5-flash`。把這些 chokepoint 換成 `resolve("text.fast")` **會把旁白/解題默默從 2.5
+    遷到 3.5**，這正是 **C-3（旁白模型遷 3.x，GATE，需開額度 A/B 驗品質）**。故此部分留待 C-3 拍板/
+    開額度後一併換（屆時就是「改登錄表一個值 + 換 call site」）。`mermaid_render.py`/`ideate`/`diagram_*`
+    等 GATE 半成品（F-5）同理留待各自項目。
 - [ ] 🟡 **M-3 設定頁模型管理升級（offline）**— 設定頁從「文字/圖片各一個下拉」升級成
   **逐角色可配**（或維持精簡但底層走角色表），未知 id 顯示健檢結果（接 C-5）。
 - [ ] 🟢 **M-4 provider adapter 介面（B-ready stub，offline）**— 定義 `Provider` 協定

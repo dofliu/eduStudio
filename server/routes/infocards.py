@@ -121,10 +121,14 @@ def health() -> dict:
 
 
 def _resolve_models(req: "GenerateRequest") -> tuple[str, str]:
-    """模型解析優先序：請求顯式 > 設定頁 > 程式預設。"""
-    from core.settings import get_setting
-    tm = req.textModel or get_setting("text_model") or DEFAULT_TEXT_MODEL
-    im = req.imageModel or get_setting("image_model") or DEFAULT_IMAGE_MODEL
+    """模型解析優先序：請求顯式 > 角色登錄表（設定頁逐角色/單值 → 內建預設）。
+
+    M-2：設定頁/預設 fallback 改走 ``core.models.resolve_id``（角色登錄表單一真實來源），
+    取代原本散落的 ``get_setting("text_model") or DEFAULT_*`` 鏈，並向前相容 M-3 逐角色設定。
+    """
+    from core import models
+    tm = req.textModel or models.resolve_id(models.TEXT_FAST)
+    im = req.imageModel or models.resolve_id(models.IMAGE_FAST)
     return tm, im
 
 

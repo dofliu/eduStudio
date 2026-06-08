@@ -451,6 +451,9 @@ def _call_with_retry(client, types, prompt: str, section_id: str, sec_outline: d
                 config=types.GenerateContentConfig(**cfg_kwargs),
             )
             raw_text = (resp.text or "").strip()
+            from core import usage
+            usage.record_text_now("video", get_gemini_model(), prompt, raw_text,
+                                  label=f"script:{section_id}")
             cleaned = _strip_fence(raw_text)
             cleaned = clean_json_escapes(cleaned)
             section = json.loads(cleaned)

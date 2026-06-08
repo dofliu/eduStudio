@@ -235,9 +235,16 @@
 > 自架者最在意「這會花我多少錢」。現況計費**只算視覺/在地化**，最大宗的影片 render
 > pipeline 完全沒計帳（HANDOFF 待加強 #1）。
 
-- [ ] 🔴 **C-1 影片 pipeline Gemini 呼叫接計帳**（offline）— `core/usage.py` 計帳子系統已有，
-  把影片 pipeline 的 Gemini chokepoint（outliner / scriptor / slide_ingest / solve）也
-  instrument 進去。讓成本面板涵蓋最大宗。逐 chokepoint 接 + 測試。
+- [x] 🔴 **C-1 影片 pipeline Gemini 呼叫接計帳**（offline）— ✅ 2026-06-08 完成。新增
+  `core.usage.record_text_now(station, model, prompt, response, label)` 便捷層（自動填 UTC ts +
+  數字元，datetime 只落這層、UsageStore 核心仍純可重現），接上四個 chokepoint：`outliner.
+  _call_outline_gemini`（station=video/outline）、`scriptor._call_with_retry`（video/script:<id>）、
+  `slide_ingest` 章節切分 + 逐頁旁白（video/chapters、narration）、`solve` 三 pass（material/
+  identify、solve:<num>、svg）。成本面板新增「影片」「解析」兩站（站別 label 早已預留）。補
+  `tests/test_usage_pipeline.py` 5 測（字元/成本/ts/站別分組 + outliner 注入 fake genai 驗計帳
+  確實接上，**全 mock 不打真 API**＝offline-first）。本機全套 2446 passed（3 個 font-pixel 斷言為
+  容器缺 Noto CJK 字型假象，CI 權威）。註：多模態（圖片 input）僅計 prompt 文字字元，沿用既有
+  char-based 近似模型。
 - [ ] 🟡 **C-2 單價對齊真實**（GATE，需查官方定價）— 現況單價是估算。對齊 Gemini 3 系列 +
   GCP TTS + （未來）image 真實單價。定價會變動 → 抽成設定常數 + 文件註明「以官方為準」。
 - [ ] 🟡 **C-3 旁白模型遷 3.x**（GATE，需開額度驗證品質）— `slide_ingest.py:43`

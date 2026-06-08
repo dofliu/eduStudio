@@ -187,6 +187,8 @@ def detect_chapters_with_gemini(thumbs: list[bytes], total_pages: int) -> list[d
             thinking_config=types.ThinkingConfig(thinking_budget=0)),
     )
     raw = (resp.text or "").strip()
+    from core import usage
+    usage.record_text_now("video", MODEL, CHAPTER_PROMPT, raw, label="chapters")
     if "```" in raw:
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -313,6 +315,9 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
+            from core import usage
+            usage.record_text_now("video", MODEL, prompt, resp.text or "",
+                                  label="narration")
             text = _clean_narration(resp.text)
             if text and text.endswith(_SENTENCE_END):
                 if attempt > 1:

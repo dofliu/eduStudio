@@ -184,6 +184,9 @@ def _call_outline_gemini(prompt: str) -> dict:
                 config=types.GenerateContentConfig(**cfg_kwargs),
             )
             raw_text = (resp.text or "").strip()
+            from core import usage
+            usage.record_text_now("video", get_gemini_model(), prompt, raw_text,
+                                  label="outline")
             cleaned = _strip_fence(raw_text)
             cleaned = clean_json_escapes(cleaned)
             outline_dict = json.loads(cleaned)

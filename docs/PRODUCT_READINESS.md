@@ -218,8 +218,18 @@
   `/studio` 卡加 ⚠ 警告。補 `tests/test_legacy_banner.py` 5 測（連結 /app / studio 警示 / body 注入
   位置 / 無 body 前置 / 大寫 body）+ TestClient 端到端驗 index 注入、asset 不注入。全套 2443 passed
   （1 QR 字型假象）。
-- [ ] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— 現況部分 mock。等 Phase 4 計費
-  補完後，把成本面板數字接真 `/api/usage`，移除「示意」假數字。
+- [x] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— ✅ 2026-06-08 完成（C-1 影片/解析
+  計帳落地後收尾）。**移除所有 mock 示意數字**：刪掉前端 `COST` 假物件（含 `$18.74` 假累計、
+  「試用模式 38/50 次」、假近期呼叫列表、「試用完畢請填 API Key」這類不符開源自架定位的 SaaS
+  殘留）。頂欄成本 pill 與成本面板抽屜改**共用同一份 `/api/usage` 真實統計**（App 層 `loadUsage`，
+  開抽屜時重抓刷新），數字、各站花費、近期呼叫全走後端真實計帳；尚無任何 Gemini 呼叫時顯示**空
+  狀態**（$0.00 + 「目前還沒有任何呼叫紀錄」）而非假數字。後端 `/api/usage` budget 從寫死 `30.0`
+  改讀 `core.config.get_monthly_budget()`（env `EDUSTUDIO_MONTHLY_BUDGET` 可覆寫，集中於 config 符
+  硬規則 #6），note 更新成「已涵蓋視覺／在地化／影片／解析各站」（C-1 後影片 pipeline 已計帳，舊
+  note「另計」已過時）。補 `tests/test_usage.py` budget env override 測 + `.env.example` 文件。前端
+  `npm run build`（vite, node22）編譯通過；視覺驗收待人工。本機全套 2447 passed（3 個 QR/journal
+  字型像素假象為容器缺字型，CI 權威）。註：單價精準對齊（C-2）仍 GATE，面板成本為依用量估算、面板
+  note 已標「以官方定價為準」。
 - [ ] 🟢 **U-5 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰
   YouTube OAuth + 多語 metadata（方案 A 多語字幕軌後端已有），補前端驅動。
 - [x] 🟢 **U-6 前端建置流程文件化**（offline）— ✅ 2026-06-07 完成。直接**把 `base:'/app/'` 寫死

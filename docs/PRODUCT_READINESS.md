@@ -185,6 +185,12 @@
 - [ ] 🔴 **U-1 `/studio` 直連 Gemini 改走後端**（offline，前端 + 確認後端端點）— 把 `/studio`
   仍 client-side 呼叫 Gemini 的路徑改打 `/api/generate` 等後端端點（後端大多現成），堵住
   「繞過計費 + 繞過審查」漏洞。或者若 U-3 直接退場 /studio，則本項併入「功能搬進 /app」。
+  - ⏸️ **2026-06-08 routine 判定：完整退場為人工 gate，本輪只做非破壞性過渡。** `/studio` 源碼不在
+    本 repo（拍板走退場路線），故 (a) 改 client-side 呼叫不可行；(b) server 移除 `/studio` 路由屬
+    不可逆，依 U-3「`/app` 功能對等確認後再做（避免反悔）」需 **U-2③ 人工視覺驗收 `/app` 對等**先過。
+    過渡止血改由 **U-3 退場 banner** 承接（頂部固定提示 + landing 標警告「`/studio` 直連 Gemini、
+    繞過後端計費/審查」），把使用者導向 `/app`。**待劉老師確認 `/app` 對等後**，再開後續 PR 移除
+    `/studio` 路由與 build 產物，屆時本項可結。
 - [x] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
   2026-06-07**）— 盤點顯示 `/app` 視覺站缺「海報/圖卡逐區 refine、區域選擇」（後端 refine
   圖卡未移植 = 唯一「大」缺口）。**定案：移植後端逐區 refine + 前端區域選擇 UI**（不是首發
@@ -204,9 +210,14 @@
     後端回的整張更新圖卡替換結果。版式（aspectRatio）下拉沿用。本機 `npm run build`（vite，
     node22）編譯通過。**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。
   - ③前端整合視覺驗收 = 人工後驗（非 routine 程式工項）。
-- [ ] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— 在舊 UI 頁頂加 banner「此介面
-  將退場，請用 /app」+ README/介面表標 legacy。完全移除 build 產物等 `/app` 功能對等確認後
-  再做（避免反悔）。
+- [x] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— ✅ 2026-06-08 完成 banner 步驟（非
+  破壞性，build 產物移除待 `/app` 對等確認後另開 PR）。`server/main.py` serve `/ui` `/studio` 的
+  index.html 時於 `<body>` 頂注入固定退場 banner（`_inject_legacy_banner`），導向 `/app`；`/studio`
+  額外標「直連 Gemini、繞過後端計費/審查」（U-1 漏洞警示）。asset 檔不注入、index/deep-link 才注入。
+  landing 頁把 `/ui` `/studio` 兩張卡標 `legacy` badge + grid 標題改「舊版介面（即將退場）」+
+  `/studio` 卡加 ⚠ 警告。補 `tests/test_legacy_banner.py` 5 測（連結 /app / studio 警示 / body 注入
+  位置 / 無 body 前置 / 大寫 body）+ TestClient 端到端驗 index 注入、asset 不注入。全套 2443 passed
+  （1 QR 字型假象）。
 - [ ] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— 現況部分 mock。等 Phase 4 計費
   補完後，把成本面板數字接真 `/api/usage`，移除「示意」假數字。
 - [ ] 🟢 **U-5 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰

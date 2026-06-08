@@ -89,6 +89,15 @@ def get_usage_db_path() -> str:
     return os.environ.get("USAGE_DB_PATH", str(USAGE_DB_PATH))
 
 
+def get_monthly_budget() -> float:
+    """成本面板月預算（USD，僅顯示用 — 系統不會真的扣費或擋呼叫）。
+    env EDUSTUDIO_MONTHLY_BUDGET 可覆寫；非數字或未設則回預設 30。"""
+    try:
+        return float(os.environ.get("EDUSTUDIO_MONTHLY_BUDGET", "30"))
+    except (TypeError, ValueError):
+        return 30.0
+
+
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)
 # 環境變數 CLAUDE_FONT_PATH / CLAUDE_FALLBACK_FONT_PATH 可覆寫

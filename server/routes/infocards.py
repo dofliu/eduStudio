@@ -98,12 +98,14 @@ class RefineSectionRequest(BaseModel):
 
 @router.get("/usage")
 def usage_summary() -> dict:
-    """Gemini 用量真實統計（成本面板）。涵蓋視覺站 + 在地化的呼叫；budget 為設定值。"""
+    """Gemini 用量真實統計（成本面板）。涵蓋視覺／在地化／影片／解析各站的 Gemini 呼叫
+    （C-1 後影片 render pipeline 已計帳）；budget 為顯示用設定值（不扣費）。"""
+    from core import config
     from core.usage import get_usage_store
 
     s = get_usage_store().summary()
-    s["budget"] = 30.0           # 月預算（設定值，無真實來源）
-    s["note"] = "已涵蓋視覺站／在地化的 Gemini 呼叫；影片 render pipeline 用量另計"
+    s["budget"] = config.get_monthly_budget()   # 月預算（顯示用，env 可覆寫）
+    s["note"] = "已涵蓋視覺／在地化／影片／解析各站的 Gemini 呼叫；成本為依用量估算。"
     return s
 
 

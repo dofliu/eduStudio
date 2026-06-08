@@ -143,22 +143,7 @@ const PUBLISH_ITEMS = [
     meta: "PNG / 分享連結", langs: ["zh-TW"] },
 ];
 
-const COST = {
-  trial: { remaining: 38, total: 50 },
-  budget: 30, used: 18.74, currency: "USD", cycle: "本月（6 月）",
-  byStation: [
-    { key: "video",    label: "影片",  amount: 11.20, hue: "var(--es-ws-video)" },
-    { key: "visual",   label: "視覺",  amount: 3.86,  hue: "var(--es-ws-visual)" },
-    { key: "language", label: "在地化", amount: 2.41, hue: "var(--es-accent)" },
-    { key: "material", label: "解析",  amount: 1.27,  hue: "var(--es-ws-material)" },
-  ],
-  recent: [
-    { label: "斜向拋體解題 · 旁白生成", model: "Gemini 2.5 Pro",   tok: "82.4K", amount: 0.42, time: "12 分鐘前" },
-    { label: "MIT Lecture 12 · 配音翻譯", model: "Gemini 2.5 Pro", tok: "210K",  amount: 1.18, time: "1 小時前" },
-    { label: "動量守恆簡報 · 英文在地化", model: "Gemini 2.5 Flash", tok: "44.1K", amount: 0.16, time: "3 小時前" },
-    { label: "討論會 0530 · 轉錄＋摘要", model: "Gemini 2.5 Flash", tok: "96.7K", amount: 0.31, time: "昨天" },
-  ],
-};
+/* 成本面板用量由後端 /api/usage 即時提供（真實統計，無 mock 示意數字）。 */
 
 const TOOLBOX = [
   { id: "flashcard", label: "單字卡", icon: "layout-grid", desc: "由教材生成記憶卡" },
@@ -169,7 +154,7 @@ const TOOLBOX = [
 Object.assign(window, {
   LANGS, PROJECTS, SOURCE_TYPES, SOURCES, TASK_TYPES, VIDEO_TASKS,
   REVIEW_SEGMENTS, VISUAL_MODES, VISUAL_OUTPUTS, LIBRARY, PUBLISH_ITEMS,
-  COST, TOOLBOX,
+  TOOLBOX,
 });
 /* eduStudio — shared UI primitives (Icon set, Button, Badge, Card, Field…) */
 const { useState, useRef, useEffect, useLayoutEffect, createContext, useContext } = React;
@@ -637,9 +622,10 @@ function ProjectMenu({ projects, activePid, activeProject, onPick, onCreate }) {
   );
 }
 
-function Topbar({ projects, activePid, activeProject, onPickProject, onCreateProject, avatarName, wsTitle, onOpenCost, onOpenSettings, theme, onTheme }) {
-  const { used, budget } = COST;
-  const pct = Math.round((used / budget) * 100);
+function Topbar({ projects, activePid, activeProject, onPickProject, onCreateProject, avatarName, wsTitle, usage, onOpenCost, onOpenSettings, theme, onTheme }) {
+  const used = usage ? usage.used : 0;
+  const budget = usage ? usage.budget : 0;
+  const pct = budget ? Math.round((used / budget) * 100) : 0;
   return (
     <header className="es-topbar">
       <div className="es-row es-gap-md">
@@ -670,26 +656,18 @@ function Topbar({ projects, activePid, activeProject, onPickProject, onCreatePro
 
 const ES_STATION_HUE = { video: "var(--es-ws-video)", visual: "var(--es-ws-visual)", language: "var(--es-accent)", material: "var(--es-ws-material)" };
 
-function CostPanel({ open, onClose }) {
-  const [live, setLive] = useState(null);   // /api/usage 真實統計；null = 用 mock
-  // 開啟時抓真實用量；空（還沒有任何呼叫）或失敗則保留 mock 展示。
-  useEffect(() => {
-    if (!open) return;
-    fetch("/api/usage").then(r => r.json()).then(d => {
-      if (d && d.count > 0) setLive(d); else setLive(null);
-    }).catch(() => setLive(null));
-  }, [open]);
-
-  const { trial, cycle } = COST;
-  const used = live ? live.used : COST.used;
-  const budget = live ? live.budget : COST.budget;
+function CostPanel({ open, onClose, usage }) {
+  // 全部走後端 /api/usage 真實統計：有呼叫紀錄才有數字，否則顯示空狀態（不再有 mock 示意）。
+  const live = usage && usage.count > 0 ? usage : null;
+  const used = usage ? usage.used : 0;
+  const budget = usage ? usage.budget : 0;
   const byStation = live
     ? live.byStation.map(s => ({ ...s, hue: ES_STATION_HUE[s.key] || "var(--es-fg-2)" }))
-    : COST.byStation;
+    : [];
   const recent = live
     ? live.recent.map(r => ({ label: r.label || (r.kind === "image" ? "圖片生成" : "文字生成"),
         model: r.model || "Gemini", tok: r.station, time: r.time ? new Date(r.time).toLocaleString("zh-TW") : "", amount: r.amount }))
-    : COST.recent;
+    : [];
   const pct = budget ? Math.round((used / budget) * 100) : 0;
   return (
     <>
@@ -703,50 +681,59 @@ function CostPanel({ open, onClose }) {
           <div className="es-cost-hero">
             <div className="es-row" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
               <div className="es-col" style={{ gap: 2 }}>
-                <span className="es-cap es-mut">{cycle} 累計</span>
+                <span className="es-cap es-mut">本月累計</span>
                 <span className="es-cost-big es-mono">${used.toFixed(2)}</span>
               </div>
               <span className="es-cap es-mut">預算 ${budget.toFixed(0)}</span>
             </div>
             <ProgressBar value={pct} tone="accent" height={8} />
             <div className="es-row" style={{ justifyContent: "space-between" }}>
-              <span className="es-cap es-mut">已使用 {pct}%{live ? "（真實用量）" : ""}</span>
-              {live ? <Badge tone="accent" icon="zap">{live.count} 次 Gemini 呼叫</Badge>
-                    : <Badge tone="accent" icon="zap">試用模式：剩餘 {trial.remaining} / {trial.total} 次</Badge>}
+              <span className="es-cap es-mut">已使用 {pct}%</span>
+              <Badge tone="accent" icon="zap">{live ? live.count : 0} 次 Gemini 呼叫</Badge>
             </div>
           </div>
 
-          <div className="es-cost-sec">
-            <div className="es-cost-sec-title">各工作站花費</div>
-            {byStation.map(s => {
-              const w = Math.round((s.amount / used) * 100);
-              return (
-                <div key={s.key} className="es-cost-row">
-                  <span className="es-proj-dot" style={{ background: s.hue }} />
-                  <span className="es-grow">{s.label}</span>
-                  <div className="es-cost-bar"><span style={{ width: w + "%", background: s.hue }} /></div>
-                  <span className="es-mono es-cost-amt">${s.amount.toFixed(2)}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="es-cost-sec">
-            <div className="es-cost-sec-title">近期呼叫</div>
-            {recent.map((r, i) => (
-              <div key={i} className="es-cost-call">
-                <div className="es-col" style={{ gap: 2, minWidth: 0 }}>
-                  <span className="es-clip" style={{ fontWeight: 500 }}>{r.label}</span>
-                  <span className="es-cap es-mut">{r.model} · {r.tok} · {r.time}</span>
-                </div>
-                <span className="es-mono es-cost-amt">${r.amount.toFixed(2)}</span>
+          {live ? (
+            <>
+              <div className="es-cost-sec">
+                <div className="es-cost-sec-title">各工作站花費</div>
+                {byStation.map(s => {
+                  const w = used ? Math.round((s.amount / used) * 100) : 0;
+                  return (
+                    <div key={s.key} className="es-cost-row">
+                      <span className="es-proj-dot" style={{ background: s.hue }} />
+                      <span className="es-grow">{s.label}</span>
+                      <div className="es-cost-bar"><span style={{ width: w + "%", background: s.hue }} /></div>
+                      <span className="es-mono es-cost-amt">${s.amount.toFixed(2)}</span>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+
+              <div className="es-cost-sec">
+                <div className="es-cost-sec-title">近期呼叫</div>
+                {recent.map((r, i) => (
+                  <div key={i} className="es-cost-call">
+                    <div className="es-col" style={{ gap: 2, minWidth: 0 }}>
+                      <span className="es-clip" style={{ fontWeight: 500 }}>{r.label}</span>
+                      <span className="es-cap es-mut">{r.model} · {r.tok} · {r.time}</span>
+                    </div>
+                    <span className="es-mono es-cost-amt">${r.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="es-cost-sec">
+              <div className="es-cap es-mut" style={{ padding: "8px 0" }}>
+                目前還沒有任何 Gemini 呼叫紀錄。產生內容後，這裡會顯示真實的用量與花費。
+              </div>
+            </div>
+          )}
 
           <div className="es-cost-note">
             <Icon name="alert-triangle" size={14} />
-            試用完畢後請於設定中填入您的 API Key 以繼續使用。
+            成本為依用量估算（以 Google 官方定價為準）。預算 ${budget.toFixed(0)} 僅供參考，系統不會自動扣費或擋下呼叫。
           </div>
         </div>
       </aside>
@@ -3187,6 +3174,14 @@ function App() {
     .then(d => setBrandSpeaker((d && d.brand_speaker) || "")).catch(() => {});
   useEffect(() => { loadBrand(); }, []);
   useEffect(() => { if (!settingsOpen) loadBrand(); }, [settingsOpen]);   // 存完設定即時更新
+
+  // 成本面板真實用量：頂欄 pill 與抽屜共用一份 /api/usage；開抽屜時重抓刷新。
+  const [usage, setUsage] = useState(null);
+  const loadUsage = () => fetch("/api/usage").then(r => r.json())
+    .then(d => setUsage(d && typeof d.used === "number" ? d : null)).catch(() => setUsage(null));
+  useEffect(() => { loadUsage(); }, []);
+  useEffect(() => { if (costOpen) loadUsage(); }, [costOpen]);
+
   const activeProject = projects.find(p => p.project_id === activePid) || null;
   const pickProject = (pid) => { setActivePid(pid || ""); localStorage.setItem("edustudio-active-project", pid || ""); };
   const createProject = async (id, title) => {
@@ -3217,7 +3212,7 @@ function App() {
       <div className="es-main">
         <Topbar projects={projects} activePid={activePid} activeProject={activeProject}
           onPickProject={pickProject} onCreateProject={createProject} avatarName={brandSpeaker ? brandSpeaker.trim()[0] : "師"}
-          wsTitle={wsTitle} onOpenCost={() => setCostOpen(true)} onOpenSettings={() => setSettingsOpen(true)} theme={theme} onTheme={setTheme} />
+          wsTitle={wsTitle} usage={usage} onOpenCost={() => setCostOpen(true)} onOpenSettings={() => setSettingsOpen(true)} theme={theme} onTheme={setTheme} />
         <main className="es-content" key={ws + activePid}>
           {ws === "video" && <VideoStation projectId={activePid} onReview={setReviewTask} onGoPublish={() => setWs("publish")} onGoStatus={() => setWs("status")} />}
           {ws === "visual" && <VisualStation projectId={activePid} />}
@@ -3227,7 +3222,7 @@ function App() {
         </main>
       </div>
 
-      <CostPanel open={costOpen} onClose={() => setCostOpen(false)} />
+      <CostPanel open={costOpen} onClose={() => setCostOpen(false)} usage={usage} />
       <Toolbox open={toolboxOpen} onClose={() => setToolboxOpen(false)} />
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 

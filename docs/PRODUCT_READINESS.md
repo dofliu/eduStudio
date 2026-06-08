@@ -185,7 +185,7 @@
 - [ ] 🔴 **U-1 `/studio` 直連 Gemini 改走後端**（offline，前端 + 確認後端端點）— 把 `/studio`
   仍 client-side 呼叫 Gemini 的路徑改打 `/api/generate` 等後端端點（後端大多現成），堵住
   「繞過計費 + 繞過審查」漏洞。或者若 U-3 直接退場 /studio，則本項併入「功能搬進 /app」。
-- [~] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
+- [x] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
   2026-06-07**）— 盤點顯示 `/app` 視覺站缺「海報/圖卡逐區 refine、區域選擇」（後端 refine
   圖卡未移植 = 唯一「大」缺口）。**定案：移植後端逐區 refine + 前端區域選擇 UI**（不是首發
   砍項）。其餘（16 主題/密度/長寬比/自訂 prompt）UI_WIRING 標已接完。拆小：①後端 refine
@@ -197,7 +197,13 @@
     /api/refine-section`（404 找不到 section / 400 圖卡資料無效）。`tests/test_infocards_
     infographic.py` 補 11 測（**全程 mock Gemini/生圖，不打真 API**＝offline-first；真實生圖燒額度
     仍走人工觸發）。本機全套 2436 passed（3 個 font-pixel 斷言為容器缺 Noto 字型假象，CI 權威）。
-  - 待續：②`/app` 前端區域選擇/逐區 refine UI（接此端點）③前端整合驗收。
+  - ✅ 2026-06-08 **②前端區域選擇/逐區 refine UI 完成**。`frontend/edustudio/app.jsx` 的
+    `VisualComposer` 新增 **infographic 模式**（接後端 `mode:"infographic"`）：`RealPreview`
+    渲染多區塊版面、區塊可**點選**（區域選擇）→ 開啟逐區微調面板；面板提供區塊下拉 + 修改指令
+    + 「一併重生此區配圖」開關（預設關＝只改文字省額度），呼叫 `POST /api/refine-section`、以
+    後端回的整張更新圖卡替換結果。版式（aspectRatio）下拉沿用。本機 `npm run build`（vite，
+    node22）編譯通過。**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。
+  - ③前端整合視覺驗收 = 人工後驗（非 routine 程式工項）。
 - [ ] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— 在舊 UI 頁頂加 banner「此介面
   將退場，請用 /app」+ README/介面表標 legacy。完全移除 build 產物等 `/app` 功能對等確認後
   再做（避免反悔）。

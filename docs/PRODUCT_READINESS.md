@@ -393,9 +393,16 @@
 > 整合後文件有**定位漂移**：`claude.md` 還停在舊定位「教學影片自動生成平台」、HANDOFF 寫死
 > 劉老師 Windows 本機路徑（`D:\...`）。開源前要去個人化 + 對齊 eduStudio 全貌。
 
-- [ ] 🔴 **DOC-1 `claude.md` 更新到 eduStudio 整合後定位**（offline）— 現況開頭仍是
-  「教學影片自動生成平台」+ 三 Track 舊圖 + Gemini 2.5。更新成 4 track（含視覺/在地化/song）
-  + 整合架構 + 現行模型。這份是給 Claude/協作者的 context，最該先準。
+- [x] 🔴 **DOC-1 `claude.md` 更新到 eduStudio 整合後定位**（offline）— ✅ 2026-06-09 完成。
+  把開頭從「教學影片自動生成平台」+ 三 Track A/B/C 舊圖 + Gemini 2.5 改寫成 **eduStudio 教學內容
+  工作站**整合定位：四條 track（🎬影片 / 🎨視覺 / 🌐在地化 / 🎵Song MV）共用單一 FastAPI 後端 +
+  收斂到 `/app` 的整合架構圖、現行 **Gemini 3 系列**模型（含旁白仍 2.5 待 C-3 GATE 的註記）、
+  **模型抽象 M 軸**（`core/models.py` 角色登錄表 + `core/providers.py` provider 介面 +
+  `tools/check_models.py` 健檢）、安全與部署現況（auth/CORS/path-safety/rate-limit/resume/反代）。
+  硬規則對齊現行紀律（review gate 不可繞 + offline-first + 字型不寫死 + config 集中 + type guard +
+  schema migration + 別 commit 機密 + 動 server/core/runner/schemas 跑 pytest），移除已過時的
+  Track A/C 規則。保留作者/溝通風格/熟悉度/Git 同步等仍有效的 maintainer context。純文件,無 code
+  變更（未動 server/core/schemas/runner,故不需跑 pytest）。
 - [ ] 🟡 **DOC-2 去個人化 / 去 Windows 硬路徑**（offline）— HANDOFF / 文件裡的 `D:\Project_...`
   / `C:\Python\...` 改成相對說明或環境變數，讓非劉老師的機器也讀得懂。保留作者署名，移除
   本機絕對路徑。

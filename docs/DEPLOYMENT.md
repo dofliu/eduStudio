@@ -4,7 +4,9 @@
 > 純粹自己在本機跑（`127.0.0.1`、不開放給別人連）可以略過大半，但仍建議讀「設驗證密鑰」一節。
 >
 > 相關文件：機密處置與漏洞回報看 [SECURITY.md](../SECURITY.md)；反向代理 + TLS 範例 conf
-> 見 D-3（規劃中）；容器化基礎看 [Dockerfile](../Dockerfile) / [docker-compose.yml](../docker-compose.yml)。
+> 見下方「反向代理 + TLS」一節（[`deploy/nginx.conf.example`](../deploy/nginx.conf.example) /
+> [`deploy/Caddyfile.example`](../deploy/Caddyfile.example)）；容器化基礎看
+> [Dockerfile](../Dockerfile) / [docker-compose.yml](../docker-compose.yml)。
 
 ---
 
@@ -51,7 +53,8 @@ prod override 做了什麼：
       **別留 `*`**。同源 `/app` 不受 CORS 影響；只有要從別的網域 fetch API 才需要加白名單。
 - [ ] **放在反向代理 + TLS 後面**（SECURITY.md）。prod override 已把 server 綁死 `127.0.0.1`，
       請在 host 上用 nginx / caddy 做 TLS（https）+ 必要的存取控制，再把流量轉給 `127.0.0.1:8000`。
-      **別把 server 裸綁 `0.0.0.0` 掛上公網**（無 TLS = token 與內容明文過網）。範例 conf 見 D-3（規劃中）。
+      **別把 server 裸綁 `0.0.0.0` 掛上公網**（無 TLS = token 與內容明文過網）。可複製範例 conf 見
+      下方「[反向代理 + TLS](#反向代理--tls)」一節。
 - [ ] **rate limit 維持開啟**（S-6）。預設每 IP 30/min，套在燒額度端點（`/api/generate`、`/api/refine`、
       建 job、上傳）。內網要調用量大可調 `EDUSTUDIO_RATE_LIMIT_PER_MIN`；設 `0` 才關閉——公開環境別關。
 - [ ] **保護機密檔**（S-5 / SECURITY.md）。`.env`、`tts_config.json`、`client_secret*.json`、
@@ -62,6 +65,33 @@ prod override 做了什麼：
 
 > 上傳硬化（S-4：副檔名/MIME 白名單）與 path-traversal 防護（S-3）是**程式碼內建、無需設定**，
 > 自架者不必額外做什麼。
+
+---
+
+## 反向代理 + TLS
+
+prod override 把 server 綁死 `127.0.0.1:8000`，**它本身不會也不該直接面對公網**。要讓外面連得進來，
+在 host 上擺一層反向代理終結 TLS（https），再把流量轉給 `127.0.0.1:8000`。`deploy/` 下有兩份可複製範本：
+
+| 範本 | 適合 | TLS 取得方式 |
+| --- | --- | --- |
+| [`deploy/nginx.conf.example`](../deploy/nginx.conf.example) | 已在用 nginx / 要細緻控制 | certbot（Let's Encrypt），需一次性簽發 |
+| [`deploy/Caddyfile.example`](../deploy/Caddyfile.example) | 想最省事 | **自動簽發 + 續期**，零手動憑證設定 |
+
+兩份都不是免改即用——至少要改網域（`edustudio.example.com` → 你的網域），nginx 版還要填憑證路徑
+（或讓 certbot 代填）。挑一份照頭部註解裝即可。範本已預先處理好這幾個容易踩的點：
+
+- **上傳上限對齊**：`client_max_body_size 200m`（nginx）／ `max_size 200MB`（Caddy），對齊 server 的
+  `MAX_UPLOAD_SIZE`（[`server/routes/uploads.py`](../server/routes/uploads.py) = 200 MB）。代理層預設值很小
+  （nginx 1 MB），不放寬會在傳大 PDF/影片時**還沒到 app 就回 413**。
+- **長請求逾時**：影片 render 與同步 Gemini 呼叫（`/api/generate`、`/api/refine`）可能跑數分鐘，範本把
+  讀取逾時放寬到 600s，避免代理層預設 60s 把長請求切成 504。
+- **轉發標頭**：帶 `X-Forwarded-For`（讓 per-IP rate limit S-6 看到真實來源）與 `X-Forwarded-Proto=https`
+  （讓 session cookie 的 `Secure` 旗標判定正確）。`Authorization` header 與 cookie（S-1 驗證所依）皆透傳。
+- **HSTS**：確認全站 https 後再開（範本已內建），讓瀏覽器之後只走 https。
+
+> 反代不是驗證的替代品：它擋的是「明文過網」，**仍要設 `EDUSTUDIO_API_TOKEN`（S-1）**才有身分驗證。
+> 兩者一起才是「暴露在外也安全」。
 
 ---
 
@@ -80,6 +110,5 @@ prod override 做了什麼：
 
 ## 還沒涵蓋（後續項目）
 
-- **反向代理 + TLS 範例 conf**（D-3，規劃中）：nginx / caddy 可複製樣板。
 - **跨平台實測**（D-1，GATE）：Linux / Windows / macOS 各驗一遍 `docker compose up --build`。
 - **F5 GPU passthrough**（D-4，GATE）：nvidia-docker 跑 F5-TTS；沒 GPU 自動退 edge/google TTS。

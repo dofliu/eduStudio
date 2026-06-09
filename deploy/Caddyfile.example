@@ -1,0 +1,41 @@
+# eduStudio — Caddy 反向代理 + 自動 TLS 範例 (D-3)
+#
+# 用途：把 eduStudio server 擺在 Caddy 後面。Caddy 的賣點是「自動 TLS」——
+# 只要網域 DNS 指到這台機器、80/443 通得到，Caddy 會自動向 Let's Encrypt
+# 簽發並續期憑證，零手動憑證設定（比 nginx 版省一大段）。
+#
+# server 本身（docker-compose.prod.yml）已綁死 127.0.0.1:8000，不直接上公網；
+# Caddy 終結 TLS 再轉給 127.0.0.1:8000。
+#
+# 安裝：複製成 /etc/caddy/Caddyfile（改掉網域），systemctl reload caddy。
+# 前置：① DNS A/AAAA 記錄指到本機 ② 對外 80 與 443 都開（ACME 需要）
+#       ③ .env 已設 EDUSTUDIO_API_TOKEN（S-1）與收緊的 EDUSTUDIO_ALLOWED_ORIGINS（S-2）。
+# 詳見 docs/DEPLOYMENT.md。
+
+edustudio.example.com {          # ← 改成你的網域；Caddy 會自動簽 TLS
+
+	# 上傳上限要 ≥ server 的 MAX_UPLOAD_SIZE（server/routes/uploads.py = 200 MB），
+	# 否則傳大 PDF/影片會被 Caddy 先擋下。
+	request_body {
+		max_size 200MB
+	}
+
+	reverse_proxy 127.0.0.1:8000 {
+		# 影片 render / 同步 Gemini 呼叫（/api/generate、/api/refine）可能跑很久，
+		# 放寬讀取逾時避免長請求被切斷。
+		transport http {
+			read_timeout 600s
+			write_timeout 600s
+		}
+		# Caddy 預設就會帶 X-Forwarded-For / -Proto / Host，
+		# rate limit（S-6，per-IP）與 cookie 的 Secure 判定都靠這些，無需額外設定。
+		# Authorization header 與 session cookie（S-1）也預設透傳。
+	}
+
+	# HSTS：強制瀏覽器之後只走 https。Caddy 全站本來就是 https，開這個安全。
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
+
+# 進階：若要自帶憑證（不走自動簽發），在站區塊內加
+#   tls /path/to/cert.pem /path/to/key.pem
+# 內網無公網網域、想用自簽憑證測試，可改用本機 host 名 +「tls internal」。

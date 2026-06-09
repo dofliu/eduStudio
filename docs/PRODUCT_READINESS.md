@@ -263,9 +263,17 @@
   開額度跑過再切。（劉老師 2026-06-07：需額度會給權限。）
 - [ ] 🟢 **C-4 `gemini-3.1-pro-image` 等開放再換**（GATE）— 劉老師想用但 API 未開放。等開放
   從 `gemini-3-pro-image` 換（`core/infocards/models.py`）。掛追蹤。
-- [ ] 🟢 **C-5 模型 id 自我健檢**（offline）— 加一個 `tools/check_models.py` 跑
-  `client.models.list()` 比對設定頁用的 id 是否還存在（這 repo 有用過 preview id 404 前科），
-  自架者換 key 後可自查。（並進 M 軸：比對角色登錄表全部 id。）
+- [x] 🟢 **C-5 模型 id 自我健檢**（offline）— ✅ 2026-06-09 完成。新增 `tools/check_models.py`：蒐集
+  系統「會送去 Gemini」的全部 model id（**角色登錄表 `core/models.py` 經 `resolve()`** ＝含設定頁
+  逐角色 `model_roles` 覆寫 + legacy `text_model`/`image_model` 覆寫 + 內建預設；**＋設定頁文字/圖片
+  下拉可選清單** `core/infocards/models.py` 的 `TEXT_MODELS`/`IMAGE_MODELS`），呼叫 `client.models.
+  list()` 比對哪些 id 在這把 key 底下已不存在（404 風險，本 repo 有 preview id 404 前科），標紅輸出。
+  只查 `gemini` provider 角色（`tts` 等非 Gemini 後端跳過）；蒐集/比對拆純函式（`collect_configured_
+  models`/`evaluate`），**API 端可注入 fake**＝全程不打真 API（offline-first）；缺 `GEMINI_API_KEY`
+  只印「會用到哪些 id」+ exit 2，全綠 exit 0、有缺 exit 1，`--json` 機器可讀。補 `tests/test_check_
+  models.py` 18 測（角色覆蓋/排除 tts/下拉清單/去重排序/設定覆寫經 resolve/前綴正規化/exit code/JSON）。
+  本機全套 2484 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。並進 M 軸：蒐集
+  來源已含角色登錄表全部角色，換代後同支即驗新表。註：M-3 設定頁「未知 id 健檢顯示」可日後串本工具輸出。
 
 ### M 軸 — 模型抽象與可插拔後端（🔴 結構性，劉老師 2026-06-07 指定）
 

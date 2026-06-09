@@ -324,10 +324,19 @@
   `test_models_registry.py`（catalog 形狀+排除 tts）。本機 `npm run build`（vite/node22）編譯通過、全套
   2466 passed（3 個 QR/journal 字型像素為容器缺 Noto 假象，CI 權威）。註：未知 id 健檢顯示（接 C-5）
   待 C-5 工具落地後再串。
-- [ ] 🟢 **M-4 provider adapter 介面（B-ready stub，offline）**— 定義 `Provider` 協定
-  （`generate_text` / `generate_image` / `tts`）+ gemini adapter 包現有呼叫。**只抽介面不換行為**，
-  讓 Phase 9 F9-3（ollama/claude provider）能 slot-in。是否現在做或等 F9-3 一起做，routine 視
-  M-1/M-2 完成後評估。
+- [x] 🟢 **M-4 provider adapter 介面（B-ready stub，offline）**— ✅ 2026-06-09 完成。M-1/M-2/M-3
+  落地後評估：先把介面座位備好，讓 Phase 9 F9-3 能零摩擦 slot-in。新增 `core/providers.py`：
+  `Provider` 協定（`runtime_checkable`，三能力面 `generate_text` / `generate_image` / `tts`）+
+  `GeminiProvider`（A 階段唯一 LLM/視覺/生圖 provider：`generate_text` 走 google.genai、
+  `generate_image` **委派既有** `generate_image_b64`＝包現有呼叫；`tts` 非其職責 →
+  `NotImplementedError`，本 repo 語音走獨立 `tts_backend` 子系統）+ `register_provider` /
+  `get_provider`（未知 provider→`ValueError`）/ `provider_for_role`（`resolve()` 拿 provider+model
+  id 的 B-ready 座位）。**只抽介面不換行為**：現有散落呼叫端本輪不改線，仍各自運作；genai 呼叫隔離成
+  模組層 `_gemini_text_call`＝B 階段抽換點 + 測試注入點。補 `tests/test_providers.py` 18 測（協定符合/
+  registry 單例+未知/逐角色 model 解析+設定覆寫/usage 計帳/生圖委派/tts NotImplementedError/
+  provider_for_role text+非法角色+tts 未登記，**全 monkeypatch 不打真 API、不需裝 genai**）。本機全套
+  2500 passed（1 QR 像素為容器缺 Noto CJK 字型假象，CI 權威）。B 階段（F9-3）只要新增實作此協定的
+  class + `register_provider`，呼叫端零改動即生效。
 
 ---
 

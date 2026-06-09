@@ -368,8 +368,16 @@
   佔位。純文件/設定，無 code 變更（未動 server/core/schemas/runner）。
 - [ ] 🟡 **D-4 F5 GPU passthrough 文件**（GATE，需 GPU 環境實測）— nvidia-docker 跑 F5-TTS
   的設定 + 「沒 GPU 自動退 edge/google TTS」說明。
-- [ ] 🟢 **D-5 健康檢查 / 啟動自檢**（offline）— `/health` 已有；加啟動時自檢（字型在不在、
-  ffmpeg 在不在、GEMINI key 設了沒）印清楚的綠/紅，讓自架者一眼知道缺什麼。
+- [x] 🟢 **D-5 健康檢查 / 啟動自檢**（offline）— ✅ 2026-06-09 完成。新增 `core/selfcheck.py`：
+  server 啟動時印一輪**綠/紅環境自檢**（ffmpeg/ffprobe 在不在＝critical、三個字型在不在＝critical、
+  GEMINI key 設了沒＝黃字警告非 critical），缺核心相依時多印一行 ⛔ 醒目總結指引去補。`/health`
+  雖已回同類診斷，但那要主動打端點才看得到；自架者第一次 `docker compose up` 最常踩的雷（沒裝
+  ffmpeg、容器缺 Noto 字型、忘設 key）改在 **啟動 log** 一眼可見。純函式 `collect_checks()`／
+  `format_report()`（不碰 stdout＝好測）＋ `print_startup_selfcheck()`，在 `server/main.py` startup
+  hook 呼叫。**不阻擋啟動**（缺東西只警告、server 仍可瀏覽/設定）。補 `tests/test_selfcheck.py` 8 測
+  （全綠／ffmpeg 缺／字型缺 critical、缺 key／空 key 為警告非 critical、報告綠紅標記與總結、print 回傳，
+  **全 monkeypatch 不碰真 ffmpeg/字型/API**）。本機全套 2506 passed（3 個 QR/journal 字型像素為容器
+  缺 Noto CJK 假象，CI 權威）。
 - [ ] 🟢 **D-6 requirements 分層說明**（offline）— 已分 core/optional/dev/song，README 講清楚
   「最小裝什麼能跑、要 F5/Whisper/song 再加裝什麼」。
 

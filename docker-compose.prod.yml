@@ -1,0 +1,43 @@
+# eduStudio Compose — production override (D-2)
+#
+# 這是「上線用」的疊加層, 在 base docker-compose.yml 之上收緊安全與運維設定。
+# 不取代 base, 用 -f 兩個都帶:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 跟「localhost 自己玩」的差別 (見 docs/DEPLOYMENT.md 完整 checklist):
+#   1. port 只綁 127.0.0.1 → server 不直接暴露在公網/內網, 一律走前面的反向代理 (nginx/caddy, D-3)。
+#   2. container log 走 json-file driver + rotation → 長期跑不會把磁碟吃爆 (補 base 的 TODO)。
+#   3. no-new-privileges → 即使容器內被攻破也無法 setuid 提權。
+#   4. restart: always → 連 daemon 重啟後也自動拉起 (base 是 unless-stopped)。
+#
+# ⚠ 上線前 .env 必須設 (光疊這份檔不會自動安全, 見 DEPLOYMENT.md):
+#   - EDUSTUDIO_API_TOKEN       一段夠長的隨機密鑰 (沒設 = 零驗證, 啟動會大聲警告)
+#   - EDUSTUDIO_ALLOWED_ORIGINS 你的正式網域 (別留 "*"; 同源 /app 不受影響)
+#   - 反向代理請另設一層 TLS + 存取控制 (見 SECURITY.md / D-3)。
+
+services:
+  server:
+    # 只綁 loopback: 對外服務一律經反向代理 (host 上的 nginx/caddy 連 127.0.0.1:8000)。
+    # 千萬別在這裡填 "8000:8000" 或 "0.0.0.0:8000:8000" — 那會把未經 TLS 的 server 直接掛上公網。
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    # daemon 重啟後也自動拉回 (比 base 的 unless-stopped 更積極, 適合無人值守的 production)
+    restart: always
+
+    # container stdout/stderr 落盤 + rotation。server 的 log 走 stderr (core/logging_setup.py),
+    # 由 Docker 接住寫進 json-file; 設上限避免長跑把磁碟撐爆 (補 base compose 的 log rotation TODO)。
+    # 看 log: docker compose logs -f server
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"   # 單檔上限
+        max-file: "5"     # 最多保留 5 個輪替檔 (≈50MB)
+
+    # 容器內 process 無法透過 setuid 等手段提權 (縱深防護)
+    security_opt:
+      - no-new-privileges:true
+
+    # 收 SIGTERM 後給 render/ffmpeg 一點時間收尾再強殺
+    stop_grace_period: 30s

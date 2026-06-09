@@ -347,9 +347,16 @@
 
 - [ ] 🔴 **D-1 `docker compose up --build` 跨平台實測**（GATE，需劉老師本機跑）— Linux/Win/Mac
   各驗一遍，修踩到的問題（字型、volume、healthcheck）。產出「實測 OK」結論 + 修補。
-- [ ] 🟡 **D-2 production 設定範本**（offline）— 一個 `docker-compose.prod.yml` 或文件段：
-  收緊 CORS、設 API token、不開 `--reload`、log 落盤、restart policy。把 Phase 1 安全項串成
-  「上線前 checklist」。
+- [x] 🟡 **D-2 production 設定範本**（offline）— ✅ 2026-06-09 完成。新增
+  `docker-compose.prod.yml`（疊在 base 之上的 production override，用 `-f docker-compose.yml -f
+  docker-compose.prod.yml` 帶）：**port 只綁 `127.0.0.1`**（對外走反向代理、不裸暴露）、container
+  log 走 **json-file driver + rotation**（`max-size 10m`×`max-file 5`，補 base compose 的 log
+  rotation TODO）、`restart: always`、`no-new-privileges:true`、`stop_grace_period`。`--reload`
+  本來就沒開（Dockerfile `CMD` 直接 `python -m server.main`，於 override 註明）。新增
+  `docs/DEPLOYMENT.md`：一鍵起 prod 容器指令 + base↔prod 對照表 + **「上線前安全 checklist」**把
+  Phase 1 串成逐項（S-1 設 token / S-2 收 CORS / 放反向代理+TLS / S-6 維持 rate limit / S-5 機密檔
+  權限 / 月預算）+ 運維備忘（持久化、R-1 重啟不丟工作、review gate 不可繞、磁碟、健康檢查）+ 指出
+  D-1/D-3/D-4 後續。純設定/文件，無 code 變更（未動 server/core/schemas/runner）。
 - [ ] 🟡 **D-3 reverse proxy + TLS 指引**（offline，文件）— nginx/caddy 範例 conf（自架者要把
   server 擺 TLS 後面，不裸奔）。不需自己跑，給可複製範本。
 - [ ] 🟡 **D-4 F5 GPU passthrough 文件**（GATE，需 GPU 環境實測）— nvidia-docker 跑 F5-TTS

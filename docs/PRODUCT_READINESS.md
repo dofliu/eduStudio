@@ -357,8 +357,15 @@
   Phase 1 串成逐項（S-1 設 token / S-2 收 CORS / 放反向代理+TLS / S-6 維持 rate limit / S-5 機密檔
   權限 / 月預算）+ 運維備忘（持久化、R-1 重啟不丟工作、review gate 不可繞、磁碟、健康檢查）+ 指出
   D-1/D-3/D-4 後續。純設定/文件，無 code 變更（未動 server/core/schemas/runner）。
-- [ ] 🟡 **D-3 reverse proxy + TLS 指引**（offline，文件）— nginx/caddy 範例 conf（自架者要把
-  server 擺 TLS 後面，不裸奔）。不需自己跑，給可複製範本。
+- [x] 🟡 **D-3 reverse proxy + TLS 指引**（offline，文件）— ✅ 2026-06-09 完成。新增兩份可複製範本：
+  [`deploy/nginx.conf.example`](deploy/nginx.conf.example)（http→https 轉址、certbot/Let's Encrypt
+  簽發註解）與 [`deploy/Caddyfile.example`](deploy/Caddyfile.example)（自動 TLS、零手動憑證）。兩份都
+  預先處理好踩雷點：**上傳上限對齊** `200m`/`200MB`（對齊 `server/routes/uploads.py` 的 `MAX_UPLOAD_SIZE`，
+  代理層預設太小會在傳大檔時先回 413）、**長請求逾時** 放寬到 600s（影片 render / 同步 Gemini 呼叫不被切成
+  504）、**轉發 `X-Forwarded-For`/`-Proto`**（per-IP rate limit S-6 看真實來源、cookie `Secure` 判定正確）、
+  **`Authorization`+cookie 透傳**（S-1 驗證所依）、HSTS。`docs/DEPLOYMENT.md` 補「反向代理 + TLS」一節
+  （nginx vs Caddy 選用對照表 + 踩雷點說明 + 「反代非驗證替代品、仍要設 token」提醒）並消除原 D-3「規劃中」
+  佔位。純文件/設定，無 code 變更（未動 server/core/schemas/runner）。
 - [ ] 🟡 **D-4 F5 GPU passthrough 文件**（GATE，需 GPU 環境實測）— nvidia-docker 跑 F5-TTS
   的設定 + 「沒 GPU 自動退 edge/google TTS」說明。
 - [ ] 🟢 **D-5 健康檢查 / 啟動自檢**（offline）— `/health` 已有；加啟動時自檢（字型在不在、

@@ -1,0 +1,86 @@
+# eduStudio — nginx 反向代理 + TLS 範例 (D-3)
+#
+# 用途：把 eduStudio server 擺在 nginx + TLS 後面，對外只暴露 https。
+# server 本身（docker-compose.prod.yml）已綁死 127.0.0.1:8000，不直接上公網；
+# nginx 在 host 上終結 TLS，再把流量轉給 127.0.0.1:8000。
+#
+# 這只是「可複製的起點」，不是免設定即用——務必改掉 server_name、憑證路徑、
+# 並確認 .env 已設 EDUSTUDIO_API_TOKEN（S-1）與收緊的 EDUSTUDIO_ALLOWED_ORIGINS（S-2）。
+# 詳見 docs/DEPLOYMENT.md。
+#
+# 安裝：複製到 /etc/nginx/sites-available/edustudio.conf，
+#       ln -s 到 sites-enabled/，nginx -t 測試後 systemctl reload nginx。
+# 憑證：建議用 certbot（Let's Encrypt）自動簽發/續期，見檔尾註解。
+
+# --- http → https 強制轉址 ---------------------------------------------------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name edustudio.example.com;   # ← 改成你的網域
+
+    # 讓 certbot 的 ACME challenge 走得通（憑證簽發/續期用）
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# --- https 主站 --------------------------------------------------------------
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name edustudio.example.com;   # ← 改成你的網域
+
+    # TLS 憑證（certbot 會填這兩行；手動憑證請改成你的路徑）
+    ssl_certificate     /etc/letsencrypt/live/edustudio.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/edustudio.example.com/privkey.pem;
+
+    # 合理的現代 TLS 預設（可改用 certbot 產的 options-ssl-nginx.conf）
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # HSTS：強制瀏覽器之後只走 https（確定全站 https 才開，不然會把自己鎖在門外）
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # 上傳上限要 ≥ server 的 MAX_UPLOAD_SIZE（server/routes/uploads.py = 200 MB）。
+    # nginx 預設 1 MB，不放寬會在傳大 PDF/影片時回 413（還沒到 app 就被擋）。
+    client_max_body_size 200m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+
+        # 把真實 host / client IP / 通訊協定帶給後端
+        # （rate limit S-6 是 per-IP，X-Forwarded-For 讓後端看到真實來源；
+        #   X-Forwarded-Proto=https 讓 cookie 的 Secure 旗標正確判定）
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Authorization header 與 session cookie 預設就會透傳（S-1 驗證靠這兩者），
+        # 不要在這裡 proxy_set_header 清掉它們。
+
+        # 影片 render / 同步 Gemini 呼叫（/api/generate、/api/refine）可能跑很久。
+        # 預設 60s 會在長請求時回 504，這裡放寬讀取逾時。
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    600s;
+        proxy_read_timeout    600s;
+
+        # 串流大檔（mp4/png 由 FileResponse 直送）時不要整包緩衝
+        proxy_buffering off;
+    }
+}
+
+# --- Let's Encrypt 憑證簽發（一次性） ---------------------------------------
+#
+#   sudo apt install certbot python3-certbot-nginx
+#   sudo certbot --nginx -d edustudio.example.com
+#
+# certbot 會自動改好上面的 ssl_certificate 兩行並設定續期 timer。
+# 手動續期測試：sudo certbot renew --dry-run

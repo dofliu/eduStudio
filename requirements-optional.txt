@@ -17,6 +17,22 @@
 # f5-tts
 
 # ============================================================
+# faster-whisper — 語音轉文字 (STT) backend
+# ============================================================
+# 在地化「外部影片翻譯」「會議/演講錄音摘要」「歌曲轉錄」才需要 (core/whisper_util.py,
+# translation/service.py, meeting/summarizer.py)。lazy import: 沒裝 → 對應功能回
+# 「未安裝 faster-whisper，請先執行：pip install faster-whisper」, 其餘流程 (影片/視覺)
+# 完全不受影響。自動偵測 cuda(float16) → cpu(int8), 無 GPU 也能跑 (只是慢)。
+faster-whisper>=1.0
+
+# ============================================================
+# python-pptx — 簡報 PPTX 匯出
+# ============================================================
+# 視覺「簡報 → PPTX 匯出」才需要 (core/infocards/pptx_export.py, lazy import)。
+# 沒裝 → 只是無法匯出 .pptx, 線上預覽 / 影片 / 圖卡都正常。
+python-pptx>=0.6.23
+
+# ============================================================
 # Sample PDF 產生工具 (make_sample_pdf.py)
 # 只測試 / demo 用, runtime 不需要
 # 想跑 `python make_sample_pdf.py` 產樣本考卷再裝

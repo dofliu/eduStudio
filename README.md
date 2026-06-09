@@ -50,9 +50,13 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 ### Quick start
 
 ```bash
+# 0. System prerequisites (NOT pip): ffmpeg (+ffprobe) for any render,
+#    and Noto CJK fonts for correct Chinese glyphs. See "Dependency layers" below.
+
 # 1. Backend (Python 3.12)
-pip install -r requirements.txt          # core deps
-#   optional: requirements-optional.txt for F5-TTS / GPU Whisper, requirements-dev.txt for tests
+pip install -r requirements.txt          # core deps — enough to run the server
+#   add-ons (only if you need them): requirements-optional.txt (PPTX export / STT /
+#   F5-TTS), requirements-song.txt (SONG MV track), requirements-dev.txt (tests)
 export GEMINI_API_KEY=your_key           # or set it in the in-app Settings page
 
 # 2. Frontend (the unified /app UI)
@@ -64,6 +68,26 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 ```
 
 Then open **`http://127.0.0.1:8000/app/`**.
+
+### Dependency layers
+
+Dependencies are split so you install only what you actually use. `requirements.txt`
+alone is enough to run the server and the main pipelines (video, visual, localization
+text) — add a layer only when you want the matching feature.
+
+| Layer | Install | What it adds | Without it |
+|---|---|---|---|
+| **core** | `pip install -r requirements.txt` | Server + video / visual / localization-text pipelines (Gemini, FastAPI, Pillow, edge-tts, PyMuPDF, matplotlib) | — (always required) |
+| **optional** | `pip install -r requirements-optional.txt` | PPTX export (`python-pptx`), speech-to-text (`faster-whisper`, auto GPU→CPU), F5-TTS voice cloning, sample-PDF tool, outro QR | Those specific features fail gracefully; everything else runs |
+| **song** | `pip install -r requirements-song.txt` | SONG MV track only — Demucs + WhisperX (heavy, several GB, GPU recommended) | The song/MV track is unavailable; all other tracks fine |
+| **dev** | `pip install -r requirements-dev.txt` | Test suite (`pytest`, `httpx`) | Can't run `pytest tests/` |
+
+**System dependencies (installed outside pip):**
+
+- **ffmpeg / ffprobe** — *required* for any video render or audio extraction. `apt install ffmpeg` · `brew install ffmpeg` · `choco install ffmpeg`.
+- **Noto CJK fonts** (e.g. `fonts-noto-cjk`) — needed for correct Chinese rendering in slides / blackboard. Paths are overridable via `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` / `CLAUDE_MONO_FONT_PATH`.
+
+The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 
 ### Interfaces
 
@@ -109,9 +133,13 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 ### 快速開始
 
 ```bash
+# 0. 系統相依 (非 pip): ffmpeg (+ffprobe) 任何 render 都要、Noto CJK 字型確保中文正常。
+#    詳見下方「依賴分層」。
+
 # 1. 後端 (Python 3.12)
-pip install -r requirements.txt          # 核心依賴
-#   選用: requirements-optional.txt(F5-TTS / GPU Whisper)、requirements-dev.txt(測試)
+pip install -r requirements.txt          # 核心依賴 — 裝這個就能跑 server
+#   按需加裝: requirements-optional.txt(PPTX 匯出 / 語音轉文字 / F5-TTS)、
+#   requirements-song.txt(SONG MV 軸)、requirements-dev.txt(跑測試)
 export GEMINI_API_KEY=你的金鑰            # 或直接在 App 的「設定」頁填
 
 # 2. 前端 (統一 /app 介面)
@@ -123,6 +151,25 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 ```
 
 接著打開 **`http://127.0.0.1:8000/app/`**。
+
+### 依賴分層
+
+依賴刻意拆開，只裝你會用到的。光裝 `requirements.txt` 就足以跑起 server 與主要 pipeline
+（影片、視覺、在地化文字）——要用哪個功能再加裝對應那層即可。
+
+| 分層 | 安裝 | 加了什麼 | 不裝的話 |
+|---|---|---|---|
+| **核心 core** | `pip install -r requirements.txt` | Server + 影片 / 視覺 / 在地化文字 pipeline（Gemini、FastAPI、Pillow、edge-tts、PyMuPDF、matplotlib） | —（一定要裝） |
+| **選用 optional** | `pip install -r requirements-optional.txt` | PPTX 匯出（`python-pptx`）、語音轉文字（`faster-whisper`，自動 GPU→CPU）、F5-TTS 聲音複製、樣本 PDF 工具、outro QR | 對應功能會優雅報錯，其餘照常 |
+| **song** | `pip install -r requirements-song.txt` | 只有 SONG MV 軸 — Demucs + WhisperX（重、數 GB、建議 GPU） | song/MV 軸無法用，其他軸不受影響 |
+| **dev** | `pip install -r requirements-dev.txt` | 測試套件（`pytest`、`httpx`） | 無法跑 `pytest tests/` |
+
+**系統相依（非 pip 安裝）：**
+
+- **ffmpeg / ffprobe** — 任何影片 render 或抽音訊*必需*。`apt install ffmpeg`／`brew install ffmpeg`／`choco install ffmpeg`。
+- **Noto CJK 字型**（例 `fonts-noto-cjk`）— 簡報／黑板中文正確顯示所需。路徑可用 `CLAUDE_FONT_PATH`／`CLAUDE_FALLBACK_FONT_PATH`／`CLAUDE_MONO_FONT_PATH` 覆寫。
+
+內附的 `Dockerfile` 已幫你裝好 ffmpeg 與 CJK 字型。
 
 ### 專案結構
 

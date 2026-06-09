@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from core.config import PROJECT_ROOT, get_allowed_origins
 from core.logging_setup import setup_logging
 from core.runtime import setup_utf8_stdout
+from core.selfcheck import print_startup_selfcheck
 
 from .auth import install_auth, warn_if_open
 from .jobs import get_default_store
@@ -269,6 +270,8 @@ def create_app() -> FastAPI:
         interrupted = store.resume_interrupted()
         if interrupted:
             print(f"[server] R-1: 標記 {len(interrupted)} 個重啟中斷的 job 為 failed: {interrupted}")
+        # D-5: 環境自檢 — 印清楚的綠/紅 (ffmpeg/字型/GEMINI key), 缺什麼一眼可見
+        print_startup_selfcheck()
         # S-1: 沒設 token 就大聲警告勿暴露公網
         warn_if_open()
 

@@ -378,8 +378,13 @@
   （全綠／ffmpeg 缺／字型缺 critical、缺 key／空 key 為警告非 critical、報告綠紅標記與總結、print 回傳，
   **全 monkeypatch 不碰真 ffmpeg/字型/API**）。本機全套 2506 passed（3 個 QR/journal 字型像素為容器
   缺 Noto CJK 假象，CI 權威）。
-- [ ] 🟢 **D-6 requirements 分層說明**（offline）— 已分 core/optional/dev/song，README 講清楚
-  「最小裝什麼能跑、要 F5/Whisper/song 再加裝什麼」。
+- [x] 🟢 **D-6 requirements 分層說明**（offline）— ✅ 2026-06-09 完成。README（中英雙語）新增「依賴
+  分層 / Dependency layers」一節：core/optional/song/dev 四層表格（裝什麼、加了什麼、不裝會怎樣）+
+  系統相依（ffmpeg、Noto CJK 字型，非 pip，原 quick-start 漏寫）+ 字型 env 覆寫 + Dockerfile 已內建。
+  順手補回**漏報的兩個 optional dep**：`faster-whisper`（STT，lazy import、自動 GPU→CPU）與
+  `python-pptx`（PPTX 匯出，lazy import）——tech stack 有列、code 有用，但先前任一 requirements 檔
+  都沒宣告 → 補進 `requirements-optional.txt` 並註明各自驅動的功能與「沒裝只該功能優雅報錯」。純文件
+  /設定，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
 
 ---
 

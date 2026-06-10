@@ -453,8 +453,17 @@
   裡仍不可繞**：approve 前 render 被擋 FAILED 且根本沒進 `render_video`、無 artifact，approve 後才放行
   DONE。本機全套 2509 passed（2 個 QR/theme 字型像素為容器缺 Noto CJK 假象，CI 權威）。註：CI 端到端
   重依賴分 job 處理（test.yml）可後續隨 T-2 一併評估。
-- [ ] 🟡 **T-2 CI actions 升版**（offline）— Node actions 升 v4 消棄用警告（HANDOFF #6）；
-  考慮加一個「裝 ffmpeg 跑少量真 render」的 nightly job。
+- [x] 🟡 **T-2 CI actions 升版 / 護網補洞**（offline）— ✅ 2026-06-10 完成。① **Node actions 已是
+  最新主版**（`actions/checkout@v4`、`actions/setup-python@v5`、`actions/setup-node@v4`，無
+  `upload-artifact@v3` 等 Node16 棄用節點）→ HANDOFF #6 的「消棄用警告」實際已無待辦。② **補上
+  真正的護網漏洞**：CI 先前只 `tsc --noEmit` legacy `web/`（`/ui`·`/studio`，已標 legacy 退場），
+  **唯一正式對外前端 `frontend/`（`/app`，React 19+Vite，U-6 base 寫死 `/app/`）從未進 CI** ——
+  `app.jsx` 壞了不會被擋。新增 `frontend-app-build` job 跑 `npm ci && npm run build`（純 JSX 無
+  tsconfig，`tsc --noEmit` 不適用 → vite build 即護網：JSX 解析錯／import 缺失／建置失敗都紅；產物
+  到 gitignore 的 `web/eduapp` 不污染 repo）。保留 web typecheck 守 legacy 退場前不退步。本機 node20+
+  `npm run build` 通過。純 CI 設定，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ⏸️ 「裝 ffmpeg 跑少量真 render」nightly job 留作後續：真 render 會跑 ffmpeg/TTS，且文字 pipeline
+    要不打 Gemini 才 offline（須 `mock=True` 固定 fixture）；牽涉額度/外部服務取捨，另開項評估，不併本輪。
 - [ ] 🟢 **T-3 版本 / tag / CHANGELOG / Release**（offline）— 訂 `v1.0.0`（開源首發）語意化版本，
   `docs/CHANGELOG.md` 已有 → 補 release notes，打 git tag + GitHub Release。
 - [ ] 🟢 **T-4 README badge / 截圖牆 / 一鍵 demo**（offline）— 開源門面：CI badge（已有）、

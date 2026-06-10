@@ -403,9 +403,17 @@
   schema migration + 別 commit 機密 + 動 server/core/runner/schemas 跑 pytest），移除已過時的
   Track A/C 規則。保留作者/溝通風格/熟悉度/Git 同步等仍有效的 maintainer context。純文件,無 code
   變更（未動 server/core/schemas/runner,故不需跑 pytest）。
-- [ ] 🟡 **DOC-2 去個人化 / 去 Windows 硬路徑**（offline）— HANDOFF / 文件裡的 `D:\Project_...`
-  / `C:\Python\...` 改成相對說明或環境變數，讓非劉老師的機器也讀得懂。保留作者署名，移除
-  本機絕對路徑。
+- [x] 🟡 **DOC-2 去個人化 / 去 Windows 硬路徑**（offline）— ✅ 2026-06-10 完成。掃過全 docs 的
+  Windows 個人絕對路徑並去個人化（保留作者署名/maintainer context，只移除「換台機器就讀不懂」的
+  硬路徑）：① `HANDOFF.md`「位置與環境」把 `D:\Project_CodingSimulation\...` / `C:\Python\Python312-64`
+  / `C:\Users\user\.claude\...` 改成「clone 到任一目錄、以 repo 根為基準」+ venv/`uv` 說明 + 字型走
+  `CLAUDE_FONT_PATH`（附三平台預設）+ memory 路徑改 `~/.claude/...` / `%USERPROFILE%`。② `docs/onboarding.md`
+  把 `D:/path/to/midterm.pdf`、`D:/Teaching/Materials` 例子改相對 `./path/...` / `./materials`。
+  ③ `docs/ideate-design.md` watched_folders 例子 `D:/Teaching/...` → `./materials` / `./exams`。
+  ④ `docs/GOOGLE_TTS_SETUP.md` 憑證路徑補 Linux/macOS `export` 範例、Windows 例子改中性 `C:\path\to\...`。
+  純文件，無 code 變更（未動 server/core/schemas/runner，不需跑 pytest）。註：歷史紀錄裡的路徑
+  （CHANGELOG/TODO 的 `D:/Dropbox/` 為「已搬進 repo」的事實記述）與 skill 對話範例刻意保留；routine
+  內部 `ROUTINE_ADVANCE_PROMPT.md` 的本機路徑屬個人工作流非對外文件，不在本輪。
 - [ ] 🟡 **DOC-3 端到端 onboarding 文件**（offline）— `docs/onboarding.md` 已有，補成「陌生
   老師 0 到 1」：裝 → 配 key → 跑第一支影片 → 上 YouTube，含截圖/常見錯誤。
 - [ ] 🟢 **DOC-4 架構文件 / ARCHITECTURE.md**（offline）— 一張圖講清 core/server/frontend

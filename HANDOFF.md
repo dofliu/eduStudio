@@ -15,11 +15,14 @@ eduStudio = 單一可自架的 **Python FastAPI server**，把老師的素材變
 
 ## 位置與環境
 
-- **本 repo（唯一工作目錄）**：`D:\Project_CodingSimulation\courseRelated\eduStudio`
-- **GitHub**：`https://github.com/dofliu/eduStudio`（public，本地 main 已與遠端同步）
-- **Python**：3.12（在 C 槽 `C:\Python\Python312-64`；pip resolver 壞掉，裝套件用 `uv`）
-- **Gemini 金鑰**：讀環境變數 `GEMINI_API_KEY`（已設）；設定頁(settings.json)若填了會優先。settings.json 含金鑰，**已 gitignore**。
-- **字型**：Windows `C:/Windows/Fonts/msjh.ttc`（CJK）。
+- **本 repo（唯一工作目錄）**：clone 到任一本機目錄即可（下面指令一律以 repo 根目錄為基準，
+  不依賴特定絕對路徑）。
+- **GitHub**：`https://github.com/dofliu/eduStudio`（public，本地 main 與遠端同步）
+- **Python**：3.12（建議用 venv；若本機 pip resolver 有問題可改用 `uv pip install`）。
+- **Gemini 金鑰**：讀環境變數 `GEMINI_API_KEY`；設定頁(settings.json)若填了會優先。settings.json 含金鑰，**已 gitignore**。
+- **字型（CJK）**：跨平台走 `CLAUDE_FONT_PATH` 環境變數指向任一 CJK `.ttf/.ttc`（硬規則：字型路徑不寫死）。
+  各平台常見預設：Windows `C:/Windows/Fonts/msjh.ttc`、Linux `…/NotoSansCJK-Regular.ttc`、
+  macOS `/System/Library/Fonts/PingFang.ttc`。Docker 映像已內建 Noto CJK。
 
 ## 跑起來（三個關鍵指令）
 
@@ -98,6 +101,7 @@ eduStudio/
 
 ## 詳細記憶（選讀）
 
-本 session 的逐步決策/事實記在舊 project key 的 memory：
-`C:\Users\user\.claude\projects\D--Project-CodingSimulation-PersonalHelper-eduStudio\memory\`
-（含 edustudio-integration-state、gemini 模型/thinking 陷阱、build flag、env 等）。新 session 在新路徑不會自動載入，要的話可手動參考。
+本 session 的逐步決策/事實記在 Claude Code 的 project memory（位於本機家目錄下的
+`~/.claude/projects/<project-key>/memory/`，Windows 為 `%USERPROFILE%\.claude\...`），
+含 edustudio-integration-state、gemini 模型/thinking 陷阱、build flag、env 等。
+換機器 / 換 project key 時不會自動載入，要的話可手動參考。

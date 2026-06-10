@@ -17,7 +17,7 @@
 ```
 ┌────────────────────┐
 │ watched_folders/   │   user 設定要監看的資料夾 (config.yaml)
-│ (D:/Materials...)  │
+│ (./materials...)   │
 └─────────┬──────────┘
           │  ideate.scan_changed_files (last_modified > N 天前)
           ▼
@@ -58,10 +58,11 @@
 
 ```yaml
 watched_folders:
-  - path: "D:/Teaching/Materials/材料力學"
+  # path 換成你存教材的資料夾（相對 repo 或絕對路徑；Windows 用 C:/... 皆可）
+  - path: "./materials/材料力學"
     source_type: slides_pdf        # exam_pdf / slides_pdf / document
     scan_window_days: 14           # 掃 N 天內修改的檔, 預設 14
-  - path: "D:/Teaching/Exams/2026"
+  - path: "./exams/2026"
     source_type: exam_pdf
     scan_window_days: 30
 

@@ -28,13 +28,18 @@
    - 名字: `tts-service` (隨意)
    - Role: `Cloud Text-to-Speech Service Agent` (或 `Editor` 也行)
 4. 進 service account → **Keys → Add Key → Create New Key → JSON**
-5. 下載 JSON 存到本機, 例如 `D:/keys/gcp-tts.json`
+5. 下載 JSON 存到本機任一安全位置（路徑下面以 `<你的金鑰路徑>` 代表，換成實際路徑）
 
 ### 2. 設環境變數
 
+```bash
+# Linux / macOS — 加進 ~/.bashrc 或 ~/.zshrc
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/gcp-tts.json"
+```
+
 ```powershell
 # Windows PowerShell — 加進 $PROFILE
-$env:GOOGLE_APPLICATION_CREDENTIALS = "D:\keys\gcp-tts.json"
+$env:GOOGLE_APPLICATION_CREDENTIALS = "C:\path\to\gcp-tts.json"
 ```
 
 ### 3. 裝 SDK

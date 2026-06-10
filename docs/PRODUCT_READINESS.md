@@ -414,8 +414,17 @@
   純文件，無 code 變更（未動 server/core/schemas/runner，不需跑 pytest）。註：歷史紀錄裡的路徑
   （CHANGELOG/TODO 的 `D:/Dropbox/` 為「已搬進 repo」的事實記述）與 skill 對話範例刻意保留；routine
   內部 `ROUTINE_ADVANCE_PROMPT.md` 的本機路徑屬個人工作流非對外文件，不在本輪。
-- [ ] 🟡 **DOC-3 端到端 onboarding 文件**（offline）— `docs/onboarding.md` 已有，補成「陌生
-  老師 0 到 1」：裝 → 配 key → 跑第一支影片 → 上 YouTube，含截圖/常見錯誤。
+- [x] 🟡 **DOC-3 端到端 onboarding 文件**（offline）— ✅ 2026-06-10 完成。把 `docs/onboarding.md`
+  從舊的「研究室 onboarding（autoSolverVideo / Track A-B-C / `/ui` / `web/` / 舊模型）」整份改寫成
+  **陌生老師 0→1 主線**：§0 你會得到什麼 → §1 系統需求表（含 ffmpeg/Noto 非 pip、唯一必填
+  `GEMINI_API_KEY`）→ §2 安裝（A. Docker 最少踩雷 / B. 本機 Python venv + `npm run build`，base 已
+  寫死）→ §3 配 key（env 或設定頁）→ §4 **產第一支影片**（考卷 PDF GUI 流程：選課→上傳→ingest→
+  **awaiting_review 逐題人工審查**→approve→render→下載，強調 review gate 核心價值；§4a CLI
+  `submit_job.py`）→ §5 **上 YouTube**（5a 一次性 OAuth client_secret 設定 + 5b GUI/`publish.py` 上傳、
+  配額註記）→ §6 常見錯誤排查表（對齊現況：空白頁=沒 build、字型方框、首跑 F5 1.3GB、重啟 resume、
+  暴露需 token）→ §7 下一步（指向 DEPLOYMENT/CONTRIBUTING/SECURITY）。截圖位置以 `<!-- 截圖：… -->`
+  預留待人工補（此環境無瀏覽器，依既定「文字步驟可獨立完成、視覺後驗」）。純文件，無 code 變更（未動
+  server/core/schemas/runner，故不需跑 pytest）。
 - [ ] 🟢 **DOC-4 架構文件 / ARCHITECTURE.md**（offline）— 一張圖講清 core/server/frontend
   資料流 + job 狀態機 + 四 track 怎麼共用 pipeline，給想改 code 的人。
 - [ ] 🟢 **DOC-5 demo 影片 / 截圖**（GATE，需劉老師錄）— README 放一支 60 秒 demo（用自己的

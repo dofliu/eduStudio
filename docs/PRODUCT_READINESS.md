@@ -425,8 +425,17 @@
   暴露需 token）→ §7 下一步（指向 DEPLOYMENT/CONTRIBUTING/SECURITY）。截圖位置以 `<!-- 截圖：… -->`
   預留待人工補（此環境無瀏覽器，依既定「文字步驟可獨立完成、視覺後驗」）。純文件，無 code 變更（未動
   server/core/schemas/runner，故不需跑 pytest）。
-- [ ] 🟢 **DOC-4 架構文件 / ARCHITECTURE.md**（offline）— 一張圖講清 core/server/frontend
-  資料流 + job 狀態機 + 四 track 怎麼共用 pipeline，給想改 code 的人。
+- [x] 🟢 **DOC-4 架構文件 / ARCHITECTURE.md**（offline）— ✅ 2026-06-10 完成。新增
+  [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)，給「想改 code 的人」的地圖：① 三層俯瞰
+  ASCII 圖（`frontend` build→`web/eduapp` /app · `server` middleware/routes/JobStore/runner ·
+  `core` 純內容引擎不依賴 FastAPI · 外部相依 Gemini/ffmpeg/TTS/字型）② job 狀態機
+  （pending→ingesting→(review gate)→rendering→done/failed，含 **render 入口 assert 不可繞** 與
+  R-1 重啟止血、state.json 持久化）③ 四條 track 怎麼共用同一條 pipeline（來源 adapter 差異 →
+  共同中介 `deck.json`（review 審的就是它）→ 共用 render，附對照表 + 分流點 `_run_render_inner`，
+  並點出視覺/在地化是同步非 job-based）④ 橫切關注點（M 軸模型抽象/計帳/安全 middleware/config 集中/
+  type guard）⑤ 前端建置（`/app` 唯一、`/ui`·`/studio` legacy 退場）⑥「想動哪裡先看哪裡」入口檔 +
+  必跑測試對照表，含硬規則提醒（review gate 不可繞 / C-3 旁白模型 GATE 別自換 / 動 server·core 跑
+  pytest）。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
 - [ ] 🟢 **DOC-5 demo 影片 / 截圖**（GATE，需劉老師錄）— README 放一支 60 秒 demo（用自己的
   系統產，吃自己狗糧）。
 

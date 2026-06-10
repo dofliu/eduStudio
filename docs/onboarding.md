@@ -81,8 +81,8 @@ docker compose up -d --build
 ## 3. 跑一個 PDF 看看(快速驗證流程)
 
 ```bash
-# server 已啟動的話:
-python scripts/submit_job.py exam D:/path/to/midterm.pdf
+# server 已啟動的話（路徑換成你自己的 PDF；Windows 用 C:/... 或 D:/...）:
+python scripts/submit_job.py exam ./path/to/midterm.pdf
 # → 印 job_id
 
 # 等到 state=awaiting_review (poll 個 1-2 分鐘)
@@ -100,8 +100,8 @@ curl http://localhost:8000/jobs/<job_id>
 如果你有一資料夾教材想 AI 預先看過提案影片片單:
 
 ```bash
-# CLI:
-python scripts/run_ideate.py auto D:/Teaching/Materials --window-days 30
+# CLI（資料夾換成你存教材的路徑）:
+python scripts/run_ideate.py auto ./materials --window-days 30
 
 # 或開 http://localhost:8000/ui/proposals 點「📂 掃資料夾」modal
 ```

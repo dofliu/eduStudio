@@ -1,8 +1,102 @@
-# CHANGELOG — v4 階段累積進度
+# CHANGELOG
 
-> 一頁掃完 v4 階段(2026-05-12 ~ 2026-05-15)做了什麼。對接手助理 / 自己日後查考很有用。
+> 一頁掃完各階段做了什麼。對接手助理 / 自己日後查考很有用。
 >
-> 詳細 PR 級內容看 git log;詳細設計看 `docs/*.md`;當前 active 工作看 `TODO.md` 🌟 段落。
+> 詳細 PR 級內容看 git log;詳細設計看 `docs/*.md`;當前 active 工作看 `TODO.md` 🌟 段落、
+> 產品化主線看 `docs/PRODUCT_READINESS.md`。
+
+---
+
+## v1.0.0 — 產品化推出（開源自架首發候選）(2026-06-07 ~ 2026-06-10)
+
+> 從「個人本機能跑」做到驗收門檻：讓一個**陌生老師** clone → 照 README 一條龍跑起來 →
+> 安全地暴露在內網/伺服器 → 產一支影片並上 YouTube，全程不踩雷、不外洩金鑰、server 重啟
+> 不丟工作。對應 [`docs/PRODUCT_READINESS.md`](PRODUCT_READINESS.md) Phase 0–7，共 **36 個 PR**
+> （#15–#50）。整段嚴守 **offline-first** 紀律（純 code、不打真 Gemini/GCP、低風險、有測試），
+> 燒額度 / 安全模型 / 大架構決策一律先寫 proposal 待拍板。
+>
+> **發布狀態**：本段為 **release-notes，git tag `v1.0.0` 與 GitHub Release 的實際發佈時機由劉老師
+> 拍板**——首發前還有兩項本機 GATE 待跑：`docker compose up --build` 跨平台實測（D-1）與 F5 GPU
+> passthrough 實測（D-4）。版本號 `v1.0.0`（開源首發）已於 readiness 清單定案。
+
+### 🔴 Phase 0 — 開源/法務前置
+
+| 項 | PR | 內容 |
+|---|---|---|
+| P0-1 | `#16` | 加 **MIT LICENSE**（© 2026 劉瑞弘）+ README 授權 badge / footer |
+| P0-2 | `#17` | secret 全歷史稽核（全 52 commit / 所有分支）→ **結論乾淨、無需 history rewrite**；縱深防護靠 GitGuardian CI + `.gitignore` |
+| P0-3 | `#18` | `.env.example` 補齊全部 **25 個**環境變數（原僅 7 個）+ 分區註明預設值/用途，唯一必填仍 `GEMINI_API_KEY` |
+| P0-4 | `#19` | `CONTRIBUTING.md` + `.github/ISSUE_TEMPLATE/` + `PULL_REQUEST_TEMPLATE.md`（含「未繞 review gate」自我檢查） |
+| P0-5 | `#20` | `SECURITY.md`（部署前必讀警告 + 漏洞私密回報流程 + 3 工作天回覆承諾） |
+
+### 🔴 Phase 1 — 安全硬底層（開源自架致命缺口）
+
+| 項 | PR | 內容 |
+|---|---|---|
+| S-1 | `#23` | **單一共享 token 驗證層**（`server/auth.py` middleware）— 瀏覽器 cookie / CLI Bearer 雙路；沒設 `EDUSTUDIO_API_TOKEN` → 全開 + 啟動大聲警告（保留 localhost 自用） |
+| S-2 | `#21` | **CORS 收緊** — `allow_origins=["*"]` → 讀 `EDUSTUDIO_ALLOWED_ORIGINS` 白名單（`core.config.get_allowed_origins()`） |
+| S-3 | `#22` | **path-traversal 全面審** — 抽共用 `server/path_safety.py::safe_join`（字元檢查 + resolve-containment），補 3 個 jobs 端點缺口、重構 slides |
+| S-4 | `#24` | **上傳硬化** — 副檔名/MIME 白名單 + 檔名 NFC 正規化 |
+| S-5 | `#25` | **secret 落地**（GATE→拍板不加密）— 明文 + gitignore，`SECURITY.md` 講清處置（別放共享磁碟、`chmod 600`） |
+| S-6 | `#26` | **per-IP rate limit**（自寫 token bucket `server/ratelimit.py`，純標準庫）掛燒額度端點，超限 429 |
+
+### 🔴 Phase 2 — 可靠性（server 重啟不丟工作）
+
+| 項 | PR | 內容 |
+|---|---|---|
+| R-1 | `#27` | **啟動 resume 止血** — `JobStore.resume_interrupted()` 把重啟中斷的卡住 job 標 FAILED + 提示重試（`AWAITING_REVIEW` 等人工合法暫停不動） |
+| R-2 | `#28` | **review gate 不可繞**（硬規則 #1）— render 入口 assert `reviewed`，`require_review=True` 未審→拒渲染標 FAILED；`/approve` 標記、re-ingest 重置 |
+| R-3 | `#29` | **sync I/O 收口** — runner merge 路徑 + localization 11 個 async handler 的 blocking 呼叫全包 `asyncio.to_thread`，不阻 event loop |
+
+### 🟠 Phase 3 — UI 收斂到 `/app` 單一
+
+| 項 | PR | 內容 |
+|---|---|---|
+| U-2 | `#31`·`#32` | **逐區 refine** — 後端 `infographic_service.refine_infographic_section()` + `POST /api/refine-section`（全 mock 不打真 API）；`/app` 前端區塊點選 + 逐區微調面板（可只改文字省額度） |
+| U-3 | `#33` | **`/ui` `/studio` 標 legacy + 退場 banner** — index 注入頂部退場提示導向 `/app`，`/studio` 額外警示「直連 Gemini、繞過計費/審查」；landing 卡標 legacy badge |
+| U-4 | `#35` | **成本面板真實化** — 移除所有 mock 假數字（`$18.74`/「試用 38/50」SaaS 殘留），頂欄 pill + 抽屜共用真實 `/api/usage`，無呼叫時空狀態 |
+| U-6 | `#30` | **前端建置文件化** — `base:'/app/'` 寫死進 `vite.config.ts`（消 footgun）+ `build:app` 別名 + CONTRIBUTING 建置須知 |
+
+### 🟡 Phase 4 — 計費準確 + 模型抽象（M 軸）
+
+| 項 | PR | 內容 |
+|---|---|---|
+| C-1 | `#34` | **影片/解析 pipeline 接計帳** — `core.usage.record_text_now()` 接四個 chokepoint（outliner/scriptor/slide_ingest/solve），成本面板新增「影片」「解析」站 |
+| C-5 | `#39` | **模型 id 自我健檢** `tools/check_models.py` — 蒐集會送 Gemini 的全部 id（角色登錄表 + 設定下拉）比對 `models.list()` 抓 404 風險（可注入 fake，不打真 API） |
+| M-1 | `#36` | **角色登錄表 `core/models.py`** — 6 個邏輯角色 →（provider, model_id）單一真實來源，`resolve()` 優先序：逐角色設定 → legacy 單值 → 內建預設；B-ready |
+| M-2 | `#37` | **換掉寫死 id（視覺/infocards 世界）** — `infocards/gemini.py`/`poster_service`/`routes/infocards.py` 全改走 `resolve_id()`，行為不變。影片/解析文字 pipeline 換接屬 C-3 GATE，留待開額度 |
+| M-3 | `#38` | **設定頁逐角色模型管理** — 新增 `model_roles` 設定欄位 + `role_catalog()`，設定頁逐角色下拉寫入閉環 |
+| M-4 | `#40` | **provider adapter 介面**（B-ready stub `core/providers.py`）— `Provider` 協定 + `GeminiProvider` + registry，Phase 9 本機 provider 可零摩擦 slot-in |
+
+### 🟡 Phase 5 — 部署就緒
+
+| 項 | PR | 內容 |
+|---|---|---|
+| D-2 | `#41` | **production compose override** `docker-compose.prod.yml`（綁 `127.0.0.1`、log rotation、`no-new-privileges`）+ `docs/DEPLOYMENT.md` 上線前安全 checklist |
+| D-3 | `#42` | **反向代理 + TLS 範本** `deploy/nginx.conf.example` / `Caddyfile.example`（上傳上限對齊、長請求逾時、`X-Forwarded-*` 透傳、HSTS） |
+| D-5 | `#43` | **啟動自檢** `core/selfcheck.py` — 啟動印綠/紅環境檢查（ffmpeg/字型 critical、GEMINI key 警告），不阻擋啟動 |
+| D-6 | `#44` | **requirements 分層說明** — README core/optional/song/dev 四層表 + 系統相依（ffmpeg、Noto CJK）；補回漏報的 `faster-whisper`/`python-pptx` |
+
+### 🟡 Phase 6 — 文件就緒（陌生人能上手）
+
+| 項 | PR | 內容 |
+|---|---|---|
+| DOC-1 | `#45` | `claude.md` 更新到 eduStudio 整合後定位（四條 track + `/app` 收斂 + M 軸 + 安全/部署現況） |
+| DOC-2 | `#46` | 去個人化 / 移除 Windows 個人絕對路徑（`D:\...` / `C:\...` → repo 相對 + 三平台範例） |
+| DOC-3 | `#47` | 端到端 onboarding 改寫成**陌生老師 0→1** 主線（安裝 → 配 key → 產第一支影片含 review gate → 上 YouTube → 排查表） |
+| DOC-4 | `#48` | 新增 `docs/ARCHITECTURE.md` 架構地圖（三層俯瞰 + job 狀態機含 render assert + 四 track 共用 pipeline + 橫切關注點） |
+
+### 🟡 Phase 7 — 測試與 CI
+
+| 項 | PR | 內容 |
+|---|---|---|
+| T-1 | `#49` | **端到端整合測試** `tests/test_e2e_pipeline.py` — FastAPI TestClient + 真 pipeline 串 happy-path（建 job→ingest→review gate→approve→render→下載），只 mock 外部邊界；第二支證明 review gate 整條不可繞 |
+| T-2 | `#50` | **CI 護網補洞** — 確認 Node actions 已最新主版；新增 `frontend-app-build` job 把唯一正式前端 `/app`（先前從未進 CI）納入 `npm run build` 護網 |
+
+**測試成長**：v4 收尾 **467** → 產品化推出後 **2509 passed**（CI 端，含字型；本機容器缺 Noto CJK 有 1~3 個像素斷言假象）。
+
+**驗收門檻達成度**：Phase 0–4 全綠、Phase 5 文件/設定就緒（**D-1 跨平台 / D-4 GPU 實測為劉老師本機 GATE**）、
+Phase 6–7 offline 項清空。剩餘 `[ ]` 多為 GATE（需開額度 / 本機實機 / 架構拍板），見 readiness 清單末「待劉老師拍板」。
 
 ---
 

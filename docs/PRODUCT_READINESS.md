@@ -464,8 +464,19 @@
   `npm run build` 通過。純 CI 設定，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
   - ⏸️ 「裝 ffmpeg 跑少量真 render」nightly job 留作後續：真 render 會跑 ffmpeg/TTS，且文字 pipeline
     要不打 Gemini 才 offline（須 `mock=True` 固定 fixture）；牽涉額度/外部服務取捨，另開項評估，不併本輪。
-- [ ] 🟢 **T-3 版本 / tag / CHANGELOG / Release**（offline）— 訂 `v1.0.0`（開源首發）語意化版本，
+- [~] 🟢 **T-3 版本 / tag / CHANGELOG / Release**（offline）— 訂 `v1.0.0`（開源首發）語意化版本，
   `docs/CHANGELOG.md` 已有 → 補 release notes，打 git tag + GitHub Release。
+  - ✅ 2026-06-10 **release notes 已備好（offline 部分）**。`docs/CHANGELOG.md` 原停在 v4
+    （2026-05-15 iter 48），完全沒涵蓋產品化推出的 36 個 PR（#15–#50）。新增 **v1.0.0 —
+    產品化推出（開源自架首發候選）** 一段：按 Phase 0–7 分節列出每項（P0/S/R/U/C/M/D/DOC/T 系列）
+    對應 PR + 一句內容，含測試成長（467→2509 passed）與驗收門檻達成度。CHANGELOG 標題從「v4 階段
+    累積進度」改為通用「CHANGELOG」並指回本清單。純文件，無 code 變更（未動 server/core/schemas/
+    runner，故不需跑 pytest）。
+  - ⏸️ **實際 git tag `v1.0.0` + GitHub Release 發佈時機 = 劉老師拍板**（routine 不自主做：建立公開
+    Release 屬對外、不可逆的首發里程碑決策；且首發前還有兩項本機 GATE 未跑 —— D-1 `docker compose
+    up` 跨平台實測、D-4 F5 GPU passthrough 實測）。release notes 既已備好，劉老師確認後一鍵發佈即可
+    （`git tag -a v1.0.0 -m "..." && git push origin v1.0.0` → GitHub Release 貼 CHANGELOG v1.0.0 段）。
+    待發佈後本項可結。
 - [ ] 🟢 **T-4 README badge / 截圖牆 / 一鍵 demo**（offline）— 開源門面：CI badge（已有）、
   授權 badge、功能截圖、`docker compose up` 一鍵體驗指引。
 

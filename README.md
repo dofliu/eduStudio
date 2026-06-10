@@ -12,6 +12,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Gemini](https://img.shields.io/badge/Google-Gemini%203-4285F4?logo=googlegemini&logoColor=white)
+[![tests](https://github.com/dofliu/eduStudio/actions/workflows/test.yml/badge.svg)](https://github.com/dofliu/eduStudio/actions/workflows/test.yml)
 ![Status](https://img.shields.io/badge/status-active-success)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -47,7 +48,39 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 - **📤 Publish-ready** — PPTX export, YouTube auto-chapters, bilingual subtitle tracks, LaTeX formula rendering, personal-brand footer baked into slides & cards.
 - **🔒 Self-hosted & offline-first** — your API key, your machine, your data. No third-party SaaS in the loop.
 
+### Screenshots
+
+> Screenshots are captured from a running `/app` instance. Drop the images under
+> `docs/screenshots/` with the filenames below and they'll render here.
+
+| The unified `/app` workstation | The human review gate |
+|---|---|
+| <!-- screenshot: docs/screenshots/app-home.png --> _`docs/screenshots/app-home.png`_ | <!-- screenshot: docs/screenshots/review-gate.png --> _`docs/screenshots/review-gate.png`_ |
+| Pick a course, then Video / Visual / Localization | Every AI answer stops here, editable, until you approve |
+
+| Visual composer (infographics & posters) | Cost panel (real per-station usage) |
+|---|---|
+| <!-- screenshot: docs/screenshots/visual.png --> _`docs/screenshots/visual.png`_ | <!-- screenshot: docs/screenshots/usage.png --> _`docs/screenshots/usage.png`_ |
+
+<!-- TODO（人工）：在 docs/screenshots/ 補上上述四張截圖（此環境無瀏覽器，依「文字步驟可獨立完成、視覺後驗」） -->
+
 ### Quick start
+
+**One-command try (Docker)** — fastest way to kick the tyres. The bundled image already
+has ffmpeg + CJK fonts, so you don't install anything except Docker itself:
+
+```bash
+cp .env.example .env          # then put your GEMINI_API_KEY in it
+cp tts_config.example.json tts_config.json   # default edge-tts is fine
+docker compose up -d --build  # build + start in the background
+```
+
+Then open **`http://localhost:8000/app/`**. Stop with `docker compose down` (add `-v` to
+also wipe the `jobs` volume). For exposing it beyond localhost (token, CORS, reverse proxy
++ TLS), follow [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — never put it on a public port
+without setting `EDUSTUDIO_API_TOKEN` first.
+
+**Or run it from source:**
 
 ```bash
 # 0. System prerequisites (NOT pip): ffmpeg (+ffprobe) for any render,
@@ -130,7 +163,37 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 - **📤 隨時可發布** — PPTX 匯出、YouTube 自動章節、雙語字幕軌、LaTeX 公式渲染、個人品牌頁尾自動帶進簡報與圖卡。
 - **🔒 自架、離線優先** — 你的 API key、你的機器、你的資料，中間不經第三方 SaaS。
 
+### 截圖
+
+> 截圖取自實際跑起來的 `/app`。把圖檔以下方檔名放進 `docs/screenshots/` 即會顯示於此。
+
+| 統一 `/app` 工作站 | 人工審查關卡 |
+|---|---|
+| <!-- screenshot: docs/screenshots/app-home.png --> _`docs/screenshots/app-home.png`_ | <!-- screenshot: docs/screenshots/review-gate.png --> _`docs/screenshots/review-gate.png`_ |
+| 右上選課，再切影片 / 視覺 / 在地化 | 每個 AI 答案都停在這裡、可編輯，核准前不外流 |
+
+| 視覺工作台（圖卡 & 海報） | 成本面板（各站真實用量） |
+|---|---|
+| <!-- screenshot: docs/screenshots/visual.png --> _`docs/screenshots/visual.png`_ | <!-- screenshot: docs/screenshots/usage.png --> _`docs/screenshots/usage.png`_ |
+
+<!-- TODO（人工）：在 docs/screenshots/ 補上上述四張截圖（此環境無瀏覽器，依「文字步驟可獨立完成、視覺後驗」） -->
+
 ### 快速開始
+
+**一鍵體驗（Docker）** — 試水溫最快的路。內附 image 已裝好 ffmpeg + CJK 字型，除了 Docker
+本身你什麼都不用裝：
+
+```bash
+cp .env.example .env          # 填入你的 GEMINI_API_KEY
+cp tts_config.example.json tts_config.json   # 預設 edge-tts 即可
+docker compose up -d --build  # 建置 + 背景啟動
+```
+
+接著打開 **`http://localhost:8000/app/`**。停止用 `docker compose down`（加 `-v` 連 `jobs`
+volume 一起清）。要暴露到 localhost 以外（token、CORS、反向代理 + TLS）請照
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — **沒設 `EDUSTUDIO_API_TOKEN` 前別開公網 port**。
+
+**或從原始碼跑：**
 
 ```bash
 # 0. 系統相依 (非 pip): ffmpeg (+ffprobe) 任何 render 都要、Noto CJK 字型確保中文正常。

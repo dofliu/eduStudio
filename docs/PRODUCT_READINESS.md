@@ -477,8 +477,19 @@
     up` 跨平台實測、D-4 F5 GPU passthrough 實測）。release notes 既已備好，劉老師確認後一鍵發佈即可
     （`git tag -a v1.0.0 -m "..." && git push origin v1.0.0` → GitHub Release 貼 CHANGELOG v1.0.0 段）。
     待發佈後本項可結。
-- [ ] 🟢 **T-4 README badge / 截圖牆 / 一鍵 demo**（offline）— 開源門面：CI badge（已有）、
-  授權 badge、功能截圖、`docker compose up` 一鍵體驗指引。
+- [x] 🟢 **T-4 README badge / 截圖牆 / 一鍵 demo**（offline）— ✅ 2026-06-10 完成（offline 門面部分）。
+  README 補上**實時 CI/tests 狀態 badge**（`actions/workflows/test.yml/badge.svg`，先前只有靜態
+  `status:active` 與已有的 MIT 授權 badge，缺真正反映綠/紅的 CI badge）、新增 **`docker compose up`
+  一鍵體驗指引**（中英雙語各補一段「一鍵體驗（Docker）」放在原始碼安裝法之前——內附 image 已帶
+  ffmpeg+CJK 字型、`cp .env.example .env` → `docker compose up -d --build` → 開 `/app/`，並提醒沒設
+  `EDUSTUDIO_API_TOKEN` 前別開公網 port、指回 DEPLOYMENT.md）、新增**截圖牆 section**（中英雙語 4 格
+  表格：`/app` 工作站 / 人工審查關卡 / 視覺工作台 / 成本面板，以 `docs/screenshots/*.png` 預留位 +
+  `<!-- screenshot: … -->` 佔位）。順手把 `docker-compose.yml` 註解頭從舊名 `autoSolverVideo` + 指向
+  legacy `/ui/` 更新成 eduStudio + 指向 `/app/`，讓一鍵 demo 前後一致。純文件/設定，無 code 變更
+  （未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ⏸️ **實際截圖圖檔 = 人工後補**（此環境無瀏覽器，依既定「文字步驟可獨立完成、視覺後驗」，比照
+    DOC-3 的截圖佔位）：把四張 `docs/screenshots/*.png` 放進去即自動顯示。與 **DOC-5（demo 影片，GATE）**
+    一併由劉老師用跑起來的系統截/錄。
 
 ---
 

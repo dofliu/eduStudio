@@ -443,9 +443,16 @@
 
 ## Phase 7 — 測試與發佈（🟡 品質護網 + 正式版本）
 
-- [ ] 🟡 **T-1 端到端整合測試**（offline）— 現況 ~2400 tests 強在純函式單元，**缺 TestClient +
-  真 pipeline 端到端**（建 job → ingest（mock Gemini）→ review → render（mock ffmpeg）→ artifact）。
-  補一組 happy-path E2E，鎖住「整條接線不斷」。CI 可能要分 job 處理重依賴（見 test.yml 註解）。
+- [x] 🟡 **T-1 端到端整合測試**（offline）— ✅ 2026-06-10 完成。新增 `tests/test_e2e_pipeline.py`：
+  用 **FastAPI TestClient + 真 pipeline** 串「整條接線不斷」happy-path——建 job（`POST /jobs`）→
+  ingest → review gate 停 `awaiting_review` → 看 draft（`GET /draft`）→ 人工 approve（`POST /approve`）→
+  render → DONE → 下載 artifact（`GET /artifacts/{name}`），走真實 `run_job` / `_run_render_phase` /
+  JobStore / route 接線，只 mock **兩個外部邊界**：Gemini ingest 用 `EXAM_PDF`+`mock=True`（走
+  `solve.mock_output()` 離線資料）、ffmpeg/TTS render monkeypatch `core.render_video` 只寫 fake mp4/srt
+  ＝offline-first 不打真 API、不跑 ffmpeg。第二支測試證明 **R-2 review gate（硬規則 #1）在整條 pipeline
+  裡仍不可繞**：approve 前 render 被擋 FAILED 且根本沒進 `render_video`、無 artifact，approve 後才放行
+  DONE。本機全套 2509 passed（2 個 QR/theme 字型像素為容器缺 Noto CJK 假象，CI 權威）。註：CI 端到端
+  重依賴分 job 處理（test.yml）可後續隨 T-2 一併評估。
 - [ ] 🟡 **T-2 CI actions 升版**（offline）— Node actions 升 v4 消棄用警告（HANDOFF #6）；
   考慮加一個「裝 ffmpeg 跑少量真 render」的 nightly job。
 - [ ] 🟢 **T-3 版本 / tag / CHANGELOG / Release**（offline）— 訂 `v1.0.0`（開源首發）語意化版本，

@@ -520,10 +520,23 @@
   點」輔助 reviewer：① 二次獨立模型 pass 比對數值 ② 數學步驟符號/單位一致性檢查。**只標記不
   自動改**（不繞硬規則 #1，是輔助人工不是取代）。降低 reviewer 負擔 = 把核心差異化做深。
   先寫 `docs/REVIEW_ASSIST_RFC.md` 拆子任務。碰額度（二次模型）→ proposal。
-- [ ] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
+- [~] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
   **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
   「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；
   自動建議術語碰額度 → proposal。
+  - ✅ 2026-06-11 **第一刀：schema + TTS 套用層完成**。新增 `core/glossary.py`：`GlossaryEntry`
+    （term + reading 讀音覆寫 + 各語言固定譯名 `translations` + 縮寫展開 `expansion` + 別名 aliases +
+    note；term/course 非空 type guard）、`Glossary`（per-course），純函式套用層 `to_pronunciation_map`
+    （→ TTS 讀音）/`translation_map(lang)`（→ 翻譯固定譯名）/`expansion_map`（→ 縮寫全稱），surface form
+    展開 + longest-first，加 `load_glossary`/`save_glossary`（per-course `glossary.json`，路徑慣例
+    `glossary_path_for(project_dir)`，沿 pronunciation 寬容語意：缺檔回 None、壞檔嚴格拋）。`tts_backend.
+    normalize_text` 加**選填** `extra_pronunciation`（per-course 讀音與全域 `pronunciation.json`
+    longest-first 合併、同 key 課程優先；預設 None＝既有 caller 零影響）。補 `tests/test_glossary.py`
+    22 測（schema 驗證/各 map/roundtrip/缺檔/壞檔/normalize 整合覆蓋全域，**全 tmp 隔離不打 API**＝
+    offline-first）。本機全套 2529 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ⏸️ **後續 offline slice**：把 glossary 掛進 ProjectStore（讀 `{project_dir}/glossary.json`）+
+    runner 產旁白時帶該課 `to_pronunciation_map()` + translateGemma 套 `translation_map()` + 設定頁
+    /API 編輯 glossary UI。**自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，寫 proposal 再做。
 - [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

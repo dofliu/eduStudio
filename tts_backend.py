@@ -65,6 +65,23 @@ def _load_pronunciation_map() -> list[tuple[str, str]]:
     return _PRONUNCIATION_MAP_CACHE
 
 
+def _merged_pronunciation(
+    extra: dict[str, str] | None,
+) -> list[tuple[str, str]]:
+    """全域 pronunciation.json + per-course glossary 讀音, longest-first 合併。
+
+    F9-2: 課程術語表（`core.glossary.to_pronunciation_map`）以 `extra` 帶進來, **同 key
+    時課程蓋全域**（更專一的脈絡優先）。`extra` 為 None/空 → 直接回全域快取（零額外成本,
+    既有所有 caller 行為完全不變）。合併後仍 longest-first 排序維持替換正確性。
+    """
+    base = _load_pronunciation_map()
+    if not extra:
+        return base
+    merged: dict[str, str] = dict(base)
+    merged.update(extra)  # 課程術語覆蓋同 key 的全域讀音
+    return sorted(merged.items(), key=lambda x: -len(x[0]))
+
+
 def split_for_f5(text: str, max_chars: int = 30) -> list[str]:
     """PR-5b: F5-TTS 預切句, 解決 F5 內部 batch 不顧中文詞邊界的問題。
 
@@ -125,11 +142,17 @@ _VAR_SPLIT_SKIP = {
 }
 
 
-def normalize_text(text: str) -> str:
+def normalize_text(
+    text: str, extra_pronunciation: dict[str, str] | None = None
+) -> str:
     """進 TTS 前的標準前處理: 公式 / 變數 normalize、分數展開、發音對照、空白清理。
 
     所有 backend 的 synthesize 都會自動先過這個函式, 確保 pronunciation.json
     在每個入口都生效。
+
+    F9-2: `extra_pronunciation` 帶 per-course glossary 的讀音表
+    (`core.glossary.to_pronunciation_map`), 與全域 pronunciation.json longest-first
+    合併、同 key 課程優先。預設 None = 完全沿用全域 (既有 caller 零影響)。
 
     iter 93 新增 (實測 GCP Wavenet 念公式糟):
     - 剝 markdown backtick / 星號 (LLM 偶爾把變數包成 `e(t)`, TTS 念「上句點」)
@@ -178,8 +201,8 @@ def normalize_text(text: str) -> str:
         lambda m: f"{m.group(1)} {''.join(digit_map.get(c, c) for c in m.group(2))}",
         text,
     )
-    # 發音對照: longest-match 替換, 前後補空白避免黏字
-    for src, dst in _load_pronunciation_map():
+    # 發音對照: longest-match 替換, 前後補空白避免黏字 (全域 + per-course glossary)
+    for src, dst in _merged_pronunciation(extra_pronunciation):
         text = text.replace(src, f" {dst} ")
     return re.sub(r"\s+", " ", text).strip()
 

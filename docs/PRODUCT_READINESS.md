@@ -534,9 +534,17 @@
     longest-first 合併、同 key 課程優先；預設 None＝既有 caller 零影響）。補 `tests/test_glossary.py`
     22 測（schema 驗證/各 map/roundtrip/缺檔/壞檔/normalize 整合覆蓋全域，**全 tmp 隔離不打 API**＝
     offline-first）。本機全套 2529 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
-  - ⏸️ **後續 offline slice**：把 glossary 掛進 ProjectStore（讀 `{project_dir}/glossary.json`）+
-    runner 產旁白時帶該課 `to_pronunciation_map()` + translateGemma 套 `translation_map()` + 設定頁
-    /API 編輯 glossary UI。**自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，寫 proposal 再做。
+  - ✅ 2026-06-11 **第二刀：掛進 ProjectStore（一課一 glossary）完成**。`core/project.py` 的
+    `ProjectStore` 加 `get_glossary(pid)` / `save_glossary(pid, glossary)`：每課 glossary 落
+    `{root}/{pid}/glossary.json`（沿 `core.glossary.glossary_path_for` 路徑慣例），**與 `project.json`
+    分檔**（術語可上百條、跟 project 生命週期不同步，分檔避免改一條術語就重寫整個 project.json）。
+    讀無檔回 None（寬容語意）、對不存在的 pid 讀/寫丟 `ProjectNotFoundError`（glossary 必依附 project，
+    不靜默回 None 掩蓋），全程 RLock 內完成。補 `tests/test_project.py` 4 測（無檔回 None / save→reload
+    跨 store 持久化 / 逐課隔離 / 不存在 project 拋錯，**全 tmp 隔離不打 API**＝offline-first）。本機全套
+    2533 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ⏸️ **後續 offline slice**：runner 產旁白時帶該課 `to_pronunciation_map()` + translateGemma 套
+    `translation_map()` + 設定頁/API 編輯 glossary UI。**自動建議術語**（掃教材抽術語）碰 Gemini 額度
+    = GATE，寫 proposal 再做。
 - [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

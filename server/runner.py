@@ -1236,6 +1236,18 @@ async def _run_render_phase(
             store.update(job_id, state=JobState.FAILED, error=msg)
             return
 
+        # F9-4 影片版本管理: 重 render 一個已完成 (DONE) 的 job 前, 先把現有
+        # artifacts 歸檔成一個版本, 避免新 render 覆蓋掉還能用的舊版 (可比對 / 回滾)。
+        # 只在 DONE 重 render 時做 — 首次 render (awaiting_review→render) 與 FAILED
+        # retry (沒有可保留的好版本) 不歸檔。
+        if rec_gate is not None and rec_gate.state == JobState.DONE:
+            archived = store.archive_artifacts(job_id)
+            if archived is not None and archived.artifact_versions:
+                logger.info(
+                    "重 render 前已歸檔舊版 artifacts 為 v%d",
+                    archived.artifact_versions[-1].version,
+                )
+
         store.update(job_id, state=JobState.RENDERING, error=None)
         stage_name = f"render-section-{section_id}" if section_id else "render"
         _start_stage(store, job_id, stage_name)

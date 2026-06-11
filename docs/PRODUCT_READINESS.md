@@ -578,7 +578,7 @@
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選
   provider。與 offline-first 主軸高度契合。先寫 `docs/LOCAL_MODEL_RFC.md`（哪些角色支援本機 /
   品質落差 / 自動退雲端）。
-- [~] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
+- [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。
   - ✅ 2026-06-11 **第一刀：後端重 render 歸檔機制完成**。`server/schemas.py` 新增
@@ -601,7 +601,15 @@
     防護（S-3）。補 `tests/test_jobs_route.py` 11 測（列版本：未存在 job 404／無版本空 list／多版本由新到
     舊＋URL／note 透傳；下載版本：byte-perfect 還原／逐版本隔離／未知版本 404／version 0 404／缺檔 404／
     `..` traversal 400／未存在 job 404，**全 tmp 隔離不打 API**＝offline-first）。本機全套 2568 passed
-    （3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。**後續 offline slice**：③前端版本列/回滾 UI。
+    （3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第三刀：前端版本列/回滾 UI 完成（F9-4 收尾）**。`frontend/edustudio/app.jsx` 的
+    `TaskCard` 展開詳情（done/failed job）新增「歷史版本」區：展開時 `GET /jobs/{id}/versions` 載入歷次
+    歸檔舊版，逐版列 **v 編號 + 歸檔時間 + note + 各 artifact 下載連結**（附 `esFmtSize` 檔案大小，連到
+    第二刀的 `/jobs/{id}/versions/{v}/artifacts/{name}` 下載端點，給比對/回滾用）；沒歸檔過（沒重 render
+    過）則整區不顯示、版本內無產物顯示佔位文字。與既有逐章重渲染區並排（同 done/failed 條件、同 `es-bg-2`
+    版式），讓「重 render 前的好版本」一眼可取回。本機 `npm run build`（vite, node22）編譯通過；**視覺驗收
+    待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。三刀（後端歸檔／API／前端 UI）
+    到齊，F9-4 offline 部分收尾。
 
 > （備案，未納入：**LMS/Moodle/SCORM 匯出** — 教學剛需但 ROADMAP 已列遠期、最遠，要提前再議。）
 

@@ -1074,6 +1074,7 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
   const [log, setLog] = useState(null);
   const [sections, setSections] = useState(null);
   const [rerendering, setRerendering] = useState("");
+  const [versions, setVersions] = useState(null);   // F9-4：重 render 前歸檔的歷史舊版
 
   // 展開時抓 log tail；running 任務每 4 秒刷新 log。
   useEffect(() => {
@@ -1092,6 +1093,15 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
     let alive = true;
     fetch(`/jobs/${task.id}/draft`).then(r => r.ok ? r.json() : Promise.reject())
       .then(d => { if (alive) setSections(esDeckSections(d.deck || d)); }).catch(() => { if (alive) setSections([]); });
+    return () => { alive = false; };
+  }, [open, task.id, canRerender]);
+
+  // 展開且 done/failed → 抓歷史版本（F9-4：重 render 前自動歸檔的舊版，可下載比對/回滾）。
+  useEffect(() => {
+    if (!open || !task._job || !canRerender) return;
+    let alive = true;
+    fetch(`/jobs/${task.id}/versions`).then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => { if (alive) setVersions(d.versions || []); }).catch(() => { if (alive) setVersions([]); });
     return () => { alive = false; };
   }, [open, task.id, canRerender]);
 
@@ -1169,6 +1179,32 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
                 {sections.map(s => (
                   <Button key={s.id} variant="ghost" size="sm" icon="refresh-cw" disabled={!!rerendering}
                     onClick={() => rerender(s.id)}>{rerendering === s.id ? "排程中…" : s.title}</Button>
+                ))}
+              </div>
+            </div>
+          )}
+          {canRerender && versions && versions.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="es-cap es-mut" style={{ marginBottom: 6 }}>歷史版本（重 render 前自動歸檔的舊版，可下載比對 / 回滾）</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {versions.map(v => (
+                  <div key={v.version} style={{ background: "var(--es-bg-2)", borderRadius: 8, padding: "8px 10px" }}>
+                    <div className="es-row es-gap-sm" style={{ flexWrap: "wrap", alignItems: "baseline" }}>
+                      <Badge tone="neutral">v{v.version}</Badge>
+                      <span className="es-cap es-mut">歸檔於 {v.archived_at ? new Date(v.archived_at).toLocaleString("zh-TW") : "—"}</span>
+                      {v.note && <span className="es-cap es-mut">· {v.note}</span>}
+                    </div>
+                    <div className="es-row es-gap-xs" style={{ flexWrap: "wrap", marginTop: 6 }}>
+                      {(v.artifacts || []).length === 0
+                        ? <span className="es-cap es-mut">（此版本無可下載產物）</span>
+                        : (v.artifacts || []).map(a => (
+                          <a key={a.name} className="es-cap es-mut" href={a.url} download
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <Icon name="download" size={12} /> {a.name}{a.size_bytes ? ` (${esFmtSize(a.size_bytes)})` : ""}
+                          </a>
+                        ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

@@ -592,7 +592,16 @@
     14 測（空/缺目錄 no-op、copy 非 move、版本欄位、kind 分類、多版遞增、持久化、未知 job 拋錯 +
     runner 整合：DONE 重 render 歸檔／首次不歸檔／FAILED 不歸檔／DONE 但空不留空版本，**全 tmp
     隔離不打 API**＝offline-first）。本機全套 2557 passed（3 個 QR/journal 字型像素為容器缺 Noto
-    CJK 假象，CI 權威）。**後續 offline slice**：② API 列版本 + 下載指定版本端點 ③前端版本列/回滾 UI。
+    CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第二刀：API 列版本 + 下載指定版本端點完成**。`server/routes/jobs.py` 補兩端點：
+    `GET /jobs/{id}/versions`（列歷次歸檔舊版，讀 `record.artifact_versions`，由新到舊排，每個版本
+    每個 artifact 附下載 URL；沒重 render 過回空 list 非 404）、`GET /jobs/{id}/versions/{v}/artifacts/
+    {name}`（下載指定版本的歷史 artifact，給比對/回滾用，檔在 `artifact_history/v<N>/`）。下載端點
+    `version` 走 int 型驗證、`<=0` 直接 404、`name` 比照 artifacts 端點走 `safe_join` 三道 path-traversal
+    防護（S-3）。補 `tests/test_jobs_route.py` 11 測（列版本：未存在 job 404／無版本空 list／多版本由新到
+    舊＋URL／note 透傳；下載版本：byte-perfect 還原／逐版本隔離／未知版本 404／version 0 404／缺檔 404／
+    `..` traversal 400／未存在 job 404，**全 tmp 隔離不打 API**＝offline-first）。本機全套 2568 passed
+    （3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。**後續 offline slice**：③前端版本列/回滾 UI。
 
 > （備案，未納入：**LMS/Moodle/SCORM 匯出** — 教學剛需但 ROADMAP 已列遠期、最遠，要提前再議。）
 

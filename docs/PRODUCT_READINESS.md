@@ -561,11 +561,18 @@
     對空字串 no-op＝既有 caller 零影響）。補 `tests/test_glossary.py` 6 測（逐行格式/別名並排/限該
     lang/缺譯名回空/空 glossary/橋接進 `_format_custom_rules` + 空字串 no-op，**全 offline 不打 API**）。
     本機全套 2545 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第五刀：前端 glossary 編輯 UI 完成**。`frontend/edustudio/app.jsx` 新增
+    `GlossaryEditor`（掛在課程工作空間 `ProjectStation` 作用中課程下方，per-course 一份）：切換作用中
+    課程→`GET /projects/{pid}/glossary` 整張載入（404「此課尚未建立」＝開空表起頭、course 預設課名），
+    可逐條編輯 **術語 / 讀音（TTS 覆寫）/ 縮寫全稱 / 別名（逗號或、分隔→陣列）/ 逐語言固定譯名（語言
+    下拉×譯名→ translations dict）/ 備註**，新增/刪除術語與譯名列，「儲存術語表」→ `PUT` 整張覆寫並
+    以後端回存為準。存檔前濾掉沒填 term 的列（後端 term 非空 validator，空 term→422）；別名/譯名以
+    `esGlossToApi` 轉回 API 形。可折疊面板（預設收合）避免干擾工作空間。本機 `npm run build`（vite,
+    node22）編譯通過；**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。
   - ⏸️ **後續 offline slice**：runner 產旁白時帶該課 `to_pronunciation_map()`（需先定 job↔課
     association：jobs 目前不帶 project_id、只有 `ProjectStore.add_job` 單向掛載 → 反查設計是架構抉擇，
-    待拍板；同一 association 也是把 `to_translation_rules()` 接進翻譯 route 的前提）+ 設定頁前端
-    glossary 編輯 UI（API 已就緒）。**自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，寫
-    proposal 再做。
+    待拍板；同一 association 也是把 `to_translation_rules()` 接進翻譯 route 的前提）。**自動建議術語**
+    （掃教材抽術語）碰 Gemini 額度 = GATE，寫 proposal 再做。
 - [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

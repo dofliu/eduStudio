@@ -552,10 +552,20 @@
     →404 detail 區分 / PUT→GET roundtrip 跨 store 持久化 / 整張覆寫 / 不存在 project 404 / 空 term
     422 / 逐課隔離，**全 tmp 隔離不打 API**＝offline-first）。本機相關子集 66 passed、全套 2539 passed
     （3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第四刀：translation_map → translate() 橋接完成**。`core/glossary.py` 加純函式
+    `to_translation_rules(glossary, lang)`：把該課固定譯名整理成逐行「來源寫法（term + 別名，
+    longest-first，`/` 並排）→ 目標譯名」文字塊，直接餵 `TranslateGemmaService.translate(...,
+    glossary=...)`（會被 `_format_custom_rules` 包成 strict 術語規則塞進 prompt），讓翻譯層強制術語
+    一致——對應 TTS 側 `to_pronunciation_map()` → `normalize_text` 的同類橋接（補上 `translation_map`
+    回 dict、但 translate 吃 str 的缺口）。只收該 lang 有設譯名的 entry、都沒有回空字串（translate
+    對空字串 no-op＝既有 caller 零影響）。補 `tests/test_glossary.py` 6 測（逐行格式/別名並排/限該
+    lang/缺譯名回空/空 glossary/橋接進 `_format_custom_rules` + 空字串 no-op，**全 offline 不打 API**）。
+    本機全套 2545 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
   - ⏸️ **後續 offline slice**：runner 產旁白時帶該課 `to_pronunciation_map()`（需先定 job↔課
     association：jobs 目前不帶 project_id、只有 `ProjectStore.add_job` 單向掛載 → 反查設計是架構抉擇，
-    待拍板）+ translateGemma 套 `translation_map()` + 設定頁前端 glossary 編輯 UI（API 已就緒）。
-    **自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，寫 proposal 再做。
+    待拍板；同一 association 也是把 `to_translation_rules()` 接進翻譯 route 的前提）+ 設定頁前端
+    glossary 編輯 UI（API 已就緒）。**自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，寫
+    proposal 再做。
 - [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

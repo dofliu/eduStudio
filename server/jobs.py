@@ -24,6 +24,7 @@ from core.config import PROJECT_ROOT
 
 from .schemas import (
     Artifact,
+    ArtifactVersion,
     CreateJobRequest,
     JobOptions,
     JobRecord,
@@ -244,6 +245,50 @@ class JobStore:
 
     def refresh_artifacts(self, job_id: str) -> JobRecord:
         return self.update(job_id, artifacts=self.scan_artifacts(job_id))
+
+    def archive_artifacts(self, job_id: str, note: str = "") -> JobRecord | None:
+        """F9-4: 把現有 artifacts/ 快照進 artifact_history/v<N>/ 保留舊版。
+
+        重 render 一個已完成 job 前呼叫: 把好版本複製 (非搬移) 到歷史目錄不覆蓋,
+        之後可比對 / 回滾。回傳更新後 record; artifacts/ 沒檔案 (沒可保留的舊版) →
+        不做事回 None。歸檔是非破壞性的 (copy), artifacts/ 內容不動, 接著的 render
+        照常覆蓋。
+        """
+        with self._lock:
+            rec = self._cache.get(job_id)
+            if rec is None:
+                raise KeyError(job_id)
+            src = self.root / job_id / "artifacts"
+            files = sorted(p for p in src.iterdir() if p.is_file()) if src.exists() else []
+            if not files:
+                return None
+            version = len(rec.artifact_versions) + 1
+            hist_dir = self.root / job_id / "artifact_history" / f"v{version}"
+            hist_dir.mkdir(parents=True, exist_ok=True)
+            snapshot: list[Artifact] = []
+            for p in files:
+                dst = hist_dir / p.name
+                shutil.copy2(p, dst)
+                ext = dst.suffix.lower().lstrip(".")
+                kind = ext if ext in ("mp4", "srt", "json", "png") else "other"
+                snapshot.append(Artifact(
+                    name=dst.name,
+                    path=str(dst.relative_to(self.root)).replace("\\", "/"),
+                    size_bytes=dst.stat().st_size,
+                    kind=kind,
+                ))
+            snap = ArtifactVersion(
+                version=version,
+                created_at=rec.updated_at,
+                archived_at=utc_now(),
+                path=f"artifact_history/v{version}",
+                artifacts=snapshot,
+                note=note,
+            )
+            return self.update(
+                job_id,
+                artifact_versions=list(rec.artifact_versions) + [snap],
+            )
 
     # ---- YouTube uploads (PR-3f) ----
 

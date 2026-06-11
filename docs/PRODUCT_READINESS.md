@@ -578,9 +578,21 @@
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選
   provider。與 offline-first 主軸高度契合。先寫 `docs/LOCAL_MODEL_RFC.md`（哪些角色支援本機 /
   品質落差 / 自動退雲端）。
-- [ ] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
+- [~] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。
+  - ✅ 2026-06-11 **第一刀：後端重 render 歸檔機制完成**。`server/schemas.py` 新增
+    `ArtifactVersion`（version/created_at/archived_at/path/artifacts/note）+ `JobRecord.
+    artifact_versions`（`extra="allow"` → 舊 state.json 無痛相容）。`JobStore.archive_artifacts
+    (job_id, note)`：把現有 `artifacts/` **複製（非搬移）**進 `jobs/<id>/artifact_history/v<N>/`
+    保留舊版，回傳更新後 record；`artifacts/` 空（沒可保留的舊版）→ no-op 回 None；版本序號遞增、
+    各檔 metadata（name/kind/size/相對路徑）寫進快照、寫盤持久化。`server/runner.py::_run_render_phase`
+    在重 render 一個 **DONE** job 前自動呼叫歸檔（首次 render 與 FAILED retry 不歸檔＝沒有可保留的
+    好版本）；歸檔非破壞性、artifacts/ 照常被後續 render 覆蓋。補 `tests/test_artifact_versions.py`
+    14 測（空/缺目錄 no-op、copy 非 move、版本欄位、kind 分類、多版遞增、持久化、未知 job 拋錯 +
+    runner 整合：DONE 重 render 歸檔／首次不歸檔／FAILED 不歸檔／DONE 但空不留空版本，**全 tmp
+    隔離不打 API**＝offline-first）。本機全套 2557 passed（3 個 QR/journal 字型像素為容器缺 Noto
+    CJK 假象，CI 權威）。**後續 offline slice**：② API 列版本 + 下載指定版本端點 ③前端版本列/回滾 UI。
 
 > （備案，未納入：**LMS/Moodle/SCORM 匯出** — 教學剛需但 ROADMAP 已列遠期、最遠，要提前再議。）
 

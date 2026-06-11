@@ -12,6 +12,8 @@
     GET    /jobs/{id}/image-frames        批次 image_frames summary (iter 109 E1-4 backend)
     POST   /jobs/{id}/approve             從 awaiting_review 進入 render
     GET    /jobs/{id}/artifacts/{name}    下載產物檔
+    GET    /jobs/{id}/versions            列出歷次歸檔舊版 artifacts (F9-4)
+    GET    /jobs/{id}/versions/{v}/artifacts/{name}  下載指定版本 artifact (F9-4)
     GET    /jobs/{id}/images/{name}       下載 song 逐段生圖 (SONG M3e-3 預覽)
 """
 from __future__ import annotations
@@ -397,6 +399,64 @@ async def download_artifact(job_id: str, name: str, store: JobStore = Depends(ge
     target = safe_join(store.artifacts_dir(job_id), name)
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"artifact 不存在: {name}")
+    return FileResponse(target, filename=name)
+
+
+# ---------- Artifact 版本歷史 (F9-4 影片版本管理) ----------
+
+@router.get("/{job_id}/versions")
+async def list_artifact_versions(
+    job_id: str, store: JobStore = Depends(get_default_store),
+) -> JSONResponse:
+    """列出該 job 重 render 前歸檔的歷次舊版 artifacts (F9-4 slice ②)。
+
+    archive_artifacts 把每次重 render 前的 artifacts/ 快照進 artifact_history/v<N>/,
+    record.artifact_versions 存其 metadata。這裡把它整理成附下載 URL 的列表給 UI
+    列版本 / 回滾用。沒歸檔過 → 回空 list (新 job 或從未重 render 都正常)。
+    版本由新到舊排 (最近歸檔的好版本在最上面)。
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    versions = []
+    for v in sorted(rec.artifact_versions, key=lambda v: v.version, reverse=True):
+        artifacts = [{
+            "name": a.name,
+            "kind": a.kind,
+            "size_bytes": a.size_bytes,
+            "url": f"/jobs/{job_id}/versions/{v.version}/artifacts/{a.name}",
+        } for a in v.artifacts]
+        versions.append({
+            "version": v.version,
+            "created_at": v.created_at.isoformat(),
+            "archived_at": v.archived_at.isoformat(),
+            "path": v.path,
+            "note": v.note,
+            "artifacts": artifacts,
+        })
+    return JSONResponse(content={"versions": versions})
+
+
+@router.get("/{job_id}/versions/{version}/artifacts/{name}")
+async def download_versioned_artifact(
+    job_id: str, version: int, name: str,
+    store: JobStore = Depends(get_default_store),
+) -> FileResponse:
+    """下載指定歷史版本的 artifact (F9-4 slice ②)，給比對 / 回滾用。
+
+    歷史檔在 jobs/<id>/artifact_history/v<N>/<name>。version 為 int (FastAPI 驗型),
+    <=0 直接 404; name 走 safe_join 三道 path-traversal 防護 (比照 artifacts 端點)。
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    if version < 1:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"版本不存在: v{version}")
+    version_dir = store.job_dir(job_id) / "artifact_history" / f"v{version}"
+    target = safe_join(version_dir, name)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"版本 v{version} 無此 artifact: {name}")
     return FileResponse(target, filename=name)
 
 

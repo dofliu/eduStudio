@@ -2547,6 +2547,129 @@ function VlibCard({ item, onDelete }) {
   );
 }
 
+// 課程術語表編輯器（F9-2）：一課一份 glossary，逐角色固定譯名/讀音/縮寫展開，給旁白與翻譯
+// 套用以保術語一致。後端 GET/PUT /projects/{pid}/glossary 已就緒，這裡只做整張載入→編輯→覆寫存回。
+const ES_GLOSS_INPUT = { width: "100%", padding: "6px 8px", borderRadius: 7, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)", fontSize: 13 };
+const esGlossBlankEntry = () => ({ term: "", reading: "", expansion: "", aliases: "", note: "", translations: [] });
+// API entry（aliases 陣列 / translations dict）↔ 表單形（aliases 字串 / translations 列）互轉。
+const esGlossFromApi = (e) => ({
+  term: e.term || "", reading: e.reading || "", expansion: e.expansion || "", note: e.note || "",
+  aliases: (e.aliases || []).join("、"),
+  translations: Object.entries(e.translations || {}).map(([lang, name]) => ({ lang, name })),
+});
+const esGlossToApi = (e) => {
+  const translations = {};
+  (e.translations || []).forEach(t => { const l = (t.lang || "").trim(); const n = (t.name || "").trim(); if (l && n) translations[l] = n; });
+  const out = { term: e.term.trim(), aliases: e.aliases.split(/[、,\n]/).map(s => s.trim()).filter(Boolean), translations };
+  if (e.reading.trim()) out.reading = e.reading.trim();
+  if (e.expansion.trim()) out.expansion = e.expansion.trim();
+  if (e.note.trim()) out.note = e.note.trim();
+  return out;
+};
+
+function GlossaryEditor({ projectId, projectTitle, onFlash }) {
+  const [open, setOpen] = useState(false);
+  const [course, setCourse] = useState("");
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // 切換作用中課程→重載該課術語表。404「此課尚未建立」＝開一張空表起頭（course 預設課名）。
+  useEffect(() => {
+    if (!projectId) { setEntries([]); setCourse(""); return; }
+    setLoading(true);
+    fetch("/projects/" + projectId + "/glossary").then(async r => {
+      if (r.status === 404) { setCourse(projectTitle || projectId); setEntries([]); return; }
+      if (!r.ok) { onFlash && onFlash("讀取術語表失敗（" + r.status + "）"); return; }
+      const d = await r.json();
+      setCourse(d.course || projectTitle || projectId);
+      setEntries((d.entries || []).map(esGlossFromApi));
+    }).catch(() => onFlash && onFlash("讀取術語表發生錯誤"))
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  const patchEntry = (i, k, v) => setEntries(es => es.map((e, j) => j === i ? { ...e, [k]: v } : e));
+  const addEntry = () => { setEntries(es => [...es, esGlossBlankEntry()]); setOpen(true); };
+  const removeEntry = (i) => setEntries(es => es.filter((_, j) => j !== i));
+  const addTrans = (i) => patchEntry(i, "translations", [...(entries[i].translations || []), { lang: "", name: "" }]);
+  const patchTrans = (i, ti, k, v) => patchEntry(i, "translations", entries[i].translations.map((t, j) => j === ti ? { ...t, [k]: v } : t));
+  const removeTrans = (i, ti) => patchEntry(i, "translations", entries[i].translations.filter((_, j) => j !== ti));
+
+  const save = async () => {
+    // term 為所有 map 的 key、後端驗證非空（空 term→422），存檔前先濾掉沒填 term 的列。
+    const valid = entries.filter(e => e.term.trim());
+    const payload = { course: (course.trim() || projectTitle || projectId), entries: valid.map(esGlossToApi) };
+    setBusy(true);
+    try {
+      const r = await fetch("/projects/" + projectId + "/glossary", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!r.ok) { let d = r.status; try { d = (await r.json()).detail || d; } catch {} onFlash && onFlash("儲存術語表失敗：" + d); return; }
+      const d = await r.json();
+      setEntries((d.entries || []).map(esGlossFromApi));   // 以後端回存的整張為準（已濾過空 term）
+      onFlash && onFlash("已儲存術語表（" + (d.entries || []).length + " 條）");
+    } catch (e) { onFlash && onFlash("儲存發生錯誤：" + e.message); }
+    finally { setBusy(false); }
+  };
+
+  if (!projectId) return null;
+  const transLangs = LANGS.filter(l => !l.source);
+  return (
+    <Card style={{ marginTop: 18, padding: 14 }}>
+      <div className="es-row" style={{ justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setOpen(o => !o)}>
+        <div className="es-row es-gap-sm" style={{ alignItems: "center" }}>
+          <Icon name="book-open" size={16} style={{ color: "var(--es-fg-2)" }} />
+          <h2 className="es-h2" style={{ margin: 0 }}>課程術語表 {entries.length > 0 && <span className="es-mut">{entries.length}</span>}</h2>
+        </div>
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={18} style={{ color: "var(--es-fg-2)" }} />
+      </div>
+      <div className="es-cap es-mut" style={{ marginTop: 4 }}>固定譯名 / 讀音 / 縮寫展開，逐課一份；產旁白與翻譯時套用以保術語一致。</div>
+
+      {open && (
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+          {loading ? <div className="es-mut" style={{ padding: 8 }}>載入術語表…</div> : (
+            <>
+              <Field label="課名（glossary.course）"><input style={ES_GLOSS_INPUT} value={course} onChange={e => setCourse(e.target.value)} placeholder={projectTitle || projectId} /></Field>
+              {entries.length === 0 && <div className="es-mut" style={{ padding: "4px 0" }}>尚無術語。按下方「新增術語」開始建立這門課的固定譯名 / 讀音。</div>}
+              {entries.map((e, i) => (
+                <div key={i} style={{ border: "1px solid var(--es-border)", borderRadius: 9, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="es-row es-gap-xs" style={{ alignItems: "flex-end" }}>
+                    <Field label="術語" className="es-grow"><input style={ES_GLOSS_INPUT} value={e.term} onChange={ev => patchEntry(i, "term", ev.target.value)} placeholder="自然頻率 / ω_n / PID" /></Field>
+                    <IconButton icon="trash-2" title="刪除這條術語" onClick={() => removeEntry(i)} />
+                  </div>
+                  <div className="es-row es-gap-xs" style={{ flexWrap: "wrap" }}>
+                    <Field label="讀音（TTS 覆寫）" className="es-grow"><input style={ES_GLOSS_INPUT} value={e.reading} onChange={ev => patchEntry(i, "reading", ev.target.value)} placeholder="P I D 控制器" /></Field>
+                    <Field label="縮寫全稱" className="es-grow"><input style={ES_GLOSS_INPUT} value={e.expansion} onChange={ev => patchEntry(i, "expansion", ev.target.value)} placeholder="比例-積分-微分" /></Field>
+                  </div>
+                  <Field label="別名 / 變體（逗號或、分隔）"><input style={ES_GLOSS_INPUT} value={e.aliases} onChange={ev => patchEntry(i, "aliases", ev.target.value)} placeholder="wn、ωn、ω_n" /></Field>
+                  <div>
+                    <span className="es-field-label">固定譯名（逐語言）</span>
+                    {(e.translations || []).map((t, ti) => (
+                      <div key={ti} className="es-row es-gap-xs" style={{ marginTop: 4, alignItems: "center" }}>
+                        <select style={{ ...ES_GLOSS_INPUT, width: "auto" }} value={t.lang} onChange={ev => patchTrans(i, ti, "lang", ev.target.value)}>
+                          <option value="">語言…</option>
+                          {transLangs.map(l => <option key={l.code} value={l.code}>{l.label}（{l.code}）</option>)}
+                        </select>
+                        <input style={ES_GLOSS_INPUT} value={t.name} onChange={ev => patchTrans(i, ti, "name", ev.target.value)} placeholder="natural frequency" />
+                        <IconButton icon="x" title="移除此譯名" onClick={() => removeTrans(i, ti)} />
+                      </div>
+                    ))}
+                    <Button variant="ghost" size="sm" icon="plus" style={{ marginTop: 6 }} onClick={() => addTrans(i)}>加譯名</Button>
+                  </div>
+                  <Field label="備註（純維護用）"><input style={ES_GLOSS_INPUT} value={e.note} onChange={ev => patchEntry(i, "note", ev.target.value)} placeholder="僅供維護參考，不參與替換" /></Field>
+                </div>
+              ))}
+              <div className="es-row es-gap-sm" style={{ alignItems: "center", flexWrap: "wrap" }}>
+                <Button variant="default" size="sm" icon="plus" onClick={addEntry}>新增術語</Button>
+                <Button variant="primary" size="sm" icon="check" disabled={busy} onClick={save}>{busy ? "儲存中…" : "儲存術語表"}</Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // 素材 · 課程工作空間：由右上「作用中課程」驅動。選課→看該課的 來源/任務/成品；全部→全域素材庫。
 function ProjectStation({ activePid, projects, onProjectsChanged, onPickProject }) {
   const [sources, setSources] = useState([]);
@@ -2706,6 +2829,7 @@ function ProjectStation({ activePid, projects, onProjectsChanged, onPickProject 
           </div>
         </div>
       )}
+      {activePid && <GlossaryEditor projectId={activePid} projectTitle={activeProject ? activeProject.title : activePid} onFlash={flash} />}
       {toast && <div className="es-toast"><Spinner size={15} /> {toast}</div>}
     </div>
   );

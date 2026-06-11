@@ -542,9 +542,20 @@
     不靜默回 None 掩蓋），全程 RLock 內完成。補 `tests/test_project.py` 4 測（無檔回 None / save→reload
     跨 store 持久化 / 逐課隔離 / 不存在 project 拋錯，**全 tmp 隔離不打 API**＝offline-first）。本機全套
     2533 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
-  - ⏸️ **後續 offline slice**：runner 產旁白時帶該課 `to_pronunciation_map()` + translateGemma 套
-    `translation_map()` + 設定頁/API 編輯 glossary UI。**自動建議術語**（掃教材抽術語）碰 Gemini 額度
-    = GATE，寫 proposal 再做。
+  - ✅ 2026-06-11 **第三刀：glossary 編輯 API（GET/PUT）完成**。`server/routes/projects.py` 補
+    `GET /projects/{pid}/glossary`（取該課術語表）/ `PUT /projects/{pid}/glossary`（整張覆寫）
+    兩端點，薄轉接到既有 `ProjectStore.get_glossary` / `save_glossary`（第二刀已落地、含 RLock 與
+    路徑慣例）。GET 兩種 404 以 detail 區分——「project 不存在」vs「此課尚未建立 glossary」——讓編輯
+    UI 能分辨「沒這門課」與「課在但還沒建表」（後者可開空表起頭再 PUT）。body 直吃 `core.glossary.
+    Glossary`，term/course 非空 validator 在 HTTP 層生效（空 term → 422）。pid（資料夾鍵）與
+    glossary.course（人讀課名）各自獨立、不強制相等。補 `tests/test_projects_route.py` 6 測（未建
+    →404 detail 區分 / PUT→GET roundtrip 跨 store 持久化 / 整張覆寫 / 不存在 project 404 / 空 term
+    422 / 逐課隔離，**全 tmp 隔離不打 API**＝offline-first）。本機相關子集 66 passed、全套 2539 passed
+    （3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ⏸️ **後續 offline slice**：runner 產旁白時帶該課 `to_pronunciation_map()`（需先定 job↔課
+    association：jobs 目前不帶 project_id、只有 `ProjectStore.add_job` 單向掛載 → 反查設計是架構抉擇，
+    待拍板）+ translateGemma 套 `translation_map()` + 設定頁前端 glossary 編輯 UI（API 已就緒）。
+    **自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，寫 proposal 再做。
 - [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

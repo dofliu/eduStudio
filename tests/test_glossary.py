@@ -3,6 +3,7 @@
 覆蓋:
 - schema 驗證（term/course 非空 type guard、別名、各語言固定譯名）。
 - 套用層 map：讀音 / 翻譯固定譯名 / 縮寫展開（surface form 展開、longest-first、後者覆蓋）。
+- 翻譯規則文字塊（to_translation_rules）橋接到 translate() 的 glossary 參數（含空字串 no-op）。
 - 載入/存檔 roundtrip + 檔案不存在回 None + 壞檔嚴格拋。
 - 與 tts_backend.normalize_text 的整合（extra_pronunciation 課程蓋全域、預設不影響既有）。
 """
@@ -114,6 +115,61 @@ class TestTranslationMap:
             entries=[G.GlossaryEntry(term="增益", translations={"en": "gain"})],
         )
         assert G.translation_map(gl, "fr") == {}
+
+
+class TestTranslationRules:
+    def test_renders_source_arrow_target_lines(self):
+        gl = G.Glossary(
+            course="自控",
+            entries=[
+                G.GlossaryEntry(term="阻尼比", translations={"en": "damping ratio"}, aliases=["ζ"]),
+                G.GlossaryEntry(term="增益", translations={"en": "gain"}),
+            ],
+        )
+        rules = G.to_translation_rules(gl, "en")
+        # 逐行「來源寫法 → 目標譯名」；別名與 term 並排（longest-first）。
+        assert rules == "阻尼比 / ζ → damping ratio\n增益 → gain"
+
+    def test_only_entries_with_that_lang(self):
+        gl = G.Glossary(
+            course="自控",
+            entries=[
+                G.GlossaryEntry(term="阻尼比", translations={"en": "damping ratio", "ja": "減衰比"}),
+                G.GlossaryEntry(term="增益", translations={"en": "gain"}),  # 無 ja
+            ],
+        )
+        assert G.to_translation_rules(gl, "ja") == "阻尼比 → 減衰比"
+
+    def test_no_translation_for_lang_returns_empty(self):
+        gl = G.Glossary(
+            course="x",
+            entries=[G.GlossaryEntry(term="增益", translations={"en": "gain"})],
+        )
+        assert G.to_translation_rules(gl, "fr") == ""
+
+    def test_empty_glossary_returns_empty(self):
+        assert G.to_translation_rules(G.Glossary(course="x"), "en") == ""
+
+    def test_feeds_translate_format_custom_rules(self):
+        # 橋接驗證：產出的字串塞進 translate() 的 glossary 參數後，會被包進 strict 術語規則。
+        from core.translation.service import TranslateGemmaService
+
+        gl = G.Glossary(
+            course="自控",
+            entries=[G.GlossaryEntry(term="阻尼比", translations={"en": "damping ratio"})],
+        )
+        rules = G.to_translation_rules(gl, "en")
+        block = TranslateGemmaService()._format_custom_rules(glossary=rules)
+        assert "Terminology rules (strict)" in block
+        assert "阻尼比 → damping ratio" in block
+
+    def test_empty_rules_is_noop_in_translate(self):
+        # 空字串塞進 translate() 等同不傳 glossary（_format_custom_rules no-op）。
+        from core.translation.service import TranslateGemmaService
+
+        svc = TranslateGemmaService()
+        empty_rules = G.to_translation_rules(G.Glossary(course="x"), "en")
+        assert svc._format_custom_rules(glossary=empty_rules) == svc._format_custom_rules()
 
 
 class TestExpansionMap:

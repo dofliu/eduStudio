@@ -11,7 +11,8 @@
 這支只做 **schema + 套用層**（offline-first 紀律）:
 - schema：`GlossaryEntry`（term + reading + 各語言固定譯名 + 縮寫展開 + 別名）、`Glossary`。
 - 套用層：把 glossary 轉成各下游要的 map —— TTS 讀音 map（接 `tts_backend.normalize_text`
-  的 `extra_pronunciation`）、翻譯固定譯名 map、縮寫展開 map。
+  的 `extra_pronunciation`）、翻譯固定譯名 map、縮寫展開 map，以及翻譯規則文字塊
+  （`to_translation_rules`，接 `TranslateGemmaService.translate` 的 `glossary` 參數）。
 - 載入/存檔：人可讀 JSON，per-course 一份（建議落 `{project_dir}/glossary.json`）。
 
 **不在這刀**（後續 slice / GATE）:
@@ -123,6 +124,30 @@ def translation_map(glossary: Glossary, lang: str) -> dict[str, str]:
         for form in entry.surface_forms():
             out[form] = target
     return out
+
+
+def to_translation_rules(glossary: Glossary, lang: str) -> str:
+    """course glossary → 餵 `translate(..., glossary=...)` 的 strict 術語規則文字塊。
+
+    為什麼存在：套用層的 `translation_map()` 回的是 `dict`，但
+    `TranslateGemmaService.translate()` / `_format_custom_rules()` 吃的是**一段文字**
+    （會被包成「Terminology rules (strict): … Prefer mapped terms …」塞進 prompt）。
+    這支就是那條缺的橋——把每條固定譯名整理成逐行「來源寫法 → 目標譯名」，讓翻譯層強制
+    術語一致。對應 TTS 側 `to_pronunciation_map()` → `normalize_text` 的同類橋接。
+
+    只收**該 `lang` 有設譯名**的 entry（沿 `translation_map` 同一篩選）；來源面列出該條
+    所有表面寫法（term + 別名，longest-first），用 `/` 並排讓模型認得各種寫法都映同一譯名。
+    全都沒有 → 回**空字串**（`_format_custom_rules` 對空字串 no-op，行為與不傳 glossary 一致，
+    既有 caller 零影響）。
+    """
+    lines: list[str] = []
+    for entry in glossary.entries:
+        target = entry.translations.get(lang)
+        if not target:
+            continue
+        source = " / ".join(entry.surface_forms())
+        lines.append(f"{source} → {target}")
+    return "\n".join(lines)
 
 
 def expansion_map(glossary: Glossary) -> dict[str, str]:

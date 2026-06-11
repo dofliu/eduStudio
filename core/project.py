@@ -25,6 +25,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from core import config
+from core.glossary import Glossary, glossary_path_for, load_glossary, save_glossary
 
 # ---------- 受控字彙（對齊 MERGE_PLAN §7 / DESIGN_SPEC §5）----------
 # 為什麼用 Literal 而非自由字串：schema 的列舉欄位若放任意字串，打字錯（如 "vidoe"）
@@ -279,3 +280,25 @@ class ProjectStore:
                 project.jobs.append(job_id)
                 self._save(project)
             return project
+
+    # ----- 課程術語表 glossary（F9-2：一課一 glossary，落 {pid}/glossary.json）-----
+    # 為什麼跟 project.json 分檔而非塞進 Project schema：glossary 是獨立、可人手編的大塊
+    # 資料（術語可上百條），跟 project 生命週期不同步——常單獨重編；分檔讓兩者各自 diff、
+    # 避免每次改一條術語就重寫整個 project.json。路徑慣例由 core.glossary 統一持有。
+    def get_glossary(self, project_id: str) -> Glossary | None:
+        """讀該課的 glossary；無 glossary.json 回 None（沿 load_glossary 寬容語意）。
+
+        先 get() 驗 project 存在（不存在丟 ProjectNotFoundError）——glossary 必依附於
+        某個 project，對不存在的 pid 讀 glossary 是呼叫端的錯，不靜默回 None 掩蓋。
+        """
+        with self._lock:
+            self.get(project_id)  # 驗存在；pid 在內部會再過 safe_id
+            return load_glossary(glossary_path_for(self._dir(safe_id(project_id))))
+
+    def save_glossary(self, project_id: str, glossary: Glossary) -> Glossary:
+        """把該課 glossary 寫進 {pid}/glossary.json 並回傳；project 須已存在。"""
+        with self._lock:
+            self.get(project_id)  # 驗存在，避免在無主資料夾留孤兒 glossary
+            path = glossary_path_for(self._dir(safe_id(project_id)))
+            save_glossary(glossary, path)
+            return glossary

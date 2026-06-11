@@ -202,3 +202,63 @@ def test_invalid_source_type_rejected(tmp_path: Path) -> None:
     # Literal 守住列舉欄位：打字錯的 type 在寫入當下即被 pydantic 擋下。
     with pytest.raises(Exception):
         store.add_source("p", type="bogus_type", path_or_url="x")  # type: ignore[arg-type]
+
+
+# ---------- 課程術語表 glossary（F9-2：一課一 glossary）----------
+def test_get_glossary_none_when_no_file(tmp_path: Path) -> None:
+    # project 存在但還沒建 glossary.json → 回 None（寬容語意，不崩）。
+    store = _store(tmp_path)
+    store.create("p", "材料力學")
+    assert store.get_glossary("p") is None
+
+
+def test_save_glossary_persists_across_reload(tmp_path: Path) -> None:
+    from core.glossary import Glossary, GlossaryEntry
+
+    store = _store(tmp_path)
+    store.create("p", "材料力學")
+    g = Glossary(
+        course="材料力學",
+        entries=[
+            GlossaryEntry(
+                term="ω_n",
+                reading="自然頻率",
+                translations={"en": "natural frequency"},
+                aliases=["wn", "ωn"],
+            ),
+            GlossaryEntry(term="PID", expansion="比例-積分-微分"),
+        ],
+    )
+    store.save_glossary("p", g)
+    # 落在 {pid}/glossary.json，跟 project.json 同資料夾、分檔。
+    assert (tmp_path / "p" / "glossary.json").is_file()
+    # 用新 store 實例 reload，證明是落磁碟而非僅記憶體。
+    reloaded = ProjectStore(root=tmp_path).get_glossary("p")
+    assert reloaded is not None
+    assert reloaded.course == "材料力學"
+    assert reloaded.entries[0].term == "ω_n"
+    assert reloaded.entries[0].translations == {"en": "natural frequency"}
+    assert reloaded.entries[1].expansion == "比例-積分-微分"
+
+
+def test_glossary_isolated_per_project(tmp_path: Path) -> None:
+    from core.glossary import Glossary, GlossaryEntry
+
+    store = _store(tmp_path)
+    store.create("p1", "材力")
+    store.create("p2", "自控")
+    store.save_glossary("p1", Glossary(course="材力", entries=[GlossaryEntry(term="應力")]))
+    # p1 有 glossary、p2 沒有 —— 互不串。
+    assert store.get_glossary("p1") is not None
+    assert store.get_glossary("p2") is None
+
+
+def test_glossary_requires_existing_project(tmp_path: Path) -> None:
+    from core.glossary import Glossary
+
+    store = _store(tmp_path)
+    # 對不存在的 pid 讀/寫 glossary 都丟 ProjectNotFoundError（glossary 必依附 project）。
+    with pytest.raises(ProjectNotFoundError):
+        store.get_glossary("ghost")
+    with pytest.raises(ProjectNotFoundError):
+        store.save_glossary("ghost", Glossary(course="無"))

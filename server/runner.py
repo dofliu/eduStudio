@@ -974,6 +974,32 @@ def _resolve_step_image_paths(steps: list[dict], figures_dir: Path) -> None:
         step["image_path"] = str(matches[0].resolve())
 
 
+def write_review_flags(store: JobStore, job_id: str) -> int:
+    """F9-1c: 讀 deck.json → core.review_assist.check_deck → 落 review_flags.json。
+
+    確定性 review 校驗 (F9-1a 的 ② 面, offline 純函式, 零 API): 把 AI 解題 deck 裡
+    對不上的算術 / 與旁白不一致的結果數字標成 ReviewFlag, 落盤給 reviewer 端點讀,
+    把核心賣點 review gate (硬規則 #1) 做深 — 降低 reviewer 漏看低級錯誤的機率。
+
+    **不可妥協紀律 (呼應 RFC)**: 只標記不改 deck、不入狀態機、不阻 approve
+    (硬規則 #1 的權威是人不是校驗器)。本函式只寫 review_flags.json, 不碰 deck /
+    state。沒 deck.json (ingest 未完) → 回 0 不寫檔。caller 以 try/except 包成
+    fail-open (校驗器壞掉不可卡 review, 設計目標 #4)。回傳 flag 數。
+    """
+    from core.review_assist import check_deck
+
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        return 0
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+    flags = check_deck(deck)
+    store.review_flags_path(job_id).write_text(
+        json.dumps([f.model_dump() for f in flags], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return len(flags)
+
+
 def _rewrite_deck_intros_inplace(
     store: JobStore, job_id: str, source_type_value: str,
 ) -> None:
@@ -1176,6 +1202,16 @@ async def run_job(store: JobStore, job_id: str) -> None:
             _log_deck_duration_estimate(store, job_id, rec.options.length_mode)
         except Exception as e:
             logger.exception("deck 時長估算失敗 (不擋 review): %s", e)
+
+        # F9-1c: 確定性 review 校驗 — ingest 完算一次, 把可疑點 (算術對不上 /
+        # 結果數字與旁白不一致) 落 review_flags.json 輔助 reviewer。只標記不改 deck、
+        # 不入狀態機、不阻 approve; 失敗只 warning 不擋 review (硬規則 #1 不變)。
+        try:
+            n_flags = write_review_flags(store, job_id)
+            if n_flags:
+                logger.info("review 校驗: 標出 %d 個可疑點 (見 review_flags.json)", n_flags)
+        except Exception as e:
+            logger.exception("review 校驗失敗 (不擋 review): %s", e)
 
         store.update(
             job_id,

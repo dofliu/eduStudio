@@ -338,6 +338,15 @@ class JobStore:
     def deck_path(self, job_id: str) -> Path:
         return self.root / job_id / "deck.json"
 
+    def review_flags_path(self, job_id: str) -> Path:
+        """F9-1c: 確定性 review 校驗結果 (review_flags.json)。
+
+        與 deck.json 分檔 (reviewer 改 deck 不必動 flags, 反之亦然), 比照 F9-4
+        artifact 版本分檔的理由。flags 只是輔助 reviewer 的提醒, 不入狀態機 (見
+        docs/REVIEW_ASSIST_RFC.md), 不存進 state.json。
+        """
+        return self.root / job_id / "review_flags.json"
+
     def outline_path(self, job_id: str) -> Path:
         """iter 81 (D1 v1): outline.json (scriptor 前的中間產物). 不存在時
         表示尚未 ingest 完 (或 source_type=exam_pdf 直接吐 deck 沒 outline)."""

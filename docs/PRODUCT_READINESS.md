@@ -545,9 +545,21 @@
     Unicode 算符／符號段不誤標／容差·自訂容差／三段等式鏈／narration 對齊·捨入容忍／非 dict·空 deck／
     id fallback·索引／malformed step fail-open／安全求值拒危險輸入／type guard，**全 offline 不打 API**）。
     本機全套 2588 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
-  - ⏸️ **後續 slice 仍待拍板範圍**：F9-1c（接 pipeline 落 `review_flags.json` + 端點）、F9-1d（前端
-    ⚠ 標記）、F9-1b（單位/量綱，依賴選型 pint vs 白名單待拍板）為 offline 可續做；F9-1e/f（① 二次
-    模型）GATE 需開額度。建議等劉老師對 RFC 開放問題（先②上線/依賴選型/①開關）拍板後再續接線。
+  - ✅ 2026-06-12 **F9-1c 確定性校驗接進 pipeline + 落 `review_flags.json` + 端點完成（offline）**。
+    把 F9-1a 的純函式 `check_deck` 接上線：新增 `server/runner.py::write_review_flags(store, job_id)`
+    （讀 deck.json → `check_deck` → 落 `jobs/<id>/review_flags.json`，與 deck 分檔，比照 F9-4 版本分檔），
+    在 `run_job` **ingest 完進 `awaiting_review` 前**算一次（`PUT /jobs/{id}/draft` 改 deck 後重算，讓
+    flags 跟新 deck 同步）；新增 `GET /jobs/{id}/review-flags` 給 reviewer / 前端（F9-1d）讀，沒算過/乾淨
+    無可疑點回空 list（非 404，比照 versions 端點）。`JobStore.review_flags_path()` 集中路徑慣例。守 RFC
+    不可妥協紀律：**flags 不入狀態機、不阻 approve（硬規則 #1 的權威是人不是校驗器，render 入口 R-2
+    assert 與 reviewed 機制完全不動）、只寫 review_flags.json 不碰 deck/state、計算 fail-open（壞掉只
+    warning 不卡 review）**。補 `tests/test_review_flags_pipeline.py` 10 測（落盤算術錯/乾淨/無 deck no-op
+    /不改 deck 不動 state、run_job ingest 完落盤、端點取 flags/未算空 list/未知 job 404、PUT 改 deck 重算
+    雙向，**全 offline 不打 API**）。本機全套 2600 passed（剩 1 個 QR 像素為容器缺 Noto CJK 字型假象，
+    CI 權威）。
+  - ⏸️ **後續 slice**：F9-1d（前端 ⚠ 標記，offline 可續做——讀 `GET /jobs/{id}/review-flags` 在 review
+    UI 對應 step 旁顯示）、F9-1b（單位/量綱，依賴選型 pint vs 白名單待拍板）；F9-1e/f（① 二次模型）GATE
+    需開額度。確定性校驗（②）至此**端到端跑通**（算→落盤→端點），F9-1d 上 UI 後即完整可用。
 - [~] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
   **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
   「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；

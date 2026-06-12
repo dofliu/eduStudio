@@ -516,10 +516,22 @@
 > 互動 session 從建議清單挑這 4 個進場（貼合「老師內容工作站 + 人工把關 + 自架」主軸）。
 > 沿用 offline-first：碰 Gemini/雲端額度的部分寫 proposal STOP。各項先寫小 RFC 再拆 PR。
 
-- [ ] 🟡 **F9-1 review 數值二次校驗**（GATE，強化核心賣點）— AI 產出的數字/公式自動標「可疑
+- [~] 🟡 **F9-1 review 數值二次校驗**（GATE，強化核心賣點）— AI 產出的數字/公式自動標「可疑
   點」輔助 reviewer：① 二次獨立模型 pass 比對數值 ② 數學步驟符號/單位一致性檢查。**只標記不
   自動改**（不繞硬規則 #1，是輔助人工不是取代）。降低 reviewer 負擔 = 把核心差異化做深。
   先寫 `docs/REVIEW_ASSIST_RFC.md` 拆子任務。碰額度（二次模型）→ proposal。
+  - ✅ 2026-06-12 **RFC 完成（offline 前置）**。新增 [`docs/REVIEW_ASSIST_RFC.md`](REVIEW_ASSIST_RFC.md)：
+    grounding 到現況資料流（AI 解題落 `solve.py` → deck `problems[].steps[].display`，reviewer 走
+    `GET/PUT /jobs/{id}/draft` + `approve`），把功能拆成 **②確定性一致性檢查（純函式
+    `core/review_assist.py`，算術/單位量綱/符號/display↔narration 數字對齊，零 API、好測＝offline）**
+    與 **①二次模型 pass（走 M 軸 `resolve("text.pro")` 比對數值、只標不覆寫、需開額度＝GATE）**
+    兩面。明訂不可妥協紀律：**只標記不自動改、不阻擋 approve、校驗器壞掉 fail-open**（不繞硬規則
+    #1、不入狀態機、不碰 R-2 reviewed assert）。拆 6 子任務並標 offline/GATE：F9-1a~e 為 offline
+    （確定性檢查 + pipeline 接線 + 前端 ⚠ 標記 + ① mock 骨架），**F9-1f（① prompt 調校 + 誤報率
+    A/B 實測）為 GATE 需開額度**。列 5 個開放問題待拍板（範圍先②/量綱依賴 pint vs 白名單/①預設關/
+    容差）。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ⏸️ **實作待拍板範圍**：建議先做 offline 的 ②（F9-1a→c→d，零成本馬上降 reviewer 負擔），
+    ①（F9-1f）開額度後另做。等劉老師對 RFC 開放問題（先②/依賴選型/①開關）拍板後再開實作 PR。
 - [~] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
   **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
   「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；

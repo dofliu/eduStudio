@@ -108,6 +108,61 @@ def test_chain_of_three_equalities():
     assert [f for f in good if f.kind == "arithmetic"] == []
 
 
+# ---------- 單位 / 量綱換算校驗(F9-1b) ----------
+def test_unit_conversion_mismatch_flagged():
+    # 50 kN 與 50 N 差 1000 倍,剝單位後的算術看不出來,要靠量綱校驗抓
+    flags = check_deck(_deck([{"display": "50 kN = 50 N", "narration": ""}]))
+    units = [f for f in flags if f.kind == "unit"]
+    assert len(units) == 1
+    assert units[0].severity == "warn"
+    assert units[0].problem_id == "q1"
+    assert units[0].step_index == 0
+
+
+def test_unit_conversion_correct_not_flagged():
+    for disp in ["50 kN = 50000 N", "1 m = 100 cm", "1 GPa = 1000 MPa", "500 mm² = 0.0005 m²"]:
+        flags = check_deck(_deck([{"display": disp, "narration": ""}]))
+        assert [f for f in flags if f.kind == "unit"] == [], disp
+        # 正確換算也不該被算術校驗誤標(剝單位的數值不同但物理量相等)
+        assert [f for f in flags if f.kind == "arithmetic"] == [], disp
+
+
+def test_unit_dimension_mismatch_flagged():
+    flags = check_deck(_deck([{"display": "100 MPa = 100 N", "narration": ""}]))
+    units = [f for f in flags if f.kind == "unit"]
+    assert len(units) == 1
+    assert units[0].severity == "warn"
+    assert "量綱" in units[0].message
+
+
+def test_unit_wrong_conversion_flagged():
+    flags = check_deck(_deck([{"display": "1 m = 50 cm", "narration": ""}]))
+    assert any(f.kind == "unit" for f in flags)
+
+
+def test_unrecognized_units_skipped_no_false_positive():
+    # 白名單外的單位(km/h、m/s、N·m)不認得 → 既不出 unit flag,也不被算術誤標
+    for disp in ["100 km/h = 27.8 m/s", "M = 5 N·m = 5000 N·mm"]:
+        flags = check_deck(_deck([{"display": disp, "narration": ""}]))
+        assert flags == [], disp
+
+
+def test_single_unit_segment_not_unit_flagged():
+    # 只有一段帶單位(常見的 "P = 50 kN" 賦值)→ 無從比換算,不標
+    for disp in ["P = 50 kN", "σ = 50000 / 500 = 100 MPa", "L = 2 m,  A = 500 mm²"]:
+        flags = check_deck(_deck([{"display": disp, "narration": ""}]))
+        assert [f for f in flags if f.kind == "unit"] == [], disp
+
+
+def test_unit_chain_of_three_consistent():
+    flags = check_deck(_deck([{"display": "1 m = 100 cm = 1000 mm", "narration": ""}]))
+    assert [f for f in flags if f.kind == "unit"] == []
+
+
+def test_unit_in_flag_kinds():
+    assert "unit" in FLAG_KINDS
+
+
 # ---------- narration 數字對齊 ----------
 def test_narration_mismatch_flagged():
     flags = check_deck(

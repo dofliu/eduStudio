@@ -650,11 +650,27 @@
     association：jobs 目前不帶 project_id、只有 `ProjectStore.add_job` 單向掛載 → 反查設計是架構抉擇，
     待拍板；同一 association 也是把 `to_translation_rules()` 接進翻譯 route 的前提）。**自動建議術語**
     （掃教材抽術語）碰 Gemini 額度 = GATE，寫 proposal 再做。
-- [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
+- [~] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選
   provider。與 offline-first 主軸高度契合。先寫 `docs/LOCAL_MODEL_RFC.md`（哪些角色支援本機 /
   品質落差 / 自動退雲端）。
+  - ✅ 2026-06-12 **RFC 完成（offline 前置，比照 F9-1 的 RFC slice）**。新增
+    [`docs/LOCAL_MODEL_RFC.md`](LOCAL_MODEL_RFC.md)：grounding 到**現況已有什麼**——M-4
+    `core/providers.py` 的 `Provider` 協定 + `register_provider`/`get_provider`/`provider_for_role`
+    座位已就緒、M-1 `core/models.py` 角色登錄表的 **provider 維度本就為 B 階段預留**、且
+    `core/translate.py` **已內建並驗過 Ollama 路徑**（`TRANSLATION_BACKEND=ollama`，標準庫
+    urllib 打 `OLLAMA_HOST`，零 pip 依賴）。把功能拆成「現在可 offline 做」與「要你本機實跑才驗」
+    兩堆：**角色品質落差評估表**（`text.fast` 翻譯＝首選、旁白/大綱條件式；`text.pro` 解題 /
+    `vision` / `image.*` 預設留雲端不拿正確性冒險）、**OllamaProvider slot-in 架構**（抽共用本機
+    文字呼叫 helper、`model_roles` 升級帶 provider、**自動退雲端**開關＋log）、拆 6 子任務標
+    offline/GATE（**F9-3a~e offline**：helper 抽取 / OllamaProvider＋mock 測 / resolve provider
+    override / fallback / 設定頁 UI；**F9-3f 品質 A/B 實測＝GATE 需你的本機環境跑 ollama**）。
+    列 5 個開放問題待拍板（第一階段範圍 / `model_roles` provider 表示法 / 退雲端預設 / 推薦本機
+    模型清單 / vision·image 是否納入）。明訂不可妥協紀律：**本機 provider 不打雲端（賣點本身）、
+    自動退雲端要誠實 log·可關嚴格本機、不繞 review gate（只換「誰生文字」不碰 R-2 assert/狀態機）、
+    不寫死 provider 走 resolve()**。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑
+    pytest）。後續 a~e offline slice 待本項範圍/表示法拍板後可逐刀推。
 - [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。

@@ -557,9 +557,18 @@
     /不改 deck 不動 state、run_job ingest 完落盤、端點取 flags/未算空 list/未知 job 404、PUT 改 deck 重算
     雙向，**全 offline 不打 API**）。本機全套 2600 passed（剩 1 個 QR 像素為容器缺 Noto CJK 字型假象，
     CI 權威）。
-  - ⏸️ **後續 slice**：F9-1d（前端 ⚠ 標記，offline 可續做——讀 `GET /jobs/{id}/review-flags` 在 review
-    UI 對應 step 旁顯示）、F9-1b（單位/量綱，依賴選型 pint vs 白名單待拍板）；F9-1e/f（① 二次模型）GATE
-    需開額度。確定性校驗（②）至此**端到端跑通**（算→落盤→端點），F9-1d 上 UI 後即完整可用。
+  - ✅ 2026-06-12 **F9-1d 前端 ⚠ 標記完成（offline，確定性校驗 ② 端到端收尾）**。`frontend/edustudio/
+    app.jsx` 的 `ReviewGate` 在載入 deck 後另抓 `GET /jobs/{id}/review-flags`，依 `(problem_id, step_index)`
+    配位到對應分段（`esAttachReviewFlags`；分段 `esDeckToSegments` 補 `_pid`/`_sidx`，fallback `q{idx+1}`
+    與後端 `check_deck` 一致）：左側 `SegmentNav` 該段顯示 ⚠ 圖示（hover 提示可疑點數），右側段編輯器新增
+    「自動校驗提醒 · 待人工確認」區，逐條列出 flag 訊息並依 `severity` 分色（warn 黃／info 中性）。守 RFC
+    不可妥協紀律：**只提醒、不阻擋 approve**（flag 不進 approve 條件、不改 deck）、**fail-open**（端點抓
+    不到/舊 job 無檔 → 不顯示、絕不卡審查）。順手補上 ICONS 缺的 `info`/`shield-alert`（`info` 先前他處
+    用到時 fallback 成 file 圖示）。`frontend` `npm run build`（vite, node22）編譯通過；**視覺驗收待人工**
+    （此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。純前端，未動 server/core/schemas/runner
+    （端點 F9-1c 已落地且有測），故不需跑 pytest。確定性校驗（②）至此**算→落盤→端點→UI 端到端完整可用**。
+  - ⏸️ **後續 slice**：F9-1b（單位/量綱，依賴選型 pint vs 白名單待拍板）；F9-1e/f（① 二次模型）GATE
+    需開額度。
 - [~] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
   **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
   「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；

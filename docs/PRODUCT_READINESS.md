@@ -580,7 +580,23 @@
     不打 API**）。**符號一致性檢查（F9-1b 其餘）誤報率高、與高精度目標相衝，留作後續 offline slice
     另評估，本刀只做可確定性算的單位換算。** 本機全套 2608 passed（剩 1 個 QR 像素為容器缺 Noto CJK
     字型假象，CI 權威）。
-  - ⏸️ **後續 slice**：F9-1b 符號一致性檢查（offline，誤報率待評估）；F9-1e/f（① 二次模型）GATE 需開額度。
+  - ✅ 2026-06-12 **F9-1b 符號漂移校驗完成（offline，高精度子集）**。對應 RFC 問題 #3「公式突然
+    變 σ = A / P」，在 `core/review_assist.py` 加 `_check_symbol_drift`：同一符號在**同題**裡被定義
+    成兩條「用到的變數**完全相同**、但公式結構不同」的純符號式（`σ = P / A` 後又 `σ = A / P`／
+    `σ = P × A` vs `σ = P / A`）→ 標 `symbol`/warn，標在較後出現的那一步（reviewer 一眼看到漂移點）。
+    **只做這個高精度子集**：靠「變數集合相同」這道閘把 ① 合法推導（`σ = P/A → P/(π r²)`，代入後變數
+    不同）② 數值代入（`σ = 50000/500 = 100 MPa`，含數字的段不算定義）③ 換力符號（`P/A` vs `F/A`，
+    變數不同）全部排除，只抓「同樣那幾個變數被重新排列／換算符」這種幾乎必為筆誤的漂移。**刻意不做**
+    RFC 另提的兩個高誤報變體（「只出現一次的疑似錯字」「同一量用兩種符號」需語意判斷、確定性做不到、
+    與設計目標 #1「高精度低誤報」相衝）——這正是先前 slice 把符號檢查 defer「另評估」的結論。守 RFC
+    不可妥協紀律：**只標記不改 deck、不阻 approve、跨題不串、每符號至多一 flag、整段 try/except
+    fail-open**。`symbol` 早在 F9-1a 就收進 `FLAG_KINDS`、pipeline（F9-1c）與前端 ⚠（F9-1d）已泛型
+    處理此 kind，故**不需動 server/route/前端**。補 `tests/test_review_assist.py` 9 測（倒式/換符標·合法
+    代入·換力符·數值代入·重複式·跨題隔離·單一定義不標／步索引／symbol 入 kinds，**全 offline 不打
+    API**）。本機全套 2615 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ⏸️ **後續 slice**：F9-1e/f（① 二次模型 pass）GATE 需開額度（F9-1e 骨架雖 RFC 標 offline，但本清單
+    將 ① 整體列 GATE，待劉老師開額度時一併推）。確定性校驗（②）至此**算術／單位／符號／narration 四面
+    端到端完整可用**。
 - [~] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
   **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
   「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；

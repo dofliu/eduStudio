@@ -19,6 +19,11 @@ eduStudio 最大的差異化是 **review gate（硬規則 #1，AI 答錯不流�
    ——同量綱但換算對不上（`50 kN = 50 N`,算術校驗剝單位後看不出來）或等號兩側量綱根本不同
    → 標 `unit`（severity=warn）。對應 RFC 問題 #2。**只認白名單內的單位**（力/應力/長度/面積/
    體積/質量/能量/功率/時間/頻率的常見 SI 前綴）,不認得的單位一律跳過（高精度、不亂猜）。
+4. **符號漂移校驗**（`symbol`，F9-1b）: 同一符號在同題裡被定義成兩條「用到的變數完全相同、
+   但結構不同」的純符號公式（`σ = P / A` 後又 `σ = A / P`,公式被倒過來/換符）→ 標
+   `symbol`（severity=warn）。對應 RFC 問題 #3「公式突然變 σ = A / P」。只做這個**高精度子集**:
+   靠「變數集合相同」這道閘把合法推導（`σ = P/A → P/(π r²)`,變數不同）與數值代入（含數字的段）
+   排除,只抓「同樣那幾個變數被重新排列/換算符」這種幾乎必為筆誤的漂移。
 
 **不可妥協紀律（呼應 RFC）**:
 - **只標記、不自動改**: 產出是 `ReviewFlag` annotation,不碰 deck 內容本身（硬規則 #1）。
@@ -29,9 +34,9 @@ eduStudio 最大的差異化是 **review gate（硬規則 #1，AI 答錯不流�
 - **offline-first**: 純函式,零 API、零 IO、可重現、好測(fixture deck in → flags out)。
 
 **不在這刀**(後續 slice / GATE,見 RFC 拆解表):
-- **符號一致性檢查**(F9-1b 其餘):「同一量用兩種符號 / 只出現一次的疑似錯字」誤報率高、
-  與設計目標 #1「高精度低誤報」相衝,留作後續 offline slice 另評估,本刀只做可確定性算的
-  單位換算。接 pipeline(F9-1c)/前端 ⚠ 標記(F9-1d)已落地。
+- **符號一致性檢查的高誤報變體**:RFC 還提了「只出現一次的疑似錯字」與「同一量用了兩種
+  符號」,這兩個需要語意判斷(哪些符號其實是同一個量),確定性做不到、誤報率高、與設計目標
+  #1「高精度低誤報」相衝,**刻意不做**;本檔只收高精度的「同符號、同變數集、不同公式」漂移。
 - 二次模型 pass(`model_disagree`)= F9-1e 骨架 / F9-1f 實測(GATE,需開額度)。
 """
 from __future__ import annotations
@@ -362,6 +367,96 @@ def _fmt(v: float) -> str:
     return f"{v:g}"
 
 
+# ---------- 符號漂移檢查(symbol，F9-1b 高精度子集) ----------
+# 已知函式名:這些字母 token 是「函式」不是「變數」,抽變數集時要排除(sin x 與 cos x 的
+# 變數集都該是 {x},差別在函式 ＝ 結構,留在正規化公式裡比對)。
+_FUNC_NAMES = frozenset(
+    {
+        "sin", "cos", "tan", "cot", "sec", "csc",
+        "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh",
+        "log", "ln", "lg", "exp", "sqrt", "lim", "abs",
+    }
+)
+# 變數 token:ASCII/希臘字母起頭,可帶數字/底線(下標)。單位也是字母,但符號定義式(下面要求
+# RHS 第一段不含阿拉伯數字)裡不會出現帶數字的量值,單位混入的風險被「無數字」閘擋掉。
+_VAR_TOKEN_RE = re.compile(r"[A-Za-zα-ωΑ-Ω][A-Za-z0-9α-ωΑ-Ω_]*")
+
+
+def _variables(expr: str) -> tuple[str, ...]:
+    """抽式子裡的變數 multiset(排序後 tuple),排除已知函式名。"""
+    toks = [t for t in _VAR_TOKEN_RE.findall(expr) if t.lower() not in _FUNC_NAMES]
+    return tuple(sorted(toks))
+
+
+def _symbolic_definition(display: str) -> tuple[str, str, tuple[str, ...]] | None:
+    """`<單一符號> = <純符號公式> ...` → (符號, 正規化公式, 變數集);不符 → None。
+
+    純符號公式 = `=` 右邊第一段含至少一個變數、且**不含阿拉伯數字**——把 "= 100 MPa" 量值、
+    "= 50000 / 500" 數值計算這類「非定義」段排除,只留 "P / A"、"M c / I" 這種公式。LHS 必須
+    是單一符號 token(有中文/運算/多 token 一律不認,寧可漏報)。
+    """
+    if "=" not in display:
+        return None
+    parts = display.split("=")
+    lhs = parts[0].strip()
+    if not _VAR_TOKEN_RE.fullmatch(lhs):
+        return None  # LHS 不是單一符號 → 非定義式
+    rhs0 = parts[1]
+    if any(ch.isdigit() for ch in rhs0):
+        return None  # 含數字 ＝ 量值代入/數值計算,非符號公式
+    vars_ = _variables(rhs0)
+    if not vars_:
+        return None  # RHS 沒有變數(純單位/空)→ 非公式
+    normalized = re.sub(r"\s+", "", _normalize_math(rhs0))
+    return lhs, normalized, vars_
+
+
+def _check_symbol_drift(problem_id: str, steps: list) -> list[ReviewFlag]:
+    """同一符號在同題出現兩條「變數集相同、結構不同」的定義式 → 一個 symbol flag(警)。"""
+    defs: dict[str, list[tuple[int, str, tuple[str, ...]]]] = {}
+    for s_idx, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        parsed = _symbolic_definition(str(step.get("display") or ""))
+        if parsed is None:
+            continue
+        sym, normalized, vars_ = parsed
+        defs.setdefault(sym, []).append((s_idx, normalized, vars_))
+    flags: list[ReviewFlag] = []
+    for sym, occ in defs.items():
+        pair = _conflicting_pair(occ)
+        if pair is None:
+            continue
+        (idx_a, norm_a), (idx_b, norm_b) = pair
+        flags.append(
+            ReviewFlag(
+                problem_id=problem_id,
+                step_index=max(idx_a, idx_b),
+                kind="symbol",
+                severity="warn",
+                message=(
+                    f"符號「{sym}」在不同步驟有兩種定義式:"
+                    f"「{sym} = {norm_a}」與「{sym} = {norm_b}」,"
+                    f"用到的變數相同但公式結構不同,請確認沒寫錯。"
+                ),
+            )
+        )
+    return flags
+
+
+def _conflicting_pair(
+    occ: list[tuple[int, str, tuple[str, ...]]]
+) -> tuple[tuple[int, str], tuple[int, str]] | None:
+    """同符號的定義列表裡,找第一對「變數集相同但正規化公式不同」;沒有 → None。"""
+    for i in range(len(occ)):
+        idx_a, norm_a, vars_a = occ[i]
+        for j in range(i + 1, len(occ)):
+            idx_b, norm_b, vars_b = occ[j]
+            if vars_a == vars_b and norm_a != norm_b:
+                return (idx_a, norm_a), (idx_b, norm_b)
+    return None
+
+
 def check_deck(deck: dict, *, rel_tol: float = DEFAULT_REL_TOL) -> list[ReviewFlag]:
     """掃 exam deck(`problems[].steps[]`),回每個可疑點的 ReviewFlag(只標記、不阻擋)。
 
@@ -401,4 +496,9 @@ def check_deck(deck: dict, *, rel_tol: float = DEFAULT_REL_TOL) -> list[ReviewFl
                 )
             except Exception:  # noqa: BLE001 — fail-open
                 pass
+        # 符號漂移是跨 step（同題多步）的檢查,故在 step 迴圈外、每題算一次。
+        try:
+            flags.extend(_check_symbol_drift(pid, steps))
+        except Exception:  # noqa: BLE001 — fail-open
+            pass
     return flags

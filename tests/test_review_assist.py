@@ -163,6 +163,111 @@ def test_unit_in_flag_kinds():
     assert "unit" in FLAG_KINDS
 
 
+# ---------- 符號漂移校驗(symbol，F9-1b 高精度子集) ----------
+def test_symbol_drift_inverted_formula_flagged():
+    # σ = P / A 後又 σ = A / P:變數相同({P,A})但公式倒過來 → 高機率筆誤,標 symbol
+    flags = check_deck(
+        _deck(
+            [
+                {"display": "σ = P / A", "narration": ""},
+                {"display": "σ = A / P = 0.01", "narration": ""},
+            ]
+        )
+    )
+    sym = [f for f in flags if f.kind == "symbol"]
+    assert len(sym) == 1
+    assert sym[0].severity == "warn"
+    assert sym[0].problem_id == "q1"
+    assert sym[0].step_index == 1  # 標在較後出現的定義那一步
+    assert "σ" in sym[0].message
+
+
+def test_symbol_drift_operator_flip_flagged():
+    # P · A vs P / A:同變數集、換了運算符 → 標
+    flags = check_deck(
+        _deck(
+            [
+                {"display": "σ = P × A", "narration": ""},
+                {"display": "σ = P / A", "narration": ""},
+            ]
+        )
+    )
+    assert any(f.kind == "symbol" for f in flags)
+
+
+def test_symbol_drift_legit_substitution_not_flagged():
+    # σ = P / A → σ = P / (π r²):變數集不同(代入 A = π r²)＝合法推導,不標
+    flags = check_deck(
+        _deck(
+            [
+                {"display": "σ = P / A", "narration": ""},
+                {"display": "σ = P / (π r²)", "narration": ""},
+            ]
+        )
+    )
+    assert [f for f in flags if f.kind == "symbol"] == []
+
+
+def test_symbol_drift_different_variable_not_flagged():
+    # σ = P / A 與 σ = F / A:不同變數(P vs F,可能是不同力符號)→ 變數集不同,不亂標
+    flags = check_deck(
+        _deck(
+            [
+                {"display": "σ = P / A", "narration": ""},
+                {"display": "σ = F / A", "narration": ""},
+            ]
+        )
+    )
+    assert [f for f in flags if f.kind == "symbol"] == []
+
+
+def test_symbol_drift_numeric_substitution_not_flagged():
+    # σ = P / A 後接數值代入 σ = 50000 / 500 = 100 MPa:含數字的段不是符號定義,不標
+    flags = check_deck(
+        _deck(
+            [
+                {"display": "σ = P / A", "narration": ""},
+                {"display": "σ = 50000 / 500 = 100 MPa", "narration": ""},
+            ]
+        )
+    )
+    assert [f for f in flags if f.kind == "symbol"] == []
+
+
+def test_symbol_drift_same_formula_repeated_not_flagged():
+    # 同一公式重複出現(只是格式不同)→ 不標
+    flags = check_deck(
+        _deck(
+            [
+                {"display": "σ = P / A", "narration": ""},
+                {"display": "σ = P/A", "narration": ""},
+            ]
+        )
+    )
+    assert [f for f in flags if f.kind == "symbol"] == []
+
+
+def test_symbol_drift_isolated_per_problem():
+    # 跨題不串:q1 的 σ=P/A 與 q2 的 σ=A/P 不算衝突
+    deck = {
+        "problems": [
+            {"id": "q1", "steps": [{"display": "σ = P / A", "narration": ""}]},
+            {"id": "q2", "steps": [{"display": "σ = A / P", "narration": ""}]},
+        ]
+    }
+    assert [f for f in check_deck(deck) if f.kind == "symbol"] == []
+
+
+def test_symbol_drift_single_definition_not_flagged():
+    # 只定義一次(其餘步驟是數值代入)→ 沒有可比對的第二條公式,不標
+    flags = check_deck(_deck([{"display": "σ = P / A", "narration": ""}]))
+    assert [f for f in flags if f.kind == "symbol"] == []
+
+
+def test_symbol_in_flag_kinds():
+    assert "symbol" in FLAG_KINDS
+
+
 # ---------- narration 數字對齊 ----------
 def test_narration_mismatch_flagged():
     flags = check_deck(

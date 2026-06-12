@@ -530,8 +530,24 @@
     （確定性檢查 + pipeline 接線 + 前端 ⚠ 標記 + ① mock 骨架），**F9-1f（① prompt 調校 + 誤報率
     A/B 實測）為 GATE 需開額度**。列 5 個開放問題待拍板（範圍先②/量綱依賴 pint vs 白名單/①預設關/
     容差）。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
-  - ⏸️ **實作待拍板範圍**：建議先做 offline 的 ②（F9-1a→c→d，零成本馬上降 reviewer 負擔），
-    ①（F9-1f）開額度後另做。等劉老師對 RFC 開放問題（先②/依賴選型/①開關）拍板後再開實作 PR。
+  - ✅ 2026-06-12 **F9-1a 確定性算術校驗 + `ReviewFlag` schema 完成（offline，純核心）**。新增
+    `core/review_assist.py`：純函式 `check_deck(deck) -> list[ReviewFlag]`，掃 exam deck
+    `problems[].steps[]` 做兩個最高價值的形式校驗——**①算術校驗**（等號鏈各段用 **`ast` 白名單
+    安全求值**＝非 `eval`，只放行 `+ - * / ** ()` 與數字，× ÷ ^ 真減號正規化、段尾單位剝離，對不上
+    標 `arithmetic`/warn）與 **②結果數字↔narration 對齊**（display 最右側結論值沒在旁白唸到標
+    `narration_mismatch`/info，對應 RFC 問題 #4）。守 RFC 不可妥協紀律：**只標記不改 deck、不阻擋
+    approve、每 step 兩檢查各自 try/except＝fail-open**（校驗器壞掉不卡 review）；**高精度低誤報**
+    （符號/函式/逗號分隔等不能安全求值的段一律跳過、不亂猜，容差預設 1% 放過合理捨入、抓 10x 級
+    真錯，可覆寫）。`ReviewFlag` 為 pydantic schema，kind/severity/source 收進合法集合（type guard，
+    含後續 slice 才產的 unit/symbol/model_disagree/second_model 先預留）。**本刀只做純核心 +
+    schema**，不接 pipeline、不落 `review_flags.json`、不動前端（F9-1c/d 後續 slice）、不碰二次模型
+    （F9-1e/f GATE）。補 `tests/test_review_assist.py` 20 測（mock_output 乾淨無 flag／算術錯標·對不標／
+    Unicode 算符／符號段不誤標／容差·自訂容差／三段等式鏈／narration 對齊·捨入容忍／非 dict·空 deck／
+    id fallback·索引／malformed step fail-open／安全求值拒危險輸入／type guard，**全 offline 不打 API**）。
+    本機全套 2588 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ⏸️ **後續 slice 仍待拍板範圍**：F9-1c（接 pipeline 落 `review_flags.json` + 端點）、F9-1d（前端
+    ⚠ 標記）、F9-1b（單位/量綱，依賴選型 pint vs 白名單待拍板）為 offline 可續做；F9-1e/f（① 二次
+    模型）GATE 需開額度。建議等劉老師對 RFC 開放問題（先②上線/依賴選型/①開關）拍板後再續接線。
 - [~] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
   **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
   「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；

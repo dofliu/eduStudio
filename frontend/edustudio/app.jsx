@@ -190,6 +190,8 @@ const ICONS = {
   pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   'check-circle':'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
   'alert-triangle':'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'shield-alert':'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
   clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   loader:'<path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/>',
   sigma:'<path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"/>',
@@ -1285,7 +1287,10 @@ function esDeckToSegments(deck) {
     deck.problems.forEach((p, pi) => (p.steps || []).forEach((st, si) =>
       segs.push({ id: (p.id || ("q" + pi)) + "_" + si, t: p.number || ("第 " + (pi + 1) + " 題"),
         status: "pending", confidence: 0.9, narration: st.narration || st.display || "", formula: null, values: [],
-        _path: ["problems", pi, "steps", si], _field: st.narration !== undefined ? "narration" : "display" })));
+        _path: ["problems", pi, "steps", si], _field: st.narration !== undefined ? "narration" : "display",
+        // F9-1d: 對應後端 review_assist.check_deck 的 (problem_id, step_index)，給確定性校驗 flag 配位。
+        // fallback 與後端一致（`q{idx+1}`，1-indexed）；有 p.id 時直接用 id。
+        _pid: p.id || ("q" + (pi + 1)), _sidx: si })));
   } else if (deck && Array.isArray(deck.sections)) {
     deck.sections.forEach((s, si) => {
       const items = s.slides || s.steps || null;
@@ -1300,6 +1305,24 @@ function esDeckToSegments(deck) {
   if (!segs.length) segs.push({ id: "all", t: "全文", status: "pending", confidence: 0.9,
     narration: (deck && (deck.exam_title || deck.title)) || "（此 job 尚無可審查的逐段內容）", formula: null, values: [] });
   return segs;
+}
+
+/* F9-1d: 把後端確定性 review 校驗的可疑點（GET /jobs/{id}/review-flags）配位到分段。
+   每個 flag 形如 {problem_id, step_index, kind, severity, message, source}，依 _pid/_sidx 對位。
+   flags 只是輔助 reviewer 注意力的提醒 — 不阻擋 approve（硬規則 #1 的權威是人不是校驗器）。 */
+function esAttachReviewFlags(segs, flags) {
+  if (!Array.isArray(flags) || !flags.length) return segs;
+  const byKey = {};
+  flags.forEach(f => {
+    if (!f || f.problem_id == null) return;
+    const k = f.problem_id + "::" + f.step_index;
+    (byKey[k] = byKey[k] || []).push(f);
+  });
+  return segs.map(s => {
+    if (s._pid == null) return s;
+    const hit = byKey[s._pid + "::" + s._sidx];
+    return hit ? { ...s, reviewFlags: hit } : s;
+  });
 }
 
 // autoSolver 影片來源類型（對齊後端 SourceType）→ 建立路徑。
@@ -1692,6 +1715,9 @@ function SegmentNav({ segs, active, onPick }) {
               <span className="es-mono es-cap">{s.t}</span>
               <span className="es-segnav-text es-clip">{s.narration}</span>
             </span>
+            {s.reviewFlags && s.reviewFlags.length > 0 &&
+              <Icon name="alert-triangle" size={14} className="es-segnav-flag"
+                title={"確定性校驗標出 " + s.reviewFlags.length + " 個可疑點"} />}
             {s.status === "approved" && <Icon name="check" size={15} className="es-segnav-ok" />}
             {s.flag && s.status !== "approved" && <Icon name="alert-triangle" size={14} className="es-segnav-flag" />}
           </button>
@@ -1719,6 +1745,11 @@ function ReviewGate({ task, onClose, onComplete }) {
       fetch("/jobs/" + task.id + "/draft").then(r => r.ok ? r.json() : Promise.reject())
         .then(d => { if (alive) { const deck = d.deck || d; deckRef.current = deck; setSegs(esDeckToSegments(deck)); setLoading(false); } })
         .catch(() => { if (alive) { setSegs(REVIEW_SEGMENTS.map(s => ({ ...s }))); setLoading(false); } });
+      // F9-1d: 取確定性 review 校驗可疑點，配位到分段顯示 ⚠（輔助提醒、不阻擋）。
+      // fail-open：抓不到（舊 job / 端點錯）就不顯示，絕不卡審查。
+      fetch("/jobs/" + task.id + "/review-flags").then(r => r.ok ? r.json() : { flags: [] })
+        .then(d => { const fl = (d && d.flags) || []; if (alive && fl.length) setSegs(cur => esAttachReviewFlags(cur, fl)); })
+        .catch(() => {});
     } else { setSegs(REVIEW_SEGMENTS.map(s => ({ ...s }))); setLoading(false); }
     return () => { alive = false; };
   }, [task]);
@@ -1857,6 +1888,20 @@ function ReviewGate({ task, onClose, onComplete }) {
               <div className="es-seg-warn">
                 <Icon name="alert-triangle" size={15} />
                 <span>{seg.flag}：偵測到有效位數可能不足，請確認下方標記的數值。</span>
+              </div>
+            )}
+
+            {/* F9-1d: 確定性 review 校驗（算術／結果↔旁白對齊）標出的可疑點 —
+                只提醒、不阻擋 approve（硬規則 #1 的權威是人）。 */}
+            {seg.reviewFlags && seg.reviewFlags.length > 0 && (
+              <div className="es-reviewflags">
+                <div className="es-seg-blabel"><Icon name="shield-alert" size={13} /> 自動校驗提醒 · 待人工確認</div>
+                {seg.reviewFlags.map((f, i) => (
+                  <div key={i} className={"es-reviewflag es-rf-" + (f.severity === "warn" ? "warn" : "info")}>
+                    <Icon name={f.severity === "warn" ? "alert-triangle" : "info"} size={14} className="es-rf-icon" />
+                    <span className="es-rf-msg">{f.message}</span>
+                  </div>
+                ))}
               </div>
             )}
 

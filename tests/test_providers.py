@@ -12,6 +12,7 @@ import pytest
 from core import providers
 from core.providers import (
     GeminiProvider,
+    OllamaProvider,
     Provider,
     get_provider,
     provider_for_role,
@@ -49,7 +50,7 @@ def test_get_provider_returns_registered_gemini_singleton():
 
 def test_get_provider_unknown_raises():
     with pytest.raises(ValueError):
-        get_provider("ollama")  # B 階段才登記
+        get_provider("claude")  # 尚未登記的 provider
 
 
 def test_register_provider_roundtrip():
@@ -179,3 +180,75 @@ def test_provider_for_role_tts_unregistered_raises(settings_path):
     # tts 角色 resolve 出 provider 'edge'，不在 LLM registry → ValueError（走 tts_backend）
     with pytest.raises(ValueError):
         provider_for_role("tts")
+
+
+# ---------- OllamaProvider（F9-3b，本機可插拔，monkeypatch helper 不需真 ollama）----------
+
+def test_ollama_provider_satisfies_protocol():
+    assert isinstance(OllamaProvider(), Provider)
+
+
+def test_ollama_provider_name():
+    assert OllamaProvider().name == "ollama"
+
+
+def test_ollama_provider_registered_singleton():
+    # F9-3b 已在 module import 時 register → get_provider('ollama') 取得實作
+    p = get_provider("ollama")
+    assert isinstance(p, OllamaProvider)
+    assert get_provider("ollama") is p
+
+
+def test_ollama_generate_text_delegates_to_helper(monkeypatch):
+    seen = {}
+
+    def fake_generate(prompt, *, model, **kwargs):
+        seen.update(prompt=prompt, model=model, kwargs=kwargs)
+        return "  本機回應  "
+
+    monkeypatch.setattr(providers, "ollama_generate", fake_generate)
+
+    out = OllamaProvider().generate_text("翻譯這句", model="translategemma")
+    assert out == "  本機回應  "          # provider 不再 strip（helper 已負責）
+    assert seen["prompt"] == "翻譯這句"
+    assert seen["model"] == "translategemma"
+    assert "host" not in seen["kwargs"]    # 未指定 host → 不轉發，helper 走預設
+
+
+def test_ollama_generate_text_forwards_host_when_set(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        providers, "ollama_generate",
+        lambda prompt, *, model, **kwargs: seen.update(model=model, kwargs=kwargs) or "x",
+    )
+
+    OllamaProvider(host="http://gpu-box:11434").generate_text("hi", model="qwen2.5")
+    assert seen["kwargs"]["host"] == "http://gpu-box:11434"
+
+
+def test_ollama_generate_text_requires_model(monkeypatch):
+    # 本機 provider 無雲端預設可退：model 未指定 → ValueError（type guard）
+    monkeypatch.setattr(providers, "ollama_generate",
+                        lambda *a, **k: pytest.fail("不該打 helper"))
+    p = OllamaProvider()
+    with pytest.raises(ValueError):
+        p.generate_text("hi")
+    with pytest.raises(ValueError):
+        p.generate_text("hi", model="   ")   # 空白也算未指定
+
+
+def test_ollama_does_not_record_cloud_usage(monkeypatch):
+    # 本機 provider 不燒額度 → 不該碰 record_text_now（不汙染雲端成本帳）
+    monkeypatch.setattr(providers, "ollama_generate",
+                        lambda prompt, *, model, **k: "out")
+    monkeypatch.setattr(providers, "record_text_now",
+                        lambda *a, **k: pytest.fail("本機呼叫不該計雲端用量"))
+    assert OllamaProvider().generate_text("hi", model="translategemma") == "out"
+
+
+def test_ollama_image_and_tts_not_implemented(tmp_path):
+    p = OllamaProvider()
+    with pytest.raises(NotImplementedError):
+        p.generate_image("draw")
+    with pytest.raises(NotImplementedError):
+        p.tts("hi", tmp_path / "out.mp3")

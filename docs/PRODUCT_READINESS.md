@@ -683,6 +683,21 @@
     urllib 不打網路·不需真 ollama**）；既有 `test_translate.py` 的 2 個 seam 測改 patch 新模組（驗
     wrapper 仍包成 TranslateError，行為不變）。本機相關子集 69 passed、全套 2622 passed（3 個
     QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-13 **F9-3b `OllamaProvider` 座位坐進去完成（offline，mock 測零行為改變）**。比照 M-4
+    `GeminiProvider` 的 stub 法，在 `core/providers.py` 新增 `OllamaProvider`（實作 `Provider` 協定）+
+    `core/models.py` 加 `PROVIDER_OLLAMA` 常數，並在 module import 時 `register_provider` 進 registry
+    ——`get_provider("ollama")` 即取得、`provider_for_role` 待 F9-3c 接線後可解析。`generate_text` 走
+    F9-3a 抽出的共用 helper `core.ollama_client.ollama_generate`（單一真實來源、與翻譯層共用同一條本機
+    呼叫線），`model` 由角色登錄表帶入（本機無雲端預設可退 → 未指定即 `ValueError` type guard）；
+    `generate_image`/`tts` → `NotImplementedError`（本機生圖/語音各有專屬子系統，比照 GeminiProvider
+    隔離 TTS）。守 RFC 紀律：**本機 provider 不燒額度＝不呼叫 `record_text_now`**（不汙染雲端成本帳，
+    offline-first 賣點本身）。**本刀只坐座位、不改任何現有呼叫端行為**：`DEFAULTS` 仍恆雲端，把角色指
+    到本機需 F9-3c（`model_roles` 帶 provider）/ F9-3d（自動退雲端）後續刀（碰 settings schema 形狀／
+    退雲端預設＝RFC 開放問題 #2/#3，待拍板，本刀不碰）。補 `tests/test_providers.py` 8 測（協定符合／
+    name／已登記單例／delegate helper·不轉發未設 host／轉發已設 host／無 model `ValueError`·空白亦然／
+    不計雲端用量／生圖·tts `NotImplementedError`），並把既有「未知 provider」測從 `"ollama"` 改 `"claude"`
+    （ollama 現已登記）。**全 monkeypatch helper 不打網路·不需真 ollama**＝offline-first。本機相關子集
+    66 passed、全套 2630 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
 - [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。

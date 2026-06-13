@@ -127,6 +127,25 @@ GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 TTS_PROVIDER_ENV = "TTS_PROVIDER"
 
+# 本機模型（F9-3 ollama 等）失敗時是否自動退回雲端 Gemini。預設開：本機掛了
+# （服務沒開／模型沒 pull／逾時）不該讓整批 pipeline 崩；設成 0/false/no/off 關成
+# 嚴格本機（隱私／離線場景，本機掛了就明確報錯、絕不偷偷上雲燒額度）。
+LOCAL_MODEL_FALLBACK_ENV = "LOCAL_MODEL_FALLBACK"
+
+
+def get_local_model_fallback() -> bool:
+    """本機 provider 失敗時是否自動退回雲端 Gemini（F9-3d）。
+
+    env ``LOCAL_MODEL_FALLBACK``：未設／空字串 → 預設 ``True``（自動退雲端，
+    退場時會 log.warning 講清楚）；設成 ``0`` / ``false`` / ``no`` / ``off``
+    （大小寫不拘）→ ``False``＝嚴格本機（不偷偷上雲）。
+    """
+    raw = os.environ.get(LOCAL_MODEL_FALLBACK_ENV)
+    if raw is None or not raw.strip():
+        return True
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
 # CORS 允許來源。預設只給本機自用，部署時用環境變數放行實際前端 origin。
 ALLOWED_ORIGINS_ENV = "EDUSTUDIO_ALLOWED_ORIGINS"
 DEFAULT_ALLOWED_ORIGINS = ["http://127.0.0.1:8000", "http://localhost:8000"]

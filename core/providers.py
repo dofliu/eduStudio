@@ -24,9 +24,12 @@ B 階段（F9-3）只要新增一個實作此協定的 class（例：``OllamaPro
 """
 from __future__ import annotations
 
+import logging
 from typing import Protocol, runtime_checkable
 
+from core.config import get_gemini_api_key, get_local_model_fallback
 from core.models import (
+    DEFAULTS,
     PROVIDER_GEMINI,
     PROVIDER_OLLAMA,
     TEXT_FAST,
@@ -36,6 +39,8 @@ from core.models import (
 from core.ollama_client import ollama_generate
 from core.usage import record_text_now
 
+log = logging.getLogger(__name__)
+
 __all__ = [
     "Provider",
     "GeminiProvider",
@@ -43,6 +48,7 @@ __all__ = [
     "register_provider",
     "get_provider",
     "provider_for_role",
+    "generate_text_for_role",
 ]
 
 
@@ -225,6 +231,58 @@ def provider_for_role(role: str):
     """
     provider_name, model_id = resolve(role)
     return get_provider(provider_name), model_id
+
+
+def generate_text_for_role(role: str, prompt: str, *, temperature: float = 0.4,
+                           station: str = "text") -> str:
+    """角色 → 文字，含**本機 provider 失敗自動退雲端**（F9-3d，B-ready 座位）。
+
+    呼叫端只認邏輯角色，不必管它解析到雲端還是本機。``resolve(role)`` 出 provider：
+
+    - **gemini（雲端）**：直接走——它本身就是退場目的地，不需再退。
+    - **非 gemini（本機，如 ollama）**：呼叫失敗時（服務沒開／模型沒 pull／逾時）——
+      若 ``LOCAL_MODEL_FALLBACK`` 開（預設）**且** 有 Gemini 金鑰 → ``log.warning``
+      講清楚退場原因後，改走 ``GeminiProvider``（用該角色的**雲端預設 model**
+      ``DEFAULTS[role]``，而非本機 id）；fallback 關成嚴格本機、或根本沒 Gemini 金鑰
+      可退 → **原樣拋出**（不偷偷上雲、不靜默吞錯，誠實讓呼叫端知道本機掛了）。
+
+    退雲端是真的燒額度 → 走 ``GeminiProvider.generate_text`` 會如實計帳（誠實，不藏）。
+
+    本刀（F9-3d）**只把含退場的座位備好、不改任何現有呼叫端行為**：現有呼叫端仍各自
+    用 ``resolve_id()`` + 直打 genai（M-2 已換接的部分），尚未改走本函式；把 caller
+    遷來用此函式＝後續刀。``role`` 非法 → ``resolve`` 拋 ``ValueError``（type guard）。
+    """
+    provider_name, model_id = resolve(role)
+    provider = get_provider(provider_name)
+    if provider_name == PROVIDER_GEMINI:
+        return provider.generate_text(prompt, model=model_id,
+                                      temperature=temperature, station=station)
+
+    # 本機 provider：失敗時依設定/金鑰決定退雲端或誠實拋。
+    try:
+        return provider.generate_text(prompt, model=model_id,
+                                      temperature=temperature, station=station)
+    except Exception as exc:
+        if not get_local_model_fallback():
+            log.warning(
+                "本機 provider %r（model=%s）失敗，且嚴格本機模式（LOCAL_MODEL_FALLBACK"
+                " 關）→ 不退雲端、原樣拋出：%s", provider_name, model_id, exc,
+            )
+            raise
+        if not get_gemini_api_key():
+            log.warning(
+                "本機 provider %r（model=%s）失敗，但沒有 Gemini 金鑰可退 → 原樣拋出："
+                "%s", provider_name, model_id, exc,
+            )
+            raise
+        gemini_model = DEFAULTS[role][1]   # 該角色雲端預設（恆 gemini，不拿本機 id）
+        log.warning(
+            "本機 provider %r（model=%s）失敗 → 自動退回雲端 Gemini（model=%s）：%s",
+            provider_name, model_id, gemini_model, exc,
+        )
+        return get_provider(PROVIDER_GEMINI).generate_text(
+            prompt, model=gemini_model, temperature=temperature, station=station,
+        )
 
 
 # A 階段預設登記：gemini（單例，無注入 client，呼叫時延遲建真實 client）。

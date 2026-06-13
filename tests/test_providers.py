@@ -14,6 +14,7 @@ from core.providers import (
     GeminiProvider,
     OllamaProvider,
     Provider,
+    generate_text_for_role,
     get_provider,
     provider_for_role,
     register_provider,
@@ -252,3 +253,101 @@ def test_ollama_image_and_tts_not_implemented(tmp_path):
         p.generate_image("draw")
     with pytest.raises(NotImplementedError):
         p.tts("hi", tmp_path / "out.mp3")
+
+
+# ---------- generate_text_for_role：自動退雲端（F9-3d，mock 不打真 API）----------
+
+def _point_role_to_ollama(settings_path, role="text.fast", model="translategemma"):
+    """設定頁把某文字角色指到本機 ollama（巢狀 provider override）。"""
+    _write_settings(settings_path,
+                    {"model_roles": {role: {"provider": "ollama", "model": model}}})
+
+
+def _stub_registered_gemini(monkeypatch):
+    """把 registry 的 gemini 單例的 _ensure_client 換成 fake，避免建真 client；
+    回傳一個 dict 記錄它被以哪個 model 呼叫。"""
+    gemini = get_provider("gemini")
+    monkeypatch.setattr(gemini, "_ensure_client", lambda: object())
+    seen = {}
+    monkeypatch.setattr(providers, "_gemini_text_call",
+                        lambda c, m, p, *, temperature: seen.update(
+                            model=m, prompt=p, temperature=temperature) or "雲端結果")
+    monkeypatch.setattr(providers, "record_text_now",
+                        lambda *a, **k: seen.update(recorded=True))
+    return seen
+
+
+def test_generate_text_for_role_gemini_goes_straight(settings_path, monkeypatch):
+    # 角色 resolve 出 gemini（內建預設）→ 直接走雲端，不經退場包裝。
+    seen = _stub_registered_gemini(monkeypatch)
+    out = generate_text_for_role("text.fast", "hi", temperature=0.3, station="video")
+    assert out == "雲端結果"
+    assert seen["model"] == "gemini-3.5-flash"
+    assert seen["temperature"] == 0.3
+    assert seen.get("recorded") is True
+
+
+def test_generate_text_for_role_local_success(settings_path, monkeypatch):
+    # 角色指到 ollama 且本機成功 → 回本機結果，完全不碰雲端、不計帳。
+    _point_role_to_ollama(settings_path)
+    monkeypatch.setattr(providers, "ollama_generate",
+                        lambda prompt, *, model, **k: f"本機:{model}")
+    monkeypatch.setattr(providers, "_gemini_text_call",
+                        lambda *a, **k: pytest.fail("本機成功不該打雲端"))
+    monkeypatch.setattr(providers, "record_text_now",
+                        lambda *a, **k: pytest.fail("本機成功不該計雲端帳"))
+    out = generate_text_for_role("text.fast", "翻譯")
+    assert out == "本機:translategemma"
+
+
+def test_generate_text_for_role_falls_back_to_cloud_on_local_failure(
+        settings_path, monkeypatch):
+    # 本機失敗 + fallback 開（預設）+ 有金鑰 → 退回雲端、用該角色雲端預設 model。
+    _point_role_to_ollama(settings_path)
+    monkeypatch.setattr(providers, "ollama_generate",
+                        lambda prompt, *, model, **k: (_ for _ in ()).throw(
+                            RuntimeError("ollama 沒開")))
+    monkeypatch.setattr(providers, "get_gemini_api_key", lambda: "key-123")
+    monkeypatch.setattr(providers, "get_local_model_fallback", lambda: True)
+    seen = _stub_registered_gemini(monkeypatch)
+
+    out = generate_text_for_role("text.fast", "翻譯")
+    assert out == "雲端結果"
+    # 退場用雲端預設 model（gemini），不是本機 id
+    assert seen["model"] == "gemini-3.5-flash"
+    assert seen.get("recorded") is True   # 退雲端真燒額度 → 如實計帳
+
+
+def test_generate_text_for_role_strict_local_reraises(settings_path, monkeypatch):
+    # 本機失敗 + fallback 關（嚴格本機）→ 原樣拋，絕不上雲。
+    _point_role_to_ollama(settings_path)
+    monkeypatch.setattr(providers, "ollama_generate",
+                        lambda prompt, *, model, **k: (_ for _ in ()).throw(
+                            RuntimeError("ollama 沒開")))
+    monkeypatch.setattr(providers, "get_gemini_api_key", lambda: "key-123")
+    monkeypatch.setattr(providers, "get_local_model_fallback", lambda: False)
+    monkeypatch.setattr(providers, "_gemini_text_call",
+                        lambda *a, **k: pytest.fail("嚴格本機不該退雲端"))
+
+    with pytest.raises(RuntimeError, match="ollama 沒開"):
+        generate_text_for_role("text.fast", "翻譯")
+
+
+def test_generate_text_for_role_no_key_reraises(settings_path, monkeypatch):
+    # 本機失敗 + fallback 開但沒金鑰可退 → 原樣拋（不靜默吞錯）。
+    _point_role_to_ollama(settings_path)
+    monkeypatch.setattr(providers, "ollama_generate",
+                        lambda prompt, *, model, **k: (_ for _ in ()).throw(
+                            RuntimeError("ollama 沒開")))
+    monkeypatch.setattr(providers, "get_gemini_api_key", lambda: None)
+    monkeypatch.setattr(providers, "get_local_model_fallback", lambda: True)
+    monkeypatch.setattr(providers, "_gemini_text_call",
+                        lambda *a, **k: pytest.fail("沒金鑰不該打雲端"))
+
+    with pytest.raises(RuntimeError, match="ollama 沒開"):
+        generate_text_for_role("text.fast", "翻譯")
+
+
+def test_generate_text_for_role_invalid_role_raises(settings_path):
+    with pytest.raises(ValueError):
+        generate_text_for_role("text.turbo", "hi")

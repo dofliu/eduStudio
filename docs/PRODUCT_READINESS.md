@@ -718,6 +718,23 @@
     provider·缺 model 清洗）。**全 tmp 隔離不打 API·不需真 ollama**＝offline-first。本機相關子集 81 passed、
     全套 2641 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。後續 F9-3d（自動退雲端）
     / F9-3e（設定頁前端 provider 下拉）offline 可續推；F9-3f 品質實測＝GATE 需本機跑 ollama。
+  - ✅ 2026-06-13 **F9-3d 自動退雲端（graceful fallback）完成（offline，B-ready 座位 + 開關，零行為改變）**。
+    依 RFC 開放問題 #3 建議拍板採**預設退雲端 + log 大聲講 + 可關嚴格本機**（比照 F9-3c 對 #2 採 RFC 建議的
+    先例）。新增 `core/config.py::get_local_model_fallback()`（env `LOCAL_MODEL_FALLBACK`，未設預設開、
+    `0/false/no/off` 關成嚴格本機，集中於 config 符硬規則 #6）+ `core/providers.py::generate_text_for_role
+    (role, prompt, ...)`：呼叫端只認角色，`resolve()` 出 provider——**gemini 直接走**（它本身就是退場目的地）；
+    **本機 provider（ollama）失敗時**，若 fallback 開（預設）**且有 Gemini 金鑰** → `log.warning` 講清楚退場
+    原因後改走 `GeminiProvider`，**用該角色的雲端預設 model `DEFAULTS[role]`（恆 gemini、不拿本機 id）**；
+    fallback 關（嚴格本機）或無金鑰可退 → **原樣拋出**（不偷偷上雲、不靜默吞錯）。退雲端真燒額度 → 走
+    `GeminiProvider.generate_text` 如實計帳（誠實）。守 RFC 紀律：**退雲端誠實 log·可關嚴格本機、不繞 review
+    gate**（只換「誰生文字」不碰 R-2 assert/狀態機）、不寫死 provider（走 resolve）、type guard 擋未知角色。
+    **本刀只把含退場的座位備好、不改任何現有呼叫端行為**（現有呼叫端仍各自用 `resolve_id()`＋直打 genai，
+    遷來用本函式＝後續刀）；DEFAULTS 仍恆雲端，要把角色開本機＝F9-3f GATE 實測定。補 `tests/test_providers.py`
+    +6（gemini 直走不經退場／本機成功不碰雲端·不計帳／本機失敗+開+有金鑰退雲端用雲端預設 model·如實計帳／
+    嚴格本機原樣拋·不上雲／有開關但無金鑰原樣拋／非法角色 ValueError）+ `.env.example` 補 `LOCAL_MODEL_FALLBACK`。
+    **全 monkeypatch 不打真 API·不需真 ollama**＝offline-first。本機相關子集 56 passed、全套 2612 passed
+    （38 個為容器缺 Noto CJK 字型的 theme/QR/pptx 像素假象，CI 有字型為權威）。後續 F9-3e（設定頁前端
+    provider 下拉）offline 可續推；F9-3f 品質實測＝GATE 需本機跑 ollama。
 - [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。

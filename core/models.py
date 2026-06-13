@@ -23,8 +23,15 @@
    ``get_gemini_model()`` 行為，讓 M-2 換接呼叫端時 runtime 行為不變）。
 3. 內建預設表 ``DEFAULTS``。
 
+``model_roles`` 逐角色覆寫支援兩種寫法（F9-3c，本機可插拔 provider 預留）：
+- **扁平字串** ``{role: "model-id"}``：只覆寫 model id，provider 沿用該角色預設
+  （向後相容 M-3 既有寫法）。
+- **巢狀物件** ``{role: {"provider": "ollama", "model": "translategemma"}}``：同時指定
+  provider（本機 / 雲端）與 model id。讓老師把特定文字角色指到**本機 Ollama**（F9-3
+  本機可插拔，M 軸 Option B）。
+
 本檔**只建表 + 解析**（M-1）；把散落的硬編 id 換成 ``resolve()`` 是 M-2、設定頁逐角色
-管理是 M-3、provider adapter 介面是 M-4。
+管理是 M-3、provider adapter 介面是 M-4、本機 provider 接線是 F9-3。
 """
 from __future__ import annotations
 
@@ -34,6 +41,11 @@ PROVIDER_EDGE = "edge"
 # 本機可插拔 LLM（F9-3 / M 軸 Option B）。DEFAULTS 維持雲端不變——由設定頁
 # model_roles（F9-3c）或 env 把特定角色指到本機，此常數先就緒供 OllamaProvider 登記。
 PROVIDER_OLLAMA = "ollama"
+
+# 設定頁 model_roles 可指派的 provider（type guard：擋打錯字默默污染登錄表）。
+# 只含 LLM/視覺/生圖角色可走的 provider；tts 走獨立 tts_backend 子系統，不在此。
+# B 階段擴張本機 provider（如 claude / 其他本機後端）時在此加入即可。
+ASSIGNABLE_PROVIDERS: frozenset[str] = frozenset({PROVIDER_GEMINI, PROVIDER_OLLAMA})
 
 # ── 邏輯角色集合（測試鎖死，不可隨意增刪）──
 TEXT_FAST = "text.fast"
@@ -121,11 +133,62 @@ def _provider_for(role: str) -> str:
     return DEFAULTS[role][0]
 
 
+def normalize_override(role: str, spec) -> tuple[str, str] | None:
+    """把一筆 ``model_roles`` override 解析成 ``(provider, model_id)``；無效回 None。
+
+    接受兩種寫法（單一真實來源——``resolve()`` 與設定頁清洗共用此解析）：
+    - 扁平字串 ``"model-id"``（向後相容）→ ``(角色預設 provider, model-id)``。
+    - 巢狀 ``{"provider":..., "model":...}`` → 解析 provider + model。
+
+    回 None（＝無有效覆寫，退 legacy/預設）的情形：
+    - 空字串 / 空白 / 非 str 非 dict。
+    - 巢狀但 provider 與預設相同且未帶 model（空殼覆寫，無意義）。
+    - 巢狀但指到**非預設 provider 卻沒帶 model**（本機 provider 無雲端 model 可退，
+      無從解析；漏報優先、不亂猜）。
+    未知 provider（不在 ``ASSIGNABLE_PROVIDERS``）一律忽略 → 退角色預設 provider。
+    """
+    default_provider = _provider_for(role)
+    if isinstance(spec, str):
+        mid = spec.strip()
+        return (default_provider, mid) if mid else None
+    if isinstance(spec, dict):
+        prov = spec.get("provider")
+        prov = prov.strip() if isinstance(prov, str) and prov.strip() else None
+        if prov is not None and prov not in ASSIGNABLE_PROVIDERS:
+            prov = None                       # 未知 provider 忽略，退預設
+        mid = spec.get("model")
+        mid = mid.strip() if isinstance(mid, str) and mid.strip() else None
+        provider = prov or default_provider
+        if mid:
+            return (provider, mid)
+        # 無 model：只有 provider==預設才能退預設 model（但那等於無覆寫 → None）；
+        # 非預設 provider 缺 model 無從解析 → None（退完全預設，不拿錯 id 打本機）。
+        return None
+    return None
+
+
+def clean_role_override(role: str, spec):
+    """正規化 ``model_roles`` 單筆 → **JSON 可存形式**（扁平 str 或巢狀 dict）或 None。
+
+    供 ``core.settings`` 寫入時清洗用（與 ``resolve()`` 共用同一套解析，避免雙份分歧）。
+    收斂表示法：provider 等於角色預設時退回扁平字串（與 legacy 一致、最精簡）；
+    指到非預設 provider 才保留巢狀 ``{"provider":..., "model":...}``。
+    """
+    norm = normalize_override(role, spec)
+    if norm is None:
+        return None
+    provider, model = norm
+    if provider == _provider_for(role):
+        return model                          # 扁平字串（純 model 覆寫）
+    return {"provider": provider, "model": model}
+
+
 def resolve(role: str) -> tuple[str, str]:
     """解析邏輯角色 → ``(provider, model_id)``。
 
     優先序：設定頁 ``model_roles[role]`` → 設定頁 legacy 單值欄位 → 內建預設表。
-    覆寫只帶 model id 時，provider 沿用該角色預設（A 階段恆 gemini / tts 為 edge）。
+    覆寫只帶 model id 時，provider 沿用該角色預設（A 階段恆 gemini / tts 為 edge）；
+    巢狀覆寫帶 provider 時回該 provider（F9-3c 本機可插拔，如 ``ollama``）。
 
     Args:
         role: 必須是 ``ROLES`` 之一，否則 ``ValueError``（type guard，禁止打錯字默默退預設）。
@@ -137,7 +200,7 @@ def resolve(role: str) -> tuple[str, str]:
 
     override = _settings_override(role)
     if override:
-        return (_provider_for(role), override)
+        return override
 
     return DEFAULTS[role]
 
@@ -147,22 +210,23 @@ def resolve_id(role: str) -> str:
     return resolve(role)[1]
 
 
-def _settings_override(role: str) -> str | None:
-    """讀設定頁覆寫（逐角色 model_roles → legacy 單值欄位）；無則 None。失敗靜默回 None。"""
+def _settings_override(role: str) -> tuple[str, str] | None:
+    """讀設定頁覆寫（逐角色 model_roles → legacy 單值欄位）→ ``(provider, model_id)``；
+    無則 None。失敗靜默回 None。"""
     try:
         from core.settings import get_setting
 
         per_role = get_setting("model_roles")
-        if isinstance(per_role, dict):
-            v = per_role.get(role)
-            if isinstance(v, str) and v.strip():
-                return v.strip()
+        if isinstance(per_role, dict) and role in per_role:
+            norm = normalize_override(role, per_role[role])
+            if norm is not None:
+                return norm
 
         legacy_key = _LEGACY_SETTING_KEY.get(role)
         if legacy_key:
             v = get_setting(legacy_key)
             if isinstance(v, str) and v.strip():
-                return v.strip()
+                return (_provider_for(role), v.strip())
     except Exception:
         pass
     return None

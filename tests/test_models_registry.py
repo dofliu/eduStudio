@@ -125,3 +125,82 @@ def test_per_role_override_ignored_when_not_dict(settings_path):
 def test_per_role_blank_value_falls_through(settings_path):
     _write_settings(settings_path, {"model_roles": {"image.pro": ""}})
     assert models.resolve("image.pro") == ("gemini", "gemini-3-pro-image")
+
+
+# ---------- F9-3c：巢狀 provider 覆寫（本機可插拔 ollama）----------
+
+def test_nested_override_resolves_provider_and_model(settings_path):
+    # 把 text.fast 指到本機 ollama + 本機 model id → resolve 回該 provider
+    _write_settings(
+        settings_path,
+        {"model_roles": {"text.fast": {"provider": "ollama", "model": "translategemma"}}},
+    )
+    assert models.resolve("text.fast") == ("ollama", "translategemma")
+    # 其餘角色不受影響，仍走雲端預設
+    assert models.resolve("text.pro") == ("gemini", "gemini-3.1-pro-preview")
+
+
+def test_nested_override_model_only_keeps_default_provider(settings_path):
+    # 巢狀但只帶 model（無 provider）＝等同扁平字串：provider 沿用角色預設
+    _write_settings(settings_path, {"model_roles": {"text.pro": {"model": "gemini-x"}}})
+    assert models.resolve("text.pro") == ("gemini", "gemini-x")
+
+
+def test_nested_override_unknown_provider_ignored(settings_path):
+    # 未知 provider 忽略 → 退角色預設 provider，但保留有效 model
+    _write_settings(
+        settings_path,
+        {"model_roles": {"text.fast": {"provider": "bogus", "model": "still-used"}}},
+    )
+    assert models.resolve("text.fast") == ("gemini", "still-used")
+
+
+def test_nested_override_non_default_provider_without_model_falls_through(settings_path):
+    # 指到非預設 provider 卻沒帶 model → 無從解析，退完全預設（不拿錯 id 打本機）
+    _write_settings(settings_path, {"model_roles": {"text.fast": {"provider": "ollama"}}})
+    assert models.resolve("text.fast") == ("gemini", "gemini-3.5-flash")
+
+
+def test_nested_override_default_provider_explicit(settings_path):
+    # provider 明寫 gemini（＝預設）+ model → 等同扁平字串
+    _write_settings(
+        settings_path,
+        {"model_roles": {"vision": {"provider": "gemini", "model": "gemini-vis-x"}}},
+    )
+    assert models.resolve("vision") == ("gemini", "gemini-vis-x")
+
+
+# ---------- F9-3c：normalize_override / clean_role_override 單元 ----------
+
+def test_normalize_override_forms():
+    # 扁平字串 → 角色預設 provider
+    assert models.normalize_override("text.fast", "m") == ("gemini", "m")
+    # 巢狀帶 provider + model
+    assert models.normalize_override(
+        "text.fast", {"provider": "ollama", "model": "qwen2.5"}
+    ) == ("ollama", "qwen2.5")
+    # 空字串 / 空白 / 非 str 非 dict → None
+    assert models.normalize_override("text.fast", "") is None
+    assert models.normalize_override("text.fast", "  ") is None
+    assert models.normalize_override("text.fast", 123) is None
+    # 非預設 provider 缺 model → None
+    assert models.normalize_override("text.fast", {"provider": "ollama"}) is None
+
+
+def test_clean_role_override_storage_form():
+    # provider==預設 → 收斂回扁平字串（最精簡，與 legacy 一致）
+    assert models.clean_role_override("text.fast", "m") == "m"
+    assert models.clean_role_override(
+        "text.fast", {"provider": "gemini", "model": "m"}
+    ) == "m"
+    # 非預設 provider → 保留巢狀
+    assert models.clean_role_override(
+        "text.fast", {"provider": "ollama", "model": "qwen2.5"}
+    ) == {"provider": "ollama", "model": "qwen2.5"}
+    # 無效 → None
+    assert models.clean_role_override("text.fast", {"provider": "ollama"}) is None
+
+
+def test_assignable_providers_set():
+    # tts 後端（edge/f5/google）不在 model_roles 可指派範圍
+    assert models.ASSIGNABLE_PROVIDERS == frozenset({"gemini", "ollama"})

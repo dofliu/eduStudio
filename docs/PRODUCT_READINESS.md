@@ -698,6 +698,26 @@
     不計雲端用量／生圖·tts `NotImplementedError`），並把既有「未知 provider」測從 `"ollama"` 改 `"claude"`
     （ollama 現已登記）。**全 monkeypatch helper 不打網路·不需真 ollama**＝offline-first。本機相關子集
     66 passed、全套 2630 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-13 **F9-3c `model_roles` 帶 provider 覆寫 + `resolve()` 解析完成（offline）**。讓設定頁
+    逐角色覆寫能**指定 provider**（不只 model id），把特定文字角色指到**本機 Ollama**（F9-3b 座位接線
+    成真）。依 RFC 開放問題 #2 建議拍板採**巢狀表示法 + 向後相容扁平字串**：`model_roles[role]` 可為
+    扁平 `"model-id"`（只覆 model、provider 沿用角色預設＝M-3 既有寫法不變）或巢狀
+    `{"provider":"ollama","model":"translategemma"}`。`core/models.py` 新增 `ASSIGNABLE_PROVIDERS`
+    （type guard：只認 `{gemini, ollama}`，tts 後端走獨立子系統不在此）+ 單一真實來源解析
+    `normalize_override()`（→ `(provider, model_id)`，未知 provider 忽略退預設、**非預設 provider 缺
+    model → 退完全預設不拿錯 id 打本機**＝漏報優先）+ `clean_role_override()`（儲存收斂：provider==預設
+    退回扁平字串、非預設才存巢狀）；`resolve()` 改回 `_settings_override()` 的 `(provider, model)`，巢狀
+    覆寫帶 provider 時回該 provider。`core/settings._clean_model_roles` 委派 `clean_role_override`（與
+    resolve 共用同套解析、避免雙份分歧）；`/settings` route `model_roles` 型別放寬成 `dict[str, str|dict]`
+    容納巢狀。**DEFAULTS 仍恆雲端、現有呼叫端零改動**（這刀只讓設定「能指 provider」，實際把哪些角色
+    預設開本機＝F9-3f GATE 實測定；自動退雲端＝F9-3d 後續刀）。守 RFC 紀律：**不繞 review gate**（只換
+    「誰生文字」不碰 R-2 assert/狀態機）、不寫死 id/provider（走 resolve）、type guard 擋未知 provider。
+    補測：`test_models_registry.py` +10（巢狀解析 provider+model／只 model 退預設 provider／未知 provider
+    忽略／非預設缺 model 退預設／明寫 gemini／`normalize_override`·`clean_role_override` 單元／
+    `ASSIGNABLE_PROVIDERS`），`test_settings.py` +3（巢狀 roundtrip+resolve／預設 provider 收斂扁平／未知
+    provider·缺 model 清洗）。**全 tmp 隔離不打 API·不需真 ollama**＝offline-first。本機相關子集 81 passed、
+    全套 2641 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。後續 F9-3d（自動退雲端）
+    / F9-3e（設定頁前端 provider 下拉）offline 可續推；F9-3f 品質實測＝GATE 需本機跑 ollama。
 - [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。

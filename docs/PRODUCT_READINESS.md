@@ -735,6 +735,21 @@
     **全 monkeypatch 不打真 API·不需真 ollama**＝offline-first。本機相關子集 56 passed、全套 2612 passed
     （38 個為容器缺 Noto CJK 字型的 theme/QR/pptx 像素假象，CI 有字型為權威）。後續 F9-3e（設定頁前端
     provider 下拉）offline 可續推；F9-3f 品質實測＝GATE 需本機跑 ollama。
+  - ✅ 2026-06-13 **F9-3e 設定頁前端 provider 下拉完成（offline，F9-3c/d 接線收尾）**。讓老師在設定頁
+    把**文字角色**指到本機 Ollama（不只覆寫 model id）：`SettingsDrawer` 每個文字角色（text.fast/
+    text.pro/vision）新增 **provider 下拉**（Gemini 雲端／Ollama 本機）——選 Gemini＝既有 model 下拉、
+    選 Ollama＝本機模型名稱自由輸入（本機無預設候選清單，例 `translategemma`）。**生圖/視覺角色維持雲端
+    only**（不顯示 provider 下拉，呼應 RFC 預設「image.* 留雲端」、本機後端尚不支援生圖/讀圖，避免「選了
+    跑不動」footgun）。寫入沿用 F9-3c 表示法：預設 provider（雲端）存扁平字串／空＝清除回退系統預設、本機
+    provider 存巢狀 `{provider,model}`（後端 `_clean_model_roles` 收斂、空 model 丟棄）。後端 `core/models.
+    py` `role_catalog()` 補曝 `provider`（下拉初值）+ 新增 `provider_catalog()`（可指派 provider 單一真實
+    來源含人讀 label，gemini 在前、tts 後端不在此），`/settings` 視圖補 `providers`。守紀律：**只換「誰生
+    文字」不碰 review gate**（R-2 assert/狀態機完全不動）、type guard（provider 限 `ASSIGNABLE_PROVIDERS`）、
+    config/catalog 集中單一真實來源。補測 `test_models_registry.py`（role_catalog 含 provider／
+    provider_catalog 形狀·排序·排除 tts）+ `test_settings.py`（route 曝 providers／巢狀 provider 覆寫
+    roundtrip）。前端 `npm run build`（vite, node22）編譯通過、本機全套 2648 passed（3 個 QR/theme 字型
+    像素為容器缺 Noto CJK 假象，CI 權威）。**視覺驗收待人工**（此環境無瀏覽器）。F9-3 offline slice
+    （a~e）至此到齊；剩 F9-3f 品質 A/B 實測＝GATE 需本機跑 ollama。
 - [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。

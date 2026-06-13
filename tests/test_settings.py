@@ -79,6 +79,34 @@ class TestModelRoles:
         st.update({"model_roles": {"text.fast": "m"}})
         assert st.public_view()["model_roles"] == {"text.fast": "m"}
 
+    # ---- F9-3c：巢狀 provider 覆寫（本機可插拔 ollama）持久化 + 清洗 ----
+
+    def test_nested_provider_override_roundtrip_and_resolve(self, settings_path):
+        from core import models
+        from core import settings as st
+        st.update({"model_roles": {"text.fast": {"provider": "ollama", "model": "translategemma"}}})
+        # 非預設 provider → 保留巢狀形儲存
+        assert st.get_setting("model_roles") == {
+            "text.fast": {"provider": "ollama", "model": "translategemma"}
+        }
+        # 對 resolve() 生效（回 provider + model）
+        assert models.resolve("text.fast") == ("ollama", "translategemma")
+
+    def test_nested_default_provider_collapses_to_flat(self, settings_path):
+        from core import settings as st
+        # provider==預設 gemini → 收斂回扁平字串（與 legacy 儲存一致）
+        st.update({"model_roles": {"text.pro": {"provider": "gemini", "model": "gemini-x"}}})
+        assert st.get_setting("model_roles") == {"text.pro": "gemini-x"}
+
+    def test_nested_unknown_provider_and_incomplete_dropped(self, settings_path):
+        from core import settings as st
+        st.update({"model_roles": {
+            "text.fast": {"provider": "bogus", "model": "kept"},   # 未知 provider 忽略→扁平
+            "text.pro": {"provider": "ollama"},                    # 缺 model → 丟棄
+            "vision": {"provider": "ollama", "model": "  "},       # 空 model → 丟棄
+        }})
+        assert st.get_setting("model_roles") == {"text.fast": "kept"}
+
 
 class TestApiKeyOverride:
     def test_settings_overrides_env(self, settings_path, monkeypatch):

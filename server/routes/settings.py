@@ -22,7 +22,9 @@ class SettingsPatch(BaseModel):
     gemini_api_key: str | None = None
     text_model: str | None = None
     image_model: str | None = None
-    model_roles: dict[str, str] | None = None    # 逐角色 model id 覆寫（M-3）；{} ＝清除
+    # 逐角色覆寫（M-3）；{} ＝清除。每筆值可為扁平字串（model id）或巢狀
+    # {"provider":...,"model":...}（F9-3c 本機可插拔 provider）；後端 _clean_model_roles 清洗。
+    model_roles: dict[str, str | dict] | None = None
     brand_speaker: str | None = None
     brand_org: str | None = None
     brand_url: str | None = None

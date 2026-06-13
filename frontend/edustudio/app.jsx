@@ -3212,10 +3212,36 @@ function SettingsDrawer({ open, onClose }) {
   }, [open]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  // 逐角色 model 覆寫（M-3）：選空＝清除該角色（回退系統預設）。
-  const setRole = (role, v) => setForm(f => {
+  // 逐角色 provider/model 覆寫（M-3 + F9-3c 本機可插拔 provider）。
+  // 值表示法：扁平字串＝角色預設 provider（雲端）+ model 覆寫；巢狀 {provider,model}
+  // ＝指到本機 provider（如 ollama）；空/未設＝清除回退系統預設（後端 _clean_model_roles 收斂）。
+  const roleProvider = (role) => {
+    const v = (form.model_roles || {})[role.role];
+    if (v && typeof v === "object") return v.provider || role.provider;
+    return role.provider;                  // 扁平字串或未設＝角色預設 provider
+  };
+  const roleModel = (role) => {
+    const v = (form.model_roles || {})[role.role];
+    if (!v) return "";
+    return (typeof v === "object") ? (v.model || "") : v;
+  };
+  // 切 provider：回預設 provider（雲端）＝清除（本機專屬 model 對雲端無意義）；
+  // 切到本機 provider＝巢狀存（沿用已填 model，空 model 後端清洗時丟棄）。
+  const setRoleProvider = (role, provider) => setForm(f => {
     const mr = { ...(f.model_roles || {}) };
-    if (v) mr[role] = v; else delete mr[role];
+    const cur = mr[role.role];
+    const model = (cur && typeof cur === "object") ? (cur.model || "") : (typeof cur === "string" ? cur : "");
+    if (provider === role.provider) delete mr[role.role];
+    else mr[role.role] = { provider, model };
+    return { ...f, model_roles: mr };
+  });
+  const setRoleModel = (role, model) => setForm(f => {
+    const mr = { ...(f.model_roles || {}) };
+    const cur = mr[role.role];
+    const prov = (cur && typeof cur === "object") ? (cur.provider || role.provider) : role.provider;
+    const m = (model || "").trim();
+    if (prov === role.provider) { if (m) mr[role.role] = m; else delete mr[role.role]; }  // 預設 provider：扁平字串
+    else mr[role.role] = { provider: prov, model: m };                                    // 本機 provider：巢狀
     return { ...f, model_roles: mr };
   });
   const save = async () => {
@@ -3246,17 +3272,36 @@ function SettingsDrawer({ open, onClose }) {
             <div className="es-cost-sec-title">AI 模型（逐角色）</div>
             {(data?.roles || []).map(role => {
               const opts = role.kind === "image" ? (data?.image_models || []) : (data?.text_models || []);
-              const cur = (form.model_roles || {})[role.role] || "";
+              const prov = roleProvider(role);
+              const model = roleModel(role);
+              const isDefaultProvider = prov === role.provider;   // 預設 provider（雲端）
+              // 只有文字角色提供本機 provider 選擇；視覺/生圖角色預設留雲端（本機後端尚不支援生圖/讀圖）。
+              const allowProvider = role.kind === "text" && (data?.providers || []).length > 1;
               return (
                 <Field key={role.role} label={role.label}>
-                  <select style={inputStyle} value={cur} onChange={e => setRole(role.role, e.target.value)}>
-                    <option value="">預設（{role.default}）</option>
-                    {opts.map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
-                  </select>
+                  <div className="es-row es-gap-sm">
+                    {allowProvider && (
+                      <select style={{ ...inputStyle, flex: "0 0 9rem", width: "auto" }} value={prov}
+                        onChange={e => setRoleProvider(role, e.target.value)}>
+                        {(data?.providers || []).map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                      </select>
+                    )}
+                    {isDefaultProvider ? (
+                      <select style={{ ...inputStyle, flex: 1, width: "auto", minWidth: 0 }} value={model}
+                        onChange={e => setRoleModel(role, e.target.value)}>
+                        <option value="">預設（{role.default}）</option>
+                        {opts.map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
+                      </select>
+                    ) : (
+                      <input style={{ ...inputStyle, flex: 1, width: "auto", minWidth: 0 }} value={model}
+                        onChange={e => setRoleModel(role, e.target.value)}
+                        placeholder="本機模型名稱，例：translategemma" />
+                    )}
+                  </div>
                 </Field>
               );
             })}
-            <div className="es-cap es-mut" style={{ marginTop: 4 }}>留空＝沿用系統預設。語音（TTS）後端於 .env / tts_config.json 設定。</div>
+            <div className="es-cap es-mut" style={{ marginTop: 4 }}>留空＝沿用系統預設。文字角色可改用本機（Ollama）省雲端額度——本機跑前需自行啟動 ollama；認不出時自動退回雲端（可關）。語音（TTS）後端於 .env / tts_config.json 設定。</div>
           </div>
 
           <div>

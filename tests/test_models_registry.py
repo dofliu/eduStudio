@@ -45,10 +45,24 @@ def test_role_catalog_shape_and_excludes_tts():
     # tts 走獨立 TTS 子系統，不在逐角色設定頁管理
     assert keys == ["text.fast", "text.pro", "vision", "image.fast", "image.pro"]
     for c in cat:
-        assert set(c) == {"role", "label", "kind", "default"}
+        assert set(c) == {"role", "label", "kind", "default", "provider"}
         assert c["kind"] in ("text", "image")
-        assert c["default"] == models.DEFAULTS[c["role"]][1]   # 與登錄表單一真實來源一致
+        assert c["default"] == models.DEFAULTS[c["role"]][1]    # 與登錄表單一真實來源一致
+        assert c["provider"] == models.DEFAULTS[c["role"]][0]   # 角色預設 provider（F9-3e 下拉初值）
         assert c["label"]
+
+
+def test_provider_catalog_shape_and_excludes_tts():
+    cat = models.provider_catalog()
+    ids = [p["id"] for p in cat]
+    # gemini 在前的穩定排序、只列可指派 provider、tts 後端不在此
+    assert ids == ["gemini", "ollama"]
+    assert set(ids) == set(models.ASSIGNABLE_PROVIDERS)
+    assert "edge" not in ids and "tts" not in ids
+    for p in cat:
+        assert set(p) == {"id", "label"}
+        assert p["id"] in models.ASSIGNABLE_PROVIDERS
+        assert p["label"]
 
 
 # ---------- 預設表（無設定覆寫）----------

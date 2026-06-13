@@ -115,7 +115,8 @@ def role_catalog() -> list[dict[str, str]]:
     """設定頁逐角色管理用的角色清單（單一真實來源）。
 
     每筆：``role``（key）/ ``label``（人類說明）/ ``kind``（text|image，挑哪組候選下拉）
-    / ``default``（內建預設 model id，下拉「預設」選項顯示用）。tts 不列（見上註）。
+    / ``default``（內建預設 model id，下拉「預設」選項顯示用）/ ``provider``（角色預設
+    provider，設定頁 provider 下拉的初始值；F9-3e 本機可插拔接線）。tts 不列（見上註）。
     """
     return [
         {
@@ -123,8 +124,29 @@ def role_catalog() -> list[dict[str, str]]:
             "label": _ROLE_LABELS[r],
             "kind": _ROLE_KIND[r],
             "default": DEFAULTS[r][1],
+            "provider": DEFAULTS[r][0],
         }
         for r in _CATALOG_ORDER
+    ]
+
+
+# 設定頁 provider 下拉的人讀標籤（單一真實來源；B 階段擴張本機 provider 時在此加入）。
+_PROVIDER_LABELS: dict[str, str] = {
+    PROVIDER_GEMINI: "Gemini（雲端）",
+    PROVIDER_OLLAMA: "Ollama（本機）",
+}
+
+
+def provider_catalog() -> list[dict[str, str]]:
+    """設定頁 model_roles 可指派的 provider 清單（單一真實來源，F9-3e）。
+
+    每筆：``id``（存進 ``model_roles[role].provider``，須在 ``ASSIGNABLE_PROVIDERS``）
+    / ``label``（人讀，下拉顯示用）。穩定排序（gemini 在前）。tts 後端不在此（走獨立
+    tts_backend 子系統，避免「這裡選了卻不生效」的誤導）。
+    """
+    return [
+        {"id": p, "label": _PROVIDER_LABELS.get(p, p)}
+        for p in sorted(ASSIGNABLE_PROVIDERS)
     ]
 
 

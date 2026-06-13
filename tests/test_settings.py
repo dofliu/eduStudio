@@ -184,8 +184,16 @@ class TestSettingsRoute:
         assert {"text.fast", "text.pro", "vision", "image.fast", "image.pro"} == roles
         assert "tts" not in roles                  # tts 走獨立子系統，不在逐角色管理
         cat = next(r for r in body["roles"] if r["role"] == "image.pro")
-        assert cat["kind"] == "image" and cat["default"]
+        assert cat["kind"] == "image" and cat["default"] and cat["provider"] == "gemini"
+        # provider 下拉清單（F9-3e）：可指派 provider，gemini 在前、tts 不在此
+        prov_ids = [p["id"] for p in body["providers"]]
+        assert prov_ids == ["gemini", "ollama"]
+        assert all(p["label"] for p in body["providers"])
         # POST 寫入逐角色覆寫；未知角色被清洗掉
         r2 = client.post("/settings", json={"model_roles": {"text.fast": "gemini-z", "nope": "x"}})
         assert r2.status_code == 200
         assert r2.json()["model_roles"] == {"text.fast": "gemini-z"}
+        # 巢狀 provider 覆寫（指本機）roundtrip 保留巢狀（F9-3c 收斂、F9-3e 前端寫入形）
+        r3 = client.post("/settings", json={"model_roles": {"text.fast": {"provider": "ollama", "model": "translategemma"}}})
+        assert r3.status_code == 200
+        assert r3.json()["model_roles"] == {"text.fast": {"provider": "ollama", "model": "translategemma"}}

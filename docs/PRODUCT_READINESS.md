@@ -670,7 +670,19 @@
     模型清單 / vision·image 是否納入）。明訂不可妥協紀律：**本機 provider 不打雲端（賣點本身）、
     自動退雲端要誠實 log·可關嚴格本機、不繞 review gate（只換「誰生文字」不碰 R-2 assert/狀態機）、
     不寫死 provider 走 resolve()**。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑
-    pytest）。後續 a~e offline slice 待本項範圍/表示法拍板後可逐刀推。
+    pytest）。後續 b~e offline slice 待本項範圍/表示法拍板後可逐刀推。
+  - ✅ 2026-06-13 **F9-3a 抽共用本機文字呼叫 helper 完成（offline，純重構零行為改變）**。把
+    `core/translate.py::_call_ollama` 裡打 Ollama `/api/generate` 的標準庫 urllib 呼叫抽成單一真實
+    來源 `core/ollama_client.py::ollama_generate`（+ 領域中立的 `OllamaError` + `DEFAULT_OLLAMA_HOST`/
+    `DEFAULT_TIMEOUT`），讓翻譯層與**未來的 `OllamaProvider`（F9-3b）共用同一條本機文字呼叫線**，
+    不各自實作 urllib。`translate._call_ollama` 改成薄包裝：委派 `ollama_generate` 並把 `OllamaError`
+    轉回翻譯層的 `TranslateError`（含 `ollama serve` 修復指引），**既有 caller 行為完全不變**。
+    這刀**不碰任何開放問題**（範圍/表示法/退雲端預設＝F9-3b~d 才需拍板），是 RFC「建議推進序」第一步
+    的純 offline 前置。補 `tests/test_ollama_client.py` 7 測（成功解析·strip / host 去尾斜線 / 缺
+    response key 回空 / URLError·非 JSON 包 OllamaError 含指引 / 預設值 / 型別繼承，**全 monkeypatch
+    urllib 不打網路·不需真 ollama**）；既有 `test_translate.py` 的 2 個 seam 測改 patch 新模組（驗
+    wrapper 仍包成 TranslateError，行為不變）。本機相關子集 69 passed、全套 2622 passed（3 個
+    QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
 - [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。

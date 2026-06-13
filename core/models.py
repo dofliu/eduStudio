@@ -31,6 +31,9 @@ from __future__ import annotations
 # ── provider 名稱（B 階段會擴張：ollama / claude / f5 …）──
 PROVIDER_GEMINI = "gemini"
 PROVIDER_EDGE = "edge"
+# 本機可插拔 LLM（F9-3 / M 軸 Option B）。DEFAULTS 維持雲端不變——由設定頁
+# model_roles（F9-3c）或 env 把特定角色指到本機，此常數先就緒供 OllamaProvider 登記。
+PROVIDER_OLLAMA = "ollama"
 
 # ── 邏輯角色集合（測試鎖死，不可隨意增刪）──
 TEXT_FAST = "text.fast"

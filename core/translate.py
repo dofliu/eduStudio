@@ -15,12 +15,10 @@ urllib 打 /api/generate,需本機 `ollama serve` 且已 `ollama pull translateg
 """
 from __future__ import annotations
 
-import json
 import os
-import urllib.error
-import urllib.request
 
 from core.config import get_gemini_api_key, get_gemini_model
+from core.ollama_client import DEFAULT_OLLAMA_HOST, OllamaError, ollama_generate
 
 # 翻譯後端切換: 預設 gemini,設 TRANSLATION_BACKEND=ollama 走本機 fallback。
 _BACKEND_ENV = "TRANSLATION_BACKEND"
@@ -30,8 +28,8 @@ def _resolve_backend() -> str:
     return os.environ.get(_BACKEND_ENV, "gemini").strip().lower()
 
 
-# Ollama fallback 設定(標準庫 urllib, 不加 pip dep)。
-DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+# Ollama fallback 設定: 實際 urllib 呼叫已抽到 core.ollama_client(單一真實來源,
+# 與 OllamaProvider 共用); 此處沿用 DEFAULT_OLLAMA_HOST 當預設參數值。
 DEFAULT_MODEL = "translategemma"
 
 # target_lang code → prompt 用的語言全名。canonical 用 BCP-47 連字號(zh-TW)。
@@ -104,28 +102,17 @@ def _call_ollama(
     host: str,
     timeout: float,
 ) -> str:
-    """打 Ollama /api/generate(非串流), 回 response 字串。失敗丟 TranslateError。
+    """打 Ollama 拿翻譯結果; 失敗包成 TranslateError(含 `ollama serve` 修復指引)。
 
-    fallback 路徑(TRANSLATION_BACKEND=ollama 時才走);預設後端為 Gemini。
+    fallback 路徑(TRANSLATION_BACKEND=ollama 時才走);預設後端為 Gemini。實際 urllib
+    呼叫委派給 ``core.ollama_client.ollama_generate``(單一真實來源,與 OllamaProvider
+    共用);此處只把領域中立的 ``OllamaError`` 轉成翻譯層的 ``TranslateError``,保持既有
+    caller 行為不變。
     """
-    url = host.rstrip("/") + "/api/generate"
-    payload = json.dumps(
-        {"model": model, "prompt": prompt, "stream": False}
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        url, data=payload, headers={"Content-Type": "application/json"}
-    )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.URLError as e:
-        raise TranslateError(
-            f"Ollama 呼叫失敗 ({url}): {e}. "
-            f"確認 `ollama serve` 已跑且已 `ollama pull {model}`."
-        ) from e
-    except json.JSONDecodeError as e:
-        raise TranslateError(f"Ollama 回傳非 JSON ({url}): {e}") from e
-    return (data.get("response") or "").strip()
+        return ollama_generate(prompt, model=model, host=host, timeout=timeout)
+    except OllamaError as e:
+        raise TranslateError(str(e)) from e
 
 
 def translate_text(

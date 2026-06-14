@@ -669,9 +669,26 @@
     為 None）。本機相關子集 65 passed、全套 2650 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK
     假象，CI 權威）。下一刀 = F9-2h（render 旁白以 `get_glossary(project_id).to_pronunciation_map()`
     透傳 TTS `extra_pronunciation`）。
-  - ⏸️ **後續 offline slice**：F9-2h（runner 旁白帶該課 `to_pronunciation_map()` → TTS）／F9-2i
-    （翻譯 route 接 `to_translation_rules()`），見上 RFC §4。**自動建議術語**（掃教材抽術語）碰
-    Gemini 額度 = GATE，另寫 proposal 再做。
+  - ✅ 2026-06-14 **F9-2h：render 旁白套該課 glossary 讀音表完成（offline）**。把 F9-2g 落地的
+    `JobRecord.project_id` 接到 TTS：render 前以 `ProjectStore.get_glossary(project_id).
+    to_pronunciation_map()` 現讀該課讀音表，render 期間掛上 → 旁白照課程術語讀音念。**深埋的
+    `pipeline.main → gen_tts → synthesize → normalize_text` 一條鏈不逐層穿參**——比照既有
+    render-scoped override 慣例（`core.config.video_dimensions_override` / `talking_head_override`），
+    在 `tts_backend.py` 加 `course_pronunciation_override` context manager（module-level 覆寫,
+    sequential job 設計下非 thread-safe 可接受,同既有取捨）+ `normalize_text` 在「呼叫端未顯式給
+    `extra_pronunciation`」時自動沿用該覆寫（**顯式 arg 含 `{}` 永遠優先**）；`server/runner.py`
+    新增 `_resolve_course_pronunciation(rec)`（**fail-soft**：無 `project_id` / 課不存在 / 無
+    glossary / 讀音表空 → None＝沿用全域 pronunciation，glossary 解析絕不讓 render 失敗，RFC §5）
+    並把 `_run_render` 的 inner render 包進第三層 override。守紀律：**完全不碰 R-2 render 入口 assert
+    / 狀態機 / reviewed**（只影響「旁白怎麼念」，硬規則 #1）。補 `tests/test_glossary_tts_render.py`
+    15 測（normalize_text 套用/顯式優先/`{}` 停用/還原·例外還原·巢狀·None no-op；
+    `_resolve_course_pronunciation` 無 pid/有 glossary 回 map/課不存在 fail-soft/無 glossary/空 map
+    收斂 None；`_run_render` wiring inner 期間掛上·出去還原·無 glossary 沿用全域，**全 offline 不打
+    API、不真跑 TTS**）。本機相關子集 105 passed、全套 2665 passed（3 個 QR/journal 字型像素為容器缺
+    Noto CJK 假象，CI 權威）。
+  - ⏸️ **後續 offline slice**：F9-2i（翻譯 route 接 `to_translation_rules()`，同 `project_id` 關聯
+    讓在地化翻譯套固定譯名），見上 RFC §4。**自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，
+    另寫 proposal 再做。
 - [~] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

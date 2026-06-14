@@ -82,6 +82,47 @@ def _merged_pronunciation(
     return sorted(merged.items(), key=lambda x: -len(x[0]))
 
 
+# ---------- F9-2h: render 期間的 per-course 讀音覆寫 ----------
+# render 旁白深埋在 pipeline.main → gen_tts → synthesize → normalize_text 一條鏈,
+# 把 extra_pronunciation 逐層穿過去要動 synthesize 抽象介面 + 三個 backend +
+# FallbackTTS + gen_tts + render_video 簽章。改用 render 期間的 module-level 覆寫
+# (比照 core.config.video_dimensions_override / talking_head_override 既有 render-scoped
+# override 慣例): runner 在 render 前後掛上該課 glossary 讀音表, normalize_text 在
+# 「呼叫端未顯式給 extra_pronunciation」時自動沿用它。
+#
+# 非 thread-safe — 兩個 render 同時開 context 會搶, 跟 server.runner.py 現有
+# sequential job 設計相容 (同 video_dimensions_override 的取捨)。
+_COURSE_PRONUNCIATION: dict[str, str] | None = None
+
+
+class course_pronunciation_override:
+    """context manager — render 期間暫時掛上該課 glossary 的 TTS 讀音表。
+
+    使用:
+        with course_pronunciation_override(glossary_reading_map):
+            await render_video(...)   # normalize_text 自動套該課讀音
+        # 出 with 後 restore (巢狀也安全, 存舊值還原)
+
+    `mapping` 為 None / 空 dict → no-op (沿用全域 pronunciation, 零影響), 對應
+    RFC §5「glossary 缺失 fail-soft」。
+    """
+
+    def __init__(self, mapping: dict[str, str] | None):
+        self._mapping = mapping or None
+        self._old: dict[str, str] | None = None
+
+    def __enter__(self) -> "course_pronunciation_override":
+        global _COURSE_PRONUNCIATION
+        self._old = _COURSE_PRONUNCIATION
+        _COURSE_PRONUNCIATION = self._mapping
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        global _COURSE_PRONUNCIATION
+        _COURSE_PRONUNCIATION = self._old
+        return False
+
+
 def split_for_f5(text: str, max_chars: int = 30) -> list[str]:
     """PR-5b: F5-TTS 預切句, 解決 F5 內部 batch 不顧中文詞邊界的問題。
 
@@ -154,6 +195,11 @@ def normalize_text(
     (`core.glossary.to_pronunciation_map`), 與全域 pronunciation.json longest-first
     合併、同 key 課程優先。預設 None = 完全沿用全域 (既有 caller 零影響)。
 
+    F9-2h: 呼叫端**未顯式給** `extra_pronunciation` 時 (None), 自動沿用 render 期間
+    `course_pronunciation_override` 掛上的該課讀音表 (render 旁白透過此路徑套到 glossary,
+    深埋的 synthesize 不必逐層穿參)。顯式給的 arg 永遠優先 (含顯式給 `{}` 表「不要課程
+    讀音」)。兩者皆無 → 純全域, 行為與舊版一致。
+
     iter 93 新增 (實測 GCP Wavenet 念公式糟):
     - 剝 markdown backtick / 星號 (LLM 偶爾把變數包成 `e(t)`, TTS 念「上句點」)
     - 函式記法 `e(t)` → `e of t` (TTS 才會念 "e of t" 不是 "et")
@@ -202,7 +248,12 @@ def normalize_text(
         text,
     )
     # 發音對照: longest-match 替換, 前後補空白避免黏字 (全域 + per-course glossary)
-    for src, dst in _merged_pronunciation(extra_pronunciation):
+    # F9-2h: 未顯式給 extra 時沿用 render-scoped 課程覆寫 (顯式 arg 含 {} 永遠優先)
+    effective_extra = (
+        extra_pronunciation if extra_pronunciation is not None
+        else _COURSE_PRONUNCIATION
+    )
+    for src, dst in _merged_pronunciation(effective_extra):
         text = text.replace(src, f" {dst} ")
     return re.sub(r"\s+", " ", text).strip()
 

@@ -702,6 +702,18 @@
     passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。**前端 `LocalizeMenu` 傳
     `project_id`** 屬後續前端 slice（route 欄位選填、不破壞現況）。**自動建議術語**（掃教材抽術語）
     碰 Gemini 額度 = GATE，另寫 proposal 再做。F9-2 offline slice 至此到齊。
+  - ✅ 2026-06-14 **F9-2j：前端 `LocalizeMenu` 傳 `project_id` 完成（offline，F9-2i 前端收尾）**。
+    把 F9-2i 落地的選填 `project_id` 接上前端在地化入口：`frontend/edustudio/app.jsx` 的
+    `LocalizeMenu` 新增 `projectId` prop，呼叫 `POST /localization/translate` 時**有作用中課程才**
+    帶 `project_id`（`...(projectId ? { project_id: projectId } : {})`），讓後端套該課 glossary 的
+    固定譯名、術語前後一致。兩個呼叫端各以最精準的課程來源接線：① **影片任務卡**（`TaskCard`）——
+    `esJobToTask` 補帶 `rec.project_id`（F9-2g 已落 `JobRecord.project_id`），LocalizeMenu 收
+    `task.project_id`＝**該 job 自己所屬的課**；② **視覺成品卡**（`VisualCard`）——`VisualStation`
+    把作用中課程 `projectId` 透傳下去。守紀律：route 欄位選填＝**沒作用中課程沿用現行行為、零破壞**
+    （fail-soft 在後端，前端只是「給或不給」），**完全不碰 review gate / 狀態機**（只影響「術語怎麼
+    譯」）。純前端，未動 server/core/schemas/runner（route F9-2i 已落地且有測），故不需跑 pytest。
+    `npm run build`（vite, node22）編譯通過；**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build
+    為準、人後視覺驗收」）。F9-2 連同前端在地化入口至此端到端到齊（自動建議術語仍 = GATE 待額度）。
 - [~] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

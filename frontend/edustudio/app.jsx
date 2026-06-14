@@ -377,7 +377,7 @@ function LangChip({ code, removable, onRemove }) {
 // 前端短碼 → 後端 canonical 連字號碼（/localization 邊界再轉底線）。
 const ES_LANG_API = { "en": "en-US", "ja": "ja-JP", "ko": "ko-KR", "zh-CN": "zh-CN", "vi": "vi-VN", "zh-TW": "zh-TW" };
 
-function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵在地化", text = "" }) {
+function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵在地化", text = "", projectId = "" }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState([]);
   const [phase, setPhase] = useState("idle"); // idle | running | done
@@ -390,6 +390,8 @@ function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵�
     setPicked(p => p.includes(code) ? p.filter(c => c !== code) : [...p, code]);
 
   // 接 /localization/translate：對每個選的語言真的翻譯（傳成品標題作示範）。
+  // F9-2j：有作用中課程（projectId）→ 帶 project_id，讓後端套該課 glossary 固定譯名
+  //（route 欄位選填、fail-soft；沒給/查無沿用現行行為）。
   const run = async () => {
     if (!picked.length) return;
     setPhase("running");
@@ -399,7 +401,10 @@ function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵�
       try {
         const r = await fetch("/localization/translate", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: src, target_lang: ES_LANG_API[code] || code, source_lang: "zh-TW" }),
+          body: JSON.stringify({
+            text: src, target_lang: ES_LANG_API[code] || code, source_lang: "zh-TW",
+            ...(projectId ? { project_id: projectId } : {}),
+          }),
         });
         const d = await r.json();
         out[code] = d.translated_text || "";
@@ -1146,7 +1151,7 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
           <div className="es-task-actions">
             {isReview && <Button variant="primary" size="sm" icon="eye" onClick={() => onReview(task)}>開始審查</Button>}
             {isApproved && <>
-              <LocalizeMenu localized={task.localized || []} onChange={(l) => onLocalize(task.id, l)} text={task.title} />
+              <LocalizeMenu localized={task.localized || []} onChange={(l) => onLocalize(task.id, l)} text={task.title} projectId={task.project_id} />
               <Button variant="default" size="sm" icon="upload" onClick={() => onPublish && onPublish(task)}>發布</Button>
             </>}
             {isFailed && <Button variant="default" size="sm" icon="refresh-cw" onClick={() => onRetry && onRetry(task)}>重試</Button>}
@@ -1263,6 +1268,7 @@ function esJobToTask(rec) {
     source: esBasename(src.path) || src.url || rec.source_type || "—",
     lang: "zh-TW", updated: rec.updated_at ? new Date(rec.updated_at).toLocaleString("zh-TW") : "",
     cost: 0, model: "Gemini", error: rec.error || "來源或生成發生錯誤", _job: true,
+    project_id: rec.project_id || "",   // F9-2g：job 所屬課程，在地化套該課 glossary（F9-2j）
     _stype: rec.source_type, _src: rec.source || {},   // 重試用：保留原始來源
     rawState: rec.state, progress: prog.percent, progLabel: prog.label, stage: prog.stage,
     _stages: rec.stages || [],
@@ -2508,7 +2514,7 @@ function VisualComposer({ projectId }) {
   );
 }
 
-function VisualCard({ o, onLocalize }) {
+function VisualCard({ o, onLocalize, projectId = "" }) {
   const m = VISUAL_MODES[o.mode];
   return (
     <Card state={o.status === "queued" ? null : o.status} interactive className="es-vcard">
@@ -2521,7 +2527,7 @@ function VisualCard({ o, onLocalize }) {
         <div className="es-vcard-title">{o.title}</div>
         <div className="es-cap es-mut">{o.meta}{o.localized.length ? ` · ${o.localized.length} 種語言` : ""}</div>
         <div className="es-vcard-foot">
-          <LocalizeMenu localized={o.localized} onChange={(l) => onLocalize(o.id, l)} text={o.title} />
+          <LocalizeMenu localized={o.localized} onChange={(l) => onLocalize(o.id, l)} text={o.title} projectId={projectId} />
           <IconButton icon="more-horizontal" />
         </div>
       </div>
@@ -2543,7 +2549,7 @@ function VisualStation({ projectId }) {
       <VisualComposer projectId={projectId} />
       <div className="es-list-head"><h2 className="es-h2">視覺成品</h2></div>
       <div className="es-vgrid">
-        {outputs.map(o => <VisualCard key={o.id} o={o} onLocalize={localize} />)}
+        {outputs.map(o => <VisualCard key={o.id} o={o} onLocalize={localize} projectId={projectId} />)}
       </div>
     </div>
   );

@@ -581,9 +581,44 @@ async def _run_render(
         or (rec.options.length_mode or "") == "ultra_quick"
         or bool(rec.options.short_video_layout)
     )
+    # F9-2h: 取該 job 所屬課程 glossary 讀音表, render 期間掛上 (旁白套術語讀音)。
+    # fail-soft: 沒 project_id / 課不存在 / 沒 glossary / 讀音表空 → None = 沿用全域。
+    from tts_backend import course_pronunciation_override
+
+    course_pron = _resolve_course_pronunciation(rec)
     with video_dimensions_override(aspect, resolution):
         with talking_head_override(th_mode, is_short_form=is_short):
-            await _run_render_inner(store, rec, section_id=section_id)
+            with course_pronunciation_override(course_pron):
+                await _run_render_inner(store, rec, section_id=section_id)
+
+
+def _resolve_course_pronunciation(rec: JobRecord) -> dict[str, str] | None:
+    """F9-2h: 取 job 所屬課程 glossary 的 TTS 讀音表 (surface form → reading)。
+
+    走 F9-2g 落地的 `JobRecord.project_id`：有值 →
+    `ProjectStore.get_glossary(project_id).to_pronunciation_map()`。
+
+    **fail-soft**（RFC §5）：沒 project_id（直接 POST /jobs 的無主 job）/ 課已不存在 /
+    該課沒 glossary / 讀音表為空 → 一律回 None＝沿用全域 pronunciation 行為, 零影響。
+    glossary 解析絕不讓 render 失敗（只想「套術語讀音」不該害整支影片渲染不出來）。
+    """
+    project_id = rec.project_id
+    if not project_id:
+        return None
+    try:
+        from core.glossary import to_pronunciation_map
+        from core.project import ProjectStore
+
+        glossary = ProjectStore().get_glossary(project_id)
+        if glossary is None:
+            return None
+        return to_pronunciation_map(glossary) or None
+    except Exception as e:
+        logger.warning(
+            "取課程 glossary 讀音表失敗 (project_id=%s), 旁白沿用全域 pronunciation: %s",
+            project_id, e,
+        )
+        return None
 
 
 async def _run_render_inner(

@@ -646,10 +646,20 @@
     以後端回存為準。存檔前濾掉沒填 term 的列（後端 term 非空 validator，空 term→422）；別名/譯名以
     `esGlossToApi` 轉回 API 形。可折疊面板（預設收合）避免干擾工作空間。本機 `npm run build`（vite,
     node22）編譯通過；**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。
-  - ⏸️ **後續 offline slice**：runner 產旁白時帶該課 `to_pronunciation_map()`（需先定 job↔課
-    association：jobs 目前不帶 project_id、只有 `ProjectStore.add_job` 單向掛載 → 反查設計是架構抉擇，
-    待拍板；同一 association 也是把 `to_translation_rules()` 接進翻譯 route 的前提）。**自動建議術語**
-    （掃教材抽術語）碰 Gemini 額度 = GATE，寫 proposal 再做。
+  - ✅ 2026-06-14 **job↔課 association RFC 完成（offline 前置，攤開架構抉擇待拍板）**。新增
+    [`docs/JOB_COURSE_ASSOCIATION_RFC.md`](JOB_COURSE_ASSOCIATION_RFC.md)：grounding 到現況資料流——
+    F9-2 前五刀已把 glossary schema→儲存→API→前端→翻譯橋接全接好，且 `tts_backend.normalize_text`
+    已能吃 `extra_pronunciation`（per-course 讀音、與全域 `pronunciation.json` longest-first 合併），
+    **唯一缺口**是 render 旁白拿不到「這支 job 屬哪門課」（`JobRecord` 無 `project_id`、
+    `ProjectStore.add_job` 只單向掛載）。攤開三個合理解法——**A** `JobRecord.project_id` denormalize
+    （O(1)、現讀、最小 migration＝**建議**）／**B** ProjectStore 反查掃盤（不 denormalize 但耦合+O(N)）
+    ／**C** 建 job 當下凍結 glossary snapshot（最解耦但編輯不生效）——含 trade-off、建議 A、拍板後的
+    offline 接線拆刀（F9-2g schema+寫入／F9-2h TTS 透傳／F9-2i 翻譯 route）與不可妥協紀律
+    （不繞 review gate、glossary 缺失 fail-soft）。列 3 個開放問題待拍板。純文件，0 production code
+    改動（未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ⏸️ **待劉老師拍板 association 設計（A/B/C，建議 A）後**，routine 可逐刀 offline 接線
+    runner 旁白帶該課 `to_pronunciation_map()` ＋ 翻譯 route 接 `to_translation_rules()`（見上 RFC §4）。
+    **自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，另寫 proposal 再做。
 - [~] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

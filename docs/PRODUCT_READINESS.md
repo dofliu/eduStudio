@@ -686,9 +686,22 @@
     收斂 None；`_run_render` wiring inner 期間掛上·出去還原·無 glossary 沿用全域，**全 offline 不打
     API、不真跑 TTS**）。本機相關子集 105 passed、全套 2665 passed（3 個 QR/journal 字型像素為容器缺
     Noto CJK 假象，CI 權威）。
-  - ⏸️ **後續 offline slice**：F9-2i（翻譯 route 接 `to_translation_rules()`，同 `project_id` 關聯
-    讓在地化翻譯套固定譯名），見上 RFC §4。**自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，
-    另寫 proposal 再做。
+  - ✅ 2026-06-14 **F9-2i：翻譯 route 接 `to_translation_rules()` 完成（offline，F9-2 offline 收尾）**。
+    `POST /localization/translate` 的 `TranslateRequest` 加**選填** `project_id`：給了 → 以
+    `ProjectStore.get_glossary(project_id)` 現讀該課 glossary → `to_translation_rules(target_lang)`
+    產固定譯名規則文字塊，與呼叫端顯式 `glossary` 合併（顯式在前、課程在後）後送 `translator.
+    translate(glossary=...)`，讓在地化翻譯術語前後一致。canonical 區域碼↔glossary 短碼對得上
+    （`_glossary_lang_candidates`：完整碼優先、再退基底子標籤，`en-US`→`en`、`zh-CN`/`zh-TW`
+    完整碼本就是 glossary key）。守 RFC §5 **fail-soft**：沒 `project_id` / 課不存在
+    （`ProjectNotFoundError`）/ 無 glossary / 該語言無譯名 / 讀檔出錯 → 一律回空課程規則、沿用現行
+    行為，**絕不讓翻譯失敗**；glossary 讀檔沿 R-3 走 `to_thread` 不阻 event loop。**完全不碰 review
+    gate / 狀態機**（只影響「術語怎麼譯」，硬規則 #1）。`project_id` 為 optional＝既有 caller 零影響、
+    向後相容。補 `tests/test_localization_glossary.py` 9 測（注入固定譯名含別名並排／顯式+課程合併順序／
+    完整區域碼命中／該語言無譯名不附／沒 pid·未知 pid·無 glossary·空白 pid fail-soft，**全 mock
+    translate 不打真 API、ProjectStore tmp 隔離**＝offline-first）。本機相關子集 68 passed、全套 2673
+    passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。**前端 `LocalizeMenu` 傳
+    `project_id`** 屬後續前端 slice（route 欄位選填、不破壞現況）。**自動建議術語**（掃教材抽術語）
+    碰 Gemini 額度 = GATE，另寫 proposal 再做。F9-2 offline slice 至此到齊。
 - [~] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

@@ -14,13 +14,17 @@ import asyncio
 import os
 import tempfile
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel, Field
 
+from core.glossary import to_translation_rules
 from core.langcode import LANGUAGES, to_underscore
 from core.meeting.summarizer import meeting_summarizer
+from core.project import ProjectNotFoundError, ProjectStore
 from core.translation.service import translator
 from core.video.dubber import get_video_dubber
+
+from .projects import get_default_project_store
 
 router = APIRouter(prefix="/localization", tags=["localization"])
 
@@ -45,6 +49,9 @@ class TranslateRequest(BaseModel):
     target_lang: str = "zh-TW"          # canonical 連字號
     source_lang: str = "auto"
     glossary: str = ""
+    # F9-2i：選填課程關聯。給了 → 載入該課 glossary 的固定譯名（to_translation_rules）
+    # 併進 glossary 規則，讓在地化翻譯術語前後一致。沒給/查無 → 沿用現行行為（零影響）。
+    project_id: str | None = None
     style: str = ""
 
 
@@ -89,6 +96,60 @@ def _first(gen) -> str:
     return out
 
 
+# ---------- F9-2i：課程 glossary → 翻譯固定譯名 ----------
+def _glossary_lang_candidates(code: str) -> list[str]:
+    """canonical 目標語言碼 → glossary translations key 候選（完整碼優先、再退基底子標籤）。
+
+    glossary 的逐語言譯名 key 用前端 LANGS 短碼（en/ja/ko/zh-CN/vi），但翻譯 route 對外收
+    canonical BCP-47 區域碼（en-US/ja-JP/...）。先試完整碼（zh-CN/zh-TW 本就是 glossary key），
+    再退基底（en-US → en）涵蓋「術語表用短碼登錄、route 收區域碼」的常見情形。
+    """
+    out = [code]
+    base = code.split("-", 1)[0] if code else ""
+    if base and base != code:
+        out.append(base)
+    return out
+
+
+def _course_glossary_rules(
+    project_id: str | None, target_lang: str, store: ProjectStore
+) -> str:
+    """載入該課 glossary → 該目標語言的 `to_translation_rules` 文字塊。
+
+    fail-soft（RFC §5）：沒 project_id / 課不存在 / 無 glossary / 該語言無譯名 / 讀檔出錯 →
+    一律回空字串，**絕不因為「想套術語」而讓翻譯失敗**。
+    """
+    if not project_id or not project_id.strip():
+        return ""
+    try:
+        glossary = store.get_glossary(project_id)
+    except ProjectNotFoundError:
+        return ""
+    except Exception:  # noqa: BLE001 — glossary 壞檔等任何問題都不該擋翻譯（fail-soft）
+        return ""
+    if glossary is None:
+        return ""
+    for lang in _glossary_lang_candidates(target_lang):
+        rules = to_translation_rules(glossary, lang)
+        if rules:
+            return rules
+    return ""
+
+
+def _merge_glossary(caller_glossary: str, course_rules: str) -> str:
+    """合併呼叫端顯式 glossary 與該課 glossary 規則（都丟給 translate 的 glossary 參數）。
+
+    呼叫端顯式規則放前面（較專一/手動覆寫優先呈現），課程規則接在後；任一為空就只留另一條，
+    兩者皆空回空字串（translate 對空字串 no-op，行為與不傳 glossary 一致）。
+    """
+    parts = []
+    if caller_glossary and caller_glossary.strip():
+        parts.append(caller_glossary.strip())
+    if course_rules:
+        parts.append(course_rules)
+    return "\n".join(parts)
+
+
 # ---------- 端點 ----------
 @router.get("/languages")
 async def list_languages() -> dict:
@@ -102,13 +163,24 @@ async def list_languages() -> dict:
 
 
 @router.post("/translate")
-async def translate_text(req: TranslateRequest) -> dict:
-    """文字翻譯。對外 zh-TW，邊界轉 zh_TW 後送 Gemini 服務。"""
+async def translate_text(
+    req: TranslateRequest,
+    store: ProjectStore = Depends(get_default_project_store),
+) -> dict:
+    """文字翻譯。對外 zh-TW，邊界轉 zh_TW 後送 Gemini 服務。
+
+    F9-2i：給了 `project_id` → 載入該課 glossary 的固定譯名併進 glossary 規則（fail-soft）。
+    """
+    # 課程 glossary 讀檔（小型本機 JSON + RLock）也走 to_thread，沿 R-3 不阻 event loop。
+    course_rules = await asyncio.to_thread(
+        _course_glossary_rules, req.project_id, req.target_lang, store
+    )
+    glossary = _merge_glossary(req.glossary, course_rules)
     # R-3: 翻譯是 blocking (Gemini HTTP) → to_thread 不阻 event loop
     translated = await asyncio.to_thread(
         translator.translate,
         req.text, _u(req.source_lang), _u(req.target_lang),
-        glossary=req.glossary, style=req.style,
+        glossary=glossary, style=req.style,
     )
     return {
         "translated_text": translated,

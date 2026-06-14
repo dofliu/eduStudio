@@ -657,9 +657,21 @@
     offline 接線拆刀（F9-2g schema+寫入／F9-2h TTS 透傳／F9-2i 翻譯 route）與不可妥協紀律
     （不繞 review gate、glossary 缺失 fail-soft）。列 3 個開放問題待拍板。純文件，0 production code
     改動（未動 server/core/schemas/runner，故不需跑 pytest）。
-  - ⏸️ **待劉老師拍板 association 設計（A/B/C，建議 A）後**，routine 可逐刀 offline 接線
-    runner 旁白帶該課 `to_pronunciation_map()` ＋ 翻譯 route 接 `to_translation_rules()`（見上 RFC §4）。
-    **自動建議術語**（掃教材抽術語）碰 Gemini 額度 = GATE，另寫 proposal 再做。
+  - ✅ 2026-06-14 **F9-2g：job↔課 association schema + 寫入完成（offline，劉老師拍板 Option A）**。
+    劉老師 2026-06-14 於上 RFC 拍板 **Option A（`JobRecord.project_id` denormalize、glossary render
+    現讀、直接 `POST /jobs` 的 job 無 glossary）**。落地：`server/schemas.py` `JobRecord` 加
+    `project_id: str | None = None`（`extra="allow"` → 舊 `state.json` 無痛相容、預設 None）；
+    `server/routes/projects.py::create_project_job` 建 job 後 `job_store.update(job_id,
+    project_id=project.project_id)` 寫入 canonical pid（`create_job` 已同步排程 ingest 但尚未
+    await 出讓 event loop，故此 update 先於 ingest 推進；`JobStore.update` 在 lock 內 model_copy
+    保留其他欄位、不與 ingest 互蓋）。直接 `POST /jobs`（不經課程）的 job `project_id` 維持 None。
+    補 `tests/test_projects_route.py` 2 測（經課程建 job 記下 canonical project_id ／ 直接建 job
+    為 None）。本機相關子集 65 passed、全套 2650 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK
+    假象，CI 權威）。下一刀 = F9-2h（render 旁白以 `get_glossary(project_id).to_pronunciation_map()`
+    透傳 TTS `extra_pronunciation`）。
+  - ⏸️ **後續 offline slice**：F9-2h（runner 旁白帶該課 `to_pronunciation_map()` → TTS）／F9-2i
+    （翻譯 route 接 `to_translation_rules()`），見上 RFC §4。**自動建議術語**（掃教材抽術語）碰
+    Gemini 額度 = GATE，另寫 proposal 再做。
 - [~] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選

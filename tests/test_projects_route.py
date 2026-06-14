@@ -99,6 +99,34 @@ class TestProjectJobs:
         assert job_store.get(job_id) is not None
         assert project_store.get("p").jobs == [job_id]
 
+    def test_create_job_records_project_id(self, client):
+        """F9-2 Option A：經 Project 端點建立的 job 反向記下所屬課程 project_id。"""
+        c, project_store, job_store, tmp_path = client
+        c.post("/projects", json={"project_id": "matsci", "title": "材料力學"})
+        pdf = _make_real_pdf(tmp_path, "doc.pdf")
+        r = c.post("/projects/matsci/jobs", json={
+            "source_type": "document",
+            "source": {"path": pdf},
+            "options": {},
+        })
+        assert r.status_code == 201
+        rec = job_store.get(r.json()["job_id"])
+        # 存 canonical project.project_id (= safe_id 後)；render 旁白據此現讀 glossary。
+        assert rec.project_id == project_store.get("matsci").project_id
+
+    def test_direct_create_job_has_no_project_id(self, client):
+        """直接 POST /jobs（不經課程）的 job project_id 為 None（無主之 job 無 glossary）。"""
+        c, project_store, job_store, tmp_path = client
+        pdf = _make_real_pdf(tmp_path, "doc.pdf")
+        r = c.post("/jobs", json={
+            "source_type": "document",
+            "source": {"path": pdf},
+            "options": {},
+        })
+        assert r.status_code == 201
+        rec = job_store.get(r.json()["job_id"])
+        assert rec.project_id is None
+
     def test_exam_pdf_review_gate_preserved(self, client):
         """硬規則 #1：exam_pdf 經 Project 端點建立、未傳 require_review，仍預設 True。"""
         c, project_store, job_store, tmp_path = client

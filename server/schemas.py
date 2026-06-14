@@ -403,6 +403,11 @@ class JobRecord(BaseModel):
     # reviewed=True 由 /approve 端點寫入; render 入口會 assert (硬規則 #1 不可繞)。
     reviewed: bool = False
     reviewed_at: AwareDatetime | None = None
+    # F9-2 (劉老師 2026-06-14 拍板 Option A): job 所屬課程 (Project) id。經
+    # POST /projects/{pid}/jobs 建立時寫入; 直接 POST /jobs 建立則 None (無主之 job
+    # 無 glossary, 設計如此)。render 旁白時據此 ProjectStore.get_glossary 現讀該課讀音表
+    # 套進 TTS (F9-2h)。extra="allow" → 舊 state.json 無此欄位無痛相容, 預設 None。
+    project_id: str | None = None
     # 內部欄位: ingest 後的 deck path, render 後的 output dir
     deck_path: str | None = None
     output_dir: str | None = None

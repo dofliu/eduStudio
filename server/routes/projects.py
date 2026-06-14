@@ -160,13 +160,18 @@ async def create_project_job(
     """
     # project 必須存在才建 job（不對不存在的 pid 建 orphan job）。
     try:
-        project_store.get(pid)
+        project = project_store.get(pid)
     except ProjectNotFoundError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e
 
     # reuse 既有建 job 路徑（驗證 + store.create + review gate + schedule_job 全在裡面）。
     resp = await jobs_routes.create_job(req, store=job_store)
     project_store.add_job(pid, resp.job_id)
+    # F9-2 (Option A): 記下 job→課程 反向關聯, render 旁白時據此現讀該課 glossary
+    # (F9-2h)。存 canonical project.project_id (已過 safe_id) 而非原始 pid。create_job
+    # 已同步排程 ingest task 但尚未 await 出讓 event loop, 故此 update 先於 ingest 真正
+    # 推進; JobStore.update 在 lock 內以 model_copy 保留其他欄位, 不與 ingest 互蓋。
+    job_store.update(resp.job_id, project_id=project.project_id)
     return resp
 
 

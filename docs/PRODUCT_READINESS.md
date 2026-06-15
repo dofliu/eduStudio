@@ -268,8 +268,8 @@
   char-based 近似模型。
 - [ ] 🟡 **C-2 單價對齊真實**（GATE，需查官方定價）— 現況單價是估算。對齊 Gemini 3 系列 +
   GCP TTS + （未來）image 真實單價。定價會變動 → 抽成設定常數 + 文件註明「以官方為準」。
-- [~] 🟡 **C-3 旁白模型遷 3.x**（GATE，需開額度驗證品質）— `slide_ingest.py:43`
-  `MODEL = "gemini-2.5-flash"`（將淘汰）。**M 軸完成後這只是改角色表 `text.fast` 一個值**。
+- [x] 🟡 **C-3 旁白模型遷 3.x**（GATE→已驗已切）— ✅ 2026-06-15 完成。`slide_ingest.py`
+  原寫死 `MODEL = "gemini-2.5-flash"`（將淘汰）。**M 軸完成後切換只是改角色表 `text.fast` 一個值**。
   3.5-flash 實測接受 `thinking_budget=0`，但**旁白品質要先驗**再換。寫成 A/B proposal，劉老師
   開額度跑過再切。（劉老師 2026-06-07：需額度會給權限；2026-06-15：開額度。）
   - ✅ 2026-06-15 **A/B 工具 + 提案完成（offline 前置；實跑＝你本機開額度）**。劉老師 2026-06-15
@@ -283,8 +283,18 @@
     （chokepoint 改走 `resolve("text.fast")`）+ rollback（設定頁覆寫回 2.5、免改 code）/ 3 個待拍板
     開放問題（範圍 / `text.fast` vs 新增 `narration` 角色 / 候選模型）。補 `tests/test_ab_narration.py`
     11 測（頁碼解析 / run_ab 每頁每模型透傳 / 報告並排+用量 / 缺 key SystemExit，**全 fake client
-    不打 API**）。本機相關子集 142 passed。**下一步＝你本機跑 A/B → 看品質 → 回報要不要切**，要切就
-    開後續一刀換 chokepoint。
+    不打 API**）。本機相關子集 142 passed。
+  - ✅ 2026-06-15 **切換完成（劉老師本機 A/B 驗過品質後拍板遷移）**。劉老師跑 A/B（材力/自控
+    `Chap08-PID控制器設計` 三頁）逐項比對：**正確性兩邊都乾淨無誤**（review gate 真正守的底線）、
+    3.5-flash **口吻更自然 + 長度更貼 ~75s/頁時間預算**（2.5 偏長易被 `_truncate_at_sentence` 截）、
+    **成本約 64%**（省 ~36% 輸出字）；唯一退步是 3.5 偶爾壓縮會漏列點（學習目標頁少帶一項）。
+    拍板**切**。落地：`slide_ingest.py` 把寫死 `MODEL` 換成 `narration_model()＝resolve_id(TEXT_FAST)`
+    （**呼叫時解析**＝設定頁 `text.fast` 覆寫即時生效），**旁白 + 章節切分**一起遷（共用同一模型常數，
+    章節切分也得離開 2.5）；並在 `NARRATION_PROMPT_DETAILED` 補第 7 條「條列項目每項至少帶一句、可
+    精簡不可整項遺漏」糾正 3.5 唯一弱點。**rollback 免改 code**：設定頁把 `text.fast` 覆寫回
+    `gemini-2.5-flash` 即時退。**`solve.py`（解題）模型不在本遷移範圍**（正確性更敏感、未 A/B，另議）。
+    `model` 計帳如實落 resolved id。本機全套 2702 passed（剩 1 QR 像素為容器缺 Noto CJK 字型假象，
+    CI 權威）。至此「換旁白模型 = 改登錄表/設定頁 `text.fast` 一個值」閉環。
 - [ ] 🟢 **C-4 `gemini-3.1-pro-image` 等開放再換**（GATE）— 劉老師想用但 API 未開放。等開放
   從 `gemini-3-pro-image` 換（`core/infocards/models.py`）。掛追蹤。
 - [x] 🟢 **C-5 模型 id 自我健檢**（offline）— ✅ 2026-06-09 完成。新增 `tools/check_models.py`：蒐集

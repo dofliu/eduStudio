@@ -196,7 +196,7 @@
 - [ ] 🔴 **U-1 `/studio` 直連 Gemini 改走後端**（offline，前端 + 確認後端端點）— 把 `/studio`
   仍 client-side 呼叫 Gemini 的路徑改打 `/api/generate` 等後端端點（後端大多現成），堵住
   「繞過計費 + 繞過審查」漏洞。或者若 U-3 直接退場 /studio，則本項併入「功能搬進 /app」。
-- [~] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
+- [x] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
   2026-06-07**）— 盤點顯示 `/app` 視覺站缺「海報/圖卡逐區 refine、區域選擇」（後端 refine
   圖卡未移植 = 唯一「大」缺口）。**定案：移植後端逐區 refine + 前端區域選擇 UI**（不是首發
   砍項）。其餘（16 主題/密度/長寬比/自訂 prompt）UI_WIRING 標已接完。拆小：①後端 refine
@@ -206,8 +206,15 @@
     避免燒額度，策略對齊既有 `refine_presentation_slide`）+ 新端點 `POST /api/refine-section`
     （掛 rate_limit）。補 8 測（prompt 組裝 / merge 保留原欄位 / iconType coerce / imagePrompt
     變更才重生圖 / 不變不生圖 / 關閉重生 / 端點，**全程 mock Gemini**，真實生圖燒額度部分不打 API）。
-    海報為單圖無「區」概念，整圖 refine 已由 `/api/generate` 的 `refinement` 涵蓋。待做：②前端
-    區域選擇 / 逐區 refine UI（另開 PR）。
+    海報為單圖無「區」概念，整圖 refine 已由 `/api/generate` 的 `refinement` 涵蓋。
+  - ✅ 2026-06-15（②）— 前端區域選擇 / 逐區 refine UI 接上 #81 後端。`/app` 視覺站已有的區塊點選
+    （`pickSection`/`onPickSection`）+ 逐區微調面板（指令 + `regenerateImage` 開關）原本送的是
+    **舊形狀** `{infographic, sectionId}` 並讀 `data.data`，與 #81 實際落地的 `POST /api/refine-section`
+    （收**單一** `section`、回**單一** `section`）對不上 → 逐區微調實際打不通。本刀把 `refineSection`
+    改成與 sibling 單頁微調 `/api/refine` 同形狀：送 `{section: sections[idx], instruction,
+    regenerateImage}`、讀 `data.section`、patch 回 `result.data.sections[idx]`。**純前端一檔**
+    （`frontend/edustudio/app.jsx`），`npm run build`（vite/node22）編譯通過；後端 8 測
+    （`test_infocards_refine.py`）已涵蓋端點，視覺由人後驗。至此 U-2 ①②③ 到齊。
 - [ ] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— 在舊 UI 頁頂加 banner「此介面
   將退場，請用 /app」+ README/介面表標 legacy。完全移除 build 產物等 `/app` 功能對等確認後
   再做（避免反悔）。

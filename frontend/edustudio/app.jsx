@@ -2263,7 +2263,8 @@ function VisualComposer({ projectId }) {
   };
 
   // 資訊圖卡逐區 refine：選一個區塊（區域選擇）送修改指令 → POST /api/refine-section →
-  // 後端回更新後的整張圖卡，整份替換 result.data。regenerateImage 可控是否一併重生配圖（省額度）。
+  // 後端回更新後的「單一區塊」（與 /api/refine 單頁微調同形狀），patch 回
+  // result.data.sections[idx]。regenerateImage 可控是否一併重生配圖（省額度）。
   const [secOpen, setSecOpen] = useState(false);
   const [secIdx, setSecIdx] = useState(0);
   const [secInstr, setSecInstr] = useState("");
@@ -2279,13 +2280,13 @@ function VisualComposer({ projectId }) {
     try {
       const r = await fetch("/api/refine-section", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ infographic: result.data, sectionId: sections[idx].id,
-          instruction: secInstr, regenerateImage: secRegenImg,
-          style, customStylePrompt: style === "custom" ? customPrompt : "" }),
+        body: JSON.stringify({ section: sections[idx], instruction: secInstr,
+          regenerateImage: secRegenImg }),
       });
       const data = await r.json();
       if (!r.ok || data.success === false) throw new Error(data.detail || "逐區微調失敗");
-      setResult({ ...result, data: data.data });   // 後端回整張更新後圖卡
+      const next = sections.slice(); next[idx] = data.section;   // 後端回更新後的單一區塊
+      setResult({ ...result, data: { ...result.data, sections: next } });
       setSecInstr(""); setSecOpen(false);
     } catch (e) { setErr("逐區微調發生錯誤：" + ((e && e.message) || e)); }
     finally { setSecBusy(false); }

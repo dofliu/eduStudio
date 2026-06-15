@@ -124,6 +124,17 @@
   + `_validate_upload` 單元 + NFC）。全套 2410 passed。
   - 註：`localization.py` 的 dub 上傳走 `tempfile`（OS 管理路徑，audit 評為低風險），本輪未動；
     若要一併套白名單可開後續小 PR。
+  - ✅ 2026-06-15 **後續小 PR 完成（localization 檔案端點上傳硬化）**。`localization.py` 的 5 個
+    multipart 端點（`translate/image`、`translate/pdf`、`meeting/summarize`、`song/transcribe`、
+    `dub`）原先只把上傳寫進 `tempfile`（無 path-traversal 風險，故 S-3 評低風險），但缺 `/upload`
+    已有的「副檔名 + MIME 白名單」——任何人都能往這些端點塞非預期檔案。新增共用
+    `_validate_media_upload()`：**副檔名為強 gate**（per 端點媒體類別：image=圖片副檔名、pdf=`.pdf`、
+    meeting/song/dub=影音副檔名），**MIME 寬鬆輔助**（octet-stream/空字串放行＝瀏覽器常見，只擋「有給
+    且明顯非該類」的大類，比照 S-4）。`dub` 走 url 來源不受影響（沒檔不驗）。檔案進 `mkstemp` 不用原
+    檔名，故只驗媒體類別、不另做檔名 sanitize（path 安全由 tempfile 保證）。補
+    `tests/test_localization_upload.py` 16 測（強 gate 擋 .exe/文件塞影音端點/無副檔名 + MIME 寬鬆
+    octet-stream/空放行·矛盾 MIME 擋下 + dub url 不驗·上傳驗 + 純函式單元，**全 mock 不打 API/不跑
+    ffmpeg**）。本機全套 2691 passed（剩 1 QR 像素為容器缺 Noto CJK 字型假象，CI 權威）。
 - [x] 🟡 **S-5 secret 落地強化**（GATE→已拍板）— ✅ 2026-06-07 完成。**劉老師拍板：不加密**
   （明文 + gitignore，自架單機可接受，Fernet 靜態加密過度設計、徒增金鑰管理負擔）。改為在
   `SECURITY.md` 把機密檔處置講清楚：明文存放、**別放共享磁碟/雲端同步、別進未加密備份**（要備份

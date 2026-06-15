@@ -99,6 +99,34 @@ class TestProjectJobs:
         assert job_store.get(job_id) is not None
         assert project_store.get("p").jobs == [job_id]
 
+    def test_create_job_records_project_id(self, client):
+        """F9-2 Option A：經 Project 端點建立的 job 反向記下所屬課程 project_id。"""
+        c, project_store, job_store, tmp_path = client
+        c.post("/projects", json={"project_id": "matsci", "title": "材料力學"})
+        pdf = _make_real_pdf(tmp_path, "doc.pdf")
+        r = c.post("/projects/matsci/jobs", json={
+            "source_type": "document",
+            "source": {"path": pdf},
+            "options": {},
+        })
+        assert r.status_code == 201
+        rec = job_store.get(r.json()["job_id"])
+        # 存 canonical project.project_id (= safe_id 後)；render 旁白據此現讀 glossary。
+        assert rec.project_id == project_store.get("matsci").project_id
+
+    def test_direct_create_job_has_no_project_id(self, client):
+        """直接 POST /jobs（不經課程）的 job project_id 為 None（無主之 job 無 glossary）。"""
+        c, project_store, job_store, tmp_path = client
+        pdf = _make_real_pdf(tmp_path, "doc.pdf")
+        r = c.post("/jobs", json={
+            "source_type": "document",
+            "source": {"path": pdf},
+            "options": {},
+        })
+        assert r.status_code == 201
+        rec = job_store.get(r.json()["job_id"])
+        assert rec.project_id is None
+
     def test_exam_pdf_review_gate_preserved(self, client):
         """硬規則 #1：exam_pdf 經 Project 端點建立、未傳 require_review，仍預設 True。"""
         c, project_store, job_store, tmp_path = client
@@ -195,3 +223,83 @@ class TestArtifactsAndNotebook:
     def test_remove_source_missing_project_404(self, client):
         c, *_ = client
         assert c.delete("/projects/ghost/sources/src_x").status_code == 404
+
+
+# ---------- 課程術語表 glossary（F9-2 GET/PUT）----------
+class TestGlossary:
+    _GLOSSARY = {
+        "course": "材料力學",
+        "entries": [
+            {
+                "term": "ω_n",
+                "reading": "自然頻率",
+                "translations": {"en": "natural frequency"},
+                "aliases": ["wn", "ωn"],
+            },
+            {"term": "PID", "expansion": "比例-積分-微分"},
+        ],
+    }
+
+    def test_get_before_create_returns_404_distinct_from_missing_project(self, client):
+        """課在但尚未建 glossary → 404，detail 與『project 不存在』可區分。"""
+        c, *_ = client
+        c.post("/projects", json={"project_id": "p", "title": "材力 2026"})
+        r = c.get("/projects/p/glossary")
+        assert r.status_code == 404
+        assert "尚未建立" in r.json()["detail"]
+        # project 本身不存在 → 也是 404，但 detail 不同
+        r2 = c.get("/projects/ghost/glossary")
+        assert r2.status_code == 404
+        assert "project 不存在" in r2.json()["detail"]
+
+    def test_put_then_get_roundtrip_and_persist(self, client):
+        c, project_store, job_store, tmp_path = client
+        c.post("/projects", json={"project_id": "p", "title": "材力 2026"})
+        r = c.put("/projects/p/glossary", json=self._GLOSSARY)
+        assert r.status_code == 200
+        assert r.json()["course"] == "材料力學"
+        # 落盤後重抓一致
+        got = c.get("/projects/p/glossary")
+        assert got.status_code == 200
+        body = got.json()
+        assert body["course"] == "材料力學"
+        assert [e["term"] for e in body["entries"]] == ["ω_n", "PID"]
+        # 跨 store reload 確認真持久化（非僅記憶體）
+        reloaded = project_store.get_glossary("p")
+        assert reloaded is not None
+        assert reloaded.entries[0].reading == "自然頻率"
+
+    def test_put_overwrites_whole_glossary(self, client):
+        c, *_ = client
+        c.post("/projects", json={"project_id": "p", "title": "T"})
+        c.put("/projects/p/glossary", json=self._GLOSSARY)
+        # 整張覆寫成單條
+        r = c.put("/projects/p/glossary", json={
+            "course": "材料力學", "entries": [{"term": "σ", "reading": "應力"}],
+        })
+        assert r.status_code == 200
+        body = c.get("/projects/p/glossary").json()
+        assert [e["term"] for e in body["entries"]] == ["σ"]
+
+    def test_put_missing_project_returns_404(self, client):
+        c, *_ = client
+        r = c.put("/projects/ghost/glossary", json=self._GLOSSARY)
+        assert r.status_code == 404
+
+    def test_put_empty_term_rejected_422(self, client):
+        """core.glossary 的 term 非空 validator 在 HTTP 層生效（pydantic 422）。"""
+        c, *_ = client
+        c.post("/projects", json={"project_id": "p", "title": "T"})
+        r = c.put("/projects/p/glossary", json={
+            "course": "材力", "entries": [{"term": "   "}],
+        })
+        assert r.status_code == 422
+
+    def test_glossary_isolated_per_project(self, client):
+        c, *_ = client
+        c.post("/projects", json={"project_id": "p1", "title": "材力"})
+        c.post("/projects", json={"project_id": "p2", "title": "自控"})
+        c.put("/projects/p1/glossary", json=self._GLOSSARY)
+        # p2 未建 → 仍 404，不串課
+        assert c.get("/projects/p2/glossary").status_code == 404
+        assert c.get("/projects/p1/glossary").status_code == 200

@@ -89,6 +89,15 @@ def get_usage_db_path() -> str:
     return os.environ.get("USAGE_DB_PATH", str(USAGE_DB_PATH))
 
 
+def get_monthly_budget() -> float:
+    """成本面板月預算（USD，僅顯示用 — 系統不會真的扣費或擋呼叫）。
+    env EDUSTUDIO_MONTHLY_BUDGET 可覆寫；非數字或未設則回預設 30。"""
+    try:
+        return float(os.environ.get("EDUSTUDIO_MONTHLY_BUDGET", "30"))
+    except (TypeError, ValueError):
+        return 30.0
+
+
 # ---------- 字型 ----------
 # Windows: 微軟正黑體 (中文)
 # 環境變數 CLAUDE_FONT_PATH / CLAUDE_FALLBACK_FONT_PATH 可覆寫
@@ -117,6 +126,25 @@ def get_mono_font_path() -> str:
 GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 TTS_PROVIDER_ENV = "TTS_PROVIDER"
+
+# 本機模型（F9-3 ollama 等）失敗時是否自動退回雲端 Gemini。預設開：本機掛了
+# （服務沒開／模型沒 pull／逾時）不該讓整批 pipeline 崩；設成 0/false/no/off 關成
+# 嚴格本機（隱私／離線場景，本機掛了就明確報錯、絕不偷偷上雲燒額度）。
+LOCAL_MODEL_FALLBACK_ENV = "LOCAL_MODEL_FALLBACK"
+
+
+def get_local_model_fallback() -> bool:
+    """本機 provider 失敗時是否自動退回雲端 Gemini（F9-3d）。
+
+    env ``LOCAL_MODEL_FALLBACK``：未設／空字串 → 預設 ``True``（自動退雲端，
+    退場時會 log.warning 講清楚）；設成 ``0`` / ``false`` / ``no`` / ``off``
+    （大小寫不拘）→ ``False``＝嚴格本機（不偷偷上雲）。
+    """
+    raw = os.environ.get(LOCAL_MODEL_FALLBACK_ENV)
+    if raw is None or not raw.strip():
+        return True
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
 
 # CORS 允許來源。預設只給本機自用，部署時用環境變數放行實際前端 origin。
 ALLOWED_ORIGINS_ENV = "EDUSTUDIO_ALLOWED_ORIGINS"

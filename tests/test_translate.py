@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from core import translate
+from core import ollama_client, translate
 
 
 def _install_fake_genai(monkeypatch, *, resp_text="繁中譯文", exc=None):
@@ -211,12 +211,16 @@ class TestTranslateSteps:
 
 
 class TestCallOllamaErrors:
-    """Ollama fallback 路徑(TRANSLATION_BACKEND=ollama 時才走)仍可用。"""
+    """Ollama fallback 路徑(TRANSLATION_BACKEND=ollama 時才走)仍可用。
+
+    urllib 呼叫已抽到 core.ollama_client(F9-3a),故 monkeypatch 該模組的 urlopen;
+    驗 translate._call_ollama 仍把 OllamaError 包成 TranslateError(行為不變)。
+    """
 
     def test_urlerror_becomes_translate_error(self, monkeypatch):
         def boom(req, timeout=None):
             raise urllib.error.URLError("connection refused")
-        monkeypatch.setattr(translate.urllib.request, "urlopen", boom)
+        monkeypatch.setattr(ollama_client.urllib.request, "urlopen", boom)
         with pytest.raises(translate.TranslateError) as ei:
             translate._call_ollama("p", model="translategemma", host="http://localhost:11434", timeout=5)
         assert "ollama serve" in str(ei.value)  # 訊息含修復指引
@@ -226,6 +230,6 @@ class TestCallOllamaErrors:
             def __enter__(self): return self
             def __exit__(self, *a): return False
             def read(self): return json.dumps({"response": "  translated  "}).encode()
-        monkeypatch.setattr(translate.urllib.request, "urlopen", lambda req, timeout=None: _Resp())
+        monkeypatch.setattr(ollama_client.urllib.request, "urlopen", lambda req, timeout=None: _Resp())
         out = translate._call_ollama("p", model="m", host="http://x", timeout=5)
         assert out == "translated"  # strip 過

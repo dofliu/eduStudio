@@ -76,5 +76,22 @@ class TestUsageEndpoint:
         assert r.status_code == 200
         body = r.json()
         assert body["count"] == 1 and body["used"] > 0
-        assert body["budget"] == 30.0
+        assert body["budget"] == 30.0      # 預設月預算
         assert "byStation" in body and "recent" in body
+
+    def test_budget_env_override(self, tmp_path, monkeypatch):
+        pytest.importorskip("fastapi.testclient")
+        pytest.importorskip("multipart")
+        from fastapi.testclient import TestClient
+
+        import core.usage as usage_mod
+        from server.main import create_app
+
+        store = UsageStore(db_path=str(tmp_path / "u.db"))
+        monkeypatch.setattr(usage_mod, "get_usage_store", lambda: store)
+        monkeypatch.setenv("EDUSTUDIO_MONTHLY_BUDGET", "75")
+        app = create_app()
+        with TestClient(app) as c:
+            r = c.get("/api/usage")
+        assert r.status_code == 200
+        assert r.json()["budget"] == 75.0

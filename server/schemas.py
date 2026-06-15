@@ -331,6 +331,27 @@ class Artifact(BaseModel):
     kind: str  # mp4 | srt | json | png | other
 
 
+class ArtifactVersion(BaseModel):
+    """F9-4: 一次 render 完成後 artifacts/ 的快照, 重 render 前歸檔保留。
+
+    教學內容會迭代, 重 render 可能蓋掉「還能用的好版本」(已踩過視覺 regression)。
+    重 render 一個已完成 (DONE) 的 job 前, 先把現有 artifacts/ 複製進
+    jobs/<id>/artifact_history/v<N>/ 不覆蓋, 之後可比對 / 回滾。
+
+    - version: 1-based 遞增序號 (= 第幾次保留的舊版)。
+    - created_at: 該批 artifacts 當初 render 完成的時間 (= 歸檔當下 record.updated_at)。
+    - archived_at: 歸檔動作發生的時間。
+    - path: 歷史目錄, 相對於 jobs/<id>/ (例 "artifact_history/v1")。
+    - artifacts: 該版每個檔案的 metadata, 各 path 相對於 jobs/ (= "<id>/artifact_history/v1/<name>")。
+    """
+    version: int
+    created_at: AwareDatetime
+    archived_at: AwareDatetime
+    path: str
+    artifacts: list[Artifact] = Field(default_factory=list)
+    note: str = ""
+
+
 # ---------- YouTube upload (PR-3f) ----------
 
 class YoutubeUploadState(str, Enum):
@@ -374,11 +395,19 @@ class JobRecord(BaseModel):
     updated_at: AwareDatetime
     stages: list[StageInfo] = Field(default_factory=list)
     artifacts: list[Artifact] = Field(default_factory=list)
+    # F9-4 影片版本管理: 重 render 前歸檔的歷次舊版 artifacts 快照 (extra="allow" →
+    # 舊 state.json 無此欄位無痛相容, 預設空 list)。
+    artifact_versions: list[ArtifactVersion] = Field(default_factory=list)
     error: str | None = None
     # R-2 review gate: require_review job 必須經人工 approve 才能 render。
     # reviewed=True 由 /approve 端點寫入; render 入口會 assert (硬規則 #1 不可繞)。
     reviewed: bool = False
     reviewed_at: AwareDatetime | None = None
+    # F9-2 (劉老師 2026-06-14 拍板 Option A): job 所屬課程 (Project) id。經
+    # POST /projects/{pid}/jobs 建立時寫入; 直接 POST /jobs 建立則 None (無主之 job
+    # 無 glossary, 設計如此)。render 旁白時據此 ProjectStore.get_glossary 現讀該課讀音表
+    # 套進 TTS (F9-2h)。extra="allow" → 舊 state.json 無此欄位無痛相容, 預設 None。
+    project_id: str | None = None
     # 內部欄位: ingest 後的 deck path, render 後的 output dir
     deck_path: str | None = None
     output_dir: str | None = None

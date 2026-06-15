@@ -1,10 +1,11 @@
-# autoSolverVideo Compose — v4 階段 1 A 第二步 (draft, 未實測)
+# eduStudio Compose — base「localhost 自己玩」預設 (跨平台實測為 D-1 GATE)
+# 上線疊 docker-compose.prod.yml + 反向代理, 見 docs/DEPLOYMENT.md。
 #
 # 用法:
 #   1. cp .env.example .env  # 填 GEMINI_API_KEY
 #   2. cp tts_config.example.json tts_config.json  # 預設 edge tts 即可
 #   3. docker compose up -d  # 背景啟動
-#   4. 瀏覽器開 http://localhost:8000/ui/
+#   4. 瀏覽器開 http://localhost:8000/app/  # 統一 /app 介面 (/ui /studio 為 legacy)
 #
 # 停止:
 #   docker compose down       # 停容器, 保留 volume

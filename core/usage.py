@@ -4,9 +4,9 @@
 MODEL_PRICING（char-based，對齊 infoCard estimateCost）換算成本，存 SQLite。成本面板
 讀 summary() 顯示真實 used / 各站花費 / 近期紀錄。
 
-涵蓋範圍誠實說明：只記流經 core.infocards.gemini（視覺站）與 core.translation.service
-（在地化）的呼叫。autoSolver 影片 render pipeline 的 Gemini 用量另走自己的路徑，未納入
-（要納入需另行 instrument 渲染管線）。budget/trial 無真實來源，面板端以設定值呈現。
+涵蓋範圍：視覺站（core.infocards.gemini）、在地化（core.translation.service），以及
+影片/解析 render pipeline 的 Gemini chokepoint（outliner / scriptor / slide_ingest /
+solve，經 record_text_now 接入，C-1）。budget/trial 無真實來源，面板端以設定值呈現。
 """
 from __future__ import annotations
 
@@ -134,5 +134,23 @@ def record_image(station: str, model: str, **kw) -> None:
     """模組級便捷：記圖片用量，吞例外。"""
     try:
         get_usage_store().record_image(station, model, **kw)
+    except Exception:
+        pass
+
+
+def record_text_now(station: str, model: str, prompt: str, response: str,
+                    *, label: str = "") -> None:
+    """便捷：以當前 UTC 時間記一筆文字用量（直接給 prompt/response 字串，自動數字元）。
+
+    為影片/解析 render pipeline 等「呼叫端手上是字串」的 chokepoint 設計：填 ts=now、
+    數 prompt/response 字元後轉呼 record_text。datetime 只落在這層便捷包裝，UsageStore
+    核心仍純（ts 由參數帶入），維持可重現。吞例外不拖垮主流程。
+    """
+    try:
+        from datetime import datetime, timezone
+
+        record_text(station, len(prompt or ""), len(response or ""),
+                    model=model, label=label,
+                    ts=datetime.now(timezone.utc).isoformat())
     except Exception:
         pass

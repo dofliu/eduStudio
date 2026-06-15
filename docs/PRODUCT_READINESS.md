@@ -124,6 +124,17 @@
   + `_validate_upload` 單元 + NFC）。全套 2410 passed。
   - 註：`localization.py` 的 dub 上傳走 `tempfile`（OS 管理路徑，audit 評為低風險），本輪未動；
     若要一併套白名單可開後續小 PR。
+  - ✅ 2026-06-15 **後續小 PR 完成（localization 檔案端點上傳硬化）**。`localization.py` 的 5 個
+    multipart 端點（`translate/image`、`translate/pdf`、`meeting/summarize`、`song/transcribe`、
+    `dub`）原先只把上傳寫進 `tempfile`（無 path-traversal 風險，故 S-3 評低風險），但缺 `/upload`
+    已有的「副檔名 + MIME 白名單」——任何人都能往這些端點塞非預期檔案。新增共用
+    `_validate_media_upload()`：**副檔名為強 gate**（per 端點媒體類別：image=圖片副檔名、pdf=`.pdf`、
+    meeting/song/dub=影音副檔名），**MIME 寬鬆輔助**（octet-stream/空字串放行＝瀏覽器常見，只擋「有給
+    且明顯非該類」的大類，比照 S-4）。`dub` 走 url 來源不受影響（沒檔不驗）。檔案進 `mkstemp` 不用原
+    檔名，故只驗媒體類別、不另做檔名 sanitize（path 安全由 tempfile 保證）。補
+    `tests/test_localization_upload.py` 16 測（強 gate 擋 .exe/文件塞影音端點/無副檔名 + MIME 寬鬆
+    octet-stream/空放行·矛盾 MIME 擋下 + dub url 不驗·上傳驗 + 純函式單元，**全 mock 不打 API/不跑
+    ffmpeg**）。本機全套 2691 passed（剩 1 QR 像素為容器缺 Noto CJK 字型假象，CI 權威）。
 - [x] 🟡 **S-5 secret 落地強化**（GATE→已拍板）— ✅ 2026-06-07 完成。**劉老師拍板：不加密**
   （明文 + gitignore，自架單機可接受，Fernet 靜態加密過度設計、徒增金鑰管理負擔）。改為在
   `SECURITY.md` 把機密檔處置講清楚：明文存放、**別放共享磁碟/雲端同步、別進未加密備份**（要備份
@@ -217,20 +228,58 @@
 > 自架者最在意「這會花我多少錢」。現況計費**只算視覺/在地化**，最大宗的影片 render
 > pipeline 完全沒計帳（HANDOFF 待加強 #1）。
 
-- [ ] 🔴 **C-1 影片 pipeline Gemini 呼叫接計帳**（offline）— `core/usage.py` 計帳子系統已有，
-  把影片 pipeline 的 Gemini chokepoint（outliner / scriptor / slide_ingest / solve）也
-  instrument 進去。讓成本面板涵蓋最大宗。逐 chokepoint 接 + 測試。
+- [x] 🔴 **C-1 影片 pipeline Gemini 呼叫接計帳**（offline）— ✅ 2026-06-08 完成。新增
+  `core.usage.record_text_now(station, model, prompt, response, label)` 便捷層（自動填 UTC ts +
+  數字元，datetime 只落這層、UsageStore 核心仍純可重現），接上四個 chokepoint：`outliner.
+  _call_outline_gemini`（station=video/outline）、`scriptor._call_with_retry`（video/script:<id>）、
+  `slide_ingest` 章節切分 + 逐頁旁白（video/chapters、narration）、`solve` 三 pass（material/
+  identify、solve:<num>、svg）。成本面板新增「影片」「解析」兩站（站別 label 早已預留）。補
+  `tests/test_usage_pipeline.py` 5 測（字元/成本/ts/站別分組 + outliner 注入 fake genai 驗計帳
+  確實接上，**全 mock 不打真 API**＝offline-first）。本機全套 2446 passed（3 個 font-pixel 斷言為
+  容器缺 Noto CJK 字型假象，CI 權威）。註：多模態（圖片 input）僅計 prompt 文字字元，沿用既有
+  char-based 近似模型。
 - [ ] 🟡 **C-2 單價對齊真實**（GATE，需查官方定價）— 現況單價是估算。對齊 Gemini 3 系列 +
   GCP TTS + （未來）image 真實單價。定價會變動 → 抽成設定常數 + 文件註明「以官方為準」。
-- [ ] 🟡 **C-3 旁白模型遷 3.x**（GATE，需開額度驗證品質）— `slide_ingest.py:43`
-  `MODEL = "gemini-2.5-flash"`（將淘汰）。**M 軸完成後這只是改角色表 `text.fast` 一個值**。
+- [x] 🟡 **C-3 旁白模型遷 3.x**（GATE→已驗已切）— ✅ 2026-06-15 完成。`slide_ingest.py`
+  原寫死 `MODEL = "gemini-2.5-flash"`（將淘汰）。**M 軸完成後切換只是改角色表 `text.fast` 一個值**。
   3.5-flash 實測接受 `thinking_budget=0`，但**旁白品質要先驗**再換。寫成 A/B proposal，劉老師
-  開額度跑過再切。（劉老師 2026-06-07：需額度會給權限。）
+  開額度跑過再切。（劉老師 2026-06-07：需額度會給權限；2026-06-15：開額度。）
+  - ✅ 2026-06-15 **A/B 工具 + 提案完成（offline 前置；實跑＝你本機開額度）**。劉老師 2026-06-15
+    開額度。因本 routine 環境**無 `GEMINI_API_KEY`**（你的 key 在你本機）且不該把 key 帶進 session，
+    品質 A/B 必須在**你本機**跑——故 routine 把「能跑的工具 + 切換步驟」備好：① `tools/ab_narration.py`
+    對同一份簡報同幾頁、用舊模型 vs 候選模型**各生一次旁白並排輸出**（**只跑旁白生成、不跑 TTS/
+    ffmpeg/完整 render ＝省額度**；注入不同 `model` 呼叫**真實** `narrate_page_with_gemini`、prompt/
+    retry/`thinking_budget=0` 全與正式線一致＝不漂移）；為此 `slide_ingest.narrate_page_with_gemini`
+    加**選填 `model` 參數**（預設仍 `MODEL`，正式 pipeline 零影響）。② `docs/C3_NARRATION_AB_PROPOSAL.md`：
+    為什麼動 / 怎麼在你本機跑（指令）/ 決策準則表（正確性·完整收尾·通順·深度·成本）/ 驗過怎麼切
+    （chokepoint 改走 `resolve("text.fast")`）+ rollback（設定頁覆寫回 2.5、免改 code）/ 3 個待拍板
+    開放問題（範圍 / `text.fast` vs 新增 `narration` 角色 / 候選模型）。補 `tests/test_ab_narration.py`
+    11 測（頁碼解析 / run_ab 每頁每模型透傳 / 報告並排+用量 / 缺 key SystemExit，**全 fake client
+    不打 API**）。本機相關子集 142 passed。
+  - ✅ 2026-06-15 **切換完成（劉老師本機 A/B 驗過品質後拍板遷移）**。劉老師跑 A/B（材力/自控
+    `Chap08-PID控制器設計` 三頁）逐項比對：**正確性兩邊都乾淨無誤**（review gate 真正守的底線）、
+    3.5-flash **口吻更自然 + 長度更貼 ~75s/頁時間預算**（2.5 偏長易被 `_truncate_at_sentence` 截）、
+    **成本約 64%**（省 ~36% 輸出字）；唯一退步是 3.5 偶爾壓縮會漏列點（學習目標頁少帶一項）。
+    拍板**切**。落地：`slide_ingest.py` 把寫死 `MODEL` 換成 `narration_model()＝resolve_id(TEXT_FAST)`
+    （**呼叫時解析**＝設定頁 `text.fast` 覆寫即時生效），**旁白 + 章節切分**一起遷（共用同一模型常數，
+    章節切分也得離開 2.5）；並在 `NARRATION_PROMPT_DETAILED` 補第 7 條「條列項目每項至少帶一句、可
+    精簡不可整項遺漏」糾正 3.5 唯一弱點。**rollback 免改 code**：設定頁把 `text.fast` 覆寫回
+    `gemini-2.5-flash` 即時退。**`solve.py`（解題）模型不在本遷移範圍**（正確性更敏感、未 A/B，另議）。
+    `model` 計帳如實落 resolved id。本機全套 2702 passed（剩 1 QR 像素為容器缺 Noto CJK 字型假象，
+    CI 權威）。至此「換旁白模型 = 改登錄表/設定頁 `text.fast` 一個值」閉環。
 - [ ] 🟢 **C-4 `gemini-3.1-pro-image` 等開放再換**（GATE）— 劉老師想用但 API 未開放。等開放
   從 `gemini-3-pro-image` 換（`core/infocards/models.py`）。掛追蹤。
-- [ ] 🟢 **C-5 模型 id 自我健檢**（offline）— 加一個 `tools/check_models.py` 跑
-  `client.models.list()` 比對設定頁用的 id 是否還存在（這 repo 有用過 preview id 404 前科），
-  自架者換 key 後可自查。（並進 M 軸：比對角色登錄表全部 id。）
+- [x] 🟢 **C-5 模型 id 自我健檢**（offline）— ✅ 2026-06-09 完成。新增 `tools/check_models.py`：蒐集
+  系統「會送去 Gemini」的全部 model id（**角色登錄表 `core/models.py` 經 `resolve()`** ＝含設定頁
+  逐角色 `model_roles` 覆寫 + legacy `text_model`/`image_model` 覆寫 + 內建預設；**＋設定頁文字/圖片
+  下拉可選清單** `core/infocards/models.py` 的 `TEXT_MODELS`/`IMAGE_MODELS`），呼叫 `client.models.
+  list()` 比對哪些 id 在這把 key 底下已不存在（404 風險，本 repo 有 preview id 404 前科），標紅輸出。
+  只查 `gemini` provider 角色（`tts` 等非 Gemini 後端跳過）；蒐集/比對拆純函式（`collect_configured_
+  models`/`evaluate`），**API 端可注入 fake**＝全程不打真 API（offline-first）；缺 `GEMINI_API_KEY`
+  只印「會用到哪些 id」+ exit 2，全綠 exit 0、有缺 exit 1，`--json` 機器可讀。補 `tests/test_check_
+  models.py` 18 測（角色覆蓋/排除 tts/下拉清單/去重排序/設定覆寫經 resolve/前綴正規化/exit code/JSON）。
+  本機全套 2484 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。並進 M 軸：蒐集
+  來源已含角色登錄表全部角色，換代後同支即驗新表。註：M-3 設定頁「未知 id 健檢顯示」可日後串本工具輸出。
 
 ### M 軸 — 模型抽象與可插拔後端（🔴 結構性，劉老師 2026-06-07 指定）
 
@@ -241,20 +290,59 @@
 > **拍板（2026-06-07）：做 Option A（角色登錄表）+ 介面設計成 B-ready**（provider 抽象之後
 > 再加，不重構）。B 的「本機 provider」就是 Phase 9 F9-3 本機可插拔模型。
 
-- [ ] 🔴 **M-1 角色登錄表 `core/models.py`（offline，A 核心）**— 定義**邏輯角色** →
-  具體 model id 的單一真實來源（角色：`text.fast` / `text.pro` / `vision` / `image.fast` /
-  `image.pro` / `tts`）。`resolve(role)` 讀設定頁(settings.json) → fallback 內建預設表。
-  介面預留 provider 維度（`resolve(role) -> (provider, model_id)`，A 階段 provider 恆 gemini）。
-  +測試鎖角色集合 + fallback。
-- [ ] 🔴 **M-2 全面換掉寫死 id（offline）**— 把 `slide_ingest.py` / `core/infocards/models.py` /
+- [x] 🔴 **M-1 角色登錄表 `core/models.py`（offline，A 核心）**— ✅ 2026-06-08 完成。新增
+  `core/models.py`：6 個**邏輯角色**（`text.fast`/`text.pro`/`vision`/`image.fast`/`image.pro`/
+  `tts`）→ `(provider, model_id)` 單一真實來源。`resolve(role)` 解析優先序＝設定頁逐角色
+  `model_roles`（M-3 UI 會寫入，現在先讀＝向前相容）→ legacy 單值欄位 `text_model`/`image_model`
+  （向後相容，保留現行 `get_gemini_model()` 行為，讓 M-2 換接 runtime 不變）→ 內建 `DEFAULTS`。
+  provider 維度 B-ready（A 階段 LLM/視覺/生圖恆 gemini；tts 反映既有 edge/f5/google 後端，預設
+  `edge`，不硬塞未驗證 gemini TTS id 避免 preview 404）；未知角色 `ValueError`（type guard）。
+  預設 id 對齊既有 `core/infocards/models.py`（live 實測的 Gemini 3 系列）。補
+  `tests/test_models_registry.py` 12 測（鎖角色集合/預設表/type guard/legacy 覆寫/逐角色覆寫/
+  空值 fallback，**全 tmp 隔離不打 API**）。全套 2459 passed（3 個字型像素假象為容器缺 Noto CJK，
+  CI 權威）。換接散落硬編 id＝M-2、設定頁逐角色管理＝M-3、provider adapter 介面＝M-4。
+- [~] 🔴 **M-2 全面換掉寫死 id（offline）**— 把 `slide_ingest.py` / `core/infocards/models.py` /
   scriptor / outliner / translate / 其餘 chokepoint 的硬編 model id **全部改呼叫 `resolve()`**。
   一處一處改、跑 pytest（硬規則 #7）。完成後「換模型 = 改一個表/設定頁」。
-- [ ] 🟡 **M-3 設定頁模型管理升級（offline）**— 設定頁從「文字/圖片各一個下拉」升級成
-  **逐角色可配**（或維持精簡但底層走角色表），未知 id 顯示健檢結果（接 C-5）。
-- [ ] 🟢 **M-4 provider adapter 介面（B-ready stub，offline）**— 定義 `Provider` 協定
-  （`generate_text` / `generate_image` / `tts`）+ gemini adapter 包現有呼叫。**只抽介面不換行為**，
-  讓 Phase 9 F9-3（ollama/claude provider）能 slot-in。是否現在做或等 F9-3 一起做，routine 視
-  M-1/M-2 完成後評估。
+  - ✅ 2026-06-08 **視覺/infocards 世界已換接（行為不變）**。`core/infocards/gemini.py`（生 JSON/
+    生圖 fallback：`DEFAULT_TEXT_MODEL`/`DEFAULT_IMAGE_MODEL` → `resolve_id(text.fast/image.fast)`）、
+    `server/routes/infocards.py::_resolve_models`（`get_setting("text_model") or DEFAULT_*` 鏈 →
+    `resolve_id()`，並向前相容 M-3 逐角色設定）、`core/infocards/poster_service.py`（海報 pro 生圖
+    `IMAGE_MODELS["pro"]["id"]` → `resolve_id(image.pro)`）全部改走角色登錄表。**完全行為不變**：登錄表
+    預設 id 與這些 chokepoint 原本的 3.x 預設一字不差（text.fast=3.5-flash、image.fast=3.1-flash-image、
+    image.pro=3-pro-image），只是改成單一真實來源 + 多帶 `model_roles` 覆寫感知。本機全套 2459 passed
+    （3 個 QR/CJK 主題像素斷言為容器缺 Noto 字型假象，CI 權威）。
+  - ⏸️ **影片/解析文字 pipeline 的硬編 id 換接 = C-3 GATE，本輪不動。** `slide_ingest.py:43`、
+    `solve.py:30`、`core/config.py:170 GEMINI_MODEL` 等目前寫死 `gemini-2.5-flash`；而登錄表 `text.fast`
+    預設是 `gemini-3.5-flash`。把這些 chokepoint 換成 `resolve("text.fast")` **會把旁白/解題默默從 2.5
+    遷到 3.5**，這正是 **C-3（旁白模型遷 3.x，GATE，需開額度 A/B 驗品質）**。故此部分留待 C-3 拍板/
+    開額度後一併換（屆時就是「改登錄表一個值 + 換 call site」）。`mermaid_render.py`/`ideate`/`diagram_*`
+    等 GATE 半成品（F-5）同理留待各自項目。
+- [x] 🟡 **M-3 設定頁模型管理升級（offline）**— ✅ 2026-06-08 完成。設定頁從「文字/圖片各一個下拉」
+  升級成 **逐角色可配**：新增設定欄位 `model_roles`（dict，逐角色 model id 覆寫），`resolve()` 早已
+  最高優先讀它（M-1 預留），現在設定頁能寫入＝閉環。`core/models.py` 加 `role_catalog()`（單一真實
+  來源：role/label/kind/default，**tts 不列**——走獨立 TTS 子系統避免「選了不生效」誤導）；
+  `core/settings.py` 加 `model_roles` 至 `_KNOWN` + `_clean_model_roles()`（只留合法角色→非空字串、
+  空 dict 清除，呼應 type guard）+ `public_view` 曝光；`/settings` 端點補 `model_roles` patch 欄位
+  與 `roles` catalog。前端 `app.jsx` SettingsDrawer 改逐角色下拉（依 kind 挑 text/image 候選、留空＝
+  系統預設）。legacy `text_model`/`image_model` 仍留作 `resolve()` 較低優先 fallback（向後相容、不孤兒）。
+  補測 `test_settings.py`（roundtrip/清洗未知角色/空清除/非 dict/public_view/路由 catalog+寫入）+
+  `test_models_registry.py`（catalog 形狀+排除 tts）。本機 `npm run build`（vite/node22）編譯通過、全套
+  2466 passed（3 個 QR/journal 字型像素為容器缺 Noto 假象，CI 權威）。註：未知 id 健檢顯示（接 C-5）
+  待 C-5 工具落地後再串。
+- [x] 🟢 **M-4 provider adapter 介面（B-ready stub，offline）**— ✅ 2026-06-09 完成。M-1/M-2/M-3
+  落地後評估：先把介面座位備好，讓 Phase 9 F9-3 能零摩擦 slot-in。新增 `core/providers.py`：
+  `Provider` 協定（`runtime_checkable`，三能力面 `generate_text` / `generate_image` / `tts`）+
+  `GeminiProvider`（A 階段唯一 LLM/視覺/生圖 provider：`generate_text` 走 google.genai、
+  `generate_image` **委派既有** `generate_image_b64`＝包現有呼叫；`tts` 非其職責 →
+  `NotImplementedError`，本 repo 語音走獨立 `tts_backend` 子系統）+ `register_provider` /
+  `get_provider`（未知 provider→`ValueError`）/ `provider_for_role`（`resolve()` 拿 provider+model
+  id 的 B-ready 座位）。**只抽介面不換行為**：現有散落呼叫端本輪不改線，仍各自運作；genai 呼叫隔離成
+  模組層 `_gemini_text_call`＝B 階段抽換點 + 測試注入點。補 `tests/test_providers.py` 18 測（協定符合/
+  registry 單例+未知/逐角色 model 解析+設定覆寫/usage 計帳/生圖委派/tts NotImplementedError/
+  provider_for_role text+非法角色+tts 未登記，**全 monkeypatch 不打真 API、不需裝 genai**）。本機全套
+  2500 passed（1 QR 像素為容器缺 Noto CJK 字型假象，CI 權威）。B 階段（F9-3）只要新增實作此協定的
+  class + `register_provider`，呼叫端零改動即生效。
 
 ---
 
@@ -265,17 +353,44 @@
 
 - [ ] 🔴 **D-1 `docker compose up --build` 跨平台實測**（GATE，需劉老師本機跑）— Linux/Win/Mac
   各驗一遍，修踩到的問題（字型、volume、healthcheck）。產出「實測 OK」結論 + 修補。
-- [ ] 🟡 **D-2 production 設定範本**（offline）— 一個 `docker-compose.prod.yml` 或文件段：
-  收緊 CORS、設 API token、不開 `--reload`、log 落盤、restart policy。把 Phase 1 安全項串成
-  「上線前 checklist」。
-- [ ] 🟡 **D-3 reverse proxy + TLS 指引**（offline，文件）— nginx/caddy 範例 conf（自架者要把
-  server 擺 TLS 後面，不裸奔）。不需自己跑，給可複製範本。
+- [x] 🟡 **D-2 production 設定範本**（offline）— ✅ 2026-06-09 完成。新增
+  `docker-compose.prod.yml`（疊在 base 之上的 production override，用 `-f docker-compose.yml -f
+  docker-compose.prod.yml` 帶）：**port 只綁 `127.0.0.1`**（對外走反向代理、不裸暴露）、container
+  log 走 **json-file driver + rotation**（`max-size 10m`×`max-file 5`，補 base compose 的 log
+  rotation TODO）、`restart: always`、`no-new-privileges:true`、`stop_grace_period`。`--reload`
+  本來就沒開（Dockerfile `CMD` 直接 `python -m server.main`，於 override 註明）。新增
+  `docs/DEPLOYMENT.md`：一鍵起 prod 容器指令 + base↔prod 對照表 + **「上線前安全 checklist」**把
+  Phase 1 串成逐項（S-1 設 token / S-2 收 CORS / 放反向代理+TLS / S-6 維持 rate limit / S-5 機密檔
+  權限 / 月預算）+ 運維備忘（持久化、R-1 重啟不丟工作、review gate 不可繞、磁碟、健康檢查）+ 指出
+  D-1/D-3/D-4 後續。純設定/文件，無 code 變更（未動 server/core/schemas/runner）。
+- [x] 🟡 **D-3 reverse proxy + TLS 指引**（offline，文件）— ✅ 2026-06-09 完成。新增兩份可複製範本：
+  [`deploy/nginx.conf.example`](deploy/nginx.conf.example)（http→https 轉址、certbot/Let's Encrypt
+  簽發註解）與 [`deploy/Caddyfile.example`](deploy/Caddyfile.example)（自動 TLS、零手動憑證）。兩份都
+  預先處理好踩雷點：**上傳上限對齊** `200m`/`200MB`（對齊 `server/routes/uploads.py` 的 `MAX_UPLOAD_SIZE`，
+  代理層預設太小會在傳大檔時先回 413）、**長請求逾時** 放寬到 600s（影片 render / 同步 Gemini 呼叫不被切成
+  504）、**轉發 `X-Forwarded-For`/`-Proto`**（per-IP rate limit S-6 看真實來源、cookie `Secure` 判定正確）、
+  **`Authorization`+cookie 透傳**（S-1 驗證所依）、HSTS。`docs/DEPLOYMENT.md` 補「反向代理 + TLS」一節
+  （nginx vs Caddy 選用對照表 + 踩雷點說明 + 「反代非驗證替代品、仍要設 token」提醒）並消除原 D-3「規劃中」
+  佔位。純文件/設定，無 code 變更（未動 server/core/schemas/runner）。
 - [ ] 🟡 **D-4 F5 GPU passthrough 文件**（GATE，需 GPU 環境實測）— nvidia-docker 跑 F5-TTS
   的設定 + 「沒 GPU 自動退 edge/google TTS」說明。
-- [ ] 🟢 **D-5 健康檢查 / 啟動自檢**（offline）— `/health` 已有；加啟動時自檢（字型在不在、
-  ffmpeg 在不在、GEMINI key 設了沒）印清楚的綠/紅，讓自架者一眼知道缺什麼。
-- [ ] 🟢 **D-6 requirements 分層說明**（offline）— 已分 core/optional/dev/song，README 講清楚
-  「最小裝什麼能跑、要 F5/Whisper/song 再加裝什麼」。
+- [x] 🟢 **D-5 健康檢查 / 啟動自檢**（offline）— ✅ 2026-06-09 完成。新增 `core/selfcheck.py`：
+  server 啟動時印一輪**綠/紅環境自檢**（ffmpeg/ffprobe 在不在＝critical、三個字型在不在＝critical、
+  GEMINI key 設了沒＝黃字警告非 critical），缺核心相依時多印一行 ⛔ 醒目總結指引去補。`/health`
+  雖已回同類診斷，但那要主動打端點才看得到；自架者第一次 `docker compose up` 最常踩的雷（沒裝
+  ffmpeg、容器缺 Noto 字型、忘設 key）改在 **啟動 log** 一眼可見。純函式 `collect_checks()`／
+  `format_report()`（不碰 stdout＝好測）＋ `print_startup_selfcheck()`，在 `server/main.py` startup
+  hook 呼叫。**不阻擋啟動**（缺東西只警告、server 仍可瀏覽/設定）。補 `tests/test_selfcheck.py` 8 測
+  （全綠／ffmpeg 缺／字型缺 critical、缺 key／空 key 為警告非 critical、報告綠紅標記與總結、print 回傳，
+  **全 monkeypatch 不碰真 ffmpeg/字型/API**）。本機全套 2506 passed（3 個 QR/journal 字型像素為容器
+  缺 Noto CJK 假象，CI 權威）。
+- [x] 🟢 **D-6 requirements 分層說明**（offline）— ✅ 2026-06-09 完成。README（中英雙語）新增「依賴
+  分層 / Dependency layers」一節：core/optional/song/dev 四層表格（裝什麼、加了什麼、不裝會怎樣）+
+  系統相依（ffmpeg、Noto CJK 字型，非 pip，原 quick-start 漏寫）+ 字型 env 覆寫 + Dockerfile 已內建。
+  順手補回**漏報的兩個 optional dep**：`faster-whisper`（STT，lazy import、自動 GPU→CPU）與
+  `python-pptx`（PPTX 匯出，lazy import）——tech stack 有列、code 有用，但先前任一 requirements 檔
+  都沒宣告 → 補進 `requirements-optional.txt` 並註明各自驅動的功能與「沒裝只該功能優雅報錯」。純文件
+  /設定，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
 
 ---
 
@@ -284,16 +399,49 @@
 > 整合後文件有**定位漂移**：`claude.md` 還停在舊定位「教學影片自動生成平台」、HANDOFF 寫死
 > 劉老師 Windows 本機路徑（`D:\...`）。開源前要去個人化 + 對齊 eduStudio 全貌。
 
-- [ ] 🔴 **DOC-1 `claude.md` 更新到 eduStudio 整合後定位**（offline）— 現況開頭仍是
-  「教學影片自動生成平台」+ 三 Track 舊圖 + Gemini 2.5。更新成 4 track（含視覺/在地化/song）
-  + 整合架構 + 現行模型。這份是給 Claude/協作者的 context，最該先準。
-- [ ] 🟡 **DOC-2 去個人化 / 去 Windows 硬路徑**（offline）— HANDOFF / 文件裡的 `D:\Project_...`
-  / `C:\Python\...` 改成相對說明或環境變數，讓非劉老師的機器也讀得懂。保留作者署名，移除
-  本機絕對路徑。
-- [ ] 🟡 **DOC-3 端到端 onboarding 文件**（offline）— `docs/onboarding.md` 已有，補成「陌生
-  老師 0 到 1」：裝 → 配 key → 跑第一支影片 → 上 YouTube，含截圖/常見錯誤。
-- [ ] 🟢 **DOC-4 架構文件 / ARCHITECTURE.md**（offline）— 一張圖講清 core/server/frontend
-  資料流 + job 狀態機 + 四 track 怎麼共用 pipeline，給想改 code 的人。
+- [x] 🔴 **DOC-1 `claude.md` 更新到 eduStudio 整合後定位**（offline）— ✅ 2026-06-09 完成。
+  把開頭從「教學影片自動生成平台」+ 三 Track A/B/C 舊圖 + Gemini 2.5 改寫成 **eduStudio 教學內容
+  工作站**整合定位：四條 track（🎬影片 / 🎨視覺 / 🌐在地化 / 🎵Song MV）共用單一 FastAPI 後端 +
+  收斂到 `/app` 的整合架構圖、現行 **Gemini 3 系列**模型（含旁白仍 2.5 待 C-3 GATE 的註記）、
+  **模型抽象 M 軸**（`core/models.py` 角色登錄表 + `core/providers.py` provider 介面 +
+  `tools/check_models.py` 健檢）、安全與部署現況（auth/CORS/path-safety/rate-limit/resume/反代）。
+  硬規則對齊現行紀律（review gate 不可繞 + offline-first + 字型不寫死 + config 集中 + type guard +
+  schema migration + 別 commit 機密 + 動 server/core/runner/schemas 跑 pytest），移除已過時的
+  Track A/C 規則。保留作者/溝通風格/熟悉度/Git 同步等仍有效的 maintainer context。純文件,無 code
+  變更（未動 server/core/schemas/runner,故不需跑 pytest）。
+- [x] 🟡 **DOC-2 去個人化 / 去 Windows 硬路徑**（offline）— ✅ 2026-06-10 完成。掃過全 docs 的
+  Windows 個人絕對路徑並去個人化（保留作者署名/maintainer context，只移除「換台機器就讀不懂」的
+  硬路徑）：① `HANDOFF.md`「位置與環境」把 `D:\Project_CodingSimulation\...` / `C:\Python\Python312-64`
+  / `C:\Users\user\.claude\...` 改成「clone 到任一目錄、以 repo 根為基準」+ venv/`uv` 說明 + 字型走
+  `CLAUDE_FONT_PATH`（附三平台預設）+ memory 路徑改 `~/.claude/...` / `%USERPROFILE%`。② `docs/onboarding.md`
+  把 `D:/path/to/midterm.pdf`、`D:/Teaching/Materials` 例子改相對 `./path/...` / `./materials`。
+  ③ `docs/ideate-design.md` watched_folders 例子 `D:/Teaching/...` → `./materials` / `./exams`。
+  ④ `docs/GOOGLE_TTS_SETUP.md` 憑證路徑補 Linux/macOS `export` 範例、Windows 例子改中性 `C:\path\to\...`。
+  純文件，無 code 變更（未動 server/core/schemas/runner，不需跑 pytest）。註：歷史紀錄裡的路徑
+  （CHANGELOG/TODO 的 `D:/Dropbox/` 為「已搬進 repo」的事實記述）與 skill 對話範例刻意保留；routine
+  內部 `ROUTINE_ADVANCE_PROMPT.md` 的本機路徑屬個人工作流非對外文件，不在本輪。
+- [x] 🟡 **DOC-3 端到端 onboarding 文件**（offline）— ✅ 2026-06-10 完成。把 `docs/onboarding.md`
+  從舊的「研究室 onboarding（autoSolverVideo / Track A-B-C / `/ui` / `web/` / 舊模型）」整份改寫成
+  **陌生老師 0→1 主線**：§0 你會得到什麼 → §1 系統需求表（含 ffmpeg/Noto 非 pip、唯一必填
+  `GEMINI_API_KEY`）→ §2 安裝（A. Docker 最少踩雷 / B. 本機 Python venv + `npm run build`，base 已
+  寫死）→ §3 配 key（env 或設定頁）→ §4 **產第一支影片**（考卷 PDF GUI 流程：選課→上傳→ingest→
+  **awaiting_review 逐題人工審查**→approve→render→下載，強調 review gate 核心價值；§4a CLI
+  `submit_job.py`）→ §5 **上 YouTube**（5a 一次性 OAuth client_secret 設定 + 5b GUI/`publish.py` 上傳、
+  配額註記）→ §6 常見錯誤排查表（對齊現況：空白頁=沒 build、字型方框、首跑 F5 1.3GB、重啟 resume、
+  暴露需 token）→ §7 下一步（指向 DEPLOYMENT/CONTRIBUTING/SECURITY）。截圖位置以 `<!-- 截圖：… -->`
+  預留待人工補（此環境無瀏覽器，依既定「文字步驟可獨立完成、視覺後驗」）。純文件，無 code 變更（未動
+  server/core/schemas/runner，故不需跑 pytest）。
+- [x] 🟢 **DOC-4 架構文件 / ARCHITECTURE.md**（offline）— ✅ 2026-06-10 完成。新增
+  [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)，給「想改 code 的人」的地圖：① 三層俯瞰
+  ASCII 圖（`frontend` build→`web/eduapp` /app · `server` middleware/routes/JobStore/runner ·
+  `core` 純內容引擎不依賴 FastAPI · 外部相依 Gemini/ffmpeg/TTS/字型）② job 狀態機
+  （pending→ingesting→(review gate)→rendering→done/failed，含 **render 入口 assert 不可繞** 與
+  R-1 重啟止血、state.json 持久化）③ 四條 track 怎麼共用同一條 pipeline（來源 adapter 差異 →
+  共同中介 `deck.json`（review 審的就是它）→ 共用 render，附對照表 + 分流點 `_run_render_inner`，
+  並點出視覺/在地化是同步非 job-based）④ 橫切關注點（M 軸模型抽象/計帳/安全 middleware/config 集中/
+  type guard）⑤ 前端建置（`/app` 唯一、`/ui`·`/studio` legacy 退場）⑥「想動哪裡先看哪裡」入口檔 +
+  必跑測試對照表，含硬規則提醒（review gate 不可繞 / C-3 旁白模型 GATE 別自換 / 動 server·core 跑
+  pytest）。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
 - [ ] 🟢 **DOC-5 demo 影片 / 截圖**（GATE，需劉老師錄）— README 放一支 60 秒 demo（用自己的
   系統產，吃自己狗糧）。
 
@@ -301,15 +449,53 @@
 
 ## Phase 7 — 測試與發佈（🟡 品質護網 + 正式版本）
 
-- [ ] 🟡 **T-1 端到端整合測試**（offline）— 現況 ~2400 tests 強在純函式單元，**缺 TestClient +
-  真 pipeline 端到端**（建 job → ingest（mock Gemini）→ review → render（mock ffmpeg）→ artifact）。
-  補一組 happy-path E2E，鎖住「整條接線不斷」。CI 可能要分 job 處理重依賴（見 test.yml 註解）。
-- [ ] 🟡 **T-2 CI actions 升版**（offline）— Node actions 升 v4 消棄用警告（HANDOFF #6）；
-  考慮加一個「裝 ffmpeg 跑少量真 render」的 nightly job。
-- [ ] 🟢 **T-3 版本 / tag / CHANGELOG / Release**（offline）— 訂 `v1.0.0`（開源首發）語意化版本，
+- [x] 🟡 **T-1 端到端整合測試**（offline）— ✅ 2026-06-10 完成。新增 `tests/test_e2e_pipeline.py`：
+  用 **FastAPI TestClient + 真 pipeline** 串「整條接線不斷」happy-path——建 job（`POST /jobs`）→
+  ingest → review gate 停 `awaiting_review` → 看 draft（`GET /draft`）→ 人工 approve（`POST /approve`）→
+  render → DONE → 下載 artifact（`GET /artifacts/{name}`），走真實 `run_job` / `_run_render_phase` /
+  JobStore / route 接線，只 mock **兩個外部邊界**：Gemini ingest 用 `EXAM_PDF`+`mock=True`（走
+  `solve.mock_output()` 離線資料）、ffmpeg/TTS render monkeypatch `core.render_video` 只寫 fake mp4/srt
+  ＝offline-first 不打真 API、不跑 ffmpeg。第二支測試證明 **R-2 review gate（硬規則 #1）在整條 pipeline
+  裡仍不可繞**：approve 前 render 被擋 FAILED 且根本沒進 `render_video`、無 artifact，approve 後才放行
+  DONE。本機全套 2509 passed（2 個 QR/theme 字型像素為容器缺 Noto CJK 假象，CI 權威）。註：CI 端到端
+  重依賴分 job 處理（test.yml）可後續隨 T-2 一併評估。
+- [x] 🟡 **T-2 CI actions 升版 / 護網補洞**（offline）— ✅ 2026-06-10 完成。① **Node actions 已是
+  最新主版**（`actions/checkout@v4`、`actions/setup-python@v5`、`actions/setup-node@v4`，無
+  `upload-artifact@v3` 等 Node16 棄用節點）→ HANDOFF #6 的「消棄用警告」實際已無待辦。② **補上
+  真正的護網漏洞**：CI 先前只 `tsc --noEmit` legacy `web/`（`/ui`·`/studio`，已標 legacy 退場），
+  **唯一正式對外前端 `frontend/`（`/app`，React 19+Vite，U-6 base 寫死 `/app/`）從未進 CI** ——
+  `app.jsx` 壞了不會被擋。新增 `frontend-app-build` job 跑 `npm ci && npm run build`（純 JSX 無
+  tsconfig，`tsc --noEmit` 不適用 → vite build 即護網：JSX 解析錯／import 缺失／建置失敗都紅；產物
+  到 gitignore 的 `web/eduapp` 不污染 repo）。保留 web typecheck 守 legacy 退場前不退步。本機 node20+
+  `npm run build` 通過。純 CI 設定，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ⏸️ 「裝 ffmpeg 跑少量真 render」nightly job 留作後續：真 render 會跑 ffmpeg/TTS，且文字 pipeline
+    要不打 Gemini 才 offline（須 `mock=True` 固定 fixture）；牽涉額度/外部服務取捨，另開項評估，不併本輪。
+- [~] 🟢 **T-3 版本 / tag / CHANGELOG / Release**（offline）— 訂 `v1.0.0`（開源首發）語意化版本，
   `docs/CHANGELOG.md` 已有 → 補 release notes，打 git tag + GitHub Release。
-- [ ] 🟢 **T-4 README badge / 截圖牆 / 一鍵 demo**（offline）— 開源門面：CI badge（已有）、
-  授權 badge、功能截圖、`docker compose up` 一鍵體驗指引。
+  - ✅ 2026-06-10 **release notes 已備好（offline 部分）**。`docs/CHANGELOG.md` 原停在 v4
+    （2026-05-15 iter 48），完全沒涵蓋產品化推出的 36 個 PR（#15–#50）。新增 **v1.0.0 —
+    產品化推出（開源自架首發候選）** 一段：按 Phase 0–7 分節列出每項（P0/S/R/U/C/M/D/DOC/T 系列）
+    對應 PR + 一句內容，含測試成長（467→2509 passed）與驗收門檻達成度。CHANGELOG 標題從「v4 階段
+    累積進度」改為通用「CHANGELOG」並指回本清單。純文件，無 code 變更（未動 server/core/schemas/
+    runner，故不需跑 pytest）。
+  - ⏸️ **實際 git tag `v1.0.0` + GitHub Release 發佈時機 = 劉老師拍板**（routine 不自主做：建立公開
+    Release 屬對外、不可逆的首發里程碑決策；且首發前還有兩項本機 GATE 未跑 —— D-1 `docker compose
+    up` 跨平台實測、D-4 F5 GPU passthrough 實測）。release notes 既已備好，劉老師確認後一鍵發佈即可
+    （`git tag -a v1.0.0 -m "..." && git push origin v1.0.0` → GitHub Release 貼 CHANGELOG v1.0.0 段）。
+    待發佈後本項可結。
+- [x] 🟢 **T-4 README badge / 截圖牆 / 一鍵 demo**（offline）— ✅ 2026-06-10 完成（offline 門面部分）。
+  README 補上**實時 CI/tests 狀態 badge**（`actions/workflows/test.yml/badge.svg`，先前只有靜態
+  `status:active` 與已有的 MIT 授權 badge，缺真正反映綠/紅的 CI badge）、新增 **`docker compose up`
+  一鍵體驗指引**（中英雙語各補一段「一鍵體驗（Docker）」放在原始碼安裝法之前——內附 image 已帶
+  ffmpeg+CJK 字型、`cp .env.example .env` → `docker compose up -d --build` → 開 `/app/`，並提醒沒設
+  `EDUSTUDIO_API_TOKEN` 前別開公網 port、指回 DEPLOYMENT.md）、新增**截圖牆 section**（中英雙語 4 格
+  表格：`/app` 工作站 / 人工審查關卡 / 視覺工作台 / 成本面板，以 `docs/screenshots/*.png` 預留位 +
+  `<!-- screenshot: … -->` 佔位）。順手把 `docker-compose.yml` 註解頭從舊名 `autoSolverVideo` + 指向
+  legacy `/ui/` 更新成 eduStudio + 指向 `/app/`，讓一鍵 demo 前後一致。純文件/設定，無 code 變更
+  （未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ⏸️ **實際截圖圖檔 = 人工後補**（此環境無瀏覽器，依既定「文字步驟可獨立完成、視覺後驗」，比照
+    DOC-3 的截圖佔位）：把四張 `docs/screenshots/*.png` 放進去即自動顯示。與 **DOC-5（demo 影片，GATE）**
+    一併由劉老師用跑起來的系統截/錄。
 
 ---
 
@@ -336,22 +522,336 @@
 > 互動 session 從建議清單挑這 4 個進場（貼合「老師內容工作站 + 人工把關 + 自架」主軸）。
 > 沿用 offline-first：碰 Gemini/雲端額度的部分寫 proposal STOP。各項先寫小 RFC 再拆 PR。
 
-- [ ] 🟡 **F9-1 review 數值二次校驗**（GATE，強化核心賣點）— AI 產出的數字/公式自動標「可疑
+- [~] 🟡 **F9-1 review 數值二次校驗**（GATE，強化核心賣點）— AI 產出的數字/公式自動標「可疑
   點」輔助 reviewer：① 二次獨立模型 pass 比對數值 ② 數學步驟符號/單位一致性檢查。**只標記不
   自動改**（不繞硬規則 #1，是輔助人工不是取代）。降低 reviewer 負擔 = 把核心差異化做深。
   先寫 `docs/REVIEW_ASSIST_RFC.md` 拆子任務。碰額度（二次模型）→ proposal。
-- [ ] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
+  - ✅ 2026-06-12 **RFC 完成（offline 前置）**。新增 [`docs/REVIEW_ASSIST_RFC.md`](REVIEW_ASSIST_RFC.md)：
+    grounding 到現況資料流（AI 解題落 `solve.py` → deck `problems[].steps[].display`，reviewer 走
+    `GET/PUT /jobs/{id}/draft` + `approve`），把功能拆成 **②確定性一致性檢查（純函式
+    `core/review_assist.py`，算術/單位量綱/符號/display↔narration 數字對齊，零 API、好測＝offline）**
+    與 **①二次模型 pass（走 M 軸 `resolve("text.pro")` 比對數值、只標不覆寫、需開額度＝GATE）**
+    兩面。明訂不可妥協紀律：**只標記不自動改、不阻擋 approve、校驗器壞掉 fail-open**（不繞硬規則
+    #1、不入狀態機、不碰 R-2 reviewed assert）。拆 6 子任務並標 offline/GATE：F9-1a~e 為 offline
+    （確定性檢查 + pipeline 接線 + 前端 ⚠ 標記 + ① mock 骨架），**F9-1f（① prompt 調校 + 誤報率
+    A/B 實測）為 GATE 需開額度**。列 5 個開放問題待拍板（範圍先②/量綱依賴 pint vs 白名單/①預設關/
+    容差）。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ✅ 2026-06-12 **F9-1a 確定性算術校驗 + `ReviewFlag` schema 完成（offline，純核心）**。新增
+    `core/review_assist.py`：純函式 `check_deck(deck) -> list[ReviewFlag]`，掃 exam deck
+    `problems[].steps[]` 做兩個最高價值的形式校驗——**①算術校驗**（等號鏈各段用 **`ast` 白名單
+    安全求值**＝非 `eval`，只放行 `+ - * / ** ()` 與數字，× ÷ ^ 真減號正規化、段尾單位剝離，對不上
+    標 `arithmetic`/warn）與 **②結果數字↔narration 對齊**（display 最右側結論值沒在旁白唸到標
+    `narration_mismatch`/info，對應 RFC 問題 #4）。守 RFC 不可妥協紀律：**只標記不改 deck、不阻擋
+    approve、每 step 兩檢查各自 try/except＝fail-open**（校驗器壞掉不卡 review）；**高精度低誤報**
+    （符號/函式/逗號分隔等不能安全求值的段一律跳過、不亂猜，容差預設 1% 放過合理捨入、抓 10x 級
+    真錯，可覆寫）。`ReviewFlag` 為 pydantic schema，kind/severity/source 收進合法集合（type guard，
+    含後續 slice 才產的 unit/symbol/model_disagree/second_model 先預留）。**本刀只做純核心 +
+    schema**，不接 pipeline、不落 `review_flags.json`、不動前端（F9-1c/d 後續 slice）、不碰二次模型
+    （F9-1e/f GATE）。補 `tests/test_review_assist.py` 20 測（mock_output 乾淨無 flag／算術錯標·對不標／
+    Unicode 算符／符號段不誤標／容差·自訂容差／三段等式鏈／narration 對齊·捨入容忍／非 dict·空 deck／
+    id fallback·索引／malformed step fail-open／安全求值拒危險輸入／type guard，**全 offline 不打 API**）。
+    本機全套 2588 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-12 **F9-1c 確定性校驗接進 pipeline + 落 `review_flags.json` + 端點完成（offline）**。
+    把 F9-1a 的純函式 `check_deck` 接上線：新增 `server/runner.py::write_review_flags(store, job_id)`
+    （讀 deck.json → `check_deck` → 落 `jobs/<id>/review_flags.json`，與 deck 分檔，比照 F9-4 版本分檔），
+    在 `run_job` **ingest 完進 `awaiting_review` 前**算一次（`PUT /jobs/{id}/draft` 改 deck 後重算，讓
+    flags 跟新 deck 同步）；新增 `GET /jobs/{id}/review-flags` 給 reviewer / 前端（F9-1d）讀，沒算過/乾淨
+    無可疑點回空 list（非 404，比照 versions 端點）。`JobStore.review_flags_path()` 集中路徑慣例。守 RFC
+    不可妥協紀律：**flags 不入狀態機、不阻 approve（硬規則 #1 的權威是人不是校驗器，render 入口 R-2
+    assert 與 reviewed 機制完全不動）、只寫 review_flags.json 不碰 deck/state、計算 fail-open（壞掉只
+    warning 不卡 review）**。補 `tests/test_review_flags_pipeline.py` 10 測（落盤算術錯/乾淨/無 deck no-op
+    /不改 deck 不動 state、run_job ingest 完落盤、端點取 flags/未算空 list/未知 job 404、PUT 改 deck 重算
+    雙向，**全 offline 不打 API**）。本機全套 2600 passed（剩 1 個 QR 像素為容器缺 Noto CJK 字型假象，
+    CI 權威）。
+  - ✅ 2026-06-12 **F9-1d 前端 ⚠ 標記完成（offline，確定性校驗 ② 端到端收尾）**。`frontend/edustudio/
+    app.jsx` 的 `ReviewGate` 在載入 deck 後另抓 `GET /jobs/{id}/review-flags`，依 `(problem_id, step_index)`
+    配位到對應分段（`esAttachReviewFlags`；分段 `esDeckToSegments` 補 `_pid`/`_sidx`，fallback `q{idx+1}`
+    與後端 `check_deck` 一致）：左側 `SegmentNav` 該段顯示 ⚠ 圖示（hover 提示可疑點數），右側段編輯器新增
+    「自動校驗提醒 · 待人工確認」區，逐條列出 flag 訊息並依 `severity` 分色（warn 黃／info 中性）。守 RFC
+    不可妥協紀律：**只提醒、不阻擋 approve**（flag 不進 approve 條件、不改 deck）、**fail-open**（端點抓
+    不到/舊 job 無檔 → 不顯示、絕不卡審查）。順手補上 ICONS 缺的 `info`/`shield-alert`（`info` 先前他處
+    用到時 fallback 成 file 圖示）。`frontend` `npm run build`（vite, node22）編譯通過；**視覺驗收待人工**
+    （此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。純前端，未動 server/core/schemas/runner
+    （端點 F9-1c 已落地且有測），故不需跑 pytest。確定性校驗（②）至此**算→落盤→端點→UI 端到端完整可用**。
+  - ✅ 2026-06-12 **F9-1b 單位/量綱換算校驗完成（offline，零依賴白名單）**。依 RFC 開放問題 #2 的建議
+    「先白名單」拍板——**不引入 `pint`**，在 `core/review_assist.py` 加一張零依賴的常見單位換算表
+    （力/應力/長度/面積/體積/質量/能量/功率/時間/頻率的 SI 前綴，刻意排除有偏移的溫度與走 π 的角度）。
+    新增 `_check_units`：等式鏈兩段以上帶**可辨識單位**時比對物理量值——**同量綱但換算對不上**
+    （`50 kN = 50 N`，算術校驗剝單位後正是看不出來的盲區）或**等號兩側量綱根本不同**（`100 MPa = 100 N`）
+    → 標 `unit`/warn。順手補上 `_check_arithmetic` 的**潛在假陽性**：跨不同單位的等式鏈（`1 m = 100 cm`）
+    剝單位後純數值不等並非算術錯，加 guard 讓算術校驗在此情形讓位給單位校驗（漏報優先、不亂標）。守
+    RFC 設計目標 #1「高精度低誤報」：**只認白名單內單位**，不認得的（`km/h`、`N·m`）一律跳過、需兩段
+    **不同**單位才檢查（同單位純數值是算術校驗的事），fail-open 不變。補 `tests/test_review_assist.py`
+    8 測（換算錯/對標·量綱不一致·錯換算/白名單外不誤標/單段不標/三段一致/`unit` 入 kinds，**全 offline
+    不打 API**）。**符號一致性檢查（F9-1b 其餘）誤報率高、與高精度目標相衝，留作後續 offline slice
+    另評估，本刀只做可確定性算的單位換算。** 本機全套 2608 passed（剩 1 個 QR 像素為容器缺 Noto CJK
+    字型假象，CI 權威）。
+  - ✅ 2026-06-12 **F9-1b 符號漂移校驗完成（offline，高精度子集）**。對應 RFC 問題 #3「公式突然
+    變 σ = A / P」，在 `core/review_assist.py` 加 `_check_symbol_drift`：同一符號在**同題**裡被定義
+    成兩條「用到的變數**完全相同**、但公式結構不同」的純符號式（`σ = P / A` 後又 `σ = A / P`／
+    `σ = P × A` vs `σ = P / A`）→ 標 `symbol`/warn，標在較後出現的那一步（reviewer 一眼看到漂移點）。
+    **只做這個高精度子集**：靠「變數集合相同」這道閘把 ① 合法推導（`σ = P/A → P/(π r²)`，代入後變數
+    不同）② 數值代入（`σ = 50000/500 = 100 MPa`，含數字的段不算定義）③ 換力符號（`P/A` vs `F/A`，
+    變數不同）全部排除，只抓「同樣那幾個變數被重新排列／換算符」這種幾乎必為筆誤的漂移。**刻意不做**
+    RFC 另提的兩個高誤報變體（「只出現一次的疑似錯字」「同一量用兩種符號」需語意判斷、確定性做不到、
+    與設計目標 #1「高精度低誤報」相衝）——這正是先前 slice 把符號檢查 defer「另評估」的結論。守 RFC
+    不可妥協紀律：**只標記不改 deck、不阻 approve、跨題不串、每符號至多一 flag、整段 try/except
+    fail-open**。`symbol` 早在 F9-1a 就收進 `FLAG_KINDS`、pipeline（F9-1c）與前端 ⚠（F9-1d）已泛型
+    處理此 kind，故**不需動 server/route/前端**。補 `tests/test_review_assist.py` 9 測（倒式/換符標·合法
+    代入·換力符·數值代入·重複式·跨題隔離·單一定義不標／步索引／symbol 入 kinds，**全 offline 不打
+    API**）。本機全套 2615 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ⏸️ **後續 slice**：F9-1e/f（① 二次模型 pass）GATE 需開額度（F9-1e 骨架雖 RFC 標 offline，但本清單
+    將 ① 整體列 GATE，待劉老師開額度時一併推）。確定性校驗（②）至此**算術／單位／符號／narration 四面
+    端到端完整可用**。
+- [~] 🟡 **F9-2 課程術語/讀音表 glossary**（offline 可起頭）— `pronunciation.json` 升級成
   **per-course glossary**（理工術語固定譯名 + 讀音 + 縮寫展開，材力/自控各一套）。接進 Project
   「一課一工作空間」：產旁白/翻譯時套該課 glossary → 術語一致。schema + 套用層 offline 可做；
   自動建議術語碰額度 → proposal。
-- [ ] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
+  - ✅ 2026-06-11 **第一刀：schema + TTS 套用層完成**。新增 `core/glossary.py`：`GlossaryEntry`
+    （term + reading 讀音覆寫 + 各語言固定譯名 `translations` + 縮寫展開 `expansion` + 別名 aliases +
+    note；term/course 非空 type guard）、`Glossary`（per-course），純函式套用層 `to_pronunciation_map`
+    （→ TTS 讀音）/`translation_map(lang)`（→ 翻譯固定譯名）/`expansion_map`（→ 縮寫全稱），surface form
+    展開 + longest-first，加 `load_glossary`/`save_glossary`（per-course `glossary.json`，路徑慣例
+    `glossary_path_for(project_dir)`，沿 pronunciation 寬容語意：缺檔回 None、壞檔嚴格拋）。`tts_backend.
+    normalize_text` 加**選填** `extra_pronunciation`（per-course 讀音與全域 `pronunciation.json`
+    longest-first 合併、同 key 課程優先；預設 None＝既有 caller 零影響）。補 `tests/test_glossary.py`
+    22 測（schema 驗證/各 map/roundtrip/缺檔/壞檔/normalize 整合覆蓋全域，**全 tmp 隔離不打 API**＝
+    offline-first）。本機全套 2529 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第二刀：掛進 ProjectStore（一課一 glossary）完成**。`core/project.py` 的
+    `ProjectStore` 加 `get_glossary(pid)` / `save_glossary(pid, glossary)`：每課 glossary 落
+    `{root}/{pid}/glossary.json`（沿 `core.glossary.glossary_path_for` 路徑慣例），**與 `project.json`
+    分檔**（術語可上百條、跟 project 生命週期不同步，分檔避免改一條術語就重寫整個 project.json）。
+    讀無檔回 None（寬容語意）、對不存在的 pid 讀/寫丟 `ProjectNotFoundError`（glossary 必依附 project，
+    不靜默回 None 掩蓋），全程 RLock 內完成。補 `tests/test_project.py` 4 測（無檔回 None / save→reload
+    跨 store 持久化 / 逐課隔離 / 不存在 project 拋錯，**全 tmp 隔離不打 API**＝offline-first）。本機全套
+    2533 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第三刀：glossary 編輯 API（GET/PUT）完成**。`server/routes/projects.py` 補
+    `GET /projects/{pid}/glossary`（取該課術語表）/ `PUT /projects/{pid}/glossary`（整張覆寫）
+    兩端點，薄轉接到既有 `ProjectStore.get_glossary` / `save_glossary`（第二刀已落地、含 RLock 與
+    路徑慣例）。GET 兩種 404 以 detail 區分——「project 不存在」vs「此課尚未建立 glossary」——讓編輯
+    UI 能分辨「沒這門課」與「課在但還沒建表」（後者可開空表起頭再 PUT）。body 直吃 `core.glossary.
+    Glossary`，term/course 非空 validator 在 HTTP 層生效（空 term → 422）。pid（資料夾鍵）與
+    glossary.course（人讀課名）各自獨立、不強制相等。補 `tests/test_projects_route.py` 6 測（未建
+    →404 detail 區分 / PUT→GET roundtrip 跨 store 持久化 / 整張覆寫 / 不存在 project 404 / 空 term
+    422 / 逐課隔離，**全 tmp 隔離不打 API**＝offline-first）。本機相關子集 66 passed、全套 2539 passed
+    （3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第四刀：translation_map → translate() 橋接完成**。`core/glossary.py` 加純函式
+    `to_translation_rules(glossary, lang)`：把該課固定譯名整理成逐行「來源寫法（term + 別名，
+    longest-first，`/` 並排）→ 目標譯名」文字塊，直接餵 `TranslateGemmaService.translate(...,
+    glossary=...)`（會被 `_format_custom_rules` 包成 strict 術語規則塞進 prompt），讓翻譯層強制術語
+    一致——對應 TTS 側 `to_pronunciation_map()` → `normalize_text` 的同類橋接（補上 `translation_map`
+    回 dict、但 translate 吃 str 的缺口）。只收該 lang 有設譯名的 entry、都沒有回空字串（translate
+    對空字串 no-op＝既有 caller 零影響）。補 `tests/test_glossary.py` 6 測（逐行格式/別名並排/限該
+    lang/缺譯名回空/空 glossary/橋接進 `_format_custom_rules` + 空字串 no-op，**全 offline 不打 API**）。
+    本機全套 2545 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第五刀：前端 glossary 編輯 UI 完成**。`frontend/edustudio/app.jsx` 新增
+    `GlossaryEditor`（掛在課程工作空間 `ProjectStation` 作用中課程下方，per-course 一份）：切換作用中
+    課程→`GET /projects/{pid}/glossary` 整張載入（404「此課尚未建立」＝開空表起頭、course 預設課名），
+    可逐條編輯 **術語 / 讀音（TTS 覆寫）/ 縮寫全稱 / 別名（逗號或、分隔→陣列）/ 逐語言固定譯名（語言
+    下拉×譯名→ translations dict）/ 備註**，新增/刪除術語與譯名列，「儲存術語表」→ `PUT` 整張覆寫並
+    以後端回存為準。存檔前濾掉沒填 term 的列（後端 term 非空 validator，空 term→422）；別名/譯名以
+    `esGlossToApi` 轉回 API 形。可折疊面板（預設收合）避免干擾工作空間。本機 `npm run build`（vite,
+    node22）編譯通過；**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。
+  - ✅ 2026-06-14 **job↔課 association RFC 完成（offline 前置，攤開架構抉擇待拍板）**。新增
+    [`docs/JOB_COURSE_ASSOCIATION_RFC.md`](JOB_COURSE_ASSOCIATION_RFC.md)：grounding 到現況資料流——
+    F9-2 前五刀已把 glossary schema→儲存→API→前端→翻譯橋接全接好，且 `tts_backend.normalize_text`
+    已能吃 `extra_pronunciation`（per-course 讀音、與全域 `pronunciation.json` longest-first 合併），
+    **唯一缺口**是 render 旁白拿不到「這支 job 屬哪門課」（`JobRecord` 無 `project_id`、
+    `ProjectStore.add_job` 只單向掛載）。攤開三個合理解法——**A** `JobRecord.project_id` denormalize
+    （O(1)、現讀、最小 migration＝**建議**）／**B** ProjectStore 反查掃盤（不 denormalize 但耦合+O(N)）
+    ／**C** 建 job 當下凍結 glossary snapshot（最解耦但編輯不生效）——含 trade-off、建議 A、拍板後的
+    offline 接線拆刀（F9-2g schema+寫入／F9-2h TTS 透傳／F9-2i 翻譯 route）與不可妥協紀律
+    （不繞 review gate、glossary 缺失 fail-soft）。列 3 個開放問題待拍板。純文件，0 production code
+    改動（未動 server/core/schemas/runner，故不需跑 pytest）。
+  - ✅ 2026-06-14 **F9-2g：job↔課 association schema + 寫入完成（offline，劉老師拍板 Option A）**。
+    劉老師 2026-06-14 於上 RFC 拍板 **Option A（`JobRecord.project_id` denormalize、glossary render
+    現讀、直接 `POST /jobs` 的 job 無 glossary）**。落地：`server/schemas.py` `JobRecord` 加
+    `project_id: str | None = None`（`extra="allow"` → 舊 `state.json` 無痛相容、預設 None）；
+    `server/routes/projects.py::create_project_job` 建 job 後 `job_store.update(job_id,
+    project_id=project.project_id)` 寫入 canonical pid（`create_job` 已同步排程 ingest 但尚未
+    await 出讓 event loop，故此 update 先於 ingest 推進；`JobStore.update` 在 lock 內 model_copy
+    保留其他欄位、不與 ingest 互蓋）。直接 `POST /jobs`（不經課程）的 job `project_id` 維持 None。
+    補 `tests/test_projects_route.py` 2 測（經課程建 job 記下 canonical project_id ／ 直接建 job
+    為 None）。本機相關子集 65 passed、全套 2650 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK
+    假象，CI 權威）。下一刀 = F9-2h（render 旁白以 `get_glossary(project_id).to_pronunciation_map()`
+    透傳 TTS `extra_pronunciation`）。
+  - ✅ 2026-06-14 **F9-2h：render 旁白套該課 glossary 讀音表完成（offline）**。把 F9-2g 落地的
+    `JobRecord.project_id` 接到 TTS：render 前以 `ProjectStore.get_glossary(project_id).
+    to_pronunciation_map()` 現讀該課讀音表，render 期間掛上 → 旁白照課程術語讀音念。**深埋的
+    `pipeline.main → gen_tts → synthesize → normalize_text` 一條鏈不逐層穿參**——比照既有
+    render-scoped override 慣例（`core.config.video_dimensions_override` / `talking_head_override`），
+    在 `tts_backend.py` 加 `course_pronunciation_override` context manager（module-level 覆寫,
+    sequential job 設計下非 thread-safe 可接受,同既有取捨）+ `normalize_text` 在「呼叫端未顯式給
+    `extra_pronunciation`」時自動沿用該覆寫（**顯式 arg 含 `{}` 永遠優先**）；`server/runner.py`
+    新增 `_resolve_course_pronunciation(rec)`（**fail-soft**：無 `project_id` / 課不存在 / 無
+    glossary / 讀音表空 → None＝沿用全域 pronunciation，glossary 解析絕不讓 render 失敗，RFC §5）
+    並把 `_run_render` 的 inner render 包進第三層 override。守紀律：**完全不碰 R-2 render 入口 assert
+    / 狀態機 / reviewed**（只影響「旁白怎麼念」，硬規則 #1）。補 `tests/test_glossary_tts_render.py`
+    15 測（normalize_text 套用/顯式優先/`{}` 停用/還原·例外還原·巢狀·None no-op；
+    `_resolve_course_pronunciation` 無 pid/有 glossary 回 map/課不存在 fail-soft/無 glossary/空 map
+    收斂 None；`_run_render` wiring inner 期間掛上·出去還原·無 glossary 沿用全域，**全 offline 不打
+    API、不真跑 TTS**）。本機相關子集 105 passed、全套 2665 passed（3 個 QR/journal 字型像素為容器缺
+    Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-14 **F9-2i：翻譯 route 接 `to_translation_rules()` 完成（offline，F9-2 offline 收尾）**。
+    `POST /localization/translate` 的 `TranslateRequest` 加**選填** `project_id`：給了 → 以
+    `ProjectStore.get_glossary(project_id)` 現讀該課 glossary → `to_translation_rules(target_lang)`
+    產固定譯名規則文字塊，與呼叫端顯式 `glossary` 合併（顯式在前、課程在後）後送 `translator.
+    translate(glossary=...)`，讓在地化翻譯術語前後一致。canonical 區域碼↔glossary 短碼對得上
+    （`_glossary_lang_candidates`：完整碼優先、再退基底子標籤，`en-US`→`en`、`zh-CN`/`zh-TW`
+    完整碼本就是 glossary key）。守 RFC §5 **fail-soft**：沒 `project_id` / 課不存在
+    （`ProjectNotFoundError`）/ 無 glossary / 該語言無譯名 / 讀檔出錯 → 一律回空課程規則、沿用現行
+    行為，**絕不讓翻譯失敗**；glossary 讀檔沿 R-3 走 `to_thread` 不阻 event loop。**完全不碰 review
+    gate / 狀態機**（只影響「術語怎麼譯」，硬規則 #1）。`project_id` 為 optional＝既有 caller 零影響、
+    向後相容。補 `tests/test_localization_glossary.py` 9 測（注入固定譯名含別名並排／顯式+課程合併順序／
+    完整區域碼命中／該語言無譯名不附／沒 pid·未知 pid·無 glossary·空白 pid fail-soft，**全 mock
+    translate 不打真 API、ProjectStore tmp 隔離**＝offline-first）。本機相關子集 68 passed、全套 2673
+    passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。**前端 `LocalizeMenu` 傳
+    `project_id`** 屬後續前端 slice（route 欄位選填、不破壞現況）。**自動建議術語**（掃教材抽術語）
+    碰 Gemini 額度 = GATE，另寫 proposal 再做。F9-2 offline slice 至此到齊。
+  - ✅ 2026-06-14 **F9-2j：前端 `LocalizeMenu` 傳 `project_id` 完成（offline，F9-2i 前端收尾）**。
+    把 F9-2i 落地的選填 `project_id` 接上前端在地化入口：`frontend/edustudio/app.jsx` 的
+    `LocalizeMenu` 新增 `projectId` prop，呼叫 `POST /localization/translate` 時**有作用中課程才**
+    帶 `project_id`（`...(projectId ? { project_id: projectId } : {})`），讓後端套該課 glossary 的
+    固定譯名、術語前後一致。兩個呼叫端各以最精準的課程來源接線：① **影片任務卡**（`TaskCard`）——
+    `esJobToTask` 補帶 `rec.project_id`（F9-2g 已落 `JobRecord.project_id`），LocalizeMenu 收
+    `task.project_id`＝**該 job 自己所屬的課**；② **視覺成品卡**（`VisualCard`）——`VisualStation`
+    把作用中課程 `projectId` 透傳下去。守紀律：route 欄位選填＝**沒作用中課程沿用現行行為、零破壞**
+    （fail-soft 在後端，前端只是「給或不給」），**完全不碰 review gate / 狀態機**（只影響「術語怎麼
+    譯」）。純前端，未動 server/core/schemas/runner（route F9-2i 已落地且有測），故不需跑 pytest。
+    `npm run build`（vite, node22）編譯通過；**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build
+    為準、人後視覺驗收」）。F9-2 連同前端在地化入口至此端到端到齊（自動建議術語仍 = GATE 待額度）。
+- [~] 🟡 **F9-3 本機可插拔模型後端**（GATE，= M 軸 Option B 的本機 provider）— 支援
   **Ollama 等本機 LLM** 跑文字（大綱/旁白/翻譯），老師可零雲端成本跑（翻譯已用本機
   translategemma 驗過路子）。**依賴 M-4 provider 介面就緒**後加 ollama adapter + 設定頁可選
   provider。與 offline-first 主軸高度契合。先寫 `docs/LOCAL_MODEL_RFC.md`（哪些角色支援本機 /
   品質落差 / 自動退雲端）。
-- [ ] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
+  - ✅ 2026-06-12 **RFC 完成（offline 前置，比照 F9-1 的 RFC slice）**。新增
+    [`docs/LOCAL_MODEL_RFC.md`](LOCAL_MODEL_RFC.md)：grounding 到**現況已有什麼**——M-4
+    `core/providers.py` 的 `Provider` 協定 + `register_provider`/`get_provider`/`provider_for_role`
+    座位已就緒、M-1 `core/models.py` 角色登錄表的 **provider 維度本就為 B 階段預留**、且
+    `core/translate.py` **已內建並驗過 Ollama 路徑**（`TRANSLATION_BACKEND=ollama`，標準庫
+    urllib 打 `OLLAMA_HOST`，零 pip 依賴）。把功能拆成「現在可 offline 做」與「要你本機實跑才驗」
+    兩堆：**角色品質落差評估表**（`text.fast` 翻譯＝首選、旁白/大綱條件式；`text.pro` 解題 /
+    `vision` / `image.*` 預設留雲端不拿正確性冒險）、**OllamaProvider slot-in 架構**（抽共用本機
+    文字呼叫 helper、`model_roles` 升級帶 provider、**自動退雲端**開關＋log）、拆 6 子任務標
+    offline/GATE（**F9-3a~e offline**：helper 抽取 / OllamaProvider＋mock 測 / resolve provider
+    override / fallback / 設定頁 UI；**F9-3f 品質 A/B 實測＝GATE 需你的本機環境跑 ollama**）。
+    列 5 個開放問題待拍板（第一階段範圍 / `model_roles` provider 表示法 / 退雲端預設 / 推薦本機
+    模型清單 / vision·image 是否納入）。明訂不可妥協紀律：**本機 provider 不打雲端（賣點本身）、
+    自動退雲端要誠實 log·可關嚴格本機、不繞 review gate（只換「誰生文字」不碰 R-2 assert/狀態機）、
+    不寫死 provider 走 resolve()**。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑
+    pytest）。後續 b~e offline slice 待本項範圍/表示法拍板後可逐刀推。
+  - ✅ 2026-06-13 **F9-3a 抽共用本機文字呼叫 helper 完成（offline，純重構零行為改變）**。把
+    `core/translate.py::_call_ollama` 裡打 Ollama `/api/generate` 的標準庫 urllib 呼叫抽成單一真實
+    來源 `core/ollama_client.py::ollama_generate`（+ 領域中立的 `OllamaError` + `DEFAULT_OLLAMA_HOST`/
+    `DEFAULT_TIMEOUT`），讓翻譯層與**未來的 `OllamaProvider`（F9-3b）共用同一條本機文字呼叫線**，
+    不各自實作 urllib。`translate._call_ollama` 改成薄包裝：委派 `ollama_generate` 並把 `OllamaError`
+    轉回翻譯層的 `TranslateError`（含 `ollama serve` 修復指引），**既有 caller 行為完全不變**。
+    這刀**不碰任何開放問題**（範圍/表示法/退雲端預設＝F9-3b~d 才需拍板），是 RFC「建議推進序」第一步
+    的純 offline 前置。補 `tests/test_ollama_client.py` 7 測（成功解析·strip / host 去尾斜線 / 缺
+    response key 回空 / URLError·非 JSON 包 OllamaError 含指引 / 預設值 / 型別繼承，**全 monkeypatch
+    urllib 不打網路·不需真 ollama**）；既有 `test_translate.py` 的 2 個 seam 測改 patch 新模組（驗
+    wrapper 仍包成 TranslateError，行為不變）。本機相關子集 69 passed、全套 2622 passed（3 個
+    QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-13 **F9-3b `OllamaProvider` 座位坐進去完成（offline，mock 測零行為改變）**。比照 M-4
+    `GeminiProvider` 的 stub 法，在 `core/providers.py` 新增 `OllamaProvider`（實作 `Provider` 協定）+
+    `core/models.py` 加 `PROVIDER_OLLAMA` 常數，並在 module import 時 `register_provider` 進 registry
+    ——`get_provider("ollama")` 即取得、`provider_for_role` 待 F9-3c 接線後可解析。`generate_text` 走
+    F9-3a 抽出的共用 helper `core.ollama_client.ollama_generate`（單一真實來源、與翻譯層共用同一條本機
+    呼叫線），`model` 由角色登錄表帶入（本機無雲端預設可退 → 未指定即 `ValueError` type guard）；
+    `generate_image`/`tts` → `NotImplementedError`（本機生圖/語音各有專屬子系統，比照 GeminiProvider
+    隔離 TTS）。守 RFC 紀律：**本機 provider 不燒額度＝不呼叫 `record_text_now`**（不汙染雲端成本帳，
+    offline-first 賣點本身）。**本刀只坐座位、不改任何現有呼叫端行為**：`DEFAULTS` 仍恆雲端，把角色指
+    到本機需 F9-3c（`model_roles` 帶 provider）/ F9-3d（自動退雲端）後續刀（碰 settings schema 形狀／
+    退雲端預設＝RFC 開放問題 #2/#3，待拍板，本刀不碰）。補 `tests/test_providers.py` 8 測（協定符合／
+    name／已登記單例／delegate helper·不轉發未設 host／轉發已設 host／無 model `ValueError`·空白亦然／
+    不計雲端用量／生圖·tts `NotImplementedError`），並把既有「未知 provider」測從 `"ollama"` 改 `"claude"`
+    （ollama 現已登記）。**全 monkeypatch helper 不打網路·不需真 ollama**＝offline-first。本機相關子集
+    66 passed、全套 2630 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-13 **F9-3c `model_roles` 帶 provider 覆寫 + `resolve()` 解析完成（offline）**。讓設定頁
+    逐角色覆寫能**指定 provider**（不只 model id），把特定文字角色指到**本機 Ollama**（F9-3b 座位接線
+    成真）。依 RFC 開放問題 #2 建議拍板採**巢狀表示法 + 向後相容扁平字串**：`model_roles[role]` 可為
+    扁平 `"model-id"`（只覆 model、provider 沿用角色預設＝M-3 既有寫法不變）或巢狀
+    `{"provider":"ollama","model":"translategemma"}`。`core/models.py` 新增 `ASSIGNABLE_PROVIDERS`
+    （type guard：只認 `{gemini, ollama}`，tts 後端走獨立子系統不在此）+ 單一真實來源解析
+    `normalize_override()`（→ `(provider, model_id)`，未知 provider 忽略退預設、**非預設 provider 缺
+    model → 退完全預設不拿錯 id 打本機**＝漏報優先）+ `clean_role_override()`（儲存收斂：provider==預設
+    退回扁平字串、非預設才存巢狀）；`resolve()` 改回 `_settings_override()` 的 `(provider, model)`，巢狀
+    覆寫帶 provider 時回該 provider。`core/settings._clean_model_roles` 委派 `clean_role_override`（與
+    resolve 共用同套解析、避免雙份分歧）；`/settings` route `model_roles` 型別放寬成 `dict[str, str|dict]`
+    容納巢狀。**DEFAULTS 仍恆雲端、現有呼叫端零改動**（這刀只讓設定「能指 provider」，實際把哪些角色
+    預設開本機＝F9-3f GATE 實測定；自動退雲端＝F9-3d 後續刀）。守 RFC 紀律：**不繞 review gate**（只換
+    「誰生文字」不碰 R-2 assert/狀態機）、不寫死 id/provider（走 resolve）、type guard 擋未知 provider。
+    補測：`test_models_registry.py` +10（巢狀解析 provider+model／只 model 退預設 provider／未知 provider
+    忽略／非預設缺 model 退預設／明寫 gemini／`normalize_override`·`clean_role_override` 單元／
+    `ASSIGNABLE_PROVIDERS`），`test_settings.py` +3（巢狀 roundtrip+resolve／預設 provider 收斂扁平／未知
+    provider·缺 model 清洗）。**全 tmp 隔離不打 API·不需真 ollama**＝offline-first。本機相關子集 81 passed、
+    全套 2641 passed（3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。後續 F9-3d（自動退雲端）
+    / F9-3e（設定頁前端 provider 下拉）offline 可續推；F9-3f 品質實測＝GATE 需本機跑 ollama。
+  - ✅ 2026-06-13 **F9-3d 自動退雲端（graceful fallback）完成（offline，B-ready 座位 + 開關，零行為改變）**。
+    依 RFC 開放問題 #3 建議拍板採**預設退雲端 + log 大聲講 + 可關嚴格本機**（比照 F9-3c 對 #2 採 RFC 建議的
+    先例）。新增 `core/config.py::get_local_model_fallback()`（env `LOCAL_MODEL_FALLBACK`，未設預設開、
+    `0/false/no/off` 關成嚴格本機，集中於 config 符硬規則 #6）+ `core/providers.py::generate_text_for_role
+    (role, prompt, ...)`：呼叫端只認角色，`resolve()` 出 provider——**gemini 直接走**（它本身就是退場目的地）；
+    **本機 provider（ollama）失敗時**，若 fallback 開（預設）**且有 Gemini 金鑰** → `log.warning` 講清楚退場
+    原因後改走 `GeminiProvider`，**用該角色的雲端預設 model `DEFAULTS[role]`（恆 gemini、不拿本機 id）**；
+    fallback 關（嚴格本機）或無金鑰可退 → **原樣拋出**（不偷偷上雲、不靜默吞錯）。退雲端真燒額度 → 走
+    `GeminiProvider.generate_text` 如實計帳（誠實）。守 RFC 紀律：**退雲端誠實 log·可關嚴格本機、不繞 review
+    gate**（只換「誰生文字」不碰 R-2 assert/狀態機）、不寫死 provider（走 resolve）、type guard 擋未知角色。
+    **本刀只把含退場的座位備好、不改任何現有呼叫端行為**（現有呼叫端仍各自用 `resolve_id()`＋直打 genai，
+    遷來用本函式＝後續刀）；DEFAULTS 仍恆雲端，要把角色開本機＝F9-3f GATE 實測定。補 `tests/test_providers.py`
+    +6（gemini 直走不經退場／本機成功不碰雲端·不計帳／本機失敗+開+有金鑰退雲端用雲端預設 model·如實計帳／
+    嚴格本機原樣拋·不上雲／有開關但無金鑰原樣拋／非法角色 ValueError）+ `.env.example` 補 `LOCAL_MODEL_FALLBACK`。
+    **全 monkeypatch 不打真 API·不需真 ollama**＝offline-first。本機相關子集 56 passed、全套 2612 passed
+    （38 個為容器缺 Noto CJK 字型的 theme/QR/pptx 像素假象，CI 有字型為權威）。後續 F9-3e（設定頁前端
+    provider 下拉）offline 可續推；F9-3f 品質實測＝GATE 需本機跑 ollama。
+  - ✅ 2026-06-13 **F9-3e 設定頁前端 provider 下拉完成（offline，F9-3c/d 接線收尾）**。讓老師在設定頁
+    把**文字角色**指到本機 Ollama（不只覆寫 model id）：`SettingsDrawer` 每個文字角色（text.fast/
+    text.pro/vision）新增 **provider 下拉**（Gemini 雲端／Ollama 本機）——選 Gemini＝既有 model 下拉、
+    選 Ollama＝本機模型名稱自由輸入（本機無預設候選清單，例 `translategemma`）。**生圖/視覺角色維持雲端
+    only**（不顯示 provider 下拉，呼應 RFC 預設「image.* 留雲端」、本機後端尚不支援生圖/讀圖，避免「選了
+    跑不動」footgun）。寫入沿用 F9-3c 表示法：預設 provider（雲端）存扁平字串／空＝清除回退系統預設、本機
+    provider 存巢狀 `{provider,model}`（後端 `_clean_model_roles` 收斂、空 model 丟棄）。後端 `core/models.
+    py` `role_catalog()` 補曝 `provider`（下拉初值）+ 新增 `provider_catalog()`（可指派 provider 單一真實
+    來源含人讀 label，gemini 在前、tts 後端不在此），`/settings` 視圖補 `providers`。守紀律：**只換「誰生
+    文字」不碰 review gate**（R-2 assert/狀態機完全不動）、type guard（provider 限 `ASSIGNABLE_PROVIDERS`）、
+    config/catalog 集中單一真實來源。補測 `test_models_registry.py`（role_catalog 含 provider／
+    provider_catalog 形狀·排序·排除 tts）+ `test_settings.py`（route 曝 providers／巢狀 provider 覆寫
+    roundtrip）。前端 `npm run build`（vite, node22）編譯通過、本機全套 2648 passed（3 個 QR/theme 字型
+    像素為容器缺 Noto CJK 假象，CI 權威）。**視覺驗收待人工**（此環境無瀏覽器）。F9-3 offline slice
+    （a~e）至此到齊；剩 F9-3f 品質 A/B 實測＝GATE 需本機跑 ollama。
+- [x] 🟢 **F9-4 影片版本管理**（offline）— 重 render 時**保留舊版**（artifacts 加版本/時間戳，
   不覆蓋），可比對/回滾。教學內容會迭代，避免「重 render 蓋掉還能用的好版本」（已踩過視覺
   regression，見 ROADMAP v3.3 Round 2）。state 加 version 紀錄 + UI 列版本 + 下載指定版。
+  - ✅ 2026-06-11 **第一刀：後端重 render 歸檔機制完成**。`server/schemas.py` 新增
+    `ArtifactVersion`（version/created_at/archived_at/path/artifacts/note）+ `JobRecord.
+    artifact_versions`（`extra="allow"` → 舊 state.json 無痛相容）。`JobStore.archive_artifacts
+    (job_id, note)`：把現有 `artifacts/` **複製（非搬移）**進 `jobs/<id>/artifact_history/v<N>/`
+    保留舊版，回傳更新後 record；`artifacts/` 空（沒可保留的舊版）→ no-op 回 None；版本序號遞增、
+    各檔 metadata（name/kind/size/相對路徑）寫進快照、寫盤持久化。`server/runner.py::_run_render_phase`
+    在重 render 一個 **DONE** job 前自動呼叫歸檔（首次 render 與 FAILED retry 不歸檔＝沒有可保留的
+    好版本）；歸檔非破壞性、artifacts/ 照常被後續 render 覆蓋。補 `tests/test_artifact_versions.py`
+    14 測（空/缺目錄 no-op、copy 非 move、版本欄位、kind 分類、多版遞增、持久化、未知 job 拋錯 +
+    runner 整合：DONE 重 render 歸檔／首次不歸檔／FAILED 不歸檔／DONE 但空不留空版本，**全 tmp
+    隔離不打 API**＝offline-first）。本機全套 2557 passed（3 個 QR/journal 字型像素為容器缺 Noto
+    CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第二刀：API 列版本 + 下載指定版本端點完成**。`server/routes/jobs.py` 補兩端點：
+    `GET /jobs/{id}/versions`（列歷次歸檔舊版，讀 `record.artifact_versions`，由新到舊排，每個版本
+    每個 artifact 附下載 URL；沒重 render 過回空 list 非 404）、`GET /jobs/{id}/versions/{v}/artifacts/
+    {name}`（下載指定版本的歷史 artifact，給比對/回滾用，檔在 `artifact_history/v<N>/`）。下載端點
+    `version` 走 int 型驗證、`<=0` 直接 404、`name` 比照 artifacts 端點走 `safe_join` 三道 path-traversal
+    防護（S-3）。補 `tests/test_jobs_route.py` 11 測（列版本：未存在 job 404／無版本空 list／多版本由新到
+    舊＋URL／note 透傳；下載版本：byte-perfect 還原／逐版本隔離／未知版本 404／version 0 404／缺檔 404／
+    `..` traversal 400／未存在 job 404，**全 tmp 隔離不打 API**＝offline-first）。本機全套 2568 passed
+    （3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
+  - ✅ 2026-06-11 **第三刀：前端版本列/回滾 UI 完成（F9-4 收尾）**。`frontend/edustudio/app.jsx` 的
+    `TaskCard` 展開詳情（done/failed job）新增「歷史版本」區：展開時 `GET /jobs/{id}/versions` 載入歷次
+    歸檔舊版，逐版列 **v 編號 + 歸檔時間 + note + 各 artifact 下載連結**（附 `esFmtSize` 檔案大小，連到
+    第二刀的 `/jobs/{id}/versions/{v}/artifacts/{name}` 下載端點，給比對/回滾用）；沒歸檔過（沒重 render
+    過）則整區不顯示、版本內無產物顯示佔位文字。與既有逐章重渲染區並排（同 done/failed 條件、同 `es-bg-2`
+    版式），讓「重 render 前的好版本」一眼可取回。本機 `npm run build`（vite, node22）編譯通過；**視覺驗收
+    待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。三刀（後端歸檔／API／前端 UI）
+    到齊，F9-4 offline 部分收尾。
 
 > （備案，未納入：**LMS/Moodle/SCORM 匯出** — 教學剛需但 ROADMAP 已列遠期、最遠，要提前再議。）
 

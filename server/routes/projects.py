@@ -13,6 +13,8 @@
 - POST /projects/{pid}/jobs       in-process 建 job（reuse jobs.create_job）並掛進 jobs[]
 - POST /projects/{pid}/artifacts  收 artifact（infoCard write-back 等）
 - GET  /projects/{pid}/notebook   聚合視圖（sources/jobs/artifacts + counts）
+- GET  /projects/{pid}/glossary   取該課術語表（F9-2，無則 404 與「project 不存在」區分）
+- PUT  /projects/{pid}/glossary   覆寫該課術語表（reuse ProjectStore.save_glossary）
 
 store 注入：仿 jobs.py 的 get_default_store 單例模式，提供 get_default_project_store()，
 測試以 app.dependency_overrides 注入 tmp_path 隔離。
@@ -23,6 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from core import config
+from core.glossary import Glossary
 from core.project import (
     Artifact,
     ArtifactKind,
@@ -157,13 +160,18 @@ async def create_project_job(
     """
     # project 必須存在才建 job（不對不存在的 pid 建 orphan job）。
     try:
-        project_store.get(pid)
+        project = project_store.get(pid)
     except ProjectNotFoundError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e
 
     # reuse 既有建 job 路徑（驗證 + store.create + review gate + schedule_job 全在裡面）。
     resp = await jobs_routes.create_job(req, store=job_store)
     project_store.add_job(pid, resp.job_id)
+    # F9-2 (Option A): 記下 job→課程 反向關聯, render 旁白時據此現讀該課 glossary
+    # (F9-2h)。存 canonical project.project_id (已過 safe_id) 而非原始 pid。create_job
+    # 已同步排程 ingest task 但尚未 await 出讓 event loop, 故此 update 先於 ingest 真正
+    # 推進; JobStore.update 在 lock 內以 model_copy 保留其他欄位, 不與 ingest 互蓋。
+    job_store.update(resp.job_id, project_id=project.project_id)
     return resp
 
 
@@ -256,3 +264,47 @@ async def get_notebook(
             "artifacts": len(project.artifacts),
         },
     )
+
+
+# ---------- 課程術語表 glossary（F9-2：設定頁/API 編輯）----------
+# 為什麼用 GET/PUT 而非 POST：glossary 是「一課一份、整張覆寫」的 idempotent 資源
+# （UI 載入整張→改→存回整張），PUT 語意正好。CRUD 落在 ProjectStore.get_glossary /
+# save_glossary（已於 F9-2 第二刀落地、含 RLock 與路徑慣例），這層只做 HTTP 薄轉接。
+@router.get("/{pid}/glossary", response_model=Glossary)
+async def get_glossary(
+    pid: str, store: ProjectStore = Depends(get_default_project_store)
+) -> Glossary:
+    """取該課術語表。
+
+    兩種 404 以 detail 區分，讓編輯 UI 能分辨「沒這門課」與「課在但還沒建術語表」：
+    - project 不存在 → 404「project 不存在」（ProjectStore.get_glossary 內部先驗）。
+    - glossary 尚未建立（無 glossary.json）→ 404「此課尚未建立 glossary」；UI 收到後
+      可開一張空表讓老師起頭，再 PUT 落盤。
+    """
+    try:
+        glossary = store.get_glossary(pid)
+    except ProjectNotFoundError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e
+    if glossary is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"此課尚未建立 glossary: {pid}"
+        )
+    return glossary
+
+
+@router.put("/{pid}/glossary", response_model=Glossary)
+async def put_glossary(
+    pid: str,
+    glossary: Glossary,
+    store: ProjectStore = Depends(get_default_project_store),
+) -> Glossary:
+    """整張覆寫該課術語表（不存在的 pid 回 404）。
+
+    body 直接吃 `Glossary`（course + entries），pydantic 已在進來時驗過 term/course 非空
+    （core.glossary 的 field_validator），故這層只需轉接落盤。glossary.course 與 pid 各自
+    獨立——pid 是資料夾鍵、course 是人讀課名，不強制相等（沿 schema 設計）。
+    """
+    try:
+        return store.save_glossary(pid, glossary)
+    except ProjectNotFoundError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from e

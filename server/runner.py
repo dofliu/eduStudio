@@ -581,9 +581,44 @@ async def _run_render(
         or (rec.options.length_mode or "") == "ultra_quick"
         or bool(rec.options.short_video_layout)
     )
+    # F9-2h: 取該 job 所屬課程 glossary 讀音表, render 期間掛上 (旁白套術語讀音)。
+    # fail-soft: 沒 project_id / 課不存在 / 沒 glossary / 讀音表空 → None = 沿用全域。
+    from tts_backend import course_pronunciation_override
+
+    course_pron = _resolve_course_pronunciation(rec)
     with video_dimensions_override(aspect, resolution):
         with talking_head_override(th_mode, is_short_form=is_short):
-            await _run_render_inner(store, rec, section_id=section_id)
+            with course_pronunciation_override(course_pron):
+                await _run_render_inner(store, rec, section_id=section_id)
+
+
+def _resolve_course_pronunciation(rec: JobRecord) -> dict[str, str] | None:
+    """F9-2h: 取 job 所屬課程 glossary 的 TTS 讀音表 (surface form → reading)。
+
+    走 F9-2g 落地的 `JobRecord.project_id`：有值 →
+    `ProjectStore.get_glossary(project_id).to_pronunciation_map()`。
+
+    **fail-soft**（RFC §5）：沒 project_id（直接 POST /jobs 的無主 job）/ 課已不存在 /
+    該課沒 glossary / 讀音表為空 → 一律回 None＝沿用全域 pronunciation 行為, 零影響。
+    glossary 解析絕不讓 render 失敗（只想「套術語讀音」不該害整支影片渲染不出來）。
+    """
+    project_id = rec.project_id
+    if not project_id:
+        return None
+    try:
+        from core.glossary import to_pronunciation_map
+        from core.project import ProjectStore
+
+        glossary = ProjectStore().get_glossary(project_id)
+        if glossary is None:
+            return None
+        return to_pronunciation_map(glossary) or None
+    except Exception as e:
+        logger.warning(
+            "取課程 glossary 讀音表失敗 (project_id=%s), 旁白沿用全域 pronunciation: %s",
+            project_id, e,
+        )
+        return None
 
 
 async def _run_render_inner(
@@ -974,6 +1009,32 @@ def _resolve_step_image_paths(steps: list[dict], figures_dir: Path) -> None:
         step["image_path"] = str(matches[0].resolve())
 
 
+def write_review_flags(store: JobStore, job_id: str) -> int:
+    """F9-1c: 讀 deck.json → core.review_assist.check_deck → 落 review_flags.json。
+
+    確定性 review 校驗 (F9-1a 的 ② 面, offline 純函式, 零 API): 把 AI 解題 deck 裡
+    對不上的算術 / 與旁白不一致的結果數字標成 ReviewFlag, 落盤給 reviewer 端點讀,
+    把核心賣點 review gate (硬規則 #1) 做深 — 降低 reviewer 漏看低級錯誤的機率。
+
+    **不可妥協紀律 (呼應 RFC)**: 只標記不改 deck、不入狀態機、不阻 approve
+    (硬規則 #1 的權威是人不是校驗器)。本函式只寫 review_flags.json, 不碰 deck /
+    state。沒 deck.json (ingest 未完) → 回 0 不寫檔。caller 以 try/except 包成
+    fail-open (校驗器壞掉不可卡 review, 設計目標 #4)。回傳 flag 數。
+    """
+    from core.review_assist import check_deck
+
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        return 0
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+    flags = check_deck(deck)
+    store.review_flags_path(job_id).write_text(
+        json.dumps([f.model_dump() for f in flags], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return len(flags)
+
+
 def _rewrite_deck_intros_inplace(
     store: JobStore, job_id: str, source_type_value: str,
 ) -> None:
@@ -1177,6 +1238,16 @@ async def run_job(store: JobStore, job_id: str) -> None:
         except Exception as e:
             logger.exception("deck 時長估算失敗 (不擋 review): %s", e)
 
+        # F9-1c: 確定性 review 校驗 — ingest 完算一次, 把可疑點 (算術對不上 /
+        # 結果數字與旁白不一致) 落 review_flags.json 輔助 reviewer。只標記不改 deck、
+        # 不入狀態機、不阻 approve; 失敗只 warning 不擋 review (硬規則 #1 不變)。
+        try:
+            n_flags = write_review_flags(store, job_id)
+            if n_flags:
+                logger.info("review 校驗: 標出 %d 個可疑點 (見 review_flags.json)", n_flags)
+        except Exception as e:
+            logger.exception("review 校驗失敗 (不擋 review): %s", e)
+
         store.update(
             job_id,
             deck_path=str(store.deck_path(job_id).relative_to(store.root.parent)).replace("\\", "/"),
@@ -1235,6 +1306,18 @@ async def _run_render_phase(
             logger.error(msg)
             store.update(job_id, state=JobState.FAILED, error=msg)
             return
+
+        # F9-4 影片版本管理: 重 render 一個已完成 (DONE) 的 job 前, 先把現有
+        # artifacts 歸檔成一個版本, 避免新 render 覆蓋掉還能用的舊版 (可比對 / 回滾)。
+        # 只在 DONE 重 render 時做 — 首次 render (awaiting_review→render) 與 FAILED
+        # retry (沒有可保留的好版本) 不歸檔。
+        if rec_gate is not None and rec_gate.state == JobState.DONE:
+            archived = store.archive_artifacts(job_id)
+            if archived is not None and archived.artifact_versions:
+                logger.info(
+                    "重 render 前已歸檔舊版 artifacts 為 v%d",
+                    archived.artifact_versions[-1].version,
+                )
 
         store.update(job_id, state=JobState.RENDERING, error=None)
         stage_name = f"render-section-{section_id}" if section_id else "render"

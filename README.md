@@ -12,6 +12,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Gemini](https://img.shields.io/badge/Google-Gemini%203-4285F4?logo=googlegemini&logoColor=white)
+[![tests](https://github.com/dofliu/eduStudio/actions/workflows/test.yml/badge.svg)](https://github.com/dofliu/eduStudio/actions/workflows/test.yml)
 ![Status](https://img.shields.io/badge/status-active-success)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -47,12 +48,48 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 - **📤 Publish-ready** — PPTX export, YouTube auto-chapters, bilingual subtitle tracks, LaTeX formula rendering, personal-brand footer baked into slides & cards.
 - **🔒 Self-hosted & offline-first** — your API key, your machine, your data. No third-party SaaS in the loop.
 
+### Screenshots
+
+> Screenshots are captured from a running `/app` instance. Drop the images under
+> `docs/screenshots/` with the filenames below and they'll render here.
+
+| The unified `/app` workstation | The human review gate |
+|---|---|
+| <!-- screenshot: docs/screenshots/app-home.png --> _`docs/screenshots/app-home.png`_ | <!-- screenshot: docs/screenshots/review-gate.png --> _`docs/screenshots/review-gate.png`_ |
+| Pick a course, then Video / Visual / Localization | Every AI answer stops here, editable, until you approve |
+
+| Visual composer (infographics & posters) | Cost panel (real per-station usage) |
+|---|---|
+| <!-- screenshot: docs/screenshots/visual.png --> _`docs/screenshots/visual.png`_ | <!-- screenshot: docs/screenshots/usage.png --> _`docs/screenshots/usage.png`_ |
+
+<!-- TODO（人工）：在 docs/screenshots/ 補上上述四張截圖（此環境無瀏覽器，依「文字步驟可獨立完成、視覺後驗」） -->
+
 ### Quick start
 
+**One-command try (Docker)** — fastest way to kick the tyres. The bundled image already
+has ffmpeg + CJK fonts, so you don't install anything except Docker itself:
+
 ```bash
+cp .env.example .env          # then put your GEMINI_API_KEY in it
+cp tts_config.example.json tts_config.json   # default edge-tts is fine
+docker compose up -d --build  # build + start in the background
+```
+
+Then open **`http://localhost:8000/app/`**. Stop with `docker compose down` (add `-v` to
+also wipe the `jobs` volume). For exposing it beyond localhost (token, CORS, reverse proxy
++ TLS), follow [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — never put it on a public port
+without setting `EDUSTUDIO_API_TOKEN` first.
+
+**Or run it from source:**
+
+```bash
+# 0. System prerequisites (NOT pip): ffmpeg (+ffprobe) for any render,
+#    and Noto CJK fonts for correct Chinese glyphs. See "Dependency layers" below.
+
 # 1. Backend (Python 3.12)
-pip install -r requirements.txt          # core deps
-#   optional: requirements-optional.txt for F5-TTS / GPU Whisper, requirements-dev.txt for tests
+pip install -r requirements.txt          # core deps — enough to run the server
+#   add-ons (only if you need them): requirements-optional.txt (PPTX export / STT /
+#   F5-TTS), requirements-song.txt (SONG MV track), requirements-dev.txt (tests)
 export GEMINI_API_KEY=your_key           # or set it in the in-app Settings page
 
 # 2. Frontend (the unified /app UI)
@@ -64,6 +101,26 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 ```
 
 Then open **`http://127.0.0.1:8000/app/`**.
+
+### Dependency layers
+
+Dependencies are split so you install only what you actually use. `requirements.txt`
+alone is enough to run the server and the main pipelines (video, visual, localization
+text) — add a layer only when you want the matching feature.
+
+| Layer | Install | What it adds | Without it |
+|---|---|---|---|
+| **core** | `pip install -r requirements.txt` | Server + video / visual / localization-text pipelines (Gemini, FastAPI, Pillow, edge-tts, PyMuPDF, matplotlib) | — (always required) |
+| **optional** | `pip install -r requirements-optional.txt` | PPTX export (`python-pptx`), speech-to-text (`faster-whisper`, auto GPU→CPU), F5-TTS voice cloning, sample-PDF tool, outro QR | Those specific features fail gracefully; everything else runs |
+| **song** | `pip install -r requirements-song.txt` | SONG MV track only — Demucs + WhisperX (heavy, several GB, GPU recommended) | The song/MV track is unavailable; all other tracks fine |
+| **dev** | `pip install -r requirements-dev.txt` | Test suite (`pytest`, `httpx`) | Can't run `pytest tests/` |
+
+**System dependencies (installed outside pip):**
+
+- **ffmpeg / ffprobe** — *required* for any video render or audio extraction. `apt install ffmpeg` · `brew install ffmpeg` · `choco install ffmpeg`.
+- **Noto CJK fonts** (e.g. `fonts-noto-cjk`) — needed for correct Chinese rendering in slides / blackboard. Paths are overridable via `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` / `CLAUDE_MONO_FONT_PATH`.
+
+The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 
 ### Interfaces
 
@@ -106,12 +163,46 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 - **📤 隨時可發布** — PPTX 匯出、YouTube 自動章節、雙語字幕軌、LaTeX 公式渲染、個人品牌頁尾自動帶進簡報與圖卡。
 - **🔒 自架、離線優先** — 你的 API key、你的機器、你的資料，中間不經第三方 SaaS。
 
+### 截圖
+
+> 截圖取自實際跑起來的 `/app`。把圖檔以下方檔名放進 `docs/screenshots/` 即會顯示於此。
+
+| 統一 `/app` 工作站 | 人工審查關卡 |
+|---|---|
+| <!-- screenshot: docs/screenshots/app-home.png --> _`docs/screenshots/app-home.png`_ | <!-- screenshot: docs/screenshots/review-gate.png --> _`docs/screenshots/review-gate.png`_ |
+| 右上選課，再切影片 / 視覺 / 在地化 | 每個 AI 答案都停在這裡、可編輯，核准前不外流 |
+
+| 視覺工作台（圖卡 & 海報） | 成本面板（各站真實用量） |
+|---|---|
+| <!-- screenshot: docs/screenshots/visual.png --> _`docs/screenshots/visual.png`_ | <!-- screenshot: docs/screenshots/usage.png --> _`docs/screenshots/usage.png`_ |
+
+<!-- TODO（人工）：在 docs/screenshots/ 補上上述四張截圖（此環境無瀏覽器，依「文字步驟可獨立完成、視覺後驗」） -->
+
 ### 快速開始
 
+**一鍵體驗（Docker）** — 試水溫最快的路。內附 image 已裝好 ffmpeg + CJK 字型，除了 Docker
+本身你什麼都不用裝：
+
 ```bash
+cp .env.example .env          # 填入你的 GEMINI_API_KEY
+cp tts_config.example.json tts_config.json   # 預設 edge-tts 即可
+docker compose up -d --build  # 建置 + 背景啟動
+```
+
+接著打開 **`http://localhost:8000/app/`**。停止用 `docker compose down`（加 `-v` 連 `jobs`
+volume 一起清）。要暴露到 localhost 以外（token、CORS、反向代理 + TLS）請照
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — **沒設 `EDUSTUDIO_API_TOKEN` 前別開公網 port**。
+
+**或從原始碼跑：**
+
+```bash
+# 0. 系統相依 (非 pip): ffmpeg (+ffprobe) 任何 render 都要、Noto CJK 字型確保中文正常。
+#    詳見下方「依賴分層」。
+
 # 1. 後端 (Python 3.12)
-pip install -r requirements.txt          # 核心依賴
-#   選用: requirements-optional.txt(F5-TTS / GPU Whisper)、requirements-dev.txt(測試)
+pip install -r requirements.txt          # 核心依賴 — 裝這個就能跑 server
+#   按需加裝: requirements-optional.txt(PPTX 匯出 / 語音轉文字 / F5-TTS)、
+#   requirements-song.txt(SONG MV 軸)、requirements-dev.txt(跑測試)
 export GEMINI_API_KEY=你的金鑰            # 或直接在 App 的「設定」頁填
 
 # 2. 前端 (統一 /app 介面)
@@ -123,6 +214,25 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 ```
 
 接著打開 **`http://127.0.0.1:8000/app/`**。
+
+### 依賴分層
+
+依賴刻意拆開，只裝你會用到的。光裝 `requirements.txt` 就足以跑起 server 與主要 pipeline
+（影片、視覺、在地化文字）——要用哪個功能再加裝對應那層即可。
+
+| 分層 | 安裝 | 加了什麼 | 不裝的話 |
+|---|---|---|---|
+| **核心 core** | `pip install -r requirements.txt` | Server + 影片 / 視覺 / 在地化文字 pipeline（Gemini、FastAPI、Pillow、edge-tts、PyMuPDF、matplotlib） | —（一定要裝） |
+| **選用 optional** | `pip install -r requirements-optional.txt` | PPTX 匯出（`python-pptx`）、語音轉文字（`faster-whisper`，自動 GPU→CPU）、F5-TTS 聲音複製、樣本 PDF 工具、outro QR | 對應功能會優雅報錯，其餘照常 |
+| **song** | `pip install -r requirements-song.txt` | 只有 SONG MV 軸 — Demucs + WhisperX（重、數 GB、建議 GPU） | song/MV 軸無法用，其他軸不受影響 |
+| **dev** | `pip install -r requirements-dev.txt` | 測試套件（`pytest`、`httpx`） | 無法跑 `pytest tests/` |
+
+**系統相依（非 pip 安裝）：**
+
+- **ffmpeg / ffprobe** — 任何影片 render 或抽音訊*必需*。`apt install ffmpeg`／`brew install ffmpeg`／`choco install ffmpeg`。
+- **Noto CJK 字型**（例 `fonts-noto-cjk`）— 簡報／黑板中文正確顯示所需。路徑可用 `CLAUDE_FONT_PATH`／`CLAUDE_FALLBACK_FONT_PATH`／`CLAUDE_MONO_FONT_PATH` 覆寫。
+
+內附的 `Dockerfile` 已幫你裝好 ffmpeg 與 CJK 字型。
 
 ### 專案結構
 

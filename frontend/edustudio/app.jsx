@@ -113,6 +113,8 @@ const VISUAL_MODES = {
   slides: { label: "教學簡報", icon: "presentation", desc: "成套投影片 · 16:9", hue: "var(--es-ws-video)" },
   // 圖卡與海報合併為單一視覺成品（單張大圖），用版式(直式海報/方形圖卡/橫式)區分用途。
   poster: { label: "圖卡 · 海報", icon: "image",      desc: "單張視覺 · 印刷級", hue: "var(--es-ws-visual)" },
+  // 資訊圖卡：多區塊結構化版面，支援逐區（區域選擇）refine。
+  infographic: { label: "資訊圖卡", icon: "layout-grid", desc: "多區塊 · 可逐區微調", hue: "var(--es-ws-material)" },
 };
 
 const VISUAL_OUTPUTS = [
@@ -141,22 +143,7 @@ const PUBLISH_ITEMS = [
     meta: "PNG / 分享連結", langs: ["zh-TW"] },
 ];
 
-const COST = {
-  trial: { remaining: 38, total: 50 },
-  budget: 30, used: 18.74, currency: "USD", cycle: "本月（6 月）",
-  byStation: [
-    { key: "video",    label: "影片",  amount: 11.20, hue: "var(--es-ws-video)" },
-    { key: "visual",   label: "視覺",  amount: 3.86,  hue: "var(--es-ws-visual)" },
-    { key: "language", label: "在地化", amount: 2.41, hue: "var(--es-accent)" },
-    { key: "material", label: "解析",  amount: 1.27,  hue: "var(--es-ws-material)" },
-  ],
-  recent: [
-    { label: "斜向拋體解題 · 旁白生成", model: "Gemini 2.5 Pro",   tok: "82.4K", amount: 0.42, time: "12 分鐘前" },
-    { label: "MIT Lecture 12 · 配音翻譯", model: "Gemini 2.5 Pro", tok: "210K",  amount: 1.18, time: "1 小時前" },
-    { label: "動量守恆簡報 · 英文在地化", model: "Gemini 2.5 Flash", tok: "44.1K", amount: 0.16, time: "3 小時前" },
-    { label: "討論會 0530 · 轉錄＋摘要", model: "Gemini 2.5 Flash", tok: "96.7K", amount: 0.31, time: "昨天" },
-  ],
-};
+/* 成本面板用量由後端 /api/usage 即時提供（真實統計，無 mock 示意數字）。 */
 
 const TOOLBOX = [
   { id: "flashcard", label: "單字卡", icon: "layout-grid", desc: "由教材生成記憶卡" },
@@ -167,7 +154,7 @@ const TOOLBOX = [
 Object.assign(window, {
   LANGS, PROJECTS, SOURCE_TYPES, SOURCES, TASK_TYPES, VIDEO_TASKS,
   REVIEW_SEGMENTS, VISUAL_MODES, VISUAL_OUTPUTS, LIBRARY, PUBLISH_ITEMS,
-  COST, TOOLBOX,
+  TOOLBOX,
 });
 /* eduStudio — shared UI primitives (Icon set, Button, Badge, Card, Field…) */
 const { useState, useRef, useEffect, useLayoutEffect, createContext, useContext } = React;
@@ -203,6 +190,8 @@ const ICONS = {
   pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   'check-circle':'<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>',
   'alert-triangle':'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  'shield-alert':'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
   clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   loader:'<path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/>',
   sigma:'<path d="M18 7V5a1 1 0 0 0-1-1H6.5a.5.5 0 0 0-.4.8l4.5 6a2 2 0 0 1 0 2.4l-4.5 6a.5.5 0 0 0 .4.8H17a1 1 0 0 0 1-1v-2"/>',
@@ -388,7 +377,7 @@ function LangChip({ code, removable, onRemove }) {
 // 前端短碼 → 後端 canonical 連字號碼（/localization 邊界再轉底線）。
 const ES_LANG_API = { "en": "en-US", "ja": "ja-JP", "ko": "ko-KR", "zh-CN": "zh-CN", "vi": "vi-VN", "zh-TW": "zh-TW" };
 
-function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵在地化", text = "" }) {
+function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵在地化", text = "", projectId = "" }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState([]);
   const [phase, setPhase] = useState("idle"); // idle | running | done
@@ -401,6 +390,8 @@ function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵�
     setPicked(p => p.includes(code) ? p.filter(c => c !== code) : [...p, code]);
 
   // 接 /localization/translate：對每個選的語言真的翻譯（傳成品標題作示範）。
+  // F9-2j：有作用中課程（projectId）→ 帶 project_id，讓後端套該課 glossary 固定譯名
+  //（route 欄位選填、fail-soft；沒給/查無沿用現行行為）。
   const run = async () => {
     if (!picked.length) return;
     setPhase("running");
@@ -410,7 +401,10 @@ function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵�
       try {
         const r = await fetch("/localization/translate", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: src, target_lang: ES_LANG_API[code] || code, source_lang: "zh-TW" }),
+          body: JSON.stringify({
+            text: src, target_lang: ES_LANG_API[code] || code, source_lang: "zh-TW",
+            ...(projectId ? { project_id: projectId } : {}),
+          }),
         });
         const d = await r.json();
         out[code] = d.translated_text || "";
@@ -635,9 +629,10 @@ function ProjectMenu({ projects, activePid, activeProject, onPick, onCreate }) {
   );
 }
 
-function Topbar({ projects, activePid, activeProject, onPickProject, onCreateProject, avatarName, wsTitle, onOpenCost, onOpenSettings, theme, onTheme }) {
-  const { used, budget } = COST;
-  const pct = Math.round((used / budget) * 100);
+function Topbar({ projects, activePid, activeProject, onPickProject, onCreateProject, avatarName, wsTitle, usage, onOpenCost, onOpenSettings, theme, onTheme }) {
+  const used = usage ? usage.used : 0;
+  const budget = usage ? usage.budget : 0;
+  const pct = budget ? Math.round((used / budget) * 100) : 0;
   return (
     <header className="es-topbar">
       <div className="es-row es-gap-md">
@@ -668,26 +663,18 @@ function Topbar({ projects, activePid, activeProject, onPickProject, onCreatePro
 
 const ES_STATION_HUE = { video: "var(--es-ws-video)", visual: "var(--es-ws-visual)", language: "var(--es-accent)", material: "var(--es-ws-material)" };
 
-function CostPanel({ open, onClose }) {
-  const [live, setLive] = useState(null);   // /api/usage 真實統計；null = 用 mock
-  // 開啟時抓真實用量；空（還沒有任何呼叫）或失敗則保留 mock 展示。
-  useEffect(() => {
-    if (!open) return;
-    fetch("/api/usage").then(r => r.json()).then(d => {
-      if (d && d.count > 0) setLive(d); else setLive(null);
-    }).catch(() => setLive(null));
-  }, [open]);
-
-  const { trial, cycle } = COST;
-  const used = live ? live.used : COST.used;
-  const budget = live ? live.budget : COST.budget;
+function CostPanel({ open, onClose, usage }) {
+  // 全部走後端 /api/usage 真實統計：有呼叫紀錄才有數字，否則顯示空狀態（不再有 mock 示意）。
+  const live = usage && usage.count > 0 ? usage : null;
+  const used = usage ? usage.used : 0;
+  const budget = usage ? usage.budget : 0;
   const byStation = live
     ? live.byStation.map(s => ({ ...s, hue: ES_STATION_HUE[s.key] || "var(--es-fg-2)" }))
-    : COST.byStation;
+    : [];
   const recent = live
     ? live.recent.map(r => ({ label: r.label || (r.kind === "image" ? "圖片生成" : "文字生成"),
         model: r.model || "Gemini", tok: r.station, time: r.time ? new Date(r.time).toLocaleString("zh-TW") : "", amount: r.amount }))
-    : COST.recent;
+    : [];
   const pct = budget ? Math.round((used / budget) * 100) : 0;
   return (
     <>
@@ -701,50 +688,59 @@ function CostPanel({ open, onClose }) {
           <div className="es-cost-hero">
             <div className="es-row" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
               <div className="es-col" style={{ gap: 2 }}>
-                <span className="es-cap es-mut">{cycle} 累計</span>
+                <span className="es-cap es-mut">本月累計</span>
                 <span className="es-cost-big es-mono">${used.toFixed(2)}</span>
               </div>
               <span className="es-cap es-mut">預算 ${budget.toFixed(0)}</span>
             </div>
             <ProgressBar value={pct} tone="accent" height={8} />
             <div className="es-row" style={{ justifyContent: "space-between" }}>
-              <span className="es-cap es-mut">已使用 {pct}%{live ? "（真實用量）" : ""}</span>
-              {live ? <Badge tone="accent" icon="zap">{live.count} 次 Gemini 呼叫</Badge>
-                    : <Badge tone="accent" icon="zap">試用模式：剩餘 {trial.remaining} / {trial.total} 次</Badge>}
+              <span className="es-cap es-mut">已使用 {pct}%</span>
+              <Badge tone="accent" icon="zap">{live ? live.count : 0} 次 Gemini 呼叫</Badge>
             </div>
           </div>
 
-          <div className="es-cost-sec">
-            <div className="es-cost-sec-title">各工作站花費</div>
-            {byStation.map(s => {
-              const w = Math.round((s.amount / used) * 100);
-              return (
-                <div key={s.key} className="es-cost-row">
-                  <span className="es-proj-dot" style={{ background: s.hue }} />
-                  <span className="es-grow">{s.label}</span>
-                  <div className="es-cost-bar"><span style={{ width: w + "%", background: s.hue }} /></div>
-                  <span className="es-mono es-cost-amt">${s.amount.toFixed(2)}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="es-cost-sec">
-            <div className="es-cost-sec-title">近期呼叫</div>
-            {recent.map((r, i) => (
-              <div key={i} className="es-cost-call">
-                <div className="es-col" style={{ gap: 2, minWidth: 0 }}>
-                  <span className="es-clip" style={{ fontWeight: 500 }}>{r.label}</span>
-                  <span className="es-cap es-mut">{r.model} · {r.tok} · {r.time}</span>
-                </div>
-                <span className="es-mono es-cost-amt">${r.amount.toFixed(2)}</span>
+          {live ? (
+            <>
+              <div className="es-cost-sec">
+                <div className="es-cost-sec-title">各工作站花費</div>
+                {byStation.map(s => {
+                  const w = used ? Math.round((s.amount / used) * 100) : 0;
+                  return (
+                    <div key={s.key} className="es-cost-row">
+                      <span className="es-proj-dot" style={{ background: s.hue }} />
+                      <span className="es-grow">{s.label}</span>
+                      <div className="es-cost-bar"><span style={{ width: w + "%", background: s.hue }} /></div>
+                      <span className="es-mono es-cost-amt">${s.amount.toFixed(2)}</span>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+
+              <div className="es-cost-sec">
+                <div className="es-cost-sec-title">近期呼叫</div>
+                {recent.map((r, i) => (
+                  <div key={i} className="es-cost-call">
+                    <div className="es-col" style={{ gap: 2, minWidth: 0 }}>
+                      <span className="es-clip" style={{ fontWeight: 500 }}>{r.label}</span>
+                      <span className="es-cap es-mut">{r.model} · {r.tok} · {r.time}</span>
+                    </div>
+                    <span className="es-mono es-cost-amt">${r.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="es-cost-sec">
+              <div className="es-cap es-mut" style={{ padding: "8px 0" }}>
+                目前還沒有任何 Gemini 呼叫紀錄。產生內容後，這裡會顯示真實的用量與花費。
+              </div>
+            </div>
+          )}
 
           <div className="es-cost-note">
             <Icon name="alert-triangle" size={14} />
-            試用完畢後請於設定中填入您的 API Key 以繼續使用。
+            成本為依用量估算（以 Google 官方定價為準）。預算 ${budget.toFixed(0)} 僅供參考，系統不會自動扣費或擋下呼叫。
           </div>
         </div>
       </aside>
@@ -1085,6 +1081,7 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
   const [log, setLog] = useState(null);
   const [sections, setSections] = useState(null);
   const [rerendering, setRerendering] = useState("");
+  const [versions, setVersions] = useState(null);   // F9-4：重 render 前歸檔的歷史舊版
 
   // 展開時抓 log tail；running 任務每 4 秒刷新 log。
   useEffect(() => {
@@ -1103,6 +1100,15 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
     let alive = true;
     fetch(`/jobs/${task.id}/draft`).then(r => r.ok ? r.json() : Promise.reject())
       .then(d => { if (alive) setSections(esDeckSections(d.deck || d)); }).catch(() => { if (alive) setSections([]); });
+    return () => { alive = false; };
+  }, [open, task.id, canRerender]);
+
+  // 展開且 done/failed → 抓歷史版本（F9-4：重 render 前自動歸檔的舊版，可下載比對/回滾）。
+  useEffect(() => {
+    if (!open || !task._job || !canRerender) return;
+    let alive = true;
+    fetch(`/jobs/${task.id}/versions`).then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => { if (alive) setVersions(d.versions || []); }).catch(() => { if (alive) setVersions([]); });
     return () => { alive = false; };
   }, [open, task.id, canRerender]);
 
@@ -1145,7 +1151,7 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
           <div className="es-task-actions">
             {isReview && <Button variant="primary" size="sm" icon="eye" onClick={() => onReview(task)}>開始審查</Button>}
             {isApproved && <>
-              <LocalizeMenu localized={task.localized || []} onChange={(l) => onLocalize(task.id, l)} text={task.title} />
+              <LocalizeMenu localized={task.localized || []} onChange={(l) => onLocalize(task.id, l)} text={task.title} projectId={task.project_id} />
               <Button variant="default" size="sm" icon="upload" onClick={() => onPublish && onPublish(task)}>發布</Button>
             </>}
             {isFailed && <Button variant="default" size="sm" icon="refresh-cw" onClick={() => onRetry && onRetry(task)}>重試</Button>}
@@ -1180,6 +1186,32 @@ function TaskCard({ task, onReview, onLocalize, onRetry, onCancel, onPublish, on
                 {sections.map(s => (
                   <Button key={s.id} variant="ghost" size="sm" icon="refresh-cw" disabled={!!rerendering}
                     onClick={() => rerender(s.id)}>{rerendering === s.id ? "排程中…" : s.title}</Button>
+                ))}
+              </div>
+            </div>
+          )}
+          {canRerender && versions && versions.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div className="es-cap es-mut" style={{ marginBottom: 6 }}>歷史版本（重 render 前自動歸檔的舊版，可下載比對 / 回滾）</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {versions.map(v => (
+                  <div key={v.version} style={{ background: "var(--es-bg-2)", borderRadius: 8, padding: "8px 10px" }}>
+                    <div className="es-row es-gap-sm" style={{ flexWrap: "wrap", alignItems: "baseline" }}>
+                      <Badge tone="neutral">v{v.version}</Badge>
+                      <span className="es-cap es-mut">歸檔於 {v.archived_at ? new Date(v.archived_at).toLocaleString("zh-TW") : "—"}</span>
+                      {v.note && <span className="es-cap es-mut">· {v.note}</span>}
+                    </div>
+                    <div className="es-row es-gap-xs" style={{ flexWrap: "wrap", marginTop: 6 }}>
+                      {(v.artifacts || []).length === 0
+                        ? <span className="es-cap es-mut">（此版本無可下載產物）</span>
+                        : (v.artifacts || []).map(a => (
+                          <a key={a.name} className="es-cap es-mut" href={a.url} download
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <Icon name="download" size={12} /> {a.name}{a.size_bytes ? ` (${esFmtSize(a.size_bytes)})` : ""}
+                          </a>
+                        ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1236,6 +1268,7 @@ function esJobToTask(rec) {
     source: esBasename(src.path) || src.url || rec.source_type || "—",
     lang: "zh-TW", updated: rec.updated_at ? new Date(rec.updated_at).toLocaleString("zh-TW") : "",
     cost: 0, model: "Gemini", error: rec.error || "來源或生成發生錯誤", _job: true,
+    project_id: rec.project_id || "",   // F9-2g：job 所屬課程，在地化套該課 glossary（F9-2j）
     _stype: rec.source_type, _src: rec.source || {},   // 重試用：保留原始來源
     rawState: rec.state, progress: prog.percent, progLabel: prog.label, stage: prog.stage,
     _stages: rec.stages || [],
@@ -1260,7 +1293,10 @@ function esDeckToSegments(deck) {
     deck.problems.forEach((p, pi) => (p.steps || []).forEach((st, si) =>
       segs.push({ id: (p.id || ("q" + pi)) + "_" + si, t: p.number || ("第 " + (pi + 1) + " 題"),
         status: "pending", confidence: 0.9, narration: st.narration || st.display || "", formula: null, values: [],
-        _path: ["problems", pi, "steps", si], _field: st.narration !== undefined ? "narration" : "display" })));
+        _path: ["problems", pi, "steps", si], _field: st.narration !== undefined ? "narration" : "display",
+        // F9-1d: 對應後端 review_assist.check_deck 的 (problem_id, step_index)，給確定性校驗 flag 配位。
+        // fallback 與後端一致（`q{idx+1}`，1-indexed）；有 p.id 時直接用 id。
+        _pid: p.id || ("q" + (pi + 1)), _sidx: si })));
   } else if (deck && Array.isArray(deck.sections)) {
     deck.sections.forEach((s, si) => {
       const items = s.slides || s.steps || null;
@@ -1275,6 +1311,24 @@ function esDeckToSegments(deck) {
   if (!segs.length) segs.push({ id: "all", t: "全文", status: "pending", confidence: 0.9,
     narration: (deck && (deck.exam_title || deck.title)) || "（此 job 尚無可審查的逐段內容）", formula: null, values: [] });
   return segs;
+}
+
+/* F9-1d: 把後端確定性 review 校驗的可疑點（GET /jobs/{id}/review-flags）配位到分段。
+   每個 flag 形如 {problem_id, step_index, kind, severity, message, source}，依 _pid/_sidx 對位。
+   flags 只是輔助 reviewer 注意力的提醒 — 不阻擋 approve（硬規則 #1 的權威是人不是校驗器）。 */
+function esAttachReviewFlags(segs, flags) {
+  if (!Array.isArray(flags) || !flags.length) return segs;
+  const byKey = {};
+  flags.forEach(f => {
+    if (!f || f.problem_id == null) return;
+    const k = f.problem_id + "::" + f.step_index;
+    (byKey[k] = byKey[k] || []).push(f);
+  });
+  return segs.map(s => {
+    if (s._pid == null) return s;
+    const hit = byKey[s._pid + "::" + s._sidx];
+    return hit ? { ...s, reviewFlags: hit } : s;
+  });
 }
 
 // autoSolver 影片來源類型（對齊後端 SourceType）→ 建立路徑。
@@ -1667,6 +1721,9 @@ function SegmentNav({ segs, active, onPick }) {
               <span className="es-mono es-cap">{s.t}</span>
               <span className="es-segnav-text es-clip">{s.narration}</span>
             </span>
+            {s.reviewFlags && s.reviewFlags.length > 0 &&
+              <Icon name="alert-triangle" size={14} className="es-segnav-flag"
+                title={"確定性校驗標出 " + s.reviewFlags.length + " 個可疑點"} />}
             {s.status === "approved" && <Icon name="check" size={15} className="es-segnav-ok" />}
             {s.flag && s.status !== "approved" && <Icon name="alert-triangle" size={14} className="es-segnav-flag" />}
           </button>
@@ -1694,6 +1751,11 @@ function ReviewGate({ task, onClose, onComplete }) {
       fetch("/jobs/" + task.id + "/draft").then(r => r.ok ? r.json() : Promise.reject())
         .then(d => { if (alive) { const deck = d.deck || d; deckRef.current = deck; setSegs(esDeckToSegments(deck)); setLoading(false); } })
         .catch(() => { if (alive) { setSegs(REVIEW_SEGMENTS.map(s => ({ ...s }))); setLoading(false); } });
+      // F9-1d: 取確定性 review 校驗可疑點，配位到分段顯示 ⚠（輔助提醒、不阻擋）。
+      // fail-open：抓不到（舊 job / 端點錯）就不顯示，絕不卡審查。
+      fetch("/jobs/" + task.id + "/review-flags").then(r => r.ok ? r.json() : { flags: [] })
+        .then(d => { const fl = (d && d.flags) || []; if (alive && fl.length) setSegs(cur => esAttachReviewFlags(cur, fl)); })
+        .catch(() => {});
     } else { setSegs(REVIEW_SEGMENTS.map(s => ({ ...s }))); setLoading(false); }
     return () => { alive = false; };
   }, [task]);
@@ -1835,6 +1897,20 @@ function ReviewGate({ task, onClose, onComplete }) {
               </div>
             )}
 
+            {/* F9-1d: 確定性 review 校驗（算術／結果↔旁白對齊）標出的可疑點 —
+                只提醒、不阻擋 approve（硬規則 #1 的權威是人）。 */}
+            {seg.reviewFlags && seg.reviewFlags.length > 0 && (
+              <div className="es-reviewflags">
+                <div className="es-seg-blabel"><Icon name="shield-alert" size={13} /> 自動校驗提醒 · 待人工確認</div>
+                {seg.reviewFlags.map((f, i) => (
+                  <div key={i} className={"es-reviewflag es-rf-" + (f.severity === "warn" ? "warn" : "info")}>
+                    <Icon name={f.severity === "warn" ? "alert-triangle" : "info"} size={14} className="es-rf-icon" />
+                    <span className="es-rf-msg">{f.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="es-seg-block">
               <div className="es-seg-blabel"><Icon name="type" size={13} /> 旁白文字
                 <button className="es-seg-edit" onClick={() => setEditing(e => !e)}>
@@ -1917,10 +1993,38 @@ function VisualPreview({ mode }) {
   );
 }
 
-/* 真實後端 /api/generate 回傳的成品預覽（取代 mock VisualPreview） */
-function RealPreview({ mode, result }) {
+/* 真實後端 /api/generate 回傳的成品預覽（取代 mock VisualPreview）。
+   infographic 模式下傳 selectedSection / onPickSection → 區塊可點選（區域選擇 UI）。 */
+function RealPreview({ mode, result, selectedSection, onPickSection }) {
   if (mode === "poster" && result.imageUrl) {
     return <img src={result.imageUrl} alt="圖卡 · 海報" style={{ maxWidth: "100%", maxHeight: 380, borderRadius: 8, objectFit: "contain" }} />;
+  }
+  if (mode === "infographic" && result.data) {
+    const d = result.data;
+    const sections = d.sections || [];
+    const theme = d.themeColor || "var(--es-ws-material)";
+    return (
+      <div className="es-pv es-pv-slides" style={{ textAlign: "left", padding: 12, overflow: "auto", maxHeight: 380, width: "100%" }}>
+        <div style={{ fontWeight: 700, fontSize: 15, color: theme }}>{d.mainTitle}</div>
+        {d.subtitle && <div className="es-cap es-mut" style={{ marginBottom: 8 }}>{d.subtitle} · {sections.length} 區{onPickSection ? "（點選區塊即可逐區微調）" : ""}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {sections.map((s, i) => (
+            <div key={s.id || i} onClick={onPickSection ? () => onPickSection(i) : undefined}
+              style={{ border: "1px solid " + (selectedSection === i ? theme : "var(--es-border)"),
+                outline: selectedSection === i ? ("2px solid " + theme) : "none",
+                borderRadius: 6, overflow: "hidden", background: "var(--es-bg-1)", cursor: onPickSection ? "pointer" : "default" }}>
+              {s.imageUrl && <img src={s.imageUrl} alt="" style={{ width: "100%", height: 80, objectFit: "cover" }} />}
+              <div style={{ padding: "6px 8px" }}>
+                <div className="es-cap es-mut" style={{ fontSize: 10 }}>{i + 1} · {s.iconType}</div>
+                <div style={{ fontWeight: 600, fontSize: 12 }}>{s.title}</div>
+                <div className="es-cap es-mut es-clip" style={{ fontSize: 10, marginTop: 2 }}>{s.content}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {d.conclusion && <div className="es-cap es-mut" style={{ marginTop: 8, fontStyle: "italic" }}>{d.conclusion}</div>}
+      </div>
+    );
   }
   if (mode === "slides" && result.data) {
     const d = result.data;
@@ -2028,8 +2132,8 @@ function VisualComposer({ projectId }) {
   const [advOpen, setAdvOpen] = useState(false);
   const m = VISUAL_MODES[mode];
 
-  // 模式 → 後端 /api/generate mode。圖卡/海報合併走 poster（單張大圖）。
-  const backendMode = { poster: "poster", slides: "presentation" }[mode] || null;
+  // 模式 → 後端 /api/generate mode。圖卡/海報合併走 poster（單張大圖）；資訊圖卡走 infographic（多區塊）。
+  const backendMode = { poster: "poster", slides: "presentation", infographic: "infographic" }[mode] || null;
 
   // 切模式時重設數量為該模式預設，並清掉上一個結果/大綱。
   const pickMode = (k) => { setMode(k); setResult(null); setErr(""); setOutlines(null); setCount(ES_DEFAULT_COUNT[k] || 1); };
@@ -2116,7 +2220,7 @@ function VisualComposer({ projectId }) {
     } catch (e) { setErr("分享發生錯誤：" + ((e && e.message) || e)); }
   };
   // 加入第一個 Project 的成品庫：POST /projects/{pid}/artifacts。
-  const ES_MODE_ARTKIND = { poster: "image", slides: "deck" };
+  const ES_MODE_ARTKIND = { poster: "image", slides: "deck", infographic: "infographic" };
   const addToProject = async () => {
     if (!result) return;
     try {
@@ -2156,6 +2260,35 @@ function VisualComposer({ projectId }) {
       setRefineInstr(""); setRefineOpen(false);
     } catch (e) { setErr("微調發生錯誤：" + ((e && e.message) || e)); }
     finally { setRefineBusy(false); }
+  };
+
+  // 資訊圖卡逐區 refine：選一個區塊（區域選擇）送修改指令 → POST /api/refine-section →
+  // 後端回更新後的整張圖卡，整份替換 result.data。regenerateImage 可控是否一併重生配圖（省額度）。
+  const [secOpen, setSecOpen] = useState(false);
+  const [secIdx, setSecIdx] = useState(0);
+  const [secInstr, setSecInstr] = useState("");
+  const [secRegenImg, setSecRegenImg] = useState(false);
+  const [secBusy, setSecBusy] = useState(false);
+  const pickSection = (i) => { setSecIdx(i); setSecOpen(true); };
+  const refineSection = async () => {
+    if (!result || !result.data || !result.data.sections) return;
+    const sections = result.data.sections;
+    const idx = Math.max(0, Math.min(secIdx, sections.length - 1));
+    if (!secInstr.trim()) { setErr("請輸入修改指令"); return; }
+    setSecBusy(true); setErr("");
+    try {
+      const r = await fetch("/api/refine-section", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ infographic: result.data, sectionId: sections[idx].id,
+          instruction: secInstr, regenerateImage: secRegenImg,
+          style, customStylePrompt: style === "custom" ? customPrompt : "" }),
+      });
+      const data = await r.json();
+      if (!r.ok || data.success === false) throw new Error(data.detail || "逐區微調失敗");
+      setResult({ ...result, data: data.data });   // 後端回整張更新後圖卡
+      setSecInstr(""); setSecOpen(false);
+    } catch (e) { setErr("逐區微調發生錯誤：" + ((e && e.message) || e)); }
+    finally { setSecBusy(false); }
   };
 
   return (
@@ -2211,12 +2344,12 @@ function VisualComposer({ projectId }) {
                 </select>
               </Field>
               <Field label={mode === "slides" ? "張數" : "數量"}>
-                {mode === "poster" ? (
-                  <div className="es-select-fake">1 張</div>
-                ) : (
+                {mode === "slides" ? (
                   <select style={esSelectStyle} value={count} onChange={(e) => setCount(Number(e.target.value))}>
                     {[6, 8, 10, 12, 15, 20].map(n => <option key={n} value={n}>{n} 張</option>)}
                   </select>
+                ) : (
+                  <div className="es-select-fake">{mode === "infographic" ? "自動分區" : "1 張"}</div>
                 )}
               </Field>
             </div>
@@ -2238,7 +2371,7 @@ function VisualComposer({ projectId }) {
                   </select>
                 </Field>
               )}
-              {mode === "poster" && (
+              {(mode === "poster" || mode === "infographic") && (
                 <Field label="版式" hint="直式＝海報 · 方形＝圖卡">
                   <select style={esSelectStyle} value={aspect} onChange={(e) => setAspect(e.target.value)}>
                     {ES_ASPECT_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
@@ -2323,11 +2456,18 @@ function VisualComposer({ projectId }) {
 
         <div className="es-vc-preview">
           <div className="es-vc-preview-label"><Icon name="eye" size={13} /> {result ? "生成結果" : "即時預覽"} · {m.label}</div>
-          <div className="es-vc-stage">{result ? <RealPreview mode={mode} result={result} /> : <VisualPreview mode={mode} />}</div>
+          <div className="es-vc-stage">{result
+            ? <RealPreview mode={mode} result={result}
+                selectedSection={mode === "infographic" && secOpen ? secIdx : -1}
+                onPickSection={mode === "infographic" && result.data && result.data.sections ? pickSection : undefined} />
+            : <VisualPreview mode={mode} />}</div>
           <div className="es-row es-gap-sm" style={{ justifyContent: "center", flexWrap: "wrap" }}>
             <Button variant="ghost" size="sm" icon="refresh-cw" disabled={busy} onClick={generate}>重新生成</Button>
             {mode === "slides" && result && result.data && result.data.slides ? (
               <Button variant="default" size="sm" icon="pencil" onClick={() => setRefineOpen(o => !o)}>微調單頁</Button>
+            ) : null}
+            {mode === "infographic" && result && result.data && result.data.sections ? (
+              <Button variant="default" size="sm" icon="pencil" onClick={() => setSecOpen(o => !o)}>逐區微調</Button>
             ) : null}
             {mode === "slides" && result && result.data && (
               <Button variant="default" size="sm" icon="download" onClick={() => exportPptx(result.data)}>匯出 PPTX</Button>
@@ -2350,13 +2490,31 @@ function VisualComposer({ projectId }) {
               </Button>
             </div>
           )}
+          {secOpen && result && result.data && result.data.sections && (
+            <div style={{ marginTop: 10, padding: 10, border: "1px solid var(--es-border)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="es-field-label">選擇區塊（可直接點上方預覽的區塊）</div>
+              <select className="es-input" value={secIdx} onChange={e => setSecIdx(Number(e.target.value))}
+                style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)" }}>
+                {result.data.sections.map((s, i) => <option key={s.id || i} value={i}>第 {i + 1} 區 · {s.title}</option>)}
+              </select>
+              <input className="es-input" placeholder="修改指令，例如：數字改成 30%、語氣更精簡、換個比喻"
+                value={secInstr} onChange={e => setSecInstr(e.target.value)}
+                style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)" }} />
+              <label className="es-row es-gap-xs" style={{ fontSize: 12, color: "var(--es-fg-2)", cursor: "pointer" }}>
+                <input type="checkbox" checked={secRegenImg} onChange={e => setSecRegenImg(e.target.checked)} /> 一併重生此區配圖（較耗時／耗額度）
+              </label>
+              <Button variant="primary" size="sm" icon="wand" disabled={secBusy} onClick={refineSection}>
+                {secBusy ? <><Spinner size={14} /> 微調中…</> : <>套用逐區微調</>}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </Card>
   );
 }
 
-function VisualCard({ o, onLocalize }) {
+function VisualCard({ o, onLocalize, projectId = "" }) {
   const m = VISUAL_MODES[o.mode];
   return (
     <Card state={o.status === "queued" ? null : o.status} interactive className="es-vcard">
@@ -2369,7 +2527,7 @@ function VisualCard({ o, onLocalize }) {
         <div className="es-vcard-title">{o.title}</div>
         <div className="es-cap es-mut">{o.meta}{o.localized.length ? ` · ${o.localized.length} 種語言` : ""}</div>
         <div className="es-vcard-foot">
-          <LocalizeMenu localized={o.localized} onChange={(l) => onLocalize(o.id, l)} text={o.title} />
+          <LocalizeMenu localized={o.localized} onChange={(l) => onLocalize(o.id, l)} text={o.title} projectId={projectId} />
           <IconButton icon="more-horizontal" />
         </div>
       </div>
@@ -2391,7 +2549,7 @@ function VisualStation({ projectId }) {
       <VisualComposer projectId={projectId} />
       <div className="es-list-head"><h2 className="es-h2">視覺成品</h2></div>
       <div className="es-vgrid">
-        {outputs.map(o => <VisualCard key={o.id} o={o} onLocalize={localize} />)}
+        {outputs.map(o => <VisualCard key={o.id} o={o} onLocalize={localize} projectId={projectId} />)}
       </div>
     </div>
   );
@@ -2472,6 +2630,129 @@ function VlibCard({ item, onDelete }) {
           {onDelete && <IconButton icon="trash-2" title="刪除素材" onClick={() => onDelete(item.id)} />}
         </div>
       </div>
+    </Card>
+  );
+}
+
+// 課程術語表編輯器（F9-2）：一課一份 glossary，逐角色固定譯名/讀音/縮寫展開，給旁白與翻譯
+// 套用以保術語一致。後端 GET/PUT /projects/{pid}/glossary 已就緒，這裡只做整張載入→編輯→覆寫存回。
+const ES_GLOSS_INPUT = { width: "100%", padding: "6px 8px", borderRadius: 7, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)", fontSize: 13 };
+const esGlossBlankEntry = () => ({ term: "", reading: "", expansion: "", aliases: "", note: "", translations: [] });
+// API entry（aliases 陣列 / translations dict）↔ 表單形（aliases 字串 / translations 列）互轉。
+const esGlossFromApi = (e) => ({
+  term: e.term || "", reading: e.reading || "", expansion: e.expansion || "", note: e.note || "",
+  aliases: (e.aliases || []).join("、"),
+  translations: Object.entries(e.translations || {}).map(([lang, name]) => ({ lang, name })),
+});
+const esGlossToApi = (e) => {
+  const translations = {};
+  (e.translations || []).forEach(t => { const l = (t.lang || "").trim(); const n = (t.name || "").trim(); if (l && n) translations[l] = n; });
+  const out = { term: e.term.trim(), aliases: e.aliases.split(/[、,\n]/).map(s => s.trim()).filter(Boolean), translations };
+  if (e.reading.trim()) out.reading = e.reading.trim();
+  if (e.expansion.trim()) out.expansion = e.expansion.trim();
+  if (e.note.trim()) out.note = e.note.trim();
+  return out;
+};
+
+function GlossaryEditor({ projectId, projectTitle, onFlash }) {
+  const [open, setOpen] = useState(false);
+  const [course, setCourse] = useState("");
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // 切換作用中課程→重載該課術語表。404「此課尚未建立」＝開一張空表起頭（course 預設課名）。
+  useEffect(() => {
+    if (!projectId) { setEntries([]); setCourse(""); return; }
+    setLoading(true);
+    fetch("/projects/" + projectId + "/glossary").then(async r => {
+      if (r.status === 404) { setCourse(projectTitle || projectId); setEntries([]); return; }
+      if (!r.ok) { onFlash && onFlash("讀取術語表失敗（" + r.status + "）"); return; }
+      const d = await r.json();
+      setCourse(d.course || projectTitle || projectId);
+      setEntries((d.entries || []).map(esGlossFromApi));
+    }).catch(() => onFlash && onFlash("讀取術語表發生錯誤"))
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  const patchEntry = (i, k, v) => setEntries(es => es.map((e, j) => j === i ? { ...e, [k]: v } : e));
+  const addEntry = () => { setEntries(es => [...es, esGlossBlankEntry()]); setOpen(true); };
+  const removeEntry = (i) => setEntries(es => es.filter((_, j) => j !== i));
+  const addTrans = (i) => patchEntry(i, "translations", [...(entries[i].translations || []), { lang: "", name: "" }]);
+  const patchTrans = (i, ti, k, v) => patchEntry(i, "translations", entries[i].translations.map((t, j) => j === ti ? { ...t, [k]: v } : t));
+  const removeTrans = (i, ti) => patchEntry(i, "translations", entries[i].translations.filter((_, j) => j !== ti));
+
+  const save = async () => {
+    // term 為所有 map 的 key、後端驗證非空（空 term→422），存檔前先濾掉沒填 term 的列。
+    const valid = entries.filter(e => e.term.trim());
+    const payload = { course: (course.trim() || projectTitle || projectId), entries: valid.map(esGlossToApi) };
+    setBusy(true);
+    try {
+      const r = await fetch("/projects/" + projectId + "/glossary", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!r.ok) { let d = r.status; try { d = (await r.json()).detail || d; } catch {} onFlash && onFlash("儲存術語表失敗：" + d); return; }
+      const d = await r.json();
+      setEntries((d.entries || []).map(esGlossFromApi));   // 以後端回存的整張為準（已濾過空 term）
+      onFlash && onFlash("已儲存術語表（" + (d.entries || []).length + " 條）");
+    } catch (e) { onFlash && onFlash("儲存發生錯誤：" + e.message); }
+    finally { setBusy(false); }
+  };
+
+  if (!projectId) return null;
+  const transLangs = LANGS.filter(l => !l.source);
+  return (
+    <Card style={{ marginTop: 18, padding: 14 }}>
+      <div className="es-row" style={{ justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setOpen(o => !o)}>
+        <div className="es-row es-gap-sm" style={{ alignItems: "center" }}>
+          <Icon name="book-open" size={16} style={{ color: "var(--es-fg-2)" }} />
+          <h2 className="es-h2" style={{ margin: 0 }}>課程術語表 {entries.length > 0 && <span className="es-mut">{entries.length}</span>}</h2>
+        </div>
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={18} style={{ color: "var(--es-fg-2)" }} />
+      </div>
+      <div className="es-cap es-mut" style={{ marginTop: 4 }}>固定譯名 / 讀音 / 縮寫展開，逐課一份；產旁白與翻譯時套用以保術語一致。</div>
+
+      {open && (
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+          {loading ? <div className="es-mut" style={{ padding: 8 }}>載入術語表…</div> : (
+            <>
+              <Field label="課名（glossary.course）"><input style={ES_GLOSS_INPUT} value={course} onChange={e => setCourse(e.target.value)} placeholder={projectTitle || projectId} /></Field>
+              {entries.length === 0 && <div className="es-mut" style={{ padding: "4px 0" }}>尚無術語。按下方「新增術語」開始建立這門課的固定譯名 / 讀音。</div>}
+              {entries.map((e, i) => (
+                <div key={i} style={{ border: "1px solid var(--es-border)", borderRadius: 9, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="es-row es-gap-xs" style={{ alignItems: "flex-end" }}>
+                    <Field label="術語" className="es-grow"><input style={ES_GLOSS_INPUT} value={e.term} onChange={ev => patchEntry(i, "term", ev.target.value)} placeholder="自然頻率 / ω_n / PID" /></Field>
+                    <IconButton icon="trash-2" title="刪除這條術語" onClick={() => removeEntry(i)} />
+                  </div>
+                  <div className="es-row es-gap-xs" style={{ flexWrap: "wrap" }}>
+                    <Field label="讀音（TTS 覆寫）" className="es-grow"><input style={ES_GLOSS_INPUT} value={e.reading} onChange={ev => patchEntry(i, "reading", ev.target.value)} placeholder="P I D 控制器" /></Field>
+                    <Field label="縮寫全稱" className="es-grow"><input style={ES_GLOSS_INPUT} value={e.expansion} onChange={ev => patchEntry(i, "expansion", ev.target.value)} placeholder="比例-積分-微分" /></Field>
+                  </div>
+                  <Field label="別名 / 變體（逗號或、分隔）"><input style={ES_GLOSS_INPUT} value={e.aliases} onChange={ev => patchEntry(i, "aliases", ev.target.value)} placeholder="wn、ωn、ω_n" /></Field>
+                  <div>
+                    <span className="es-field-label">固定譯名（逐語言）</span>
+                    {(e.translations || []).map((t, ti) => (
+                      <div key={ti} className="es-row es-gap-xs" style={{ marginTop: 4, alignItems: "center" }}>
+                        <select style={{ ...ES_GLOSS_INPUT, width: "auto" }} value={t.lang} onChange={ev => patchTrans(i, ti, "lang", ev.target.value)}>
+                          <option value="">語言…</option>
+                          {transLangs.map(l => <option key={l.code} value={l.code}>{l.label}（{l.code}）</option>)}
+                        </select>
+                        <input style={ES_GLOSS_INPUT} value={t.name} onChange={ev => patchTrans(i, ti, "name", ev.target.value)} placeholder="natural frequency" />
+                        <IconButton icon="x" title="移除此譯名" onClick={() => removeTrans(i, ti)} />
+                      </div>
+                    ))}
+                    <Button variant="ghost" size="sm" icon="plus" style={{ marginTop: 6 }} onClick={() => addTrans(i)}>加譯名</Button>
+                  </div>
+                  <Field label="備註（純維護用）"><input style={ES_GLOSS_INPUT} value={e.note} onChange={ev => patchEntry(i, "note", ev.target.value)} placeholder="僅供維護參考，不參與替換" /></Field>
+                </div>
+              ))}
+              <div className="es-row es-gap-sm" style={{ alignItems: "center", flexWrap: "wrap" }}>
+                <Button variant="default" size="sm" icon="plus" onClick={addEntry}>新增術語</Button>
+                <Button variant="primary" size="sm" icon="check" disabled={busy} onClick={save}>{busy ? "儲存中…" : "儲存術語表"}</Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -2635,6 +2916,7 @@ function ProjectStation({ activePid, projects, onProjectsChanged, onPickProject 
           </div>
         </div>
       )}
+      {activePid && <GlossaryEditor projectId={activePid} projectTitle={activeProject ? activeProject.title : activePid} onFlash={flash} />}
       {toast && <div className="es-toast"><Spinner size={15} /> {toast}</div>}
     </div>
   );
@@ -2930,12 +3212,44 @@ function SettingsDrawer({ open, onClose }) {
     if (!open) return;
     fetch("/settings").then(r => r.json()).then(d => {
       setData(d);
-      setForm({ text_model: d.text_model || "", image_model: d.image_model || "",
+      setForm({ model_roles: d.model_roles || {},
         brand_speaker: d.brand_speaker || "", brand_org: d.brand_org || "", brand_url: d.brand_url || "", gemini_api_key: "" });
     }).catch(() => setMsg("讀取設定失敗"));
   }, [open]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // 逐角色 provider/model 覆寫（M-3 + F9-3c 本機可插拔 provider）。
+  // 值表示法：扁平字串＝角色預設 provider（雲端）+ model 覆寫；巢狀 {provider,model}
+  // ＝指到本機 provider（如 ollama）；空/未設＝清除回退系統預設（後端 _clean_model_roles 收斂）。
+  const roleProvider = (role) => {
+    const v = (form.model_roles || {})[role.role];
+    if (v && typeof v === "object") return v.provider || role.provider;
+    return role.provider;                  // 扁平字串或未設＝角色預設 provider
+  };
+  const roleModel = (role) => {
+    const v = (form.model_roles || {})[role.role];
+    if (!v) return "";
+    return (typeof v === "object") ? (v.model || "") : v;
+  };
+  // 切 provider：回預設 provider（雲端）＝清除（本機專屬 model 對雲端無意義）；
+  // 切到本機 provider＝巢狀存（沿用已填 model，空 model 後端清洗時丟棄）。
+  const setRoleProvider = (role, provider) => setForm(f => {
+    const mr = { ...(f.model_roles || {}) };
+    const cur = mr[role.role];
+    const model = (cur && typeof cur === "object") ? (cur.model || "") : (typeof cur === "string" ? cur : "");
+    if (provider === role.provider) delete mr[role.role];
+    else mr[role.role] = { provider, model };
+    return { ...f, model_roles: mr };
+  });
+  const setRoleModel = (role, model) => setForm(f => {
+    const mr = { ...(f.model_roles || {}) };
+    const cur = mr[role.role];
+    const prov = (cur && typeof cur === "object") ? (cur.provider || role.provider) : role.provider;
+    const m = (model || "").trim();
+    if (prov === role.provider) { if (m) mr[role.role] = m; else delete mr[role.role]; }  // 預設 provider：扁平字串
+    else mr[role.role] = { provider: prov, model: m };                                    // 本機 provider：巢狀
+    return { ...f, model_roles: mr };
+  });
   const save = async () => {
     setBusy(true); setMsg("");
     try {
@@ -2961,19 +3275,39 @@ function SettingsDrawer({ open, onClose }) {
         </div>
         <div className="es-drawer-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <div className="es-cost-sec-title">AI 模型</div>
-            <Field label="文字模型（生成簡報/圖卡的邏輯）">
-              <select style={inputStyle} value={form.text_model} onChange={e => set("text_model", e.target.value)}>
-                <option value="">預設（gemini-3.5-flash）</option>
-                {(data?.text_models || []).map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
-              </select>
-            </Field>
-            <Field label="圖片模型（生圖）">
-              <select style={inputStyle} value={form.image_model} onChange={e => set("image_model", e.target.value)}>
-                <option value="">預設（gemini-3.1-flash-image）</option>
-                {(data?.image_models || []).map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
-              </select>
-            </Field>
+            <div className="es-cost-sec-title">AI 模型（逐角色）</div>
+            {(data?.roles || []).map(role => {
+              const opts = role.kind === "image" ? (data?.image_models || []) : (data?.text_models || []);
+              const prov = roleProvider(role);
+              const model = roleModel(role);
+              const isDefaultProvider = prov === role.provider;   // 預設 provider（雲端）
+              // 只有文字角色提供本機 provider 選擇；視覺/生圖角色預設留雲端（本機後端尚不支援生圖/讀圖）。
+              const allowProvider = role.kind === "text" && (data?.providers || []).length > 1;
+              return (
+                <Field key={role.role} label={role.label}>
+                  <div className="es-row es-gap-sm">
+                    {allowProvider && (
+                      <select style={{ ...inputStyle, flex: "0 0 9rem", width: "auto" }} value={prov}
+                        onChange={e => setRoleProvider(role, e.target.value)}>
+                        {(data?.providers || []).map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                      </select>
+                    )}
+                    {isDefaultProvider ? (
+                      <select style={{ ...inputStyle, flex: 1, width: "auto", minWidth: 0 }} value={model}
+                        onChange={e => setRoleModel(role, e.target.value)}>
+                        <option value="">預設（{role.default}）</option>
+                        {opts.map(m => <option key={m.id} value={m.id}>{m.label}（{m.id}）</option>)}
+                      </select>
+                    ) : (
+                      <input style={{ ...inputStyle, flex: 1, width: "auto", minWidth: 0 }} value={model}
+                        onChange={e => setRoleModel(role, e.target.value)}
+                        placeholder="本機模型名稱，例：translategemma" />
+                    )}
+                  </div>
+                </Field>
+              );
+            })}
+            <div className="es-cap es-mut" style={{ marginTop: 4 }}>留空＝沿用系統預設。文字角色可改用本機（Ollama）省雲端額度——本機跑前需自行啟動 ollama；認不出時自動退回雲端（可關）。語音（TTS）後端於 .env / tts_config.json 設定。</div>
           </div>
 
           <div>
@@ -3103,6 +3437,14 @@ function App() {
     .then(d => setBrandSpeaker((d && d.brand_speaker) || "")).catch(() => {});
   useEffect(() => { loadBrand(); }, []);
   useEffect(() => { if (!settingsOpen) loadBrand(); }, [settingsOpen]);   // 存完設定即時更新
+
+  // 成本面板真實用量：頂欄 pill 與抽屜共用一份 /api/usage；開抽屜時重抓刷新。
+  const [usage, setUsage] = useState(null);
+  const loadUsage = () => fetch("/api/usage").then(r => r.json())
+    .then(d => setUsage(d && typeof d.used === "number" ? d : null)).catch(() => setUsage(null));
+  useEffect(() => { loadUsage(); }, []);
+  useEffect(() => { if (costOpen) loadUsage(); }, [costOpen]);
+
   const activeProject = projects.find(p => p.project_id === activePid) || null;
   const pickProject = (pid) => { setActivePid(pid || ""); localStorage.setItem("edustudio-active-project", pid || ""); };
   const createProject = async (id, title) => {
@@ -3133,7 +3475,7 @@ function App() {
       <div className="es-main">
         <Topbar projects={projects} activePid={activePid} activeProject={activeProject}
           onPickProject={pickProject} onCreateProject={createProject} avatarName={brandSpeaker ? brandSpeaker.trim()[0] : "師"}
-          wsTitle={wsTitle} onOpenCost={() => setCostOpen(true)} onOpenSettings={() => setSettingsOpen(true)} theme={theme} onTheme={setTheme} />
+          wsTitle={wsTitle} usage={usage} onOpenCost={() => setCostOpen(true)} onOpenSettings={() => setSettingsOpen(true)} theme={theme} onTheme={setTheme} />
         <main className="es-content" key={ws + activePid}>
           {ws === "video" && <VideoStation projectId={activePid} onReview={setReviewTask} onGoPublish={() => setWs("publish")} onGoStatus={() => setWs("status")} />}
           {ws === "visual" && <VisualStation projectId={activePid} />}
@@ -3143,7 +3485,7 @@ function App() {
         </main>
       </div>
 
-      <CostPanel open={costOpen} onClose={() => setCostOpen(false)} />
+      <CostPanel open={costOpen} onClose={() => setCostOpen(false)} usage={usage} />
       <Toolbox open={toolboxOpen} onClose={() => setToolboxOpen(false)} />
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 

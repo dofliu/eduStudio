@@ -40,7 +40,16 @@ BASE_DIR = Path(__file__).parent
 SLIDES_ROOT = BASE_DIR / "slides"
 EXAMS_ROOT = BASE_DIR / "exams"
 
-MODEL = "gemini-2.5-flash"
+# C-3（2026-06-15 劉老師拍板，A/B 驗過品質後遷移）：旁白 + 章節切分模型走 M 軸角色登錄表
+# text.fast（預設 gemini-3.5-flash），不再寫死 gemini-2.5-flash（將淘汰）。換模型＝改登錄表/
+# 設定頁 text.fast 一個值；rollback 把 text.fast 覆寫回 2.5 即可、免改 code。呼叫時解析 →
+# 設定頁覆寫即時生效。注意：solve.py（解題）模型不在此遷移範圍（正確性更敏感、未 A/B）。
+def narration_model() -> str:
+    """旁白 / 章節切分用的模型 id（M 軸 text.fast 角色，呼叫時解析）。"""
+    from core.models import TEXT_FAST, resolve_id
+    return resolve_id(TEXT_FAST)
+
+
 # Gemini HTTP 逾時 (毫秒): 不設的話連線 stall 會無限掛住 (140 頁論文出過此狀況)。
 GEMINI_TIMEOUT_MS = 90_000
 SLIDE_DPI = 200          # 1920px 寬左右 (16:9 投影片)
@@ -100,6 +109,7 @@ NARRATION_PROMPT_DETAILED = """你正在替一份簡報的單張投影片撰寫�
 4. 開頭銜接多樣化, 不要每張都「好, 我們來看」
 5. 不要 LaTeX、不要 Markdown、不要符號標記; 程式碼用「等於」「冒號」念
 6. 純中文 + 必要英文術語 / 數值
+7. 若投影片以條列列出多個項目/目標/步驟, 每一項都要至少帶到一句, 可精簡但不要整項遺漏
 
 ==== 輸出格式 ====
 直接輸出純文字, 不要前言、引號、分段。
@@ -176,17 +186,20 @@ def detect_chapters_with_gemini(thumbs: list[bytes], total_pages: int) -> list[d
     client = genai.Client(api_key=api_key,
                           http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS))
 
+    model = narration_model()
     parts = [types.Part.from_bytes(data=t, mime_type="image/png") for t in thumbs]
     resp = client.models.generate_content(
-        model=MODEL,
+        model=model,
         contents=parts + [CHAPTER_PROMPT],
-        # thinking_budget=0: 2.5-flash 預設開 thinking, 會吃掉 max_output_tokens 導致回空/截斷,
+        # thinking_budget=0: flash 系列預設開 thinking, 會吃掉 max_output_tokens 導致回空/截斷,
         # 且每次呼叫慢 5 倍 (11s→2s)。章節切分/旁白都不需要 thinking。
         config=types.GenerateContentConfig(
             temperature=0.1, max_output_tokens=4096,
             thinking_config=types.ThinkingConfig(thinking_budget=0)),
     )
     raw = (resp.text or "").strip()
+    from core import usage
+    usage.record_text_now("video", model, CHAPTER_PROMPT, raw, label="chapters")
     if "```" in raw:
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -265,10 +278,16 @@ def _truncate_at_sentence(text: str, target: int = NARRATION_TARGET_CHARS,
 
 def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                               chapter_pages: int, page_in_chapter: int,
-                              prev_narration: str, *, brief: bool = False) -> str:
+                              prev_narration: str, *, brief: bool = False,
+                              model: str | None = None) -> str:
     """單頁 → narration 草稿。Gemini 偶爾會在中文句中提早 STOP 導致句子腰斬,
-    結尾若不是句號類符號就 retry 一次, temperature 提高 + prompt 加強完整性要求。"""
+    結尾若不是句號類符號就 retry 一次, temperature 提高 + prompt 加強完整性要求。
+
+    model: 覆寫旁白模型 id（預設走角色登錄表 text.fast＝narration_model()）。供 C-3 旁白模型
+    A/B 比對用（tools/ab_narration.py 對同一頁跑 2.5 vs 3.x 比品質）。"""
     from google.genai import types
+
+    model = model or narration_model()
 
     template = NARRATION_PROMPT_BRIEF if brief else NARRATION_PROMPT_DETAILED
     base_prompt = template.format(
@@ -304,7 +323,7 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
 
         try:
             resp = client.models.generate_content(
-                model=MODEL,
+                model=model,
                 contents=parts + [prompt],
                 config=types.GenerateContentConfig(
                     temperature=temp,
@@ -313,6 +332,9 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
+            from core import usage
+            usage.record_text_now("video", model, prompt, resp.text or "",
+                                  label="narration")
             text = _clean_narration(resp.text)
             if text and text.endswith(_SENTENCE_END):
                 if attempt > 1:

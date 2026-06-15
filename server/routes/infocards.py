@@ -95,12 +95,14 @@ class RefineSectionRequest(BaseModel):
 
 @router.get("/usage")
 def usage_summary() -> dict:
-    """Gemini 用量真實統計（成本面板）。涵蓋視覺站 + 在地化的呼叫；budget 為設定值。"""
+    """Gemini 用量真實統計（成本面板）。涵蓋視覺／在地化／影片／解析各站的 Gemini 呼叫
+    （C-1 後影片 render pipeline 已計帳）；budget 為顯示用設定值（不扣費）。"""
+    from core import config
     from core.usage import get_usage_store
 
     s = get_usage_store().summary()
-    s["budget"] = 30.0           # 月預算（設定值，無真實來源）
-    s["note"] = "已涵蓋視覺站／在地化的 Gemini 呼叫；影片 render pipeline 用量另計"
+    s["budget"] = config.get_monthly_budget()   # 月預算（顯示用，env 可覆寫）
+    s["note"] = "已涵蓋視覺／在地化／影片／解析各站的 Gemini 呼叫；成本為依用量估算。"
     return s
 
 
@@ -116,10 +118,14 @@ def health() -> dict:
 
 
 def _resolve_models(req: "GenerateRequest") -> tuple[str, str]:
-    """模型解析優先序：請求顯式 > 設定頁 > 程式預設。"""
-    from core.settings import get_setting
-    tm = req.textModel or get_setting("text_model") or DEFAULT_TEXT_MODEL
-    im = req.imageModel or get_setting("image_model") or DEFAULT_IMAGE_MODEL
+    """模型解析優先序：請求顯式 > 角色登錄表（設定頁逐角色/單值 → 內建預設）。
+
+    M-2：設定頁/預設 fallback 改走 ``core.models.resolve_id``（角色登錄表單一真實來源），
+    取代原本散落的 ``get_setting("text_model") or DEFAULT_*`` 鏈，並向前相容 M-3 逐角色設定。
+    """
+    from core import models
+    tm = req.textModel or models.resolve_id(models.TEXT_FAST)
+    im = req.imageModel or models.resolve_id(models.IMAGE_FAST)
     return tm, im
 
 

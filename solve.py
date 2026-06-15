@@ -185,6 +185,8 @@ def solve_with_gemini(pdf_path: Path) -> dict:
     )
     
     raw_text1 = resp1.text.strip()
+    from core import usage
+    usage.record_text_now("material", MODEL, IDENTIFY_PROMPT, raw_text1, label="identify")
     if "```" in raw_text1:
         raw_text1 = raw_text1.split("```")[1]
         if raw_text1.startswith("json"): raw_text1 = raw_text1[4:]
@@ -240,6 +242,9 @@ def solve_with_gemini(pdf_path: Path) -> dict:
                 )
                 raw_text2 = (resp2.text or "").strip()
                 last_raw = raw_text2
+                from core import usage
+                usage.record_text_now("material", MODEL, prompt, raw_text2,
+                                      label=f"solve:{prob['number']}")
                 # 抓 finish_reason 看是否被截斷
                 try:
                     last_finish = str(resp2.candidates[0].finish_reason) if resp2.candidates else "?"
@@ -312,6 +317,8 @@ def solve_with_gemini(pdf_path: Path) -> dict:
                     config=types.GenerateContentConfig(**cfg_kwargs)
                 )
                 raw = (resp3.text or "").strip()
+                from core import usage
+                usage.record_text_now("material", MODEL, _prompt, raw, label="svg")
                 try: finish_reason = str(resp3.candidates[0].finish_reason) if resp3.candidates else "?"
                 except: finish_reason = "?"
 

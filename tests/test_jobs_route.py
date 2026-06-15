@@ -386,3 +386,117 @@ class TestArtifactDownload:
         r = c.get(f"/jobs/{jid}/artifacts/q1.mp4")
         assert r.status_code == 200
         assert r.content == payload
+
+
+# ---------- GET /jobs/{id}/versions + /versions/{v}/artifacts/{name} ----------
+
+def _archive_version(store, job_id, **files):
+    """把 files 寫進 artifacts/ 後呼叫 archive_artifacts → 產一個歷史版本."""
+    d = store.artifacts_dir(job_id)
+    d.mkdir(parents=True, exist_ok=True)
+    for name, data in files.items():
+        (d / name.replace("__", ".")).write_bytes(data)
+    return store.archive_artifacts(job_id)
+
+
+class TestListArtifactVersions:
+    """GET /jobs/{id}/versions — 列歷次歸檔舊版 (F9-4 slice ②)."""
+
+    def test_nonexistent_job_returns_404(self, client):
+        c, _ = client
+        r = c.get("/jobs/nope/versions")
+        assert r.status_code == 404
+
+    def test_no_versions_returns_empty_list(self, client):
+        """沒重 render 過 → 空 list, 非 404 (新 job 正常)."""
+        c, store = client
+        jid = _new_job(store)
+        r = c.get(f"/jobs/{jid}/versions")
+        assert r.status_code == 200
+        assert r.json() == {"versions": []}
+
+    def test_lists_versions_newest_first(self, client):
+        """多版本由新到舊排, 每個附 metadata."""
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        _archive_version(store, jid, final__mp4=b"v1")
+        _archive_version(store, jid, final__mp4=b"v2")
+        r = c.get(f"/jobs/{jid}/versions")
+        assert r.status_code == 200
+        versions = r.json()["versions"]
+        assert [v["version"] for v in versions] == [2, 1]
+        v2 = versions[0]
+        assert v2["path"] == "artifact_history/v2"
+        assert v2["created_at"] and v2["archived_at"]
+        a = v2["artifacts"][0]
+        assert a["name"] == "final.mp4"
+        assert a["kind"] == "mp4"
+        assert a["url"] == f"/jobs/{jid}/versions/2/artifacts/final.mp4"
+
+    def test_note_carried_through(self, client):
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        d = store.artifacts_dir(jid)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "final.mp4").write_bytes(b"v1")
+        store.archive_artifacts(jid, note="重 render 前歸檔")
+        r = c.get(f"/jobs/{jid}/versions")
+        assert r.json()["versions"][0]["note"] == "重 render 前歸檔"
+
+
+class TestDownloadVersionedArtifact:
+    """GET /jobs/{id}/versions/{v}/artifacts/{name} — 下載指定版本 (F9-4)."""
+
+    def test_nonexistent_job_returns_404(self, client):
+        c, _ = client
+        r = c.get("/jobs/nope/versions/1/artifacts/final.mp4")
+        assert r.status_code == 404
+
+    def test_serves_archived_bytes(self, client):
+        """歷史版本檔該 byte-perfect 還原 (回滾 / 比對基礎)."""
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        _archive_version(store, jid, final__mp4=b"good-old-version")
+        r = c.get(f"/jobs/{jid}/versions/1/artifacts/final.mp4")
+        assert r.status_code == 200
+        assert r.content == b"good-old-version"
+
+    def test_each_version_isolated(self, client):
+        """v1 / v2 各自回自己的內容, 不互相蓋."""
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        _archive_version(store, jid, final__mp4=b"version-one")
+        _archive_version(store, jid, final__mp4=b"version-two")
+        r1 = c.get(f"/jobs/{jid}/versions/1/artifacts/final.mp4")
+        r2 = c.get(f"/jobs/{jid}/versions/2/artifacts/final.mp4")
+        assert r1.content == b"version-one"
+        assert r2.content == b"version-two"
+
+    def test_unknown_version_returns_404(self, client):
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        _archive_version(store, jid, final__mp4=b"v1")
+        r = c.get(f"/jobs/{jid}/versions/9/artifacts/final.mp4")
+        assert r.status_code == 404
+
+    def test_zero_version_returns_404(self, client):
+        """version <=0 直接 404, 不去摸磁碟."""
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        r = c.get(f"/jobs/{jid}/versions/0/artifacts/final.mp4")
+        assert r.status_code == 404
+
+    def test_missing_file_in_version_returns_404(self, client):
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        _archive_version(store, jid, final__mp4=b"v1")
+        r = c.get(f"/jobs/{jid}/versions/1/artifacts/missing.srt")
+        assert r.status_code == 404
+
+    def test_path_traversal_blocked(self, client):
+        """`..` 在 name 該 400 (safe_join 字串檢查)."""
+        c, store = client
+        jid = _new_job(store, state=JobState.DONE)
+        _archive_version(store, jid, final__mp4=b"v1")
+        r = c.get(f"/jobs/{jid}/versions/1/artifacts/..mp4")
+        assert r.status_code == 400

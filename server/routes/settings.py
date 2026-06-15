@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from core import settings as settings_store
 from core.infocards.models import image_model_options, text_model_options
+from core.models import provider_catalog, role_catalog
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -21,6 +22,9 @@ class SettingsPatch(BaseModel):
     gemini_api_key: str | None = None
     text_model: str | None = None
     image_model: str | None = None
+    # 逐角色覆寫（M-3）；{} ＝清除。每筆值可為扁平字串（model id）或巢狀
+    # {"provider":...,"model":...}（F9-3c 本機可插拔 provider）；後端 _clean_model_roles 清洗。
+    model_roles: dict[str, str | dict] | None = None
     brand_speaker: str | None = None
     brand_org: str | None = None
     brand_url: str | None = None
@@ -30,6 +34,8 @@ def _payload() -> dict:
     view = settings_store.public_view()
     view["text_models"] = text_model_options()    # [{id,label,description}]
     view["image_models"] = image_model_options()
+    view["roles"] = role_catalog()                 # [{role,label,kind,default,provider}] 逐角色管理用
+    view["providers"] = provider_catalog()          # [{id,label}] 可指派 provider（F9-3e）
     return view
 
 

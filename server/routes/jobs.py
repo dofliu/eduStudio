@@ -7,11 +7,14 @@
     DELETE /jobs/{id}                     刪除 (含磁碟資料)
     GET    /jobs/{id}/draft               取 deck.json (review / done 階段)
     PUT    /jobs/{id}/draft               覆寫 deck.json (僅 awaiting_review)
+    GET    /jobs/{id}/review-flags        取確定性 review 校驗可疑點 (F9-1c)
     GET    /jobs/{id}/outline              取 outline.json (iter 81 D1 v1)
     GET    /jobs/{id}/icon-suggestions    批次 icon 建議 (iter 107 E2-6 backend)
     GET    /jobs/{id}/image-frames        批次 image_frames summary (iter 109 E1-4 backend)
     POST   /jobs/{id}/approve             從 awaiting_review 進入 render
     GET    /jobs/{id}/artifacts/{name}    下載產物檔
+    GET    /jobs/{id}/versions            列出歷次歸檔舊版 artifacts (F9-4)
+    GET    /jobs/{id}/versions/{v}/artifacts/{name}  下載指定版本 artifact (F9-4)
     GET    /jobs/{id}/images/{name}       下載 song 逐段生圖 (SONG M3e-3 預覽)
 """
 from __future__ import annotations
@@ -28,7 +31,12 @@ from core.image_frames import summarize_for_deck
 from ..jobs import JobStore, get_default_store
 from ..path_safety import safe_join
 from ..ratelimit import rate_limit
-from ..runner import schedule_job, schedule_render, schedule_section_render
+from ..runner import (
+    schedule_job,
+    schedule_render,
+    schedule_section_render,
+    write_review_flags,
+)
 from ..schemas import (
     CreateJobRequest,
     CreateJobResponse,
@@ -121,6 +129,32 @@ async def get_draft(job_id: str, store: JobStore = Depends(get_default_store)) -
         )
     deck = json.loads(deck_path.read_text(encoding="utf-8"))
     return JSONResponse(content=deck)
+
+
+# ---------- Review flags (F9-1c 確定性 review 校驗) ----------
+
+@router.get("/{job_id}/review-flags")
+async def get_review_flags(
+    job_id: str, store: JobStore = Depends(get_default_store),
+) -> JSONResponse:
+    """取確定性 review 校驗標出的可疑點 (F9-1c)。
+
+    ingest 完算一次落 review_flags.json (PUT /draft 改 deck 後重算), 每個 flag 形如
+    `{problem_id, step_index, kind, severity, message, source}` (見 core.review_assist
+    .ReviewFlag)。flags 是輔助 reviewer 注意力的提醒 — **不入狀態機、不阻 approve**
+    (硬規則 #1 的權威是人不是校驗器), 前端 (F9-1d) 在對應 step 旁顯示 ⚠。
+
+    沒算過 (舊 job / ingest 未完) 或乾淨無可疑點 → 回空 list (非 404), 比照 versions
+    端點。
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    flags_path = store.review_flags_path(job_id)
+    if not flags_path.exists():
+        return JSONResponse(content={"flags": []})
+    flags = json.loads(flags_path.read_text(encoding="utf-8"))
+    return JSONResponse(content={"flags": flags})
 
 
 # ---------- Outline (D1 v1, iter 81) ----------
@@ -268,6 +302,13 @@ async def update_draft(
         json.dumps(body.deck, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    # F9-1c: reviewer 改了 deck → 重算確定性 review 校驗, 讓 flags 跟新 deck 同步
+    # (改錯改對都即時反映)。fail-open: 校驗失敗不影響存 deck (硬規則 #1: flags 只
+    # 是提醒不是 gate)。
+    try:
+        write_review_flags(store, job_id)
+    except Exception:  # noqa: BLE001 — fail-open，校驗器壞掉不可卡編輯
+        pass
     # 更新 timestamp 反映有手改過 (狀態維持不變)
     return store.update(job_id)
 
@@ -397,6 +438,64 @@ async def download_artifact(job_id: str, name: str, store: JobStore = Depends(ge
     target = safe_join(store.artifacts_dir(job_id), name)
     if not target.exists() or not target.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"artifact 不存在: {name}")
+    return FileResponse(target, filename=name)
+
+
+# ---------- Artifact 版本歷史 (F9-4 影片版本管理) ----------
+
+@router.get("/{job_id}/versions")
+async def list_artifact_versions(
+    job_id: str, store: JobStore = Depends(get_default_store),
+) -> JSONResponse:
+    """列出該 job 重 render 前歸檔的歷次舊版 artifacts (F9-4 slice ②)。
+
+    archive_artifacts 把每次重 render 前的 artifacts/ 快照進 artifact_history/v<N>/,
+    record.artifact_versions 存其 metadata。這裡把它整理成附下載 URL 的列表給 UI
+    列版本 / 回滾用。沒歸檔過 → 回空 list (新 job 或從未重 render 都正常)。
+    版本由新到舊排 (最近歸檔的好版本在最上面)。
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    versions = []
+    for v in sorted(rec.artifact_versions, key=lambda v: v.version, reverse=True):
+        artifacts = [{
+            "name": a.name,
+            "kind": a.kind,
+            "size_bytes": a.size_bytes,
+            "url": f"/jobs/{job_id}/versions/{v.version}/artifacts/{a.name}",
+        } for a in v.artifacts]
+        versions.append({
+            "version": v.version,
+            "created_at": v.created_at.isoformat(),
+            "archived_at": v.archived_at.isoformat(),
+            "path": v.path,
+            "note": v.note,
+            "artifacts": artifacts,
+        })
+    return JSONResponse(content={"versions": versions})
+
+
+@router.get("/{job_id}/versions/{version}/artifacts/{name}")
+async def download_versioned_artifact(
+    job_id: str, version: int, name: str,
+    store: JobStore = Depends(get_default_store),
+) -> FileResponse:
+    """下載指定歷史版本的 artifact (F9-4 slice ②)，給比對 / 回滾用。
+
+    歷史檔在 jobs/<id>/artifact_history/v<N>/<name>。version 為 int (FastAPI 驗型),
+    <=0 直接 404; name 走 safe_join 三道 path-traversal 防護 (比照 artifacts 端點)。
+    """
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    if version < 1:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"版本不存在: v{version}")
+    version_dir = store.job_dir(job_id) / "artifact_history" / f"v{version}"
+    target = safe_join(version_dir, name)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"版本 v{version} 無此 artifact: {name}")
     return FileResponse(target, filename=name)
 
 

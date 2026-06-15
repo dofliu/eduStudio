@@ -84,6 +84,14 @@
 .es-seg-ehead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .es-seg-tc { font-size: 13px; color: var(--es-fg-2); background: var(--es-surface-3); padding: 4px 9px; border-radius: 6px; }
 .es-seg-warn { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--es-warning); background: var(--es-warning-bg); border: 1px solid var(--es-warning-line); border-radius: var(--es-radius-md); padding: 10px 13px; }
+
+/* F9-1d: 確定性 review 校驗提醒（算術／結果↔旁白對齊）— 只提醒、不阻擋 approve */
+.es-reviewflags { display: flex; flex-direction: column; gap: 8px; }
+.es-reviewflag { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.6; border-radius: var(--es-radius-md); padding: 9px 12px; border: 1px solid transparent; }
+.es-reviewflag .es-rf-icon { flex: none; margin-top: 2px; }
+.es-rf-msg { min-width: 0; }
+.es-rf-warn { color: var(--es-warning); background: var(--es-warning-bg); border-color: var(--es-warning-line); }
+.es-rf-info { color: var(--es-fg-2); background: var(--es-surface-2); border-color: var(--es-border); }
 .es-seg-block { display: flex; flex-direction: column; gap: 9px; }
 .es-seg-blabel { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .03em; color: var(--es-fg-3); text-transform: uppercase; }
 .es-seg-edit { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; background: var(--es-surface-3); border: 1px solid var(--es-border); border-radius: var(--es-radius-sm); padding: 4px 9px; font-size: 12px; color: var(--es-fg-2); cursor: pointer; text-transform: none; letter-spacing: 0; }

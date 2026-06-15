@@ -14,13 +14,17 @@ import asyncio
 import os
 import tempfile
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
+from core.glossary import to_translation_rules
 from core.langcode import LANGUAGES, to_underscore
 from core.meeting.summarizer import meeting_summarizer
+from core.project import ProjectNotFoundError, ProjectStore
 from core.translation.service import translator
 from core.video.dubber import get_video_dubber
+
+from .projects import get_default_project_store
 
 router = APIRouter(prefix="/localization", tags=["localization"])
 
@@ -39,12 +43,58 @@ def _save_upload(upload: UploadFile, suffix: str = "") -> str:
     return path
 
 
+# ---------- S-4（後續）: 檔案端點上傳硬化 ----------
+# localization 的 multipart 端點原先只把上傳寫進 tempfile（OS 管理路徑、無 path-traversal
+# 風險，S-3 評為低風險），但缺 uploads.py `/upload` 已有的「副檔名 + MIME 白名單」——任何人
+# 都能往 image/pdf/meeting/song/dub 端點塞非預期檔案。比照 S-4：副檔名為**強 gate**（per
+# 端點媒體類別），MIME **寬鬆輔助**（瀏覽器常回 octet-stream / 空字串，不能硬擋，只擋「有給
+# 且明顯非該類」的大類）。檔案進 mkstemp 不用原檔名，故只驗媒體類別、不另做檔名 sanitize
+# （path 安全由 tempfile 保證）。
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
+_PDF_EXTS = {".pdf"}
+# 影片 / 音訊（meeting / song / dub 共用）
+_AV_EXTS = {
+    ".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v",
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+}
+_PDF_MIME = frozenset({"application/pdf", "application/x-pdf", "application/acrobat"})
+
+
+def _validate_media_upload(
+    upload: UploadFile,
+    allowed_exts: set[str],
+    label: str,
+    *,
+    mime_prefixes: tuple[str, ...] = (),
+    mime_exact: frozenset[str] = frozenset(),
+) -> None:
+    """S-4: 副檔名（強 gate）+ MIME（寬鬆輔助）白名單，擋掉非該類別的上傳檔。"""
+    ext = os.path.splitext(upload.filename or "")[1].lower()
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"不接受的副檔名 {ext or '(無)'}; {label} 只收 {sorted(allowed_exts)}",
+        )
+    ct = (upload.content_type or "").split(";")[0].strip().lower()
+    if not ct or ct == "application/octet-stream":
+        return  # 瀏覽器常見、放行
+    if ct in mime_exact or any(ct.startswith(p) for p in mime_prefixes):
+        return
+    raise HTTPException(
+        status.HTTP_400_BAD_REQUEST,
+        f"不接受的 MIME 類型: {ct}（{label}）",
+    )
+
+
 # ---------- 請求模型 ----------
 class TranslateRequest(BaseModel):
     text: str
     target_lang: str = "zh-TW"          # canonical 連字號
     source_lang: str = "auto"
     glossary: str = ""
+    # F9-2i：選填課程關聯。給了 → 載入該課 glossary 的固定譯名（to_translation_rules）
+    # 併進 glossary 規則，讓在地化翻譯術語前後一致。沒給/查無 → 沿用現行行為（零影響）。
+    project_id: str | None = None
     style: str = ""
 
 
@@ -89,6 +139,60 @@ def _first(gen) -> str:
     return out
 
 
+# ---------- F9-2i：課程 glossary → 翻譯固定譯名 ----------
+def _glossary_lang_candidates(code: str) -> list[str]:
+    """canonical 目標語言碼 → glossary translations key 候選（完整碼優先、再退基底子標籤）。
+
+    glossary 的逐語言譯名 key 用前端 LANGS 短碼（en/ja/ko/zh-CN/vi），但翻譯 route 對外收
+    canonical BCP-47 區域碼（en-US/ja-JP/...）。先試完整碼（zh-CN/zh-TW 本就是 glossary key），
+    再退基底（en-US → en）涵蓋「術語表用短碼登錄、route 收區域碼」的常見情形。
+    """
+    out = [code]
+    base = code.split("-", 1)[0] if code else ""
+    if base and base != code:
+        out.append(base)
+    return out
+
+
+def _course_glossary_rules(
+    project_id: str | None, target_lang: str, store: ProjectStore
+) -> str:
+    """載入該課 glossary → 該目標語言的 `to_translation_rules` 文字塊。
+
+    fail-soft（RFC §5）：沒 project_id / 課不存在 / 無 glossary / 該語言無譯名 / 讀檔出錯 →
+    一律回空字串，**絕不因為「想套術語」而讓翻譯失敗**。
+    """
+    if not project_id or not project_id.strip():
+        return ""
+    try:
+        glossary = store.get_glossary(project_id)
+    except ProjectNotFoundError:
+        return ""
+    except Exception:  # noqa: BLE001 — glossary 壞檔等任何問題都不該擋翻譯（fail-soft）
+        return ""
+    if glossary is None:
+        return ""
+    for lang in _glossary_lang_candidates(target_lang):
+        rules = to_translation_rules(glossary, lang)
+        if rules:
+            return rules
+    return ""
+
+
+def _merge_glossary(caller_glossary: str, course_rules: str) -> str:
+    """合併呼叫端顯式 glossary 與該課 glossary 規則（都丟給 translate 的 glossary 參數）。
+
+    呼叫端顯式規則放前面（較專一/手動覆寫優先呈現），課程規則接在後；任一為空就只留另一條，
+    兩者皆空回空字串（translate 對空字串 no-op，行為與不傳 glossary 一致）。
+    """
+    parts = []
+    if caller_glossary and caller_glossary.strip():
+        parts.append(caller_glossary.strip())
+    if course_rules:
+        parts.append(course_rules)
+    return "\n".join(parts)
+
+
 # ---------- 端點 ----------
 @router.get("/languages")
 async def list_languages() -> dict:
@@ -102,13 +206,24 @@ async def list_languages() -> dict:
 
 
 @router.post("/translate")
-async def translate_text(req: TranslateRequest) -> dict:
-    """文字翻譯。對外 zh-TW，邊界轉 zh_TW 後送 Gemini 服務。"""
+async def translate_text(
+    req: TranslateRequest,
+    store: ProjectStore = Depends(get_default_project_store),
+) -> dict:
+    """文字翻譯。對外 zh-TW，邊界轉 zh_TW 後送 Gemini 服務。
+
+    F9-2i：給了 `project_id` → 載入該課 glossary 的固定譯名併進 glossary 規則（fail-soft）。
+    """
+    # 課程 glossary 讀檔（小型本機 JSON + RLock）也走 to_thread，沿 R-3 不阻 event loop。
+    course_rules = await asyncio.to_thread(
+        _course_glossary_rules, req.project_id, req.target_lang, store
+    )
+    glossary = _merge_glossary(req.glossary, course_rules)
     # R-3: 翻譯是 blocking (Gemini HTTP) → to_thread 不阻 event loop
     translated = await asyncio.to_thread(
         translator.translate,
         req.text, _u(req.source_lang), _u(req.target_lang),
-        glossary=req.glossary, style=req.style,
+        glossary=glossary, style=req.style,
     )
     return {
         "translated_text": translated,
@@ -162,6 +277,7 @@ async def translate_image(
     source_lang: str = Form("auto"),
 ) -> dict:
     """圖片 OCR + 翻譯（pytesseract，lazy）。回最終翻譯文字。"""
+    _validate_media_upload(file, _IMAGE_EXTS, "圖片", mime_prefixes=("image/",))
     path = _save_upload(file)
     try:
         result = await asyncio.to_thread(
@@ -181,6 +297,7 @@ async def translate_pdf(
     source_lang: str = Form("en-US"),
 ) -> dict:
     """PDF 逐頁翻譯（PyMuPDF，lazy）。回最終彙整文字。"""
+    _validate_media_upload(file, _PDF_EXTS, "PDF", mime_exact=_PDF_MIME)
     path = _save_upload(file, suffix=".pdf")
     try:
         result = await asyncio.to_thread(
@@ -203,6 +320,7 @@ async def meeting_summarize(
 
     summary_types 以逗號分隔（如 'key_points,decisions'）。
     """
+    _validate_media_upload(file, _AV_EXTS, "會議影音", mime_prefixes=("video/", "audio/"))
     path = _save_upload(file)
     types = [t.strip() for t in summary_types.split(",") if t.strip()]
     try:
@@ -235,6 +353,7 @@ async def song_transcribe(
     """
     from core.song_build import build_song_json_from_media
 
+    _validate_media_upload(file, _AV_EXTS, "歌曲影音", mime_prefixes=("video/", "audio/"))
     suffix = os.path.splitext(file.filename or "")[1] or ".mp3"
     path = _save_upload(file, suffix=suffix)
     try:
@@ -266,6 +385,7 @@ async def dub_video(
     if not url:
         if file is None:
             return {"error": "需提供 url 或上傳 file"}
+        _validate_media_upload(file, _AV_EXTS, "配音影片", mime_prefixes=("video/", "audio/"))
         path = _save_upload(file, suffix=".mp4")
     source = url or path
     try:

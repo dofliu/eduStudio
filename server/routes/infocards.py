@@ -84,16 +84,13 @@ class RefineSlideRequest(BaseModel):
 
 
 class RefineSectionRequest(BaseModel):
-    """資訊圖卡逐區 refine：infographic 為整張資料，sectionId 指定要重生的區塊（區域選擇 UI 用）。"""
+    """資訊圖卡單區微調：section 為要改的區塊，instruction 為修改指令。"""
 
-    infographic: dict
-    sectionId: str
+    section: dict
     instruction: str
-    style: str = "professional"
-    customStylePrompt: str = ""
-    regenerateImage: bool = True
     imageModel: str = DEFAULT_IMAGE_MODEL
     textModel: str = DEFAULT_TEXT_MODEL
+    regenerateImage: bool = True
 
 
 @router.get("/usage")
@@ -286,22 +283,14 @@ def refine_slide(req: RefineSlideRequest) -> dict:
 
 @router.post("/refine-section", dependencies=[Depends(rate_limit)])
 def refine_section(req: RefineSectionRequest) -> dict:
-    """資訊圖卡逐區 refine：依指令重生指定 section（區域選擇 UI 用）。回更新後的整張圖卡。"""
-    from core.infocards.schemas import InfographicData
+    """資訊圖卡單區微調：依指令重生該區塊（title/content/iconType/圖），回 refined section。"""
+    from core.infocards import refine_service
 
-    try:
-        data = InfographicData.model_validate(req.infographic)
-    except Exception as e:  # 圖卡資料壞 → 400，不讓 500 吞掉原因
-        raise HTTPException(status_code=400, detail=f"infographic 資料無效：{e}") from e
-    try:
-        updated = infographic_service.refine_infographic_section(
-            data, req.sectionId, req.instruction,
-            style=req.style, custom=req.customStylePrompt,
-            model=req.textModel, image_model=req.imageModel,
-            regenerate_image=req.regenerateImage)
-    except ValueError as e:  # 找不到 sectionId
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    return {"success": True, "type": "infographic", "data": updated.model_dump()}
+    section = refine_service.refine_infographic_section(
+        req.section, req.instruction,
+        model=req.textModel, image_model=req.imageModel,
+        regenerate_image=req.regenerateImage)
+    return {"success": True, "section": section.model_dump()}
 
 
 @router.post("/export/pptx")

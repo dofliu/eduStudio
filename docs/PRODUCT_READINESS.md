@@ -196,51 +196,23 @@
 - [ ] 🔴 **U-1 `/studio` 直連 Gemini 改走後端**（offline，前端 + 確認後端端點）— 把 `/studio`
   仍 client-side 呼叫 Gemini 的路徑改打 `/api/generate` 等後端端點（後端大多現成），堵住
   「繞過計費 + 繞過審查」漏洞。或者若 U-3 直接退場 /studio，則本項併入「功能搬進 /app」。
-  - ⏸️ **2026-06-08 routine 判定：完整退場為人工 gate，本輪只做非破壞性過渡。** `/studio` 源碼不在
-    本 repo（拍板走退場路線），故 (a) 改 client-side 呼叫不可行；(b) server 移除 `/studio` 路由屬
-    不可逆，依 U-3「`/app` 功能對等確認後再做（避免反悔）」需 **U-2③ 人工視覺驗收 `/app` 對等**先過。
-    過渡止血改由 **U-3 退場 banner** 承接（頂部固定提示 + landing 標警告「`/studio` 直連 Gemini、
-    繞過後端計費/審查」），把使用者導向 `/app`。**待劉老師確認 `/app` 對等後**，再開後續 PR 移除
-    `/studio` 路由與 build 產物，屆時本項可結。
-- [x] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
+- [~] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
   2026-06-07**）— 盤點顯示 `/app` 視覺站缺「海報/圖卡逐區 refine、區域選擇」（後端 refine
   圖卡未移植 = 唯一「大」缺口）。**定案：移植後端逐區 refine + 前端區域選擇 UI**（不是首發
   砍項）。其餘（16 主題/密度/長寬比/自訂 prompt）UI_WIRING 標已接完。拆小：①後端 refine
   圖卡端點移植 ②前端區域選擇/逐區 refine UI ③測試。
-  - ✅ 2026-06-08 **①後端逐區 refine 端點完成**（含測試③的後端部分）。`infographic_service.
-    refine_infographic_section()`：依指令重生指定 `section`（區域），merge 保留 AI 省略欄位、id
-    鎖死、iconType 越界退預設（比照 `_coerce`）、imagePrompt 變動才重生圖（prompt 清空則去圖、
-    `regenerate_image=False` 可只改文字省額度）；找不到 section → `ValueError`。新增 `POST
-    /api/refine-section`（404 找不到 section / 400 圖卡資料無效）。`tests/test_infocards_
-    infographic.py` 補 11 測（**全程 mock Gemini/生圖，不打真 API**＝offline-first；真實生圖燒額度
-    仍走人工觸發）。本機全套 2436 passed（3 個 font-pixel 斷言為容器缺 Noto 字型假象，CI 權威）。
-  - ✅ 2026-06-08 **②前端區域選擇/逐區 refine UI 完成**。`frontend/edustudio/app.jsx` 的
-    `VisualComposer` 新增 **infographic 模式**（接後端 `mode:"infographic"`）：`RealPreview`
-    渲染多區塊版面、區塊可**點選**（區域選擇）→ 開啟逐區微調面板；面板提供區塊下拉 + 修改指令
-    + 「一併重生此區配圖」開關（預設關＝只改文字省額度），呼叫 `POST /api/refine-section`、以
-    後端回的整張更新圖卡替換結果。版式（aspectRatio）下拉沿用。本機 `npm run build`（vite，
-    node22）編譯通過。**視覺驗收待人工**（此環境無瀏覽器，依既定「前端 build 為準、人後視覺驗收」）。
-  - ③前端整合視覺驗收 = 人工後驗（非 routine 程式工項）。
-- [x] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— ✅ 2026-06-08 完成 banner 步驟（非
-  破壞性，build 產物移除待 `/app` 對等確認後另開 PR）。`server/main.py` serve `/ui` `/studio` 的
-  index.html 時於 `<body>` 頂注入固定退場 banner（`_inject_legacy_banner`），導向 `/app`；`/studio`
-  額外標「直連 Gemini、繞過後端計費/審查」（U-1 漏洞警示）。asset 檔不注入、index/deep-link 才注入。
-  landing 頁把 `/ui` `/studio` 兩張卡標 `legacy` badge + grid 標題改「舊版介面（即將退場）」+
-  `/studio` 卡加 ⚠ 警告。補 `tests/test_legacy_banner.py` 5 測（連結 /app / studio 警示 / body 注入
-  位置 / 無 body 前置 / 大寫 body）+ TestClient 端到端驗 index 注入、asset 不注入。全套 2443 passed
-  （1 QR 字型假象）。
-- [x] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— ✅ 2026-06-08 完成（C-1 影片/解析
-  計帳落地後收尾）。**移除所有 mock 示意數字**：刪掉前端 `COST` 假物件（含 `$18.74` 假累計、
-  「試用模式 38/50 次」、假近期呼叫列表、「試用完畢請填 API Key」這類不符開源自架定位的 SaaS
-  殘留）。頂欄成本 pill 與成本面板抽屜改**共用同一份 `/api/usage` 真實統計**（App 層 `loadUsage`，
-  開抽屜時重抓刷新），數字、各站花費、近期呼叫全走後端真實計帳；尚無任何 Gemini 呼叫時顯示**空
-  狀態**（$0.00 + 「目前還沒有任何呼叫紀錄」）而非假數字。後端 `/api/usage` budget 從寫死 `30.0`
-  改讀 `core.config.get_monthly_budget()`（env `EDUSTUDIO_MONTHLY_BUDGET` 可覆寫，集中於 config 符
-  硬規則 #6），note 更新成「已涵蓋視覺／在地化／影片／解析各站」（C-1 後影片 pipeline 已計帳，舊
-  note「另計」已過時）。補 `tests/test_usage.py` budget env override 測 + `.env.example` 文件。前端
-  `npm run build`（vite, node22）編譯通過；視覺驗收待人工。本機全套 2447 passed（3 個 QR/journal
-  字型像素假象為容器缺字型，CI 權威）。註：單價精準對齊（C-2）仍 GATE，面板成本為依用量估算、面板
-  note 已標「以官方定價為準」。
+  - ✅ 2026-06-15（①+③）— 後端資訊圖卡逐區 refine 移植完成。`refine_service.refine_infographic_section`
+    （依指令重生單一 section：merge 原欄位、iconType 越界退 `info`、imagePrompt 有變才重生該區圖
+    避免燒額度，策略對齊既有 `refine_presentation_slide`）+ 新端點 `POST /api/refine-section`
+    （掛 rate_limit）。補 8 測（prompt 組裝 / merge 保留原欄位 / iconType coerce / imagePrompt
+    變更才重生圖 / 不變不生圖 / 關閉重生 / 端點，**全程 mock Gemini**，真實生圖燒額度部分不打 API）。
+    海報為單圖無「區」概念，整圖 refine 已由 `/api/generate` 的 `refinement` 涵蓋。待做：②前端
+    區域選擇 / 逐區 refine UI（另開 PR）。
+- [ ] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— 在舊 UI 頁頂加 banner「此介面
+  將退場，請用 /app」+ README/介面表標 legacy。完全移除 build 產物等 `/app` 功能對等確認後
+  再做（避免反悔）。
+- [ ] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— 現況部分 mock。等 Phase 4 計費
+  補完後，把成本面板數字接真 `/api/usage`，移除「示意」假數字。
 - [ ] 🟢 **U-5 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰
   YouTube OAuth + 多語 metadata（方案 A 多語字幕軌後端已有），補前端驅動。
 - [x] 🟢 **U-6 前端建置流程文件化**（offline）— ✅ 2026-06-07 完成。直接**把 `base:'/app/'` 寫死

@@ -6,7 +6,7 @@ speakerNotesPrompt.ts / presentationService.ts:refinePresentationSlide。
 from __future__ import annotations
 
 import core.infocards.refine_service as rf
-from core.infocards.schemas import Slide
+from core.infocards.schemas import InfographicSection, Slide
 
 
 class TestPromptBuilders:
@@ -82,6 +82,89 @@ class TestRefineSlide:
                                             "content": "內容", "speakerNotes": ""}, "加圖",
                                            slide_index=2, total_slides=5)
         assert out.imageUrl == "data:image/png;base64,IMG"
+
+
+class TestRefineSection:
+    def _orig(self, **over):
+        base = {"id": "sec1", "title": "舊標題", "content": "舊內容", "iconType": "bulb",
+                "imagePrompt": None, "imageUrl": None}
+        base.update(over)
+        return base
+
+    def test_section_prompt(self):
+        p = rf.build_refine_section_prompt({"title": "牛頓"}, "更白話")
+        assert p.startswith('Refine this infographic section based on: "更白話".')
+        assert '"title": "牛頓"' in p and "bulb/chart/list" in p
+
+    def test_merges_and_validates(self, monkeypatch):
+        # AI 只回 title/content，其餘欄位（id/iconType）應由原 section 補回。
+        monkeypatch.setattr(rf, "generate_json",
+                            lambda prompt, model=None: {"title": "新標題", "content": "新內容"})
+        out = rf.refine_infographic_section(self._orig(), "改標題")
+        assert isinstance(out, InfographicSection)
+        assert out.title == "新標題" and out.content == "新內容"
+        assert out.id == "sec1" and out.iconType == "bulb"  # 原欄位保留
+
+    def test_out_of_range_icon_coerced(self, monkeypatch):
+        monkeypatch.setattr(rf, "generate_json",
+                            lambda prompt, model=None: {"iconType": "rocket"})
+        out = rf.refine_infographic_section(self._orig(), "x")
+        assert out.iconType == "info"  # 越界退安全預設
+
+    def test_regenerates_image_on_prompt_change(self, monkeypatch):
+        monkeypatch.setattr(rf, "generate_json",
+                            lambda prompt, model=None: {"imagePrompt": "a new diagram"})
+        calls = []
+        monkeypatch.setattr(rf, "generate_image_b64",
+                            lambda prompt, model=None: calls.append(prompt) or "data:image/png;base64,NEW")
+        out = rf.refine_infographic_section(
+            self._orig(imagePrompt="old prompt", imageUrl="data:image/png;base64,OLD"), "換圖")
+        assert out.imageUrl == "data:image/png;base64,NEW" and calls == ["a new diagram"]
+
+    def test_keeps_image_when_prompt_unchanged(self, monkeypatch):
+        # 只改文字、imagePrompt 不變 → 不重生圖（不燒額度）。
+        monkeypatch.setattr(rf, "generate_json",
+                            lambda prompt, model=None: {"content": "只改文字"})
+        monkeypatch.setattr(rf, "generate_image_b64",
+                            lambda prompt, model=None: (_ for _ in ()).throw(AssertionError("不該生圖")))
+        out = rf.refine_infographic_section(
+            self._orig(imagePrompt="same", imageUrl="data:image/png;base64,KEEP"), "改字")
+        assert out.imageUrl == "data:image/png;base64,KEEP"
+
+    def test_regenerate_image_disabled(self, monkeypatch):
+        monkeypatch.setattr(rf, "generate_json",
+                            lambda prompt, model=None: {"imagePrompt": "changed"})
+        monkeypatch.setattr(rf, "generate_image_b64",
+                            lambda prompt, model=None: (_ for _ in ()).throw(AssertionError("不該生圖")))
+        out = rf.refine_infographic_section(
+            self._orig(imagePrompt="old", imageUrl="data:image/png;base64,KEEP"),
+            "x", regenerate_image=False)
+        assert out.imageUrl == "data:image/png;base64,KEEP" and out.imagePrompt == "changed"
+
+
+class TestRefineSectionRoute:
+    def test_route(self, tmp_path, monkeypatch):
+        import pytest
+        pytest.importorskip("fastapi.testclient")
+        pytest.importorskip("multipart")
+        from fastapi.testclient import TestClient
+
+        import core.infocards.refine_service as rfs
+        import server.routes.infocards as ic
+        from core.infocards.share_store import ShareStore
+        from server.main import create_app
+
+        monkeypatch.setattr(ic, "get_share_store", lambda: ShareStore(db_path=str(tmp_path / "s.db")))
+        monkeypatch.setattr(rfs, "generate_json", lambda prompt, model=None: {"title": "改好的區塊"})
+        app = create_app()
+        with TestClient(app) as c:
+            r = c.post("/api/refine-section", json={
+                "section": {"id": "sec1", "title": "舊", "content": "c", "iconType": "info"},
+                "instruction": "改標題",
+            })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["success"] is True and body["section"]["title"] == "改好的區塊"
 
 
 class TestRefineRoute:

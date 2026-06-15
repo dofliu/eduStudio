@@ -83,6 +83,16 @@ class RefineSlideRequest(BaseModel):
     textModel: str = DEFAULT_TEXT_MODEL
 
 
+class RefineSectionRequest(BaseModel):
+    """資訊圖卡單區微調：section 為要改的區塊，instruction 為修改指令。"""
+
+    section: dict
+    instruction: str
+    imageModel: str = DEFAULT_IMAGE_MODEL
+    textModel: str = DEFAULT_TEXT_MODEL
+    regenerateImage: bool = True
+
+
 @router.get("/usage")
 def usage_summary() -> dict:
     """Gemini 用量真實統計（成本面板）。涵蓋視覺站 + 在地化的呼叫；budget 為設定值。"""
@@ -263,6 +273,18 @@ def refine_slide(req: RefineSlideRequest) -> dict:
         persona=req.persona, slide_index=req.slideIndex, total_slides=req.totalSlides,
         model=req.textModel, image_model=req.imageModel)
     return {"success": True, "slide": slide.model_dump()}
+
+
+@router.post("/refine-section", dependencies=[Depends(rate_limit)])
+def refine_section(req: RefineSectionRequest) -> dict:
+    """資訊圖卡單區微調：依指令重生該區塊（title/content/iconType/圖），回 refined section。"""
+    from core.infocards import refine_service
+
+    section = refine_service.refine_infographic_section(
+        req.section, req.instruction,
+        model=req.textModel, image_model=req.imageModel,
+        regenerate_image=req.regenerateImage)
+    return {"success": True, "section": section.model_dump()}
 
 
 @router.post("/export/pptx")

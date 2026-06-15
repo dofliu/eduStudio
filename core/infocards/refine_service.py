@@ -16,8 +16,11 @@ from core.infocards.chart_suggester import (
 from core.infocards.gemini import generate_image_b64, generate_json
 from core.infocards.layout_rules import analyze_outline_slide, reconcile_layout
 from core.infocards.presentation_service import needs_ai_image
-from core.infocards.schemas import Slide
+from core.infocards.schemas import InfographicSection, Slide
 from core.infocards.slide_budget import enforce_teaching_layout_budget_dict
+
+# 資訊圖卡 iconType 允許集合（對齊 infographic_service._ICONS / schemas Literal）。
+_SECTION_ICONS = {"bulb", "chart", "list", "target", "warning", "info", "calendar", "check", "time"}
 
 
 # ── 純 prompt 組裝（對齊 speakerNotesPrompt.ts / refineSlidePrompt.ts）──
@@ -80,6 +83,48 @@ def build_speaker_notes_prompt(slide: dict, context: dict, persona: dict | None)
         f"- {tail}\n"
         f"- 語氣自然口語，如同真實演講；純文字，不要 markdown 格式"
     )
+
+
+def build_refine_section_prompt(section: dict, instruction: str) -> str:
+    """資訊圖卡單區 refine prompt（對齊 presentation slide refine 的「無 responseSchema」風格）。"""
+    return (
+        f'Refine this infographic section based on: "{instruction}". '
+        f"Keep the same JSON shape (title/content/iconType/imagePrompt). "
+        f"iconType must be one of: bulb/chart/list/target/warning/info/calendar/check/time. "
+        f"Language: Traditional Chinese (Taiwan). "
+        f"Data: {json.dumps(section, ensure_ascii=False)}"
+    )
+
+
+def refine_infographic_section(
+    section: dict,
+    instruction: str,
+    *,
+    model: str | None = None,
+    image_model: str | None = None,
+    regenerate_image: bool = True,
+) -> InfographicSection:
+    """依指令重生資訊圖卡單一區塊（section），回 InfographicSection。
+
+    對齊 refine_presentation_slide 的策略：
+    merge（AI 輸出覆蓋原 section，省略欄位保留原值，避免清空未提及欄位）→ iconType 越界退
+    `info`（對齊 infographic_service._coerce）→ imagePrompt 有變且 regenerate_image 時重生該區圖
+    （避免舊圖配新文字；imageModel 走 image 模型）。
+    """
+    prompt = build_refine_section_prompt(section, instruction)
+    updated = generate_json(prompt, model=model)  # 對齊原版：無 responseSchema
+    merged = {**section, **{k: v for k, v in (updated or {}).items() if v is not None}}
+
+    # iconType 越界退安全預設（對齊 infographic_service._coerce）。
+    if merged.get("iconType") not in _SECTION_ICONS:
+        merged["iconType"] = "info"
+
+    # imagePrompt 改了（或本來就有 prompt 但沒圖）→ 重生該區圖，避免舊圖配新文字。
+    prompt_changed = merged.get("imagePrompt") != section.get("imagePrompt")
+    if regenerate_image and merged.get("imagePrompt") and (prompt_changed or not merged.get("imageUrl")):
+        merged["imageUrl"] = generate_image_b64(merged["imagePrompt"], model=image_model)
+
+    return InfographicSection.model_validate(merged)
 
 
 def refine_presentation_slide(

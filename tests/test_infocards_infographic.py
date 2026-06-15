@@ -162,52 +162,8 @@ class TestRefineSection:
         out = info.refine_infographic_section(data, "s1", "移除圖片")
         assert next(s for s in out.sections if s.id == "s1").imageUrl is None
 
-    def test_route(self, tmp_path, monkeypatch):
-        import pytest
-        pytest.importorskip("fastapi.testclient")
-        pytest.importorskip("multipart")
-        from fastapi.testclient import TestClient
-
-        import core.infocards.infographic_service as infs
-        import server.routes.infocards as ic
-        from core.infocards.share_store import ShareStore
-        from server.main import create_app
-
-        monkeypatch.setattr(ic, "get_share_store", lambda: ShareStore(db_path=str(tmp_path / "s.db")))
-        monkeypatch.setattr(infs, "generate_json",
-                            lambda prompt, model=None, response_schema=None: {"title": "改好的區塊"})
-        monkeypatch.setattr(infs, "generate_image_b64",
-                            lambda prompt, model=None: "data:image/png;base64,IMG")
-        app = create_app()
-        with TestClient(app) as c:
-            r = c.post("/api/refine-section", json={
-                "infographic": {**_FAKE, "style": "academic"},
-                "sectionId": "s1", "instruction": "改標題",
-            })
-        assert r.status_code == 200
-        body = r.json()
-        assert body["success"] is True and body["type"] == "infographic"
-        sec = next(s for s in body["data"]["sections"] if s["id"] == "s1")
-        assert sec["title"] == "改好的區塊"
-
-    def test_route_unknown_section_404(self, tmp_path, monkeypatch):
-        import pytest
-        pytest.importorskip("fastapi.testclient")
-        pytest.importorskip("multipart")
-        from fastapi.testclient import TestClient
-
-        import core.infocards.infographic_service as infs
-        import server.routes.infocards as ic
-        from core.infocards.share_store import ShareStore
-        from server.main import create_app
-
-        monkeypatch.setattr(ic, "get_share_store", lambda: ShareStore(db_path=str(tmp_path / "s.db")))
-        monkeypatch.setattr(infs, "generate_json",
-                            lambda prompt, model=None, response_schema=None: {})
-        app = create_app()
-        with TestClient(app) as c:
-            r = c.post("/api/refine-section", json={
-                "infographic": {**_FAKE, "style": "academic"},
-                "sectionId": "ghost", "instruction": "x",
-            })
-        assert r.status_code == 404
+    # 註：`POST /api/refine-section` 路由的端到端測試已由
+    # tests/test_infocards_refine.py::TestRefineSectionRoute 涵蓋（現行契約＝收/回
+    # 單一 section）。本檔原有的兩個路由測試送的是舊形狀 {infographic, sectionId}、
+    # 讀 data.data，與 #81 落地的單一 section 契約不符（回 422），已移除以對齊現行
+    # 路由；本類別其餘仍為 infographic_service.refine_infographic_section 的函式單元測試。

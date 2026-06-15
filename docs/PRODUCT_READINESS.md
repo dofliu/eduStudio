@@ -268,10 +268,23 @@
   char-based 近似模型。
 - [ ] 🟡 **C-2 單價對齊真實**（GATE，需查官方定價）— 現況單價是估算。對齊 Gemini 3 系列 +
   GCP TTS + （未來）image 真實單價。定價會變動 → 抽成設定常數 + 文件註明「以官方為準」。
-- [ ] 🟡 **C-3 旁白模型遷 3.x**（GATE，需開額度驗證品質）— `slide_ingest.py:43`
+- [~] 🟡 **C-3 旁白模型遷 3.x**（GATE，需開額度驗證品質）— `slide_ingest.py:43`
   `MODEL = "gemini-2.5-flash"`（將淘汰）。**M 軸完成後這只是改角色表 `text.fast` 一個值**。
   3.5-flash 實測接受 `thinking_budget=0`，但**旁白品質要先驗**再換。寫成 A/B proposal，劉老師
-  開額度跑過再切。（劉老師 2026-06-07：需額度會給權限。）
+  開額度跑過再切。（劉老師 2026-06-07：需額度會給權限；2026-06-15：開額度。）
+  - ✅ 2026-06-15 **A/B 工具 + 提案完成（offline 前置；實跑＝你本機開額度）**。劉老師 2026-06-15
+    開額度。因本 routine 環境**無 `GEMINI_API_KEY`**（你的 key 在你本機）且不該把 key 帶進 session，
+    品質 A/B 必須在**你本機**跑——故 routine 把「能跑的工具 + 切換步驟」備好：① `tools/ab_narration.py`
+    對同一份簡報同幾頁、用舊模型 vs 候選模型**各生一次旁白並排輸出**（**只跑旁白生成、不跑 TTS/
+    ffmpeg/完整 render ＝省額度**；注入不同 `model` 呼叫**真實** `narrate_page_with_gemini`、prompt/
+    retry/`thinking_budget=0` 全與正式線一致＝不漂移）；為此 `slide_ingest.narrate_page_with_gemini`
+    加**選填 `model` 參數**（預設仍 `MODEL`，正式 pipeline 零影響）。② `docs/C3_NARRATION_AB_PROPOSAL.md`：
+    為什麼動 / 怎麼在你本機跑（指令）/ 決策準則表（正確性·完整收尾·通順·深度·成本）/ 驗過怎麼切
+    （chokepoint 改走 `resolve("text.fast")`）+ rollback（設定頁覆寫回 2.5、免改 code）/ 3 個待拍板
+    開放問題（範圍 / `text.fast` vs 新增 `narration` 角色 / 候選模型）。補 `tests/test_ab_narration.py`
+    11 測（頁碼解析 / run_ab 每頁每模型透傳 / 報告並排+用量 / 缺 key SystemExit，**全 fake client
+    不打 API**）。本機相關子集 142 passed。**下一步＝你本機跑 A/B → 看品質 → 回報要不要切**，要切就
+    開後續一刀換 chokepoint。
 - [ ] 🟢 **C-4 `gemini-3.1-pro-image` 等開放再換**（GATE）— 劉老師想用但 API 未開放。等開放
   從 `gemini-3-pro-image` 換（`core/infocards/models.py`）。掛追蹤。
 - [x] 🟢 **C-5 模型 id 自我健檢**（offline）— ✅ 2026-06-09 完成。新增 `tools/check_models.py`：蒐集

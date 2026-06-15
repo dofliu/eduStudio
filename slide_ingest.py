@@ -267,10 +267,16 @@ def _truncate_at_sentence(text: str, target: int = NARRATION_TARGET_CHARS,
 
 def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                               chapter_pages: int, page_in_chapter: int,
-                              prev_narration: str, *, brief: bool = False) -> str:
+                              prev_narration: str, *, brief: bool = False,
+                              model: str | None = None) -> str:
     """單頁 → narration 草稿。Gemini 偶爾會在中文句中提早 STOP 導致句子腰斬,
-    結尾若不是句號類符號就 retry 一次, temperature 提高 + prompt 加強完整性要求。"""
+    結尾若不是句號類符號就 retry 一次, temperature 提高 + prompt 加強完整性要求。
+
+    model: 覆寫旁白模型 id（預設沿用模組 MODEL）。供 C-3 旁白模型 A/B 比對用
+    （tools/ab_narration.py 對同一頁跑 2.5 vs 3.x 比品質），不影響正式 pipeline 預設。"""
     from google.genai import types
+
+    model = model or MODEL
 
     template = NARRATION_PROMPT_BRIEF if brief else NARRATION_PROMPT_DETAILED
     base_prompt = template.format(
@@ -306,7 +312,7 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
 
         try:
             resp = client.models.generate_content(
-                model=MODEL,
+                model=model,
                 contents=parts + [prompt],
                 config=types.GenerateContentConfig(
                     temperature=temp,
@@ -316,7 +322,7 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                 ),
             )
             from core import usage
-            usage.record_text_now("video", MODEL, prompt, resp.text or "",
+            usage.record_text_now("video", model, prompt, resp.text or "",
                                   label="narration")
             text = _clean_narration(resp.text)
             if text and text.endswith(_SENTENCE_END):

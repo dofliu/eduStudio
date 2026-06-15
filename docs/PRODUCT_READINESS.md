@@ -193,9 +193,17 @@
 > client-side 直連 Gemini → 繞過後端計費 + 繞過 review gate。盤點見
 > [EDUSTUDIO_UI_WIRING.md](EDUSTUDIO_UI_WIRING.md)。多為前端工。
 
-- [ ] 🔴 **U-1 `/studio` 直連 Gemini 改走後端**（offline，前端 + 確認後端端點）— 把 `/studio`
-  仍 client-side 呼叫 Gemini 的路徑改打 `/api/generate` 等後端端點（後端大多現成），堵住
-  「繞過計費 + 繞過審查」漏洞。或者若 U-3 直接退場 /studio，則本項併入「功能搬進 /app」。
+- [x] 🔴 **U-1 `/studio` 直連 Gemini 改走後端 → 退場**（offline）— ✅ 2026-06-15 完成
+  （走「退場」分支）。`/studio` 的原 infoCard 前端 **client-side 直連 Gemini**（繞過後端計費 +
+  繞過 review gate），其**源碼不在本 repo**，無法「改走後端」；且 U-2 已把唯一「大」缺口（海報/
+  圖卡逐區 refine + 區域選擇）在 `/app` 補齊對等。故依拍板「先補 /app 對等再退場 /studio」執行
+  退場：`server/main.py` 移除 `/studio` 的 StaticFiles mount + SPA fallback，改**無條件** `GET
+  /studio` 與 `GET /studio/{path}` → **307 轉址 `/app/`**（暫時轉址＝不被瀏覽器永久快取、保留
+  反悔餘地；無條件註冊＝即使殘留 `web/studio` build 也不再被服務）。一舉關掉「繞過計費 + 繞過
+  審查」漏洞、舊書籤/連結不 404。`landing.html` 移除 `/studio` legacy 卡片；banner helper 移除
+  now-dead 的 `studio` 參數（僅 `/ui` 仍用）。補/改 `tests/test_legacy_banner.py`（banner 注入
+  4 測 + `/studio` 根與深連結 307→`/app/` 2 測，TestClient 不依賴 build 產物）。本機全套 2706
+  passed（剩 3 個 QR/journal 字型像素為容器缺 Noto CJK 假象，CI 權威）。
 - [x] 🟡 **U-2 `/app` 補齊 `/studio` 缺的視覺功能 — 含逐區 refine**（offline，**拍板要做
   2026-06-07**）— 盤點顯示 `/app` 視覺站缺「海報/圖卡逐區 refine、區域選擇」（後端 refine
   圖卡未移植 = 唯一「大」缺口）。**定案：移植後端逐區 refine + 前端區域選擇 UI**（不是首發
@@ -215,9 +223,12 @@
     regenerateImage}`、讀 `data.section`、patch 回 `result.data.sections[idx]`。**純前端一檔**
     （`frontend/edustudio/app.jsx`），`npm run build`（vite/node22）編譯通過；後端 8 測
     （`test_infocards_refine.py`）已涵蓋端點，視覺由人後驗。至此 U-2 ①②③ 到齊。
-- [ ] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— 在舊 UI 頁頂加 banner「此介面
-  將退場，請用 /app」+ README/介面表標 legacy。完全移除 build 產物等 `/app` 功能對等確認後
-  再做（避免反悔）。
+- [x] 🟡 **U-3 `/ui` `/studio` 標 legacy / 退場**（offline）— ✅ 完成。banner 部分於 **PR #33
+  （2026-06-08）** 落地：`/ui`·`/studio` 頁頂注入「此介面即將退場，請改用 /app」退場 banner +
+  `landing.html` 舊版介面卡片標 `legacy`（先前 checkbox 漏勾，此處補正）。`/studio` 進一步於
+  **U-1（2026-06-15）退場**＝307 轉址 `/app/`（已過 `/app` 功能對等確認，呼應本項「完全移除
+  build 產物等對等確認後再做」）。`/ui`（影片站，已與 `/app` 對等）暫保留 banner 過渡，待後續
+  小 PR 視情況比照退場。
 - [ ] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— 現況部分 mock。等 Phase 4 計費
   補完後，把成本面板數字接真 `/api/usage`，移除「示意」假數字。
 - [ ] 🟢 **U-5 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰

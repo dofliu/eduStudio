@@ -63,40 +63,34 @@ setup_logging()
 
 # 對齊 vite.config.ts 的 build outDir
 WEB_DIST = PROJECT_ROOT / "web" / "dist"
-# eduStudio 合併 C-4: infoCard 前端 build（base=/studio/）serve 在此。
-WEB_STUDIO = PROJECT_ROOT / "web" / "studio"
 # eduStudio 合併 C-4: 統一 app（Claude Design 設計、infoCard React19 build，base=/app/）。
 WEB_EDUAPP = PROJECT_ROOT / "web" / "eduapp"
 # eduStudio 合併 C-4 方案 A: 統一入口 landing（外觀可獨立替換，待 Claude Design 重做）。
 LANDING_PAGE = PROJECT_ROOT / "server" / "static" / "landing.html"
 
 
-def _legacy_banner_html(*, studio: bool) -> str:
-    """legacy UI (/ui, /studio) 頂部退場提示 banner（U-3）。
+def _legacy_banner_html() -> str:
+    """legacy UI (`/ui`) 頂部退場提示 banner（U-3）。
 
     收斂到 `/app` 單一介面前的過渡步驟：在舊介面頂部固定一條提示，導使用者改用
-    `/app`。`/studio` 仍 client-side 直連 Gemini（繞過後端計費 + review gate，見 U-1），
-    故額外標警告。純前端提示、不移除任何功能、可逆（避免反悔）。
+    `/app`。純前端提示、不移除任何功能、可逆（避免反悔）。
+
+    （`/studio` 已於 U-1 退場 → 改 307 轉址至 `/app/`，不再注入 banner。）
     """
-    extra = (
-        "（此介面直連 Gemini、未走後端計費與 review 審查）"
-        if studio
-        else ""
-    )
     return (
         '<div role="alert" style="position:fixed;top:0;left:0;right:0;z-index:2147483647;'
         "background:#b45309;color:#fff;padding:10px 16px;text-align:center;"
         'font:14px/1.4 system-ui,-apple-system,"Noto Sans TC",sans-serif;'
         'box-shadow:0 1px 4px rgba(0,0,0,.35)">'
-        "⚠ 此介面為 <b>legacy（即將退場）</b>" + extra + "，請改用統一介面 "
+        "⚠ 此介面為 <b>legacy（即將退場）</b>，請改用統一介面 "
         '<a href="/app/" style="color:#fff;font-weight:700;text-decoration:underline">/app</a>。'
         "</div>"
     )
 
 
-def _inject_legacy_banner(html: str, *, studio: bool) -> str:
+def _inject_legacy_banner(html: str) -> str:
     """把 legacy banner 注入 index.html `<body>` 起始處（找不到 body 則前置）。"""
-    banner = _legacy_banner_html(studio=studio)
+    banner = _legacy_banner_html()
     lowered = html.lower()
     body_idx = lowered.find("<body")
     if body_idx == -1:
@@ -107,7 +101,7 @@ def _inject_legacy_banner(html: str, *, studio: bool) -> str:
     return html[: close + 1] + banner + html[close + 1 :]
 
 
-def _serve_legacy_spa(root: Path, full_path: str, *, studio: bool) -> FileResponse | HTMLResponse:
+def _serve_legacy_spa(root: Path, full_path: str) -> FileResponse | HTMLResponse:
     """legacy SPA 服務：實檔直接回，index.html / deep-link 回注入 banner 的 HTML。"""
     target = (root / full_path).resolve()
     try:
@@ -117,7 +111,7 @@ def _serve_legacy_spa(root: Path, full_path: str, *, studio: bool) -> FileRespon
     if target.is_file() and target.name != "index.html":
         return FileResponse(target)
     html = (root / "index.html").read_text(encoding="utf-8")
-    return HTMLResponse(_inject_legacy_banner(html, studio=studio))
+    return HTMLResponse(_inject_legacy_banner(html))
 
 
 def create_app() -> FastAPI:
@@ -179,23 +173,17 @@ def create_app() -> FastAPI:
         async def spa_fallback(full_path: str) -> Response:
             # 實檔 (例如 /ui/vite.svg) 直接回；index.html / deep-link 回注入退場
             # banner (U-3) 的 HTML。防 path traversal 在 helper 內。
-            return _serve_legacy_spa(WEB_DIST, full_path, studio=False)
+            return _serve_legacy_spa(WEB_DIST, full_path)
 
-    # eduStudio 合併 C-4: infoCard 前端 (vite build --base=/studio/) 服務 /studio/*。
-    # 同 /ui 模式：mount assets + SPA fallback。前端目前仍 client-side 呼叫 Gemini
-    # (key 由 UI 設定)；「前端改打本 server /api」為後續步驟。
-    if WEB_STUDIO.exists():
-        studio_assets = WEB_STUDIO / "assets"
-        if studio_assets.exists():
-            app.mount(
-                "/studio/assets",
-                StaticFiles(directory=str(studio_assets)),
-                name="studio-assets",
-            )
-
-        @app.get("/studio/{full_path:path}", include_in_schema=False)
-        async def studio_spa(full_path: str) -> Response:
-            return _serve_legacy_spa(WEB_STUDIO, full_path, studio=True)
+    # U-1: `/studio` 退場。原 infoCard 前端 client-side 直連 Gemini（繞過後端計費 +
+    # review gate），其源碼不在本 repo，且視覺功能已於 U-2 在 `/app` 補齊對等（逐區
+    # refine / 區域選擇）。故不再 serve 該 SPA，改一律 307 轉址到 `/app/`：關掉繞過
+    # 漏洞、舊書籤/連結不 404。無條件註冊（即使殘留 web/studio build 也不會被服務）。
+    # 307（暫時）而非 301/308：不被瀏覽器永久快取，保留反悔餘地。
+    @app.get("/studio", include_in_schema=False)
+    @app.get("/studio/{full_path:path}", include_in_schema=False)
+    async def studio_sunset(full_path: str = "") -> RedirectResponse:
+        return RedirectResponse(url="/app/", status_code=307)
 
     # eduStudio 合併 C-4: 統一 app（Claude Design 設計）serve 在 /app/*（同 /ui 模式）。
     if WEB_EDUAPP.exists():

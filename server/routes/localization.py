@@ -14,7 +14,7 @@ import asyncio
 import os
 import tempfile
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
 from core.glossary import to_translation_rules
@@ -41,6 +41,49 @@ def _save_upload(upload: UploadFile, suffix: str = "") -> str:
     with os.fdopen(fd, "wb") as f:
         f.write(upload.file.read())
     return path
+
+
+# ---------- S-4（後續）: 檔案端點上傳硬化 ----------
+# localization 的 multipart 端點原先只把上傳寫進 tempfile（OS 管理路徑、無 path-traversal
+# 風險，S-3 評為低風險），但缺 uploads.py `/upload` 已有的「副檔名 + MIME 白名單」——任何人
+# 都能往 image/pdf/meeting/song/dub 端點塞非預期檔案。比照 S-4：副檔名為**強 gate**（per
+# 端點媒體類別），MIME **寬鬆輔助**（瀏覽器常回 octet-stream / 空字串，不能硬擋，只擋「有給
+# 且明顯非該類」的大類）。檔案進 mkstemp 不用原檔名，故只驗媒體類別、不另做檔名 sanitize
+# （path 安全由 tempfile 保證）。
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
+_PDF_EXTS = {".pdf"}
+# 影片 / 音訊（meeting / song / dub 共用）
+_AV_EXTS = {
+    ".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v",
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+}
+_PDF_MIME = frozenset({"application/pdf", "application/x-pdf", "application/acrobat"})
+
+
+def _validate_media_upload(
+    upload: UploadFile,
+    allowed_exts: set[str],
+    label: str,
+    *,
+    mime_prefixes: tuple[str, ...] = (),
+    mime_exact: frozenset[str] = frozenset(),
+) -> None:
+    """S-4: 副檔名（強 gate）+ MIME（寬鬆輔助）白名單，擋掉非該類別的上傳檔。"""
+    ext = os.path.splitext(upload.filename or "")[1].lower()
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"不接受的副檔名 {ext or '(無)'}; {label} 只收 {sorted(allowed_exts)}",
+        )
+    ct = (upload.content_type or "").split(";")[0].strip().lower()
+    if not ct or ct == "application/octet-stream":
+        return  # 瀏覽器常見、放行
+    if ct in mime_exact or any(ct.startswith(p) for p in mime_prefixes):
+        return
+    raise HTTPException(
+        status.HTTP_400_BAD_REQUEST,
+        f"不接受的 MIME 類型: {ct}（{label}）",
+    )
 
 
 # ---------- 請求模型 ----------
@@ -234,6 +277,7 @@ async def translate_image(
     source_lang: str = Form("auto"),
 ) -> dict:
     """圖片 OCR + 翻譯（pytesseract，lazy）。回最終翻譯文字。"""
+    _validate_media_upload(file, _IMAGE_EXTS, "圖片", mime_prefixes=("image/",))
     path = _save_upload(file)
     try:
         result = await asyncio.to_thread(
@@ -253,6 +297,7 @@ async def translate_pdf(
     source_lang: str = Form("en-US"),
 ) -> dict:
     """PDF 逐頁翻譯（PyMuPDF，lazy）。回最終彙整文字。"""
+    _validate_media_upload(file, _PDF_EXTS, "PDF", mime_exact=_PDF_MIME)
     path = _save_upload(file, suffix=".pdf")
     try:
         result = await asyncio.to_thread(
@@ -275,6 +320,7 @@ async def meeting_summarize(
 
     summary_types 以逗號分隔（如 'key_points,decisions'）。
     """
+    _validate_media_upload(file, _AV_EXTS, "會議影音", mime_prefixes=("video/", "audio/"))
     path = _save_upload(file)
     types = [t.strip() for t in summary_types.split(",") if t.strip()]
     try:
@@ -307,6 +353,7 @@ async def song_transcribe(
     """
     from core.song_build import build_song_json_from_media
 
+    _validate_media_upload(file, _AV_EXTS, "歌曲影音", mime_prefixes=("video/", "audio/"))
     suffix = os.path.splitext(file.filename or "")[1] or ".mp3"
     path = _save_upload(file, suffix=suffix)
     try:
@@ -338,6 +385,7 @@ async def dub_video(
     if not url:
         if file is None:
             return {"error": "需提供 url 或上傳 file"}
+        _validate_media_upload(file, _AV_EXTS, "配音影片", mime_prefixes=("video/", "audio/"))
         path = _save_upload(file, suffix=".mp4")
     source = url or path
     try:

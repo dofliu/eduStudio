@@ -229,8 +229,16 @@
   **U-1（2026-06-15）退場**＝307 轉址 `/app/`（已過 `/app` 功能對等確認，呼應本項「完全移除
   build 產物等對等確認後再做」）。`/ui`（影片站，已與 `/app` 對等）暫保留 banner 過渡，待後續
   小 PR 視情況比照退場。
-- [ ] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— 現況部分 mock。等 Phase 4 計費
-  補完後，把成本面板數字接真 `/api/usage`，移除「示意」假數字。
+- [x] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— ✅ **2026-06-16 對帳補登**（實作早於
+  **PR #35（commit `1a63b97`）** 在 C-1（#34）影片/解析計帳落地後隨即完成，但當時漏勾 checkbox／
+  漏補 ✅ 行，本輪查證後補正）。成本面板已**全面接真 `/api/usage`、移除所有 mock 示意數字**：
+  ① 後端 `GET /api/usage`（`server/routes/infocards.py::usage_summary`）回 `core.usage` 真實統計 +
+  `get_monthly_budget()`，**涵蓋視覺／在地化／影片／解析四站**的 Gemini 呼叫（影片 render pipeline
+  計帳由 C-1 補上）。② 前端 `frontend/edustudio/app.jsx`：頂欄成本 pill 與抽屜 `CostPanel` **共用同
+  一份 `/api/usage`**（`loadUsage`，掛載即抓、開抽屜重抓刷新），各工作站花費／近期呼叫／呼叫次數全
+  讀後端真實資料；**沒有任何呼叫紀錄時顯示空狀態**（「目前還沒有任何 Gemini 呼叫紀錄…」），不再有
+  示意假數字。成本仍標「依用量估算（以 Google 官方定價為準）」——**單價精準化＝C-2（GATE，需官方
+  定價）**，與本項「接真實用量」正交、不互卡。`tests/test_usage.py` 覆蓋端點。純文件對帳，無 code 變更。
 - [ ] 🟢 **U-5 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰
   YouTube OAuth + 多語 metadata（方案 A 多語字幕軌後端已有），補前端驅動。
 - [x] 🟢 **U-6 前端建置流程文件化**（offline）— ✅ 2026-06-07 完成。直接**把 `base:'/app/'` 寫死

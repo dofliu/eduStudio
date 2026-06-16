@@ -338,12 +338,22 @@
     預設 id 與這些 chokepoint 原本的 3.x 預設一字不差（text.fast=3.5-flash、image.fast=3.1-flash-image、
     image.pro=3-pro-image），只是改成單一真實來源 + 多帶 `model_roles` 覆寫感知。本機全套 2459 passed
     （3 個 QR/CJK 主題像素斷言為容器缺 Noto 字型假象，CI 權威）。
-  - ⏸️ **影片/解析文字 pipeline 的硬編 id 換接 = C-3 GATE，本輪不動。** `slide_ingest.py:43`、
-    `solve.py:30`、`core/config.py:170 GEMINI_MODEL` 等目前寫死 `gemini-2.5-flash`；而登錄表 `text.fast`
-    預設是 `gemini-3.5-flash`。把這些 chokepoint 換成 `resolve("text.fast")` **會把旁白/解題默默從 2.5
-    遷到 3.5**，這正是 **C-3（旁白模型遷 3.x，GATE，需開額度 A/B 驗品質）**。故此部分留待 C-3 拍板/
-    開額度後一併換（屆時就是「改登錄表一個值 + 換 call site」）。`mermaid_render.py`/`ideate`/`diagram_*`
-    等 GATE 半成品（F-5）同理留待各自項目。
+  - ✅ 2026-06-15 **slide_ingest 旁白 chokepoint 已隨 C-3 換接（行為已驗證遷移）。** C-3（旁白模型遷
+    3.x）已於 2026-06-15 拍板完成：`slide_ingest.py` 的寫死 `MODEL` 換成 `narration_model()＝
+    resolve_id(text.fast)`（旁白 + 章節切分一起遷），劉老師本機 A/B 驗過品質後切到 `gemini-3.5-flash`。
+    這把 M-2 在「投影片旁白」這條線收口＝走角色登錄表。
+  - ⏸️ **剩餘文字 pipeline chokepoint 換接 = 需劉老師「模型遷移」拍板（GATE，非單純機械重構）。**
+    目前仍寫死/預設 `gemini-2.5-flash` 的有：`scriptor.py:449`（**考卷 pipeline 逐 section 旁白**，
+    走 `get_gemini_model()`）、`outliner.py:182`（影片大綱）、`translate.py:89` 與 `translation/service.py`
+    （雙語字幕翻譯，Gemini 為預設後端）、`solve.py:30`（**解題**，寫死 `MODEL`），共同預設來源
+    `core/config.py:189 GEMINI_MODEL = "gemini-2.5-flash"`。登錄表 `text.fast` 預設是 `gemini-3.5-flash`
+    → 把這些 chokepoint 改成 `resolve("text.fast")` **會把考卷旁白／大綱／翻譯／解題默默從 2.5 遷到 3.5**。
+    **C-3 的 A/B 只驗過「投影片旁白」**，未涵蓋這四條；且 C-3 明文把 `solve.py`（解題，正確性更敏感）
+    列為「**另議**」。依硬規則 #3（模型遷移＝GATE）＋「多種合理解法間做架構抉擇」，routine **不自主換**。
+    **待劉老師拍板**（見文末「待拍板」M-2 條）：①考卷旁白 `scriptor` 是否比照 C-3 直接遷 `text.fast`
+    （內容同為旁白、A/B 結論可能可轉移，但 pipeline 不同）②`outliner`／`translate` 是否一併遷或各自評
+    ③`solve` 解題另開 A/B 後再定。拍板後機械工很小＝各 call site 改走 `resolve()`／登錄表一個值。
+    `mermaid_render.py`/`ideate`/`diagram_*` 等 GATE 半成品（F-5）同理留待各自項目。
 - [x] 🟡 **M-3 設定頁模型管理升級（offline）**— ✅ 2026-06-08 完成。設定頁從「文字/圖片各一個下拉」
   升級成 **逐角色可配**：新增設定欄位 `model_roles`（dict，逐角色 model id 覆寫），`resolve()` 早已
   最高優先讀它（M-1 預留），現在設定頁能寫入＝閉環。`core/models.py` 加 `role_catalog()`（單一真實
@@ -894,8 +904,17 @@
 4. **S-5 secret 靜態加密**：自架單機明文（已 gitignore）可接受 vs 要不要加 Fernet 加密 — 低優先，要不要做你定。
 5. **F-3 CARD 軸 / F-4 EBOOK 軸**：RFC 開放問題待拍板（這兩個非首發必要）。
 6. **DOC-5 demo 影片**：需你錄 60 秒 demo 放 README。
+7. **M-2 剩餘文字 pipeline 模型遷移**（C-3 已解，但暴露新決策）：C-3 只把「投影片旁白」遷到
+   `text.fast`（3.5）並 A/B 驗過。剩 `scriptor`（考卷旁白）／`outliner`（大綱）／`translate`（翻譯）／
+   `solve`（解題）仍預設 `gemini-2.5-flash`。把它們改走 `resolve("text.fast")` ＝默默遷 3.5，未經各自
+   A/B（`solve` C-3 明列「另議」）。**請拍板**：①`scriptor` 是否比照 C-3 直接遷（同為旁白）②`outliner`／
+   `translate` 一併遷或各自評 ③`solve` 另開 A/B 後定。拍板後機械工很小（改 call site 走 `resolve()`）。
 
 > 劉老師 2026-06-07：「需要額度我會給你權限」→ 上述開額度項 routine 寫好 proposal 後可請你開。
+>
+> **2026-06-16 routine 快照**：offline 工作項已全數清空（Phase 0–9 的 offline slice 皆 `[x]`／已收口）；
+> 清單上剩餘未完成項全為 **GATE**（上列 1–7 + R-4/R-5/U-5/C-4/D-1/D-4/F-1~5/F9-1①/F9-2 自動建議術語/
+> F9-3f/T-3 發佈），均需劉老師決策、開額度或本機實機跑。routine 暫無可自主推進的項目。
 
 ---
 

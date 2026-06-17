@@ -840,6 +840,7 @@ const THEMES = [
   { key: "aurora", name: "Aurora 極光", desc: "深色 · 紫羅蘭科技 · 圓潤", sw: ["#7C5CFF", "#2DD4BF", "#0B0E14"] },
   { key: "lumen",  name: "Lumen 學刊",  desc: "淺色紙感 · 靛藍襯線編輯感", sw: ["#4F46E5", "#0D9488", "#F3F0E9"] },
   { key: "carbon", name: "Carbon 工坊", desc: "純黑 · 暖橘薄荷 · 方正", sw: ["#FF6A3D", "#2DE1B6", "#0A0A0B"] },
+  { key: "soft",   name: "溫潤 Garden", desc: "淺色綠調 · 大圓角 · 柔和陰影 · 親切教育", sw: ["#3F8F6B", "#DB8A3C", "#EFF3EC"] },
 ];
 
 function ThemeSwitcher({ theme, onTheme }) {
@@ -3421,7 +3422,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reviewTask, setReviewTask] = useState(null);
   const [completed, setCompleted] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem("edustudio-theme-v2") || "lumen");
+  const [theme, setTheme] = useState(() => localStorage.getItem("edustudio-theme-v2") || "soft");
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);

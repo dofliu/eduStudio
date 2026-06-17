@@ -155,6 +155,83 @@
 :root[data-theme="carbon"] .es-brand-name { letter-spacing: -0.02em; }
 :root[data-theme="carbon"] .es-pv-eyebrow { font-family: var(--es-font-mono); letter-spacing: 0.06em; }
 
+/* ════════════════════════════════════════════════════════════
+   SOFT (溫潤 / Garden) — light, green-tinted paper, large rounded
+   corners, soft diffuse shadows, sage-green primary + warm-amber
+   accent, friendly sans display. Approachable, educational, trusted.
+   ════════════════════════════════════════════════════════════ */
+:root[data-theme="soft"] {
+  --es-primary:       #3F8F6B;
+  --es-primary-deep:  #357A5A;
+  --es-primary-mid:   #4A9E78;
+  --es-primary-soft:  #52A87F;
+  --es-primary-tint:  rgba(63, 143, 107, 0.12);
+  --es-primary-line:  rgba(63, 143, 107, 0.28);
+  --es-primary-on:    #FFFFFF;
+
+  --es-accent:        #DB8A3C;
+  --es-accent-deep:   #C2762C;
+  --es-accent-soft:   #E89F58;
+  --es-accent-tint:   rgba(219, 138, 60, 0.12);
+  --es-accent-line:   rgba(219, 138, 60, 0.30);
+
+  --es-bg:        #EFF3EC;
+  --es-bg-alt:    #F5F9F2;
+  --es-surface:   #FFFFFF;
+  --es-surface-2: #FFFFFF;
+  --es-surface-3: #F2F6EF;
+  --es-surface-4: #E6EEE2;
+
+  --es-border:    #E1E8DD;
+  --es-border-2:  #CDD8C7;
+  --es-divider:   #ECF1E9;
+
+  --es-fg:        #26302A;
+  --es-fg-2:      #5E6B62;
+  --es-fg-3:      #8C988E;
+  --es-fg-mute:   #A9B3AB;
+  --es-fg-faint:  #C7D0C5;
+
+  --es-success:      #3F8F6B;
+  --es-success-bg:   rgba(63, 143, 107, 0.12);
+  --es-success-line: rgba(63, 143, 107, 0.30);
+  --es-warning:      #C9892E;
+  --es-warning-bg:   rgba(201, 137, 46, 0.12);
+  --es-warning-line: rgba(201, 137, 46, 0.30);
+  --es-error:        #C75C45;
+  --es-error-bg:     rgba(199, 92, 69, 0.11);
+  --es-error-line:   rgba(199, 92, 69, 0.30);
+  --es-info:         #4A86B0;
+  --es-info-bg:      rgba(74, 134, 176, 0.12);
+  --es-info-line:    rgba(74, 134, 176, 0.30);
+
+  --es-ws-video:    #C75C45;
+  --es-ws-visual:   #C9892E;
+  --es-ws-material: #4A86B0;
+  --es-ws-publish:  #3F8F6B;
+
+  --es-font-display: "Noto Sans TC", system-ui, -apple-system,
+                     "PingFang TC", "Microsoft JhengHei", sans-serif;
+
+  --es-radius-sm: 10px;
+  --es-radius-md: 14px;
+  --es-radius-lg: 18px;
+  --es-radius-xl: 22px;
+
+  --es-shadow-1: 0 1px 2px rgba(30,50,35,0.05), 0 2px 8px rgba(30,50,35,0.04);
+  --es-shadow-2: 0 4px 16px rgba(30,50,35,0.07), 0 8px 24px rgba(30,50,35,0.05);
+  --es-shadow-3: 0 12px 32px rgba(30,50,35,0.10);
+  --es-shadow-modal: 0 24px 56px rgba(30,50,35,0.16);
+  --es-focus-ring: 0 0 0 3px rgba(63,143,107,0.22);
+  --es-glow-primary: 0 0 0 1px var(--es-primary-line), 0 8px 24px rgba(63,143,107,0.16);
+}
+/* Soft: heavier sans headings carry a warm, approachable voice */
+:root[data-theme="soft"] .es-h1,
+:root[data-theme="soft"] .es-gate-title,
+:root[data-theme="soft"] .es-cost-big,
+:root[data-theme="soft"] .es-pv-h { font-family: var(--es-font-display); font-weight: 700; letter-spacing: -0.01em; }
+:root[data-theme="soft"] .es-brand-name { font-family: var(--es-font-display); font-weight: 700; }
+
 /* ── Theme switcher (topbar) ─────────────────────────────── */
 .es-themesel { position: relative; }
 .es-theme-swatches { display: inline-flex; gap: 3px; }

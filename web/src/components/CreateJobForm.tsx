@@ -24,13 +24,16 @@ const FILE_UPLOADABLE: SourceType[] = ['exam_pdf', 'slides_pdf', 'document'];
 // 上傳單檔會讓 song.json 的 sibling 資產解析不到, 故不開 upload。
 const PATH_ONLY: SourceType[] = ['repo', 'song'];
 const URL_ONLY: SourceType[] = ['url'];
+// html_animation: 一支 .html 上傳 或 一個 http(s) URL 二擇一 (無 server-path 模式),
+// 走獨立的 POST /upload/html 端點 (與 deck pipeline 無關)。
+const FILE_OR_URL: SourceType[] = ['html_animation'];
 
 type InputMode = 'upload' | 'path' | 'url';
 
 function defaultModeFor(s: SourceType): InputMode {
   if (URL_ONLY.includes(s)) return 'url';
   if (PATH_ONLY.includes(s)) return 'path';
-  return 'upload';   // exam / slides / document 預設拖檔, 不必手動填路徑
+  return 'upload';   // exam / slides / document / html_animation 預設拖檔
 }
 
 export function CreateJobForm({ onCreated }: Props) {
@@ -43,6 +46,10 @@ export function CreateJobForm({ onCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [requireReview, setRequireReview] = useState(false);
   const [mock, setMock] = useState(false);
+  // html_animation 專屬參數: 動畫無自然結尾, duration 必填; 解析度走預設清單
+  const [htmlDuration, setHtmlDuration] = useState(10);
+  const [htmlFps, setHtmlFps] = useState(30);
+  const [htmlResolution, setHtmlResolution] = useState('1920x1080');
   // PR-5a + iter 28 + iter 44: theme 只對 repo / document / url 有意義
   // iter 28 移 Frieren / Naruto / Journal 三主題
   // iter 44 加 10 套 dof-* (5 v1 沉穩 + 5 v2 衝擊)
@@ -118,8 +125,10 @@ export function CreateJobForm({ onCreated }: Props) {
     setUrl('');
   };
 
-  const supportsUpload = FILE_UPLOADABLE.includes(sourceType);
-  const supportsPath = !URL_ONLY.includes(sourceType);
+  const isHtmlAnim = FILE_OR_URL.includes(sourceType);
+  const supportsUpload = FILE_UPLOADABLE.includes(sourceType) || isHtmlAnim;
+  const supportsPath = !URL_ONLY.includes(sourceType) && !isHtmlAnim;
+  const supportsUrl = URL_ONLY.includes(sourceType) || isHtmlAnim;
   // M3e-2: song 是獨立 MV 渲染分流 (繞 v0 pipeline), 多數 deck/影片調校選項對它都 no-op
   const isSong = sourceType === 'song';
 
@@ -191,6 +200,37 @@ export function CreateJobForm({ onCreated }: Props) {
   const submit = async () => {
     setSubmitting(true);
     try {
+      if (isHtmlAnim) {
+        if (inputMode === 'upload' && !file) {
+          show('請選 .html 檔', 'error');
+          return;
+        }
+        if (inputMode === 'url' && !url.trim()) {
+          show('請填 http(s) URL', 'error');
+          return;
+        }
+        if (!(htmlDuration > 0)) {
+          show('請填正確的影片長度 (秒)', 'error');
+          return;
+        }
+        const [w, h] = htmlResolution.split('x').map(Number);
+        const r = await api.uploadHtmlAnimation({
+          file: inputMode === 'upload' ? file : null,
+          url: inputMode === 'url' ? url.trim() : undefined,
+          duration: htmlDuration,
+          fps: htmlFps,
+          width: w,
+          height: h,
+          mock,
+        });
+        show(`已建立 HTML 動畫 job ${r.job_id}, 渲染中…`);
+        setPath('');
+        setUrl('');
+        setFile(null);
+        setOpen(false);
+        onCreated();
+        return;
+      }
       if (inputMode === 'upload') {
         if (!file) {
           show('請選檔', 'error');
@@ -231,6 +271,7 @@ export function CreateJobForm({ onCreated }: Props) {
   // submit button 是否能按
   const canSubmit =
     !submitting &&
+    (!isHtmlAnim || htmlDuration > 0) &&
     ((inputMode === 'upload' && file) ||
       (inputMode === 'path' && path) ||
       (inputMode === 'url' && url));
@@ -262,6 +303,7 @@ export function CreateJobForm({ onCreated }: Props) {
             <option value="document">document — PDF / MD / TXT 單檔</option>
             <option value="url">url — 網頁文章</option>
             <option value="song">song — 歌曲 MV (song.json)</option>
+            <option value="html_animation">html_animation — HTML 動畫網頁 → MP4</option>
           </select>
         </div>
 
@@ -290,8 +332,20 @@ export function CreateJobForm({ onCreated }: Props) {
                 Server 端路徑
               </label>
             )}
+            {/* url 來源固定走 URL; html_animation 則 upload / url 二擇一 */}
             {URL_ONLY.includes(sourceType) && (
               <span className="text-ink-muted">URL 字串</span>
+            )}
+            {supportsUrl && !URL_ONLY.includes(sourceType) && (
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="inputMode"
+                  checked={inputMode === 'url'}
+                  onChange={() => setInputMode('url')}
+                />
+                URL
+              </label>
             )}
           </div>
         </div>
@@ -300,11 +354,11 @@ export function CreateJobForm({ onCreated }: Props) {
       {/* 輸入區依 mode 切換 */}
       {inputMode === 'upload' && (
         <div className="mt-3">
-          <label className="field-label">選擇檔案</label>
+          <label className="field-label">{isHtmlAnim ? '選擇 .html 動畫檔' : '選擇檔案'}</label>
           <input
             type="file"
             className="field-input"
-            accept=".pdf,.md,.txt"
+            accept={isHtmlAnim ? '.html,.htm' : '.pdf,.md,.txt'}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
           {file && (
@@ -346,8 +400,53 @@ export function CreateJobForm({ onCreated }: Props) {
             className="field-input font-mono"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com/article"
+            placeholder={isHtmlAnim ? 'https://example.com/animation.html' : 'https://example.com/article'}
           />
+        </div>
+      )}
+
+      {/* html_animation 專屬: 動畫無自然結尾 → duration 必填; fps / 解析度走預設清單 */}
+      {isHtmlAnim && (
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className="field-label">影片長度 (秒)</label>
+            <input
+              type="number"
+              min={1}
+              max={600}
+              step={1}
+              className="field-input"
+              value={htmlDuration}
+              onChange={(e) => setHtmlDuration(Number(e.target.value))}
+            />
+            <div className="text-xs text-ink-muted mt-1">HTML 動畫無自然結尾, 需指定要錄多長 (1~600 秒)。</div>
+          </div>
+          <div>
+            <label className="field-label">影格率 (fps)</label>
+            <select
+              className="field-input"
+              value={htmlFps}
+              onChange={(e) => setHtmlFps(Number(e.target.value))}
+            >
+              <option value={24}>24 — 電影感</option>
+              <option value={30}>30 — 標準 (預設)</option>
+              <option value={60}>60 — 流暢 (檔案較大)</option>
+            </select>
+          </div>
+          <div>
+            <label className="field-label">解析度</label>
+            <select
+              className="field-input"
+              value={htmlResolution}
+              onChange={(e) => setHtmlResolution(e.target.value)}
+            >
+              <option value="1920x1080">1080p — 16:9 (預設)</option>
+              <option value="1280x720">720p — 16:9</option>
+              <option value="2560x1440">1440p — 16:9 (2K)</option>
+              <option value="3840x2160">4K — 16:9 UHD</option>
+              <option value="1080x1920">1080×1920 — 9:16 直向 (Shorts)</option>
+            </select>
+          </div>
         </div>
       )}
 

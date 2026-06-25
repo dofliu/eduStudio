@@ -7,7 +7,8 @@ export type SourceType =
   | 'repo'
   | 'document'
   | 'url'
-  | 'song';   // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
+  | 'song'    // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
+  | 'html_animation';   // HTML 動畫網頁 (.html / URL) → 逐 frame 截圖 → MP4
 
 export type JobState =
   | 'pending'

@@ -133,6 +133,18 @@ class JobOptions(BaseModel):
                     "不擋 ingest. 兩個 opt-in 都開時, scriptor 自動配圖優先 ai_*, "
                     "用戶可在 UI 手動換.",
     )
+    augment_slide_images: bool = Field(
+        default=False,
+        description="缺圖簡報補圖 (只對 slides_pdf): ingest 後為缺圖頁用 Gemini "
+                    "2.5 Flash Image 生配圖, 合成「原頁+配圖」新頁回填 slide.bg_image "
+                    "(core.slide_image_gen)。AI 圖為估值 → 補過圖的頁 reviewed=False, "
+                    "且自動轉 require_review (硬規則 #1)。成本考量預設 False, opt-in。",
+    )
+    augment_only_missing: bool = Field(
+        default=True,
+        description="augment_slide_images 開啟時: True 只補 PyMuPDF 偵測到的缺圖頁 "
+                    "(純文字頁); False 對每頁都生配圖 (較貴)。",
+    )
     prepend_cover: bool = Field(
         default=False,
         description="iter 62: 在 intro 之後 / 主內容之前插入封面頁 (deck_title + "

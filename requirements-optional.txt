@@ -45,3 +45,12 @@ fpdf2>=2.8
 # 只在 JobOptions.show_qr_on_outro=True 才需要. 沒裝 → 不畫 QR, render
 # 仍正常.
 # qrcode[pil]>=8.0
+
+# ============================================================
+# Playwright — HTML 動畫網頁 → MP4 (core/html_video.py, POST /upload/html)
+# ============================================================
+# 只在用「HTML 動畫轉影片」功能才需要 (lazy import)。沒裝 → 該端點回錯, 其餘
+# 影片/視覺/在地化完全不受影響。裝完還要下載 Chromium:
+#     pip install playwright && playwright install chromium
+# (mock=True 走 ffmpeg testsrc, 不需要瀏覽器, 給 CI / smoke test 用。)
+playwright>=1.40

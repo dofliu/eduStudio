@@ -63,20 +63,24 @@ async def get_youtube_meta(
     if existing and existing.state == YoutubeUploadState.DONE:
         return existing.model_dump()
 
-    # 找 deck.json
+    # artifact stem 當預填基底 (考卷類 = problem_id; html_animation = 影片檔名)
+    stem = Path(name).stem
+
+    # 找 deck.json。html_animation 這類非 deck 來源沒有 deck.json, 不該 404 擋住上傳 —
+    # 退化成「用檔名當標題」的最小預填, 其餘讓使用者在上傳前自行編輯。
     deck_path = store.deck_path(job_id)
     if not deck_path.exists():
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND,
-            "deck.json 不存在, 無法產預填 metadata",
-        )
-    deck = json.loads(deck_path.read_text(encoding="utf-8"))
-
-    # artifact name = "{problem_id}.mp4", 取 stem 當 problem_id
-    problem_id = Path(name).stem
-
-    from core import auto_youtube_meta
-    meta = auto_youtube_meta(deck, problem_id, source_type=rec.source_type.value)
+        meta = {
+            "title": stem,
+            "description": "",
+            "tags": [],
+            "privacy": "unlisted",
+            "category": "27",
+        }
+    else:
+        deck = json.loads(deck_path.read_text(encoding="utf-8"))
+        from core import auto_youtube_meta
+        meta = auto_youtube_meta(deck, stem, source_type=rec.source_type.value)
 
     # 如果有 existing pending / failed 紀錄, 把 user 之前編過的覆蓋上去
     # (state=DONE 的已在開頭 return 了)

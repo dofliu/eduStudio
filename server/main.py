@@ -40,6 +40,7 @@ from .routes import settings as settings_routes
 from .routes import slides as slides_routes
 from .routes import themes as themes_routes
 from .routes import uploads as uploads_routes
+from .routes import uploads_html as uploads_html_routes
 from .routes import voices as voices_routes
 from .routes import youtube as youtube_routes
 
@@ -147,6 +148,7 @@ def create_app() -> FastAPI:
     app.include_router(youtube_routes.router)
     app.include_router(slides_routes.router)
     app.include_router(uploads_routes.router)
+    app.include_router(uploads_html_routes.router)  # HTML 動畫 → MP4 → 接既有上傳
     app.include_router(voices_routes.router)
     app.include_router(library_routes.router)
     app.include_router(editor_routes.router)

@@ -144,14 +144,19 @@ class TestYoutubeMetaEndpoint:
         assert body["video_id"] == "abc123"
         assert body["state"] == "done"  # model_dump 帶 state field
 
-    def test_no_deck_json_returns_404(self, client):
-        """artifact 存在但 deck.json 不存在 (非 DONE state) → 404."""
+    def test_no_deck_json_falls_back_to_filename(self, client):
+        """artifact 存在但 deck.json 不存在 → 退化成「檔名當標題」的最小預填 (不 404)。
+
+        html_animation 這類非 deck 來源沒有 deck.json, 不該被擋住上傳; 退化預填讓
+        使用者在前端自行編輯其餘欄位。"""
         c, store = client
         job_id = _make_done_job(store, ["q1.mp4"])
         # 不寫 deck.json
         resp = c.get(f"/jobs/{job_id}/artifacts/q1.mp4/youtube_meta")
-        assert resp.status_code == 404
-        assert "deck.json" in resp.json()["detail"]
+        assert resp.status_code == 200
+        meta = resp.json()
+        assert meta["title"] == "q1"
+        assert meta["privacy"] == "unlisted"
 
     def test_existing_pending_overwrites_auto_meta(self, client):
         """pending state 帶 user 編過的 title/tags → 覆蓋 auto_youtube_meta 結果.

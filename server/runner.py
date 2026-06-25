@@ -1090,6 +1090,7 @@ def _augment_slide_images_inplace(store: JobStore, rec: JobRecord) -> None:
         only_missing=rec.options.augment_only_missing,
         mock=bool(rec.options.mock),
         asset_base=PROJECT_ROOT,
+        layout=rec.options.augment_layout,
     )
     deck_path.write_text(
         json.dumps(augmented, ensure_ascii=False, indent=2), encoding="utf-8",

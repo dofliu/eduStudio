@@ -145,6 +145,12 @@ class JobOptions(BaseModel):
         description="augment_slide_images 開啟時: True 只補 PyMuPDF 偵測到的缺圖頁 "
                     "(純文字頁); False 對每頁都生配圖 (較貴)。",
     )
+    augment_layout: str = Field(
+        default="side_by_side",
+        description="補圖合成版面 (core.slide_image_gen.LAYOUTS): side_by_side "
+                    "(左原頁右配圖) / image_left (左配圖右原頁) / overlay (配圖浮貼 "
+                    "右下角) / image_only (只用配圖)。",
+    )
     prepend_cover: bool = Field(
         default=False,
         description="iter 62: 在 intro 之後 / 主內容之前插入封面頁 (deck_title + "

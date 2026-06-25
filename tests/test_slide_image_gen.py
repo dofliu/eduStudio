@@ -87,6 +87,24 @@ class TestComposeAugmentedPage:
         out = sig.compose_augmented_page(tmp_path / "nope.png", ai, tmp_path / "aug.png")
         assert out.exists()
 
+    @pytest.mark.parametrize("layout", sig.LAYOUTS)
+    def test_all_layouts_produce_full_frame(self, tmp_path, layout):
+        from PIL import Image
+        orig = _make_png(tmp_path / "orig.png", size=(800, 600), color=(30, 60, 30))
+        ai = _make_png(tmp_path / "ai.png", size=(1024, 1024), color=(200, 200, 240))
+        out = sig.compose_augmented_page(
+            orig, ai, tmp_path / f"aug_{layout}.png", layout=layout,
+            width=1920, height=1080,
+        )
+        assert Image.open(out).size == (1920, 1080)
+
+    def test_unknown_layout_falls_back(self, tmp_path):
+        from PIL import Image
+        orig = _make_png(tmp_path / "orig.png", size=(800, 600))
+        ai = _make_png(tmp_path / "ai.png", size=(1024, 1024))
+        out = sig.compose_augmented_page(orig, ai, tmp_path / "aug.png", layout="bogus")
+        assert Image.open(out).size == (1920, 1080)
+
 
 class TestAugmentDeckWithImages:
     def _deck(self, base):

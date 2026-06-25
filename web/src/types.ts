@@ -36,6 +36,8 @@ export interface JobOptions {
   augment_slide_images?: boolean;
   /** augment_slide_images 開啟時: true 只補偵測到的缺圖頁; false 每頁都生. 預設 true. */
   augment_only_missing?: boolean;
+  /** 補圖合成版面: side_by_side / image_left / overlay / image_only. 預設 side_by_side. */
+  augment_layout?: 'side_by_side' | 'image_left' | 'overlay' | 'image_only';
 }
 
 export interface StageInfo {

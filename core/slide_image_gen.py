@@ -142,50 +142,70 @@ def generate_slide_image(
     )
 
 
+# 支援的合成版面
+LAYOUTS = ("side_by_side", "image_left", "overlay", "image_only")
+
+
 def compose_augmented_page(
     original_png: str | Path,
     ai_png: str | Path,
     out_path: Path,
     *,
+    layout: str = "side_by_side",
     width: int = 1920,
     height: int = 1080,
     bg_color: tuple[int, int, int] = (255, 255, 255),
 ) -> Path:
-    """把原頁 + AI 配圖合成一張新頁: 左半原頁, 右半配圖 (各自等比 letterbox-fit)。
+    """把原頁 + AI 配圖合成一張新頁。產出 width×height 的 PNG → 直接給
+    SlideRenderer (letterbox-fit 進影格) 或 PPTX 匯出用。
 
-    產出 width×height 的 PNG → 直接給 SlideRenderer (letterbox-fit 進影格) 或未來
-    PPTX 匯出用。原頁讀不到時, 整張用配圖填滿 (仍是有效的新頁)。
+    layout 模式:
+      - "side_by_side" (預設): 左原頁, 右配圖。
+      - "image_left":          左配圖, 右原頁 (鏡像)。
+      - "overlay":             原頁鋪滿, 配圖縮成右下角浮貼 (~38% 寬)。
+      - "image_only":          只用配圖鋪滿 (忽略原頁)。
+
+    原頁讀不到時一律退化成「配圖鋪滿」(仍是有效新頁)。
     """
     from PIL import Image
+
+    if layout not in LAYOUTS:
+        layout = "side_by_side"
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     canvas = Image.new("RGB", (width, height), bg_color)
     pad = 24
-    half_w = width // 2
 
-    def _fit_into(img_path: str | Path, box_x: int, box_w: int) -> None:
+    def _fit_into(img_path: str | Path, box_x: int, box_y: int, box_w: int, box_h: int) -> None:
         try:
             im = Image.open(img_path).convert("RGB")
         except Exception as e:  # noqa: BLE001
             logger.warning("合成頁讀圖失敗 %s: %s", img_path, e)
             return
-        avail_w = box_w - 2 * pad
-        avail_h = height - 2 * pad
+        avail_w, avail_h = box_w - 2 * pad, box_h - 2 * pad
         scale = min(avail_w / im.width, avail_h / im.height)
         sw, sh = max(1, int(im.width * scale)), max(1, int(im.height * scale))
         im = im.resize((sw, sh), Image.LANCZOS)
-        x = box_x + (box_w - sw) // 2
-        y = (height - sh) // 2
-        canvas.paste(im, (x, y))
+        canvas.paste(im, (box_x + (box_w - sw) // 2, box_y + (box_h - sh) // 2))
 
     original_exists = Path(original_png).exists()
-    if original_exists:
-        _fit_into(original_png, 0, half_w)
-        _fit_into(ai_png, half_w, width - half_w)
-    else:
-        # 沒有原頁就讓配圖佔滿整張
-        _fit_into(ai_png, 0, width)
+    half_w = width // 2
+
+    if not original_exists or layout == "image_only":
+        _fit_into(ai_png, 0, 0, width, height)
+    elif layout == "side_by_side":
+        _fit_into(original_png, 0, 0, half_w, height)
+        _fit_into(ai_png, half_w, 0, width - half_w, height)
+    elif layout == "image_left":
+        _fit_into(ai_png, 0, 0, half_w, height)
+        _fit_into(original_png, half_w, 0, width - half_w, height)
+    elif layout == "overlay":
+        # 原頁鋪滿整張, 配圖縮成右下角浮貼
+        _fit_into(original_png, 0, 0, width, height)
+        inset_w, inset_h = int(width * 0.38), int(height * 0.38)
+        ix, iy = width - inset_w - pad, height - inset_h - pad
+        _fit_into(ai_png, ix, iy, inset_w, inset_h)
 
     canvas.save(out_path)
     return out_path
@@ -201,6 +221,7 @@ def augment_deck_with_images(
     mock: bool = False,
     max_images: int | None = None,
     asset_base: Path | None = None,
+    layout: str = "side_by_side",
 ) -> dict:
     """為 deck 中「缺圖」的 slide 逐頁生 AI 配圖並合成新頁。原地修改並回傳 deck。
 
@@ -268,7 +289,7 @@ def augment_deck_with_images(
             orig_rel = slide.get("bg_image")
             orig_abs = (base / orig_rel) if orig_rel else figures_dir / "__none__"
             aug_path = figures_dir / f"aug_{safe_id}.png"
-            compose_augmented_page(orig_abs, ai_path, aug_path)
+            compose_augmented_page(orig_abs, ai_path, aug_path, layout=layout)
 
             # 回填 slide 欄位 — bg_image 改指合成頁 (相對 PROJECT_ROOT, 與原 schema 對齊)
             slide["source_bg_image"] = orig_rel
@@ -282,6 +303,7 @@ def augment_deck_with_images(
         "generated": generated,
         "skipped": skipped,
         "only_missing": only_missing,
+        "layout": layout if layout in LAYOUTS else "side_by_side",
         "mock": mock,
     }
     logger.info("簡報補圖完成: 生 %d 張, 跳過 %d 張", generated, len(skipped))

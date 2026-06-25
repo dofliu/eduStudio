@@ -301,6 +301,16 @@ export default function JobEditor() {
               📋 outline
             </Btn>
           )}
+          {/* 簡報匯出 PPTX (含 AI 補圖) — 只對 slides_pdf */}
+          {job.source_type === 'slides_pdf' && (
+            <a
+              href={api.pptxUrl(job.id)}
+              className="btn btn-ghost btn-sm"
+              title="把這份簡報 (含 AI 補圖) 匯出成可編輯 .pptx"
+            >
+              📊 匯出 PPTX
+            </a>
+          )}
           <Btn kind="ghost" size="sm" onClick={onSave} disabled={!canEdit || saving || !dirty}>
             {saving ? '...' : '💾 Save'}
           </Btn>

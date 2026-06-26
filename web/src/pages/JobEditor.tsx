@@ -311,17 +311,35 @@ export default function JobEditor() {
               📊 匯出 PPTX
             </a>
           )}
-          {/* pptx 就地補圖 job: 下載產出的可編輯 _augmented.pptx */}
+          {/* pptx 就地補圖 job: 下載補圖簡報 + 一鍵轉影片 */}
           {job.source_type === 'pptx' && (() => {
             const aug = job.artifacts.find((a) => a.name.endsWith('.pptx'));
             return aug ? (
-              <a
-                href={api.artifactUrl(job.id, aug.name)}
-                className="btn btn-primary btn-sm"
-                title="下載就地補圖後的簡報 (原文字可編輯)"
-              >
-                ⬇ 下載補圖簡報
-              </a>
+              <>
+                <a
+                  href={api.artifactUrl(job.id, aug.name)}
+                  className="btn btn-primary btn-sm"
+                  title="下載就地補圖後的簡報 (原文字可編輯)"
+                >
+                  ⬇ 下載補圖簡報
+                </a>
+                <Btn
+                  kind="ghost"
+                  size="sm"
+                  title="把補圖簡報轉成有旁白的講解影片"
+                  onClick={async () => {
+                    try {
+                      const r = await api.pptxToVideo(job.id);
+                      show(`已建立影片 job ${r.job_id}, 製作中…`);
+                      navigate(`/jobs/${r.job_id}`);
+                    } catch (e) {
+                      show(`轉影片失敗: ${e}`, 'error');
+                    }
+                  }}
+                >
+                  🎬 製作講解影片
+                </Btn>
+              </>
             ) : null;
           })()}
           <Btn kind="ghost" size="sm" onClick={onSave} disabled={!canEdit || saving || !dirty}>

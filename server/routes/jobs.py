@@ -482,6 +482,61 @@ async def download_pptx(job_id: str, store: JobStore = Depends(get_default_store
     )
 
 
+@router.post("/{job_id}/to-video", status_code=status.HTTP_201_CREATED)
+async def pptx_to_video(
+    job_id: str, store: JobStore = Depends(get_default_store),
+) -> CreateJobResponse:
+    """把 pptx 補圖 job 產出的「補圖簡報」轉成講解影片。
+
+    作法: 補圖後的 .pptx → PDF (LibreOffice) → 建一個 slides_pdf job 走既有影片
+    流程 (Gemini 旁白 + render → MP4)。回傳新 job 的 CreateJobResponse。
+    """
+    import asyncio
+
+    from ..schemas import JobOptions, JobSource, SourceType
+
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    if rec.source_type != SourceType.PPTX:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "只支援 pptx 補圖 job 轉影片",
+        )
+    aug = next((a for a in rec.artifacts if a.name.endswith(".pptx")), None)
+    if aug is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "尚未產出補圖簡報 (pptx), 無法轉影片",
+        )
+    aug_path = store.artifacts_dir(job_id) / aug.name
+
+    # 補圖 pptx → PDF (供 slides_pdf 流程逐頁渲染 + 旁白)
+    try:
+        from core.pptx_augment import render_pptx_to_pdf
+        pdf = await asyncio.to_thread(
+            render_pptx_to_pdf, aug_path, store.job_dir(job_id) / "video_src",
+        )
+    except RuntimeError as e:  # LibreOffice 未裝
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"pptx→pdf 轉檔失敗: {e}") from e
+
+    new = store.create(CreateJobRequest(
+        source_type=SourceType.SLIDES_PDF,
+        source=JobSource(path=str(Path(pdf).resolve())),
+        options=JobOptions(mock=bool(rec.options.mock)),
+    ))
+    # 沿用同一 Project (若有)
+    if rec.project_id:
+        from core.project import ProjectNotFoundError
+        from .projects import get_default_project_store
+        try:
+            get_default_project_store().add_job(rec.project_id, new.id)
+        except ProjectNotFoundError:
+            pass
+    schedule_job(store, new.id)
+    return CreateJobResponse(job_id=new.id, state=new.state, status_url=f"/jobs/{new.id}")
+
+
 # ---------- Artifact 版本歷史 (F9-4 影片版本管理) ----------
 
 @router.get("/{job_id}/versions")

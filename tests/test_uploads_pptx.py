@@ -57,6 +57,54 @@ class TestValidation:
         assert r.status_code == 400
 
 
+class TestToVideo:
+    """POST /jobs/{id}/to-video — 補圖 pptx → slides_pdf 影片 job。"""
+
+    def _pptx_job_with_artifact(self, store):
+        from server.schemas import CreateJobRequest, JobOptions, JobSource, SourceType
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.PPTX, source=JobSource(), options=JobOptions(mock=True)))
+        art = store.artifacts_dir(rec.id) / "deck_augmented.pptx"
+        art.parent.mkdir(parents=True, exist_ok=True)
+        art.write_bytes(b"PKfake")
+        store.refresh_artifacts(rec.id)
+        return rec
+
+    def test_creates_slides_job(self, client, monkeypatch):
+        c, store = client
+        rec = self._pptx_job_with_artifact(store)
+
+        import core.pptx_augment as pa
+        import server.routes.jobs as jr
+
+        def fake_render(src, outdir, **k):
+            from pathlib import Path
+            p = Path(outdir); p.mkdir(parents=True, exist_ok=True)
+            pdf = p / "deck.pdf"; pdf.write_bytes(b"%PDF-1.4"); return pdf
+        monkeypatch.setattr(pa, "render_pptx_to_pdf", fake_render)
+        monkeypatch.setattr(jr, "schedule_job", lambda store, jid: None)
+
+        r = c.post(f"/jobs/{rec.id}/to-video")
+        assert r.status_code == 201, r.text
+        new_id = r.json()["job_id"]
+        assert store.get(new_id).source_type.value == "slides_pdf"
+
+    def test_non_pptx_rejected(self, client):
+        c, store = client
+        from server.schemas import CreateJobRequest, JobOptions, JobSource, SourceType
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.SLIDES_PDF, source=JobSource(path="x.pdf"),
+            options=JobOptions()))
+        assert c.post(f"/jobs/{rec.id}/to-video").status_code == 400
+
+    def test_no_artifact_rejected(self, client):
+        c, store = client
+        from server.schemas import CreateJobRequest, JobOptions, JobSource, SourceType
+        rec = store.create(CreateJobRequest(
+            source_type=SourceType.PPTX, source=JobSource(), options=JobOptions()))
+        assert c.post(f"/jobs/{rec.id}/to-video").status_code == 400
+
+
 @pytest.mark.skipif(not _HAS_SOFFICE, reason="需要 LibreOffice 做 pptx→pdf")
 class TestHappyPath:
     def test_creates_job_and_augments(self, client):
@@ -71,11 +119,11 @@ class TestHappyPath:
         assert store.get(job_id).source_type.value == "pptx"
         # 背景 task 在 TestClient 結束時應已跑完 (mock 很快); 輪詢 deck 不適用, 檢查 state
         import time
-        for _ in range(50):
+        for _ in range(150):  # LibreOffice 轉檔在多測試同跑時可能較慢, 給足 30s
             rec = store.get(job_id)
             if rec.state.value in ("done", "failed"):
                 break
-            time.sleep(0.1)
+            time.sleep(0.2)
         rec = store.get(job_id)
         assert rec.state.value == "done", rec.error
         names = [a.name for a in rec.artifacts]

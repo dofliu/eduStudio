@@ -126,6 +126,10 @@ export const api = {
   // slides deck (含 AI 補圖) 匯出 .pptx 的下載 URL — 給 <a href> 直接用
   pptxUrl: (jobId: string) => `/jobs/${jobId}/pptx`,
 
+  /** pptx 補圖 job → 把補圖簡報轉成講解影片 (建 slides_pdf job)。回傳新 job。 */
+  pptxToVideo: (jobId: string) =>
+    call<CreateJobResponse>(`/jobs/${jobId}/to-video`, { method: 'POST' }),
+
   // ---------- Figures (iter 54) ----------
 
   /** 列該 job 抽出來的 PDF figures (給 SlideEditor 換圖 picker 用). */

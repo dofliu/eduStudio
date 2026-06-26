@@ -208,6 +208,35 @@ export const api = {
     return r.json() as Promise<CreateJobResponse>;
   },
 
+  /** HTML 動畫 (.html 檔或 URL) → MP4. 走 POST /upload/html (multipart).
+   *  file 與 url 二擇一; duration 為必填 (HTML 動畫無自然結尾)。 */
+  uploadHtmlAnimation: async (params: {
+    file?: File | null;
+    url?: string;
+    title?: string;
+    duration: number;
+    fps?: number;
+    width?: number;
+    height?: number;
+    mock?: boolean;
+  }): Promise<CreateJobResponse> => {
+    const fd = new FormData();
+    if (params.file) fd.append('file', params.file);
+    if (params.url) fd.append('url', params.url);
+    if (params.title) fd.append('title', params.title);
+    fd.append('duration', String(params.duration));
+    if (params.fps != null) fd.append('fps', String(params.fps));
+    if (params.width != null) fd.append('width', String(params.width));
+    if (params.height != null) fd.append('height', String(params.height));
+    fd.append('options_json', JSON.stringify({ mock: !!params.mock }));
+    const r = await fetch('/upload/html', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      throw new ApiError(r.status, text || r.statusText);
+    }
+    return r.json() as Promise<CreateJobResponse>;
+  },
+
   /** 上傳 .pptx 原檔, 為缺圖頁就地補圖 (原文字可編輯). 走 POST /upload/pptx. */
   uploadPptx: async (
     file: File,

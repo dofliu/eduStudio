@@ -58,7 +58,7 @@ export function CreateJobForm({ onCreated }: Props) {
   const [augmentSlideImages, setAugmentSlideImages] = useState(false);
   const [augmentOnlyMissing, setAugmentOnlyMissing] = useState(true);
   const [augmentLayout, setAugmentLayout] =
-    useState<'side_by_side' | 'image_left' | 'overlay' | 'image_only'>('side_by_side');
+    useState<'auto' | 'side_by_side' | 'image_left' | 'overlay' | 'image_only'>('auto');
   // iter 41: intro 串接 (個人開場), 對所有 source_type 都適用
   const [prependIntro, setPrependIntro] = useState(false);
   // iter 43: 影片長度模式 — 只對 repo / document / url 有意義
@@ -640,6 +640,7 @@ export function CreateJobForm({ onCreated }: Props) {
                 value={augmentLayout}
                 onChange={(e) => setAugmentLayout(e.target.value as typeof augmentLayout)}
               >
+                <option value="auto">智慧置入原頁空白處 (原頁不縮小, 推薦)</option>
                 <option value="side_by_side">左原頁 · 右配圖</option>
                 <option value="image_left">左配圖 · 右原頁</option>
                 <option value="overlay">配圖浮貼右下角</option>

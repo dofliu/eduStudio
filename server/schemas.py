@@ -146,10 +146,11 @@ class JobOptions(BaseModel):
                     "(純文字頁); False 對每頁都生配圖 (較貴)。",
     )
     augment_layout: str = Field(
-        default="side_by_side",
-        description="補圖合成版面 (core.slide_image_gen.LAYOUTS): side_by_side "
-                    "(左原頁右配圖) / image_left (左配圖右原頁) / overlay (配圖浮貼 "
-                    "右下角) / image_only (只用配圖)。",
+        default="auto",
+        description="補圖合成版面 (core.slide_image_gen.LAYOUTS): auto (偵測原頁空白區"
+                    "就地置入, 原頁不縮小, 預設) / side_by_side (左原頁右配圖) / "
+                    "image_left (左配圖右原頁) / overlay (配圖浮貼右下角) / image_only "
+                    "(只用配圖)。",
     )
     prepend_cover: bool = Field(
         default=False,

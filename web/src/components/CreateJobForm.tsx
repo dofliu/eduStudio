@@ -43,6 +43,8 @@ export function CreateJobForm({ onCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [requireReview, setRequireReview] = useState(false);
   const [mock, setMock] = useState(false);
+  // pptx 就地補圖: 只補偵測到的缺圖頁 (vs 每頁都生)
+  const [pptxOnlyMissing, setPptxOnlyMissing] = useState(true);
   // PR-5a + iter 28 + iter 44: theme 只對 repo / document / url 有意義
   // iter 28 移 Frieren / Naruto / Journal 三主題
   // iter 44 加 10 套 dof-* (5 v1 沉穩 + 5 v2 衝擊)
@@ -124,8 +126,10 @@ export function CreateJobForm({ onCreated }: Props) {
     setUrl('');
   };
 
-  const supportsUpload = FILE_UPLOADABLE.includes(sourceType);
-  const supportsPath = !URL_ONLY.includes(sourceType);
+  // pptx 走獨立端點 (/upload/pptx, 就地補圖出可編輯 pptx), upload-only
+  const isPptx = sourceType === 'pptx';
+  const supportsUpload = FILE_UPLOADABLE.includes(sourceType) || isPptx;
+  const supportsPath = !URL_ONLY.includes(sourceType) && !isPptx;
   // M3e-2: song 是獨立 MV 渲染分流 (繞 v0 pipeline), 多數 deck/影片調校選項對它都 no-op
   const isSong = sourceType === 'song';
 
@@ -203,6 +207,18 @@ export function CreateJobForm({ onCreated }: Props) {
   const submit = async () => {
     setSubmitting(true);
     try {
+      if (isPptx) {
+        if (!file) {
+          show('請選 .pptx 檔', 'error');
+          return;
+        }
+        const r = await api.uploadPptx(file, { onlyMissing: pptxOnlyMissing, mock });
+        show(`已上傳 ${file.name}, 就地補圖中… job ${r.job_id}`);
+        setFile(null);
+        setOpen(false);
+        onCreated();
+        return;
+      }
       if (inputMode === 'upload') {
         if (!file) {
           show('請選檔', 'error');
@@ -274,6 +290,7 @@ export function CreateJobForm({ onCreated }: Props) {
             <option value="document">document — PDF / MD / TXT 單檔</option>
             <option value="url">url — 網頁文章</option>
             <option value="song">song — 歌曲 MV (song.json)</option>
+            <option value="pptx">pptx — 簡報原檔缺圖補圖 (文字可編輯)</option>
           </select>
         </div>
 
@@ -312,16 +329,29 @@ export function CreateJobForm({ onCreated }: Props) {
       {/* 輸入區依 mode 切換 */}
       {inputMode === 'upload' && (
         <div className="mt-3">
-          <label className="field-label">選擇檔案</label>
+          <label className="field-label">{isPptx ? '選擇 .pptx 簡報原檔' : '選擇檔案'}</label>
           <input
             type="file"
             className="field-input"
-            accept=".pdf,.md,.txt"
+            accept={isPptx ? '.pptx' : '.pdf,.md,.txt'}
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
           {file && (
             <div className="text-xs text-ink-muted mt-1">
               {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB
+            </div>
+          )}
+          {isPptx && (
+            <div className="mt-2 flex flex-col gap-1 text-xs text-ink-muted">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pptxOnlyMissing}
+                  onChange={(e) => setPptxOnlyMissing(e.target.checked)}
+                />
+                只補偵測到的缺圖頁 (純文字頁); 取消＝每頁都生圖
+              </label>
+              <span>在你的原始 .pptx 上把 AI 配圖加進缺圖頁的空白處, 原本文字方塊全部保留可編輯。完成後在 Job 頁下載 <code>_augmented.pptx</code>。</span>
             </div>
           )}
         </div>

@@ -44,6 +44,7 @@ class SourceType(str, Enum):
     URL = "url"                  # 靜態 HTML 文章 -> url adapter
     SONG = "song"                # 歌曲音檔 + 歌詞時間軸 -> AI 生圖 MV (M3, 第 4 track)
     HTML_ANIMATION = "html_animation"  # HTML 動畫網頁 -> 逐 frame 截圖 -> MP4 (core.html_video)
+    PPTX = "pptx"                # PPTX 原檔 -> 缺圖頁就地補圖 (原文字可編輯) (core.pptx_augment)
 
 
 class JobState(str, Enum):

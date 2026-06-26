@@ -301,6 +301,29 @@ export default function JobEditor() {
               📋 outline
             </Btn>
           )}
+          {/* 簡報匯出 PPTX (含 AI 補圖) — 只對 slides_pdf */}
+          {job.source_type === 'slides_pdf' && (
+            <a
+              href={api.pptxUrl(job.id)}
+              className="btn btn-ghost btn-sm"
+              title="把這份簡報 (含 AI 補圖) 匯出成可編輯 .pptx"
+            >
+              📊 匯出 PPTX
+            </a>
+          )}
+          {/* pptx 就地補圖 job: 下載產出的可編輯 _augmented.pptx */}
+          {job.source_type === 'pptx' && (() => {
+            const aug = job.artifacts.find((a) => a.name.endsWith('.pptx'));
+            return aug ? (
+              <a
+                href={api.artifactUrl(job.id, aug.name)}
+                className="btn btn-primary btn-sm"
+                title="下載就地補圖後的簡報 (原文字可編輯)"
+              >
+                ⬇ 下載補圖簡報
+              </a>
+            ) : null;
+          })()}
           <Btn kind="ghost" size="sm" onClick={onSave} disabled={!canEdit || saving || !dirty}>
             {saving ? '...' : '💾 Save'}
           </Btn>

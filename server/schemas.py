@@ -44,6 +44,7 @@ class SourceType(str, Enum):
     URL = "url"                  # 靜態 HTML 文章 -> url adapter
     SONG = "song"                # 歌曲音檔 + 歌詞時間軸 -> AI 生圖 MV (M3, 第 4 track)
     HTML_ANIMATION = "html_animation"  # HTML 動畫網頁 -> 逐 frame 截圖 -> MP4 (core.html_video)
+    PPTX = "pptx"                # PPTX 原檔 -> 缺圖頁就地補圖 (原文字可編輯) (core.pptx_augment)
 
 
 class JobState(str, Enum):
@@ -132,6 +133,25 @@ class JobOptions(BaseModel):
                     "document. 寫進 figures/mermaid_<section_id>.png. 失敗 skip, "
                     "不擋 ingest. 兩個 opt-in 都開時, scriptor 自動配圖優先 ai_*, "
                     "用戶可在 UI 手動換.",
+    )
+    augment_slide_images: bool = Field(
+        default=False,
+        description="缺圖簡報補圖 (只對 slides_pdf): ingest 後為缺圖頁用 Gemini "
+                    "2.5 Flash Image 生配圖, 合成「原頁+配圖」新頁回填 slide.bg_image "
+                    "(core.slide_image_gen)。AI 圖為估值 → 補過圖的頁 reviewed=False, "
+                    "且自動轉 require_review (硬規則 #1)。成本考量預設 False, opt-in。",
+    )
+    augment_only_missing: bool = Field(
+        default=True,
+        description="augment_slide_images 開啟時: True 只補 PyMuPDF 偵測到的缺圖頁 "
+                    "(純文字頁); False 對每頁都生配圖 (較貴)。",
+    )
+    augment_layout: str = Field(
+        default="auto",
+        description="補圖合成版面 (core.slide_image_gen.LAYOUTS): auto (偵測原頁空白區"
+                    "就地置入, 原頁不縮小, 預設) / side_by_side (左原頁右配圖) / "
+                    "image_left (左配圖右原頁) / overlay (配圖浮貼右下角) / image_only "
+                    "(只用配圖)。",
     )
     prepend_cover: bool = Field(
         default=False,

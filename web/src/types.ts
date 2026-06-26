@@ -8,7 +8,8 @@ export type SourceType =
   | 'document'
   | 'url'
   | 'song'    // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
-  | 'html_animation';   // HTML 動畫網頁 (.html / URL) → 逐 frame 截圖 → MP4
+  | 'html_animation'   // HTML 動畫網頁 (.html / URL) → 逐 frame 截圖 → MP4
+  | 'pptx';            // PPTX 原檔 → 缺圖頁就地補圖 (原文字可編輯)
 
 export type JobState =
   | 'pending'
@@ -33,6 +34,12 @@ export interface JobOptions {
   theme?: string | null;
   /** PR-5c: 是否把 SRT 字幕燒進 MP4. 預設 false. */
   hardsub?: boolean;
+  /** 缺圖簡報補圖 (只對 slides_pdf): 為缺圖頁生 AI 配圖並合成新頁. 預設 false. */
+  augment_slide_images?: boolean;
+  /** augment_slide_images 開啟時: true 只補偵測到的缺圖頁; false 每頁都生. 預設 true. */
+  augment_only_missing?: boolean;
+  /** 補圖合成版面: auto (偵測空白就地置入) / side_by_side / image_left / overlay / image_only. 預設 auto. */
+  augment_layout?: 'auto' | 'side_by_side' | 'image_left' | 'overlay' | 'image_only';
 }
 
 export interface StageInfo {

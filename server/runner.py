@@ -1059,6 +1059,51 @@ def _rewrite_deck_intros_inplace(
     )
 
 
+def _augment_slide_images_inplace(store: JobStore, rec: JobRecord) -> None:
+    """缺圖簡報補圖 (只對 slides_pdf, opt-in via options.augment_slide_images)。
+
+    ingest 後讀 deck.json → 為缺圖頁生 AI 配圖 + 合成新頁回填 slide.bg_image →
+    寫回 deck.json。業務邏輯在 core.slide_image_gen (純函式 + tests cover), 這裡
+    只做 IO wrapper + 「生過圖就轉 require_review」的狀態調整 (硬規則 #1)。
+
+    失敗只 warning 不擋流程 (deck.json 保留 ingest 原版)。
+    """
+    if rec.source_type != SourceType.SLIDES_PDF or not rec.options.augment_slide_images:
+        return
+
+    from core.config import PROJECT_ROOT
+    from core.slide_image_gen import augment_deck_with_images
+
+    job_id = rec.id
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        return
+
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+    # PDF 路徑: deck.source_meta 優先, 否則 job source.path
+    pdf_path = (deck.get("source_meta") or {}).get("pdf_path") or rec.source.path
+
+    augmented = augment_deck_with_images(
+        deck,
+        figures_dir=store.job_dir(job_id) / "figures",
+        pdf_path=pdf_path,
+        only_missing=rec.options.augment_only_missing,
+        mock=bool(rec.options.mock),
+        asset_base=PROJECT_ROOT,
+        layout=rec.options.augment_layout,
+    )
+    deck_path.write_text(
+        json.dumps(augmented, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+
+    n = augmented.get("image_augmentation", {}).get("generated", 0)
+    # 生了 AI 圖就強制 require_review (AI 估值不可未審直接 render, 硬規則 #1)
+    if n > 0 and not rec.options.require_review:
+        new_opts = rec.options.model_copy(update={"require_review": True})
+        store.update(job_id, options=new_opts)
+        logger.info("簡報補圖生 %d 張 → 轉 require_review (AI 圖需人工審)", n)
+
+
 def _prepare_outro_for_problems(
     problems: list[dict], artifacts_dir: Path,
 ) -> tuple[Path | None, float]:
@@ -1230,6 +1275,13 @@ async def run_job(store: JobStore, job_id: str) -> None:
             _rewrite_deck_intros_inplace(store, job_id, rec.source_type.value)
         except Exception as e:
             logger.exception("intro 多樣化失敗 (deck.json 保留 ingest 原版): %s", e)
+
+        # 缺圖簡報補圖 (slides_pdf + opt-in): 為缺圖頁生 AI 配圖, 合成新頁回填
+        # slide.bg_image。生過圖會轉 require_review (硬規則 #1)。失敗不擋流程。
+        try:
+            _augment_slide_images_inplace(store, store.get(job_id))
+        except Exception as e:
+            logger.exception("簡報補圖失敗 (deck.json 保留原版): %s", e)
 
         # iter 48: 估算 deck 總時長 vs length_mode 預算, log 出來給用戶
         # / 我除錯用. 超預算只 warning, 不擋 review.

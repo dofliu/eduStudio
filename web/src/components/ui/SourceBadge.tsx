@@ -8,6 +8,7 @@ export const SOURCE_META: Record<SourceType, { label: string; short: string; ico
   url:        { label: '網頁',  short: 'URL',  icon: '↗', tone: 'bg-paper-warm text-ink border-ink/20' },
   song:       { label: '歌曲',  short: 'SONG', icon: '♪', tone: 'bg-paper-warm text-chalk-orange border-chalk-orange/40' },
   html_animation: { label: 'HTML 動畫', short: 'HTML', icon: '◳', tone: 'bg-paper-warm text-accent-plum border-accent-plum/30' },
+  pptx:       { label: 'PPTX',  short: 'PPTX', icon: '▦', tone: 'bg-paper-warm text-forest-600 border-forest-600/30' },
 };
 
 interface Props { type: SourceType; size?: 'sm' | 'md'; }

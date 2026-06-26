@@ -123,6 +123,9 @@ export const api = {
   artifactUrl: (jobId: string, name: string) =>
     `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}`,
 
+  // slides deck (含 AI 補圖) 匯出 .pptx 的下載 URL — 給 <a href> 直接用
+  pptxUrl: (jobId: string) => `/jobs/${jobId}/pptx`,
+
   // ---------- Figures (iter 54) ----------
 
   /** 列該 job 抽出來的 PDF figures (給 SlideEditor 換圖 picker 用). */
@@ -223,6 +226,23 @@ export const api = {
     if (params.height != null) fd.append('height', String(params.height));
     fd.append('options_json', JSON.stringify({ mock: !!params.mock }));
     const r = await fetch('/upload/html', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      throw new ApiError(r.status, text || r.statusText);
+    }
+    return r.json() as Promise<CreateJobResponse>;
+  },
+
+  /** 上傳 .pptx 原檔, 為缺圖頁就地補圖 (原文字可編輯). 走 POST /upload/pptx. */
+  uploadPptx: async (
+    file: File,
+    opts: { onlyMissing?: boolean; mock?: boolean } = {},
+  ): Promise<CreateJobResponse> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('only_missing', String(opts.onlyMissing ?? true));
+    fd.append('options_json', JSON.stringify({ mock: !!opts.mock }));
+    const r = await fetch('/upload/pptx', { method: 'POST', body: fd });
     if (!r.ok) {
       const text = await r.text().catch(() => '');
       throw new ApiError(r.status, text || r.statusText);

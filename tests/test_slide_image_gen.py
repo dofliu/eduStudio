@@ -77,7 +77,9 @@ class TestComposeAugmentedPage:
     def test_compose_dimensions(self, tmp_path):
         orig = _make_png(tmp_path / "orig.png", size=(800, 600), color=(30, 60, 30))
         ai = _make_png(tmp_path / "ai.png", size=(1024, 1024), color=(200, 200, 240))
-        out = sig.compose_augmented_page(orig, ai, tmp_path / "aug.png", width=1920, height=1080)
+        # 固定畫布版面 (side_by_side) 輸出指定尺寸
+        out = sig.compose_augmented_page(
+            orig, ai, tmp_path / "aug.png", layout="side_by_side", width=1920, height=1080)
         from PIL import Image
         assert out.exists()
         assert Image.open(out).size == (1920, 1080)
@@ -88,7 +90,7 @@ class TestComposeAugmentedPage:
         assert out.exists()
 
     @pytest.mark.parametrize("layout", sig.LAYOUTS)
-    def test_all_layouts_produce_full_frame(self, tmp_path, layout):
+    def test_all_layouts_produce_valid_frame(self, tmp_path, layout):
         from PIL import Image
         orig = _make_png(tmp_path / "orig.png", size=(800, 600), color=(30, 60, 30))
         ai = _make_png(tmp_path / "ai.png", size=(1024, 1024), color=(200, 200, 240))
@@ -96,14 +98,43 @@ class TestComposeAugmentedPage:
             orig, ai, tmp_path / f"aug_{layout}.png", layout=layout,
             width=1920, height=1080,
         )
-        assert Image.open(out).size == (1920, 1080)
+        # auto = 原頁當底 (保留原尺寸); 其餘走固定 1920×1080 畫布
+        expected = (800, 600) if layout == "auto" else (1920, 1080)
+        assert Image.open(out).size == expected
 
-    def test_unknown_layout_falls_back(self, tmp_path):
+    def test_find_empty_region_locates_blank_side(self, tmp_path):
+        from PIL import Image, ImageDraw
+        # 左半畫滿內容, 右半留白 → 偵測到的空白框該落在右半
+        im = Image.new("RGB", (1000, 700), (245, 245, 245))
+        ImageDraw.Draw(im).rectangle([20, 20, 460, 680], fill=(20, 20, 20))
+        p = tmp_path / "page.png"; im.save(p)
+        region = sig.find_empty_region(p)
+        assert region is not None
+        nx, ny, nw, nh = region
+        assert nx >= 0.45        # 空白框起點在右半
+        assert nw * 1000 > 200   # 有相當寬度
+
+    def test_find_empty_region_none_when_full(self, tmp_path):
+        from PIL import Image
+        # 整頁雜訊般密內容 → 無大空白區 → None
+        import struct
+        im = Image.frombytes("RGB", (200, 200),
+                             struct.pack("3B", 0, 0, 0) * (200 * 200))
+        # 棋盤式內容避免被當單一背景
+        from PIL import ImageDraw
+        d = ImageDraw.Draw(im)
+        for y in range(0, 200, 8):
+            d.line([(0, y), (200, y)], fill=(255, 255, 255), width=3)
+        p = tmp_path / "full.png"; im.save(p)
+        assert sig.find_empty_region(p) is None
+
+    def test_unknown_layout_falls_back_to_auto(self, tmp_path):
         from PIL import Image
         orig = _make_png(tmp_path / "orig.png", size=(800, 600))
         ai = _make_png(tmp_path / "ai.png", size=(1024, 1024))
+        # 未知 layout → 退回 auto (原頁當底, 保留原尺寸)
         out = sig.compose_augmented_page(orig, ai, tmp_path / "aug.png", layout="bogus")
-        assert Image.open(out).size == (1920, 1080)
+        assert Image.open(out).size == (800, 600)
 
 
 class TestAugmentDeckWithImages:

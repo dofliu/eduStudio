@@ -142,8 +142,87 @@ def generate_slide_image(
     )
 
 
-# 支援的合成版面
-LAYOUTS = ("side_by_side", "image_left", "overlay", "image_only")
+# 支援的合成版面。"auto" = 智慧偵測原頁空白區就地置入 (原頁不縮小), 為預設。
+LAYOUTS = ("auto", "side_by_side", "image_left", "overlay", "image_only")
+
+
+def _detect_bg_color(im) -> tuple[int, int, int]:
+    """取四角眾數當背景色 (簡報底色通常單一)。"""
+    from collections import Counter
+    w, h = im.size
+    corners = [im.getpixel((2, 2)), im.getpixel((w - 3, 2)),
+               im.getpixel((2, h - 3)), im.getpixel((w - 3, h - 3))]
+    corners = [c[:3] for c in corners]
+    return Counter(corners).most_common(1)[0][0]
+
+
+def find_empty_region(
+    original_png: str | Path,
+    *,
+    tol: int = 26,
+    scale_w: int = 260,
+    aspect_lo: float = 0.5,
+    aspect_hi: float = 2.0,
+    min_side_frac: float = 0.16,
+) -> tuple[float, float, float, float] | None:
+    """偵測原頁最大的「空白矩形」(無內容區), 回正規化 (x, y, w, h) ∈ [0,1]。
+
+    作法: 縮圖 → 與背景色比對建 content mask → histogram 最大全空矩形 (優先取
+    長寬比在 [aspect_lo, aspect_hi] 內的, 避免又寬又扁的整條底邊)。最短邊 <
+    min_side_frac × 頁短邊 → 視為沒有合適空白區, 回 None (caller fallback)。
+    """
+    from PIL import Image
+
+    try:
+        im = Image.open(original_png).convert("RGB")
+    except Exception as e:  # noqa: BLE001
+        logger.warning("空白區偵測讀圖失敗 %s: %s", original_png, e)
+        return None
+
+    W, H = im.size
+    bg = _detect_bg_color(im)
+    sw = min(scale_w, W)
+    sh = max(1, int(H * sw / W))
+    small = im.resize((sw, sh), Image.BILINEAR)
+    px = small.load()
+    br, gg, bb = bg
+    # mask[y][x] True = 有內容
+    mask = [[(abs(px[x, y][0] - br) + abs(px[x, y][1] - gg) + abs(px[x, y][2] - bb)) > tol
+             for x in range(sw)] for y in range(sh)]
+    fx, fy = W / sw, H / sh
+
+    heights = [0] * sw
+    best = (0, 0, 0, 0); best_area = 0
+    best_c = None; best_c_area = 0
+    for y in range(sh):
+        for x in range(sw):
+            heights[x] = 0 if mask[y][x] else heights[x] + 1
+        stack: list[int] = []
+        x = 0
+        while x <= sw:
+            cur = heights[x] if x < sw else 0
+            if not stack or cur >= heights[stack[-1]]:
+                stack.append(x); x += 1
+            else:
+                top = stack.pop()
+                hgt = heights[top]
+                wid = x if not stack else x - stack[-1] - 1
+                area = hgt * wid
+                left = 0 if not stack else stack[-1] + 1
+                rect = (left, y - hgt + 1, wid, hgt)
+                if area > best_area:
+                    best_area = area; best = rect
+                if wid and hgt:
+                    aspect = (wid * fx) / (hgt * fy)
+                    if aspect_lo <= aspect <= aspect_hi and area > best_c_area:
+                        best_c_area = area; best_c = rect
+
+    rx, ry, rw, rh = best_c if best_c else best
+    # 轉原圖座標再正規化
+    px0, py0, pw, ph = rx * fx, ry * fy, rw * fx, rh * fy
+    if min(pw, ph) < min_side_frac * min(W, H):
+        return None
+    return (px0 / W, py0 / H, pw / W, ph / H)
 
 
 def compose_augmented_page(
@@ -151,29 +230,62 @@ def compose_augmented_page(
     ai_png: str | Path,
     out_path: Path,
     *,
-    layout: str = "side_by_side",
+    layout: str = "auto",
     width: int = 1920,
     height: int = 1080,
     bg_color: tuple[int, int, int] = (255, 255, 255),
 ) -> Path:
-    """把原頁 + AI 配圖合成一張新頁。產出 width×height 的 PNG → 直接給
-    SlideRenderer (letterbox-fit 進影格) 或 PPTX 匯出用。
+    """把原頁 + AI 配圖合成一張新頁 PNG → 給 SlideRenderer / PPTX 匯出用。
 
     layout 模式:
-      - "side_by_side" (預設): 左原頁, 右配圖。
-      - "image_left":          左配圖, 右原頁 (鏡像)。
-      - "overlay":             原頁鋪滿, 配圖縮成右下角浮貼 (~38% 寬)。
-      - "image_only":          只用配圖鋪滿 (忽略原頁)。
+      - "auto" (預設): 偵測原頁空白區, 把配圖**就地置入該空白**, 原頁維持原大小
+        (不縮小)。偵測不到合適空白 → 退右下角浮貼。
+      - "side_by_side": 左原頁, 右配圖 (各佔半幅)。
+      - "image_left":   左配圖, 右原頁。
+      - "overlay":      原頁鋪滿, 配圖縮成右下角浮貼 (~38%)。
+      - "image_only":   只用配圖鋪滿。
 
-    原頁讀不到時一律退化成「配圖鋪滿」(仍是有效新頁)。
+    原頁讀不到時一律退化成「配圖鋪滿」。
     """
     from PIL import Image
 
     if layout not in LAYOUTS:
-        layout = "side_by_side"
+        layout = "auto"
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    original_exists = Path(original_png).exists()
+
+    # --- auto: 原頁當底, 配圖就地置入空白區 (輸出 = 原頁尺寸, 不縮小內容) ---
+    if layout == "auto" and original_exists:
+        canvas = Image.open(original_png).convert("RGB")
+        W, H = canvas.size
+        region = find_empty_region(original_png)
+        if region is None:
+            # 沒有合適空白 → 右下角浮貼 (~30%)
+            iw, ih = int(W * 0.30), int(H * 0.30)
+            box = (W - iw - int(W * 0.02), H - ih - int(H * 0.02), iw, ih)
+        else:
+            nx, ny, nw, nh = region
+            inner = 0.06  # 留白讓圖不貼齊內容
+            bx = int((nx + nw * inner) * W)
+            by = int((ny + nh * inner) * H)
+            bw = int(nw * (1 - 2 * inner) * W)
+            bh = int(nh * (1 - 2 * inner) * H)
+            box = (bx, by, max(1, bw), max(1, bh))
+        try:
+            ai = Image.open(ai_png).convert("RGB")
+            bxx, byy, bww, bhh = box
+            scale = min(bww / ai.width, bhh / ai.height)
+            nw2, nh2 = max(1, int(ai.width * scale)), max(1, int(ai.height * scale))
+            ai = ai.resize((nw2, nh2), Image.LANCZOS)
+            canvas.paste(ai, (bxx + (bww - nw2) // 2, byy + (bhh - nh2) // 2))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("auto 合成貼圖失敗 %s: %s", ai_png, e)
+        canvas.save(out_path)
+        return out_path
+
+    # --- 固定畫布的其餘版面 ---
     canvas = Image.new("RGB", (width, height), bg_color)
     pad = 24
 
@@ -189,10 +301,8 @@ def compose_augmented_page(
         im = im.resize((sw, sh), Image.LANCZOS)
         canvas.paste(im, (box_x + (box_w - sw) // 2, box_y + (box_h - sh) // 2))
 
-    original_exists = Path(original_png).exists()
     half_w = width // 2
-
-    if not original_exists or layout == "image_only":
+    if not original_exists or layout == "image_only" or layout == "auto":
         _fit_into(ai_png, 0, 0, width, height)
     elif layout == "side_by_side":
         _fit_into(original_png, 0, 0, half_w, height)
@@ -201,11 +311,9 @@ def compose_augmented_page(
         _fit_into(ai_png, 0, 0, half_w, height)
         _fit_into(original_png, half_w, 0, width - half_w, height)
     elif layout == "overlay":
-        # 原頁鋪滿整張, 配圖縮成右下角浮貼
         _fit_into(original_png, 0, 0, width, height)
         inset_w, inset_h = int(width * 0.38), int(height * 0.38)
-        ix, iy = width - inset_w - pad, height - inset_h - pad
-        _fit_into(ai_png, ix, iy, inset_w, inset_h)
+        _fit_into(ai_png, width - inset_w - pad, height - inset_h - pad, inset_w, inset_h)
 
     canvas.save(out_path)
     return out_path
@@ -221,7 +329,7 @@ def augment_deck_with_images(
     mock: bool = False,
     max_images: int | None = None,
     asset_base: Path | None = None,
-    layout: str = "side_by_side",
+    layout: str = "auto",
 ) -> dict:
     """為 deck 中「缺圖」的 slide 逐頁生 AI 配圖並合成新頁。原地修改並回傳 deck。
 
@@ -290,6 +398,9 @@ def augment_deck_with_images(
             orig_abs = (base / orig_rel) if orig_rel else figures_dir / "__none__"
             aug_path = figures_dir / f"aug_{safe_id}.png"
             compose_augmented_page(orig_abs, ai_path, aug_path, layout=layout)
+            # auto 版面: 記下偵測到的置入框 (正規化), 供 PPTX 匯出就地擺放 (可編輯)
+            if layout == "auto" and orig_abs.exists():
+                slide["ai_placement"] = find_empty_region(orig_abs)
 
             # 回填 slide 欄位 — bg_image 改指合成頁 (相對 PROJECT_ROOT, 與原 schema 對齊)
             slide["source_bg_image"] = orig_rel

@@ -68,11 +68,33 @@ def _add_picture(slide, path: Path, box) -> bool:
         return False
 
 
-def _place_slide_images(slide, *, original: Path | None, ai: Path | None, layout: str) -> None:
-    """依 layout 把原頁 / 配圖放進一張 PPTX slide。"""
+def _place_slide_images(
+    slide, *, original: Path | None, ai: Path | None, layout: str,
+    placement: tuple | list | None = None,
+) -> None:
+    """依 layout 把原頁 / 配圖放進一張 PPTX slide。
+
+    layout="auto" 且有 placement (正規化 x,y,w,h) → 原頁鋪滿, 配圖就地置入該空白框
+    (兩者皆為獨立可編輯圖片)。
+    """
     W, H, half = SLIDE_W_IN, SLIDE_H_IN, SLIDE_W_IN / 2
     has_orig = bool(original and original.exists())
     has_ai = bool(ai and ai.exists())
+
+    if layout == "auto" and has_orig and has_ai:
+        _add_picture(slide, original, _fit_box(original, 0, 0, W, H))
+        if placement:
+            nx, ny, nw, nh = placement
+            inner = 0.06
+            bx = (nx + nw * inner) * W
+            by = (ny + nh * inner) * H
+            bw = nw * (1 - 2 * inner) * W
+            bh = nh * (1 - 2 * inner) * H
+        else:  # 無 placement → 右下角浮貼
+            bw, bh = W * 0.30, H * 0.30
+            bx, by = W - bw - W * 0.02, H - bh - H * 0.02
+        _add_picture(slide, ai, _fit_box(ai, bx, by, bw, bh))
+        return
 
     if has_ai and not has_orig or layout == "image_only":
         if has_ai:
@@ -142,7 +164,10 @@ def deck_to_pptx(deck: dict, out_path: str | Path, *, asset_base: str | Path) ->
             if slide.get("image_generated"):
                 original = _resolve(slide.get("source_bg_image"))
                 ai = _resolve(slide.get("ai_image"))
-                _place_slide_images(s, original=original, ai=ai, layout=layout)
+                _place_slide_images(
+                    s, original=original, ai=ai, layout=layout,
+                    placement=slide.get("ai_placement"),
+                )
             else:
                 bg = _resolve(slide.get("bg_image"))
                 if bg and bg.exists():

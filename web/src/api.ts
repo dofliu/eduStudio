@@ -204,6 +204,23 @@ export const api = {
     return r.json() as Promise<CreateJobResponse>;
   },
 
+  /** 上傳 .pptx 原檔, 為缺圖頁就地補圖 (原文字可編輯). 走 POST /upload/pptx. */
+  uploadPptx: async (
+    file: File,
+    opts: { onlyMissing?: boolean; mock?: boolean } = {},
+  ): Promise<CreateJobResponse> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('only_missing', String(opts.onlyMissing ?? true));
+    fd.append('options_json', JSON.stringify({ mock: !!opts.mock }));
+    const r = await fetch('/upload/pptx', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      throw new ApiError(r.status, text || r.statusText);
+    }
+    return r.json() as Promise<CreateJobResponse>;
+  },
+
   // ---------- Voice picker (PR-3l) ----------
 
   getVoices: () => call<VoiceListResponse>('/voices'),

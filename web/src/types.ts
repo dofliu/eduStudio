@@ -7,7 +7,8 @@ export type SourceType =
   | 'repo'
   | 'document'
   | 'url'
-  | 'song';   // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
+  | 'song'    // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
+  | 'pptx';   // PPTX 原檔 → 缺圖頁就地補圖 (原文字可編輯)
 
 export type JobState =
   | 'pending'

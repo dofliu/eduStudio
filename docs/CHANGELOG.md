@@ -7,6 +7,24 @@
 
 ---
 
+## 多媒體來源擴充 — 簡報缺圖補圖 / HTML 動畫 / PPTX 原生 (2026-06-25 ~ 2026-06-26)
+
+> 接兩條新來源進既有 render + `/library` + YouTube 上傳：①「缺圖簡報自動補圖 → 新簡報 /
+> 影片」②「HTML 動畫 → 影片」。全程 offline-first（mock 走佔位、不打真 Gemini），每個 PR 附測試。
+
+| 項 | PR | 內容 |
+|---|---|---|
+| HTML-1 | `#87` | HTML 動畫網頁（`.html` / URL）→ 虛擬時鐘無頭逐格擷取 → fps 精準 MP4（`core/html_video.py`），接既有上傳機制 |
+| HTML-2 | `#88` *(審查中)* | `/app` HTML 動畫上傳介面（檔案 / URL + 時長 / fps / 解析度） |
+| SLIDE-1 | `#89` | 缺圖簡報補圖：PyMuPDF 偵測純文字頁 → Gemini 生配圖 → 合成新頁 → render；含含圖 PPTX 匯出 + `/app` 勾選 UI（`core/slide_image_gen.py`、`core/slide_pptx.py`） |
+| SLIDE-2 | `#90` | 補圖改 **auto 智慧置入**：偵測原頁最大空白區就地置入、原頁維持原大小（取代 side-by-side，設為預設） |
+| PPTX-1 | `#91` | 上傳 PPTX 原檔就地補圖：在原檔插圖、**原文字保持可編輯**（`core/pptx_augment.py`、`POST /upload/pptx`） |
+| PPTX-2 | `#92` *(審查中)* | 補圖簡報一鍵轉講解影片（pptx→pdf→既有 slides_pdf 流程，`POST /jobs/{id}/to-video`） |
+
+新增系統相依：**LibreOffice**（`libreoffice-impress`）— 僅 PPTX 來源功能（上傳補圖 / 轉影片）需要，用於 `.pptx → pdf` 逐頁分析。
+
+---
+
 ## v1.0.0 — 產品化推出（開源自架首發候選）(2026-06-07 ~ 2026-06-10)
 
 > 從「個人本機能跑」做到驗收門檻：讓一個**陌生老師** clone → 照 README 一條龍跑起來 →

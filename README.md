@@ -37,7 +37,8 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 | Exam PDF → blackboard-style worked-solution video | Teaching slides (16 themes, audience/tone steering) | Translate / re-dub external videos |
 | Slides PDF → page-by-page narrated lecture | Infographic cards & print-grade posters | Meeting / lecture audio → summary |
 | Doc / Repo / URL → AI outline → narrated video | Two-stage outline → full deck → PPTX export | Song mp3 → lyric timeline → AI-image MV |
-| Subtitles (SRT) + one-click YouTube upload | Per-slide refine + auto chart/diagram | Flashcards (SM-2), writing correction |
+| HTML animation (`.html` / URL) → recorded MP4 | Image-less deck → AI fills illustrations into each page's blank space | Flashcards (SM-2), writing correction |
+| Subtitles (SRT) + one-click YouTube upload | PPTX in-place augment (text stays editable) → editable PPTX or one-click video | Per-slide refine + auto chart/diagram |
 
 ### Highlights
 
@@ -46,6 +47,8 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 - **🎙️ Your own voice** — F5-TTS voice cloning lets narration speak in *your* voice, with automatic fallback to edge-tts / Google TTS.
 - **🧩 Gemini 3 powered** — `gemini-3.5-flash` / `gemini-3.1-pro-preview` for text, `gemini-3.1-flash-image` / `gemini-3-pro-image` for images, fully configurable in-app.
 - **📤 Publish-ready** — PPTX export, YouTube auto-chapters, bilingual subtitle tracks, LaTeX formula rendering, personal-brand footer baked into slides & cards.
+- **🖼️ Smart slide augmentation** — upload an image-less deck (slides PDF *or* PPTX); eduStudio detects text-only pages and drops a matching AI illustration into each page's blank area, keeping the original layout at full size (and, for PPTX, the original text fully editable). Then export an updated deck or a one-click narrated video.
+- **🎞️ HTML animation → video** — turn any self-contained `.html` animation (or a URL) into a frame-accurate MP4 via a virtual-clock headless capture, ready for the same `/library` + YouTube upload path.
 - **🔒 Self-hosted & offline-first** — your API key, your machine, your data. No third-party SaaS in the loop.
 
 ### Screenshots
@@ -119,6 +122,7 @@ text) — add a layer only when you want the matching feature.
 
 - **ffmpeg / ffprobe** — *required* for any video render or audio extraction. `apt install ffmpeg` · `brew install ffmpeg` · `choco install ffmpeg`.
 - **Noto CJK fonts** (e.g. `fonts-noto-cjk`) — needed for correct Chinese rendering in slides / blackboard. Paths are overridable via `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` / `CLAUDE_MONO_FONT_PATH`.
+- **LibreOffice** (`libreoffice-impress`) — *only* for the PPTX-source features (upload-PPTX in-place augment and PPTX→video), used to render `.pptx` → PDF for page analysis. All other tracks (exam / slides-PDF / doc / HTML / song) don't need it.
 
 The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 
@@ -152,7 +156,8 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 | 考卷 PDF → 黑板風格逐題解答影片 | 教學簡報（16 種主題、受眾/語氣引導） | 外部影片翻譯 / 重新配音 |
 | 簡報 PDF → 逐頁旁白講解影片 | 資訊圖卡 & 印刷級海報 | 會議 / 演講錄音 → 重點摘要 |
 | 文件 / Repo / 網址 → AI 大綱 → 講解影片 | 兩階段大綱 → 完整簡報 → PPTX 匯出 | 歌曲 mp3 → 歌詞時間軸 → AI 生圖 MV |
-| 字幕（SRT）+ 一鍵上傳 YouTube | 單頁微調 + 自動圖表/架構圖 | 單字卡（SM-2）、寫作批改 |
+| HTML 動畫（`.html` / 網址）→ 錄製 MP4 | 缺圖簡報 → AI 把配圖補進每頁空白處 | 單字卡（SM-2）、寫作批改 |
+| 字幕（SRT）+ 一鍵上傳 YouTube | PPTX 原檔就地補圖（文字仍可編輯）→ 可編輯 PPTX 或一鍵轉影片 | 單頁微調 + 自動圖表/架構圖 |
 
 ### 特色
 
@@ -161,6 +166,8 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 - **🎙️ 你自己的聲音** — F5-TTS 聲音複製讓旁白用**你的**聲音念，並自動退回 edge-tts / Google TTS。
 - **🧩 Gemini 3 驅動** — 文字用 `gemini-3.5-flash` / `gemini-3.1-pro-preview`，圖片用 `gemini-3.1-flash-image` / `gemini-3-pro-image`，App 內可自由設定。
 - **📤 隨時可發布** — PPTX 匯出、YouTube 自動章節、雙語字幕軌、LaTeX 公式渲染、個人品牌頁尾自動帶進簡報與圖卡。
+- **🖼️ 缺圖簡報智慧補圖** — 上傳缺圖的簡報（PDF 或 PPTX）；eduStudio 偵測純文字頁，把符合內容的 AI 配圖放進該頁的空白區、原頁維持原大小（PPTX 則直接在原檔上插圖、原文字仍完全可編輯）。接著可匯出新簡報或一鍵產生有旁白的講解影片。
+- **🎞️ HTML 動畫轉影片** — 用虛擬時鐘的無頭瀏覽器逐格擷取，把任意自含 `.html` 動畫（或網址）轉成 fps 精準的 MP4，直接接上既有的 `/library` + YouTube 上傳。
 - **🔒 自架、離線優先** — 你的 API key、你的機器、你的資料，中間不經第三方 SaaS。
 
 ### 截圖
@@ -231,6 +238,7 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 
 - **ffmpeg / ffprobe** — 任何影片 render 或抽音訊*必需*。`apt install ffmpeg`／`brew install ffmpeg`／`choco install ffmpeg`。
 - **Noto CJK 字型**（例 `fonts-noto-cjk`）— 簡報／黑板中文正確顯示所需。路徑可用 `CLAUDE_FONT_PATH`／`CLAUDE_FALLBACK_FONT_PATH`／`CLAUDE_MONO_FONT_PATH` 覆寫。
+- **LibreOffice**（`libreoffice-impress`）— *只有* PPTX 來源功能需要（上傳 PPTX 就地補圖、PPTX→影片），用來把 `.pptx` 渲成 PDF 做逐頁分析。其餘軸（考卷／簡報 PDF／文件／HTML／song）都不需要。
 
 內附的 `Dockerfile` 已幫你裝好 ffmpeg 與 CJK 字型。
 

@@ -8,7 +8,8 @@ export type SourceType =
   | 'document'
   | 'url'
   | 'song'    // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
-  | 'pptx';   // PPTX 原檔 → 缺圖頁就地補圖 (原文字可編輯)
+  | 'html_animation'   // HTML 動畫網頁 (.html / URL) → 逐 frame 截圖 → MP4
+  | 'pptx';            // PPTX 原檔 → 缺圖頁就地補圖 (原文字可編輯)
 
 export type JobState =
   | 'pending'

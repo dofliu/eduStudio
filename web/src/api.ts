@@ -123,6 +123,9 @@ export const api = {
   artifactUrl: (jobId: string, name: string) =>
     `/jobs/${jobId}/artifacts/${encodeURIComponent(name)}`,
 
+  // slides deck (含 AI 補圖) 匯出 .pptx 的下載 URL — 給 <a href> 直接用
+  pptxUrl: (jobId: string) => `/jobs/${jobId}/pptx`,
+
   // ---------- Figures (iter 54) ----------
 
   /** 列該 job 抽出來的 PDF figures (給 SlideEditor 換圖 picker 用). */

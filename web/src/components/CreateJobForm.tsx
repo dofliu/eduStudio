@@ -53,6 +53,12 @@ export function CreateJobForm({ onCreated }: Props) {
   const [theme, setTheme] = useState<ThemeName>('forest');
   // PR-5c: 燒字幕選項, 對所有 source_type 都適用
   const [hardsub, setHardsub] = useState(false);
+  // 缺圖簡報補圖 — 只對 slides_pdf。勾了會為缺圖頁生 AI 配圖 + 合成新頁,
+  // 並自動轉 require_review (AI 圖須人工審)。
+  const [augmentSlideImages, setAugmentSlideImages] = useState(false);
+  const [augmentOnlyMissing, setAugmentOnlyMissing] = useState(true);
+  const [augmentLayout, setAugmentLayout] =
+    useState<'side_by_side' | 'image_left' | 'overlay' | 'image_only'>('side_by_side');
   // iter 41: intro 串接 (個人開場), 對所有 source_type 都適用
   const [prependIntro, setPrependIntro] = useState(false);
   // iter 43: 影片長度模式 — 只對 repo / document / url 有意義
@@ -129,12 +135,18 @@ export function CreateJobForm({ onCreated }: Props) {
   // iter 43: length_mode 同樣只對 repo / document / url 有意義
   // exam_pdf 由題數決定影片數, slides_pdf 由頁數決定, 不適用
   const showLengthMode = themeApplicable.includes(sourceType);
+  // 缺圖簡報補圖只對 slides_pdf 有意義 (它每頁 = 一張投影片 PNG)
+  const showAugment = sourceType === 'slides_pdf';
 
   const buildOptions = () => ({
     mock,
     require_review: requireReview,
     hardsub,
     prepend_intro: prependIntro,
+    // 缺圖簡報補圖 (只對 slides_pdf 送)
+    ...(showAugment ? { augment_slide_images: augmentSlideImages } : {}),
+    ...(showAugment && augmentSlideImages ? { augment_only_missing: augmentOnlyMissing } : {}),
+    ...(showAugment && augmentSlideImages ? { augment_layout: augmentLayout } : {}),
     ...(showTheme ? { theme } : {}),    // 不適用就不送, 後端用預設
     ...(showLengthMode ? { length_mode: lengthMode } : {}),
     // iter 56: AI 生圖 (Gemini Flash Image) — opt-in, 跟 length_mode 同條件
@@ -600,6 +612,43 @@ export function CreateJobForm({ onCreated }: Props) {
           />
           停在 awaiting_review (人工確認後再渲染)
         </label>
+        {/* 缺圖簡報補圖 — 只對 slides_pdf 顯示 */}
+        {showAugment && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={augmentSlideImages}
+              onChange={(e) => setAugmentSlideImages(e.target.checked)}
+            />
+            為缺圖頁補圖 (AI 生配圖, 須人工審)
+          </label>
+        )}
+        {showAugment && augmentSlideImages && (
+          <div className="ml-6 basis-full flex flex-col gap-1 text-xs text-ink-muted">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={augmentOnlyMissing}
+                onChange={(e) => setAugmentOnlyMissing(e.target.checked)}
+              />
+              只補偵測到的缺圖頁 (純文字頁); 取消＝每頁都生圖 (較貴)
+            </label>
+            <label className="flex items-center gap-1.5">
+              合成版面
+              <select
+                className="field-input !w-auto !py-0.5 text-xs"
+                value={augmentLayout}
+                onChange={(e) => setAugmentLayout(e.target.value as typeof augmentLayout)}
+              >
+                <option value="side_by_side">左原頁 · 右配圖</option>
+                <option value="image_left">左配圖 · 右原頁</option>
+                <option value="overlay">配圖浮貼右下角</option>
+                <option value="image_only">只用配圖</option>
+              </select>
+            </label>
+            <span>分析每頁 → 為缺圖頁用 Gemini 生符合內容的配圖 → 合成新頁。AI 圖會停在 awaiting_review 逐頁人工確認後才渲染。完成後可在影片庫匯出含圖 PPTX。</span>
+          </div>
+        )}
         {/* PR-5c: 燒字幕選項 */}
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input

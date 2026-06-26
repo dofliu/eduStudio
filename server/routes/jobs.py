@@ -441,6 +441,47 @@ async def download_artifact(job_id: str, name: str, store: JobStore = Depends(ge
     return FileResponse(target, filename=name)
 
 
+@router.get("/{job_id}/pptx")
+async def download_pptx(job_id: str, store: JobStore = Depends(get_default_store)) -> FileResponse:
+    """把 slides deck (含 AI 補圖) 匯出成 .pptx 下載。
+
+    只對有 deck.json 的 slides 類 job 有意義; 補過圖的頁會以「原頁 + AI 配圖」兩張
+    獨立圖片排版 (可在 PowerPoint 內編輯), 旁白進講者備忘稿。
+    """
+    import json
+
+    from core.config import PROJECT_ROOT
+
+    rec = store.get(job_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
+    deck_path = store.deck_path(job_id)
+    if not deck_path.exists():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "deck.json 不存在, 無法匯出 PPTX")
+
+    deck = json.loads(deck_path.read_text(encoding="utf-8"))
+    if not deck.get("sections"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "此 deck 無 sections/slides, 不支援 PPTX 匯出",
+        )
+
+    out_path = store.job_dir(job_id) / "export.pptx"
+    try:
+        from core.slide_pptx import deck_to_pptx
+        deck_to_pptx(deck, out_path, asset_base=PROJECT_ROOT)
+    except RuntimeError as e:  # python-pptx 未安裝
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"PPTX 匯出失敗: {e}") from e
+
+    stem = (deck.get("deck_title") or "slides").replace("/", "_").replace("\\", "_").strip() or "slides"
+    return FileResponse(
+        out_path,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename=f"{stem}.pptx",
+    )
+
+
 # ---------- Artifact 版本歷史 (F9-4 影片版本管理) ----------
 
 @router.get("/{job_id}/versions")

@@ -24,25 +24,26 @@ TEXT_MODELS: dict[str, dict[str, str]] = {
     },
 }
 
-# ── 圖片生成模型 ──
-# 註：劉老師列的 gemini-3.1-pro-image 經實測 404 不存在，正解為 gemini-3-pro-image-preview。
+# ── 圖片生成模型（便宜 / 中等 / 貴 三種品質階層）──
+# 內部 key 維持 legacy/flash/pro（定價表與既有測試沿用），對使用者呈現為 便宜/中等/貴。
+# 三顆皆 gemini-image 家族、live API 實測可用；與 2026-06 Imagen 4 淘汰公告無關
+# （那次淘汰的是 imagen-4.0-* 端點，本專案從未使用）。dict 順序＝下拉顯示順序。
+# 註：劉老師列的 gemini-3.1-pro-image 經實測 404 不存在，正解為 gemini-3-pro-image（GA）。
 IMAGE_MODELS: dict[str, dict[str, str]] = {
-    "flash": {
-        "id": "gemini-3.1-flash-image",
-        "label": "⚡ 3.1 Flash Image (主力 · 快速)",
-        "description": "快速生圖主力，低延遲",
-    },
-    "pro": {
-        # 註：劉老師網頁看到 gemini-3.1-pro-image，但本 key 的 API models.list 無此 id（404）；
-        # 實際可用的 pro 圖片模型是 gemini-3-pro-image（GA）。3.1-pro-image 未經 API 開放再換。
-        "id": "gemini-3-pro-image",
-        "label": "👑 Pro Image (最高畫質)",
-        "description": "專業品質，最高畫質繪圖",
-    },
     "legacy": {
         "id": "gemini-2.5-flash-image",
-        "label": "🕘 2.5 Flash Image (舊版 · 將停用)",
-        "description": "舊版，Google 預計逐步停止支援",
+        "label": "💲 便宜 · 2.5 Flash Image (經濟)",
+        "description": "成本最低，一般配圖夠用",
+    },
+    "flash": {
+        "id": "gemini-3.1-flash-image",
+        "label": "⚡ 中等 · 3.1 Flash Image (主力 · 預設)",
+        "description": "速度與品質平衡，預設選項",
+    },
+    "pro": {
+        "id": "gemini-3-pro-image",
+        "label": "👑 貴 · Pro Image (最高畫質)",
+        "description": "專業品質，最高畫質繪圖",
     },
 }
 

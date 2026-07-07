@@ -9,7 +9,8 @@ export type SourceType =
   | 'url'
   | 'song'    // SONG track (M3): 歌曲音檔 + 歌詞 → 對齊 → AI 生圖 → MV
   | 'html_animation'   // HTML 動畫網頁 (.html / URL) → 逐 frame 截圖 → MP4
-  | 'pptx';            // PPTX 原檔 → 缺圖頁就地補圖 (原文字可編輯)
+  | 'pptx'             // PPTX 原檔 → 缺圖頁就地補圖 (原文字可編輯)
+  | 'google_photos';   // Google 相簿 (Picker) → vision 選圖+配文 → 相片簡報/影片
 
 export type JobState =
   | 'pending'

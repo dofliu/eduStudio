@@ -13,6 +13,7 @@ import { api } from '../api';
 import { useToast } from './Toast';
 import type { SourceType } from '../types';
 import { ThemeGalleryModal } from './ThemeGalleryModal';
+import { PhotoSourcePanel } from './PhotoSourcePanel';
 
 interface Props {
   onCreated: () => void;
@@ -136,6 +137,8 @@ export function CreateJobForm({ onCreated }: Props) {
   const isHtmlAnim = FILE_OR_URL.includes(sourceType);
   // pptx 走獨立端點 (/upload/pptx, 就地補圖出可編輯 pptx), upload-only
   const isPptx = sourceType === 'pptx';
+  // google_photos 走專屬多步驟面板 (Picker 授權 → 選照片 → 產生), 不走一般 file/url 表單
+  const isPhotos = sourceType === 'google_photos';
   const supportsUpload = FILE_UPLOADABLE.includes(sourceType) || isHtmlAnim || isPptx;
   const supportsPath = !URL_ONLY.includes(sourceType) && !isHtmlAnim && !isPptx;
   const supportsUrl = URL_ONLY.includes(sourceType) || isHtmlAnim;
@@ -333,9 +336,11 @@ export function CreateJobForm({ onCreated }: Props) {
             <option value="song">song — 歌曲 MV (song.json)</option>
             <option value="html_animation">html_animation — HTML 動畫網頁 → MP4</option>
             <option value="pptx">pptx — 簡報原檔缺圖補圖 (文字可編輯)</option>
+            <option value="google_photos">google_photos — Google 相簿 → 相片簡報</option>
           </select>
         </div>
 
+        {!isPhotos && (
         <div>
           <label className="field-label">輸入方式</label>
           <div className="flex gap-3 items-center text-sm pt-2">
@@ -378,10 +383,16 @@ export function CreateJobForm({ onCreated }: Props) {
             )}
           </div>
         </div>
+        )}
       </div>
 
+      {/* google_photos: 走專屬 Picker 面板 (授權 → 選照片 → 產生), 取代一般表單 */}
+      {isPhotos && (
+        <PhotoSourcePanel onCreated={() => { setOpen(false); onCreated(); }} />
+      )}
+
       {/* 輸入區依 mode 切換 */}
-      {inputMode === 'upload' && (
+      {!isPhotos && inputMode === 'upload' && (
         <div className="mt-3">
           <label className="field-label">{isHtmlAnim ? '選擇 .html 動畫檔' : isPptx ? '選擇 .pptx 簡報原檔' : '選擇檔案'}</label>
           <input
@@ -634,7 +645,7 @@ export function CreateJobForm({ onCreated }: Props) {
       )}
 
       {/* iter 83 (B1+B2): 長寬比 + 解析度 — song MV 走獨立分流, 不吃這些 (M3e-2 隱藏) */}
-      {!isSong && (
+      {!isSong && !isPhotos && (
       <div className="mt-3 flex gap-3">
         <div className="flex-1">
           <label className="field-label">長寬比</label>
@@ -668,7 +679,7 @@ export function CreateJobForm({ onCreated }: Props) {
       )}
 
       {/* iter 92: 講者頭像策略 — song MV 無講者頭像 (M3e-2 隱藏) */}
-      {!isSong && (
+      {!isSong && !isPhotos && (
       <div className="mt-3">
         <label className="field-label">右下角講者頭像</label>
         <select
@@ -731,7 +742,7 @@ export function CreateJobForm({ onCreated }: Props) {
         </div>
       )}
 
-      {!isSong && (
+      {!isSong && !isPhotos && (
       <div className="flex items-center gap-4 mt-3 text-sm flex-wrap">
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
@@ -993,9 +1004,12 @@ export function CreateJobForm({ onCreated }: Props) {
       )}
 
       <div className="mt-4 flex gap-2">
-        <button onClick={submit} disabled={!canSubmit} className="btn btn-primary">
-          {submitting ? '送出中…' : '送出'}
-        </button>
+        {/* google_photos 由 PhotoSourcePanel 內的按鈕送出, 不用表單 submit */}
+        {!isPhotos && (
+          <button onClick={submit} disabled={!canSubmit} className="btn btn-primary">
+            {submitting ? '送出中…' : '送出'}
+          </button>
+        )}
         <button onClick={() => setOpen(false)} className="btn btn-ghost">
           取消
         </button>

@@ -24,6 +24,10 @@ matplotlib>=3.7        # LaTeX 公式渲染 (mathtext → 透明 PNG, core/formu
 # llm — Gemini 2.5 Flash 是主要 LLM (vision + text)
 # ============================================================
 google-genai>=0.3      # core/outliner / scriptor / slide_ingest / solve / publish 用
+# YouTube 上傳 (publish.py) 與 Google 相簿 Picker (core/google_photos.py) 的 OAuth。
+# 先前實際已裝 (透過 publish.py) 但未宣告, 這裡正式列出。
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.2
 
 # ============================================================
 # pdf — input ingestion

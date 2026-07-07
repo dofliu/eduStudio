@@ -254,6 +254,31 @@ export const api = {
     return r.json() as Promise<CreateJobResponse>;
   },
 
+  // ---------- Google Photos (相片簡報) ----------
+
+  /** 是否已完成 Google 相簿 OAuth 授權。 */
+  photosStatus: () => call<{ authorized: boolean; error?: string }>('/google-photos/status'),
+
+  /** 建立 Picker session，回 picker_uri 給使用者開新分頁挑照片。 */
+  createPhotoSession: () =>
+    call<{ session_id: string; picker_uri: string; media_items_set: boolean }>(
+      '/google-photos/session', { method: 'POST', body: '{}' },
+    ),
+
+  /** 輪詢 session：使用者是否已選好照片。 */
+  pollPhotoSession: (sessionId: string) =>
+    call<{ session_id: string; media_items_set: boolean }>(
+      `/google-photos/session/${encodeURIComponent(sessionId)}`,
+    ),
+
+  /** 用選好的 session 建 job（vision 選圖+配文 → deck → 影片/PPTX）。 */
+  generatePhotos: (body: {
+    session_id: string; title_hint?: string; max_select?: number | null;
+    require_review?: boolean; mock?: boolean;
+  }) => call<CreateJobResponse>('/google-photos/generate', {
+    method: 'POST', body: JSON.stringify(body),
+  }),
+
   // ---------- Voice picker (PR-3l) ----------
 
   getVoices: () => call<VoiceListResponse>('/voices'),

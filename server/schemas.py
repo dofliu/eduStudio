@@ -45,6 +45,7 @@ class SourceType(str, Enum):
     SONG = "song"                # 歌曲音檔 + 歌詞時間軸 -> AI 生圖 MV (M3, 第 4 track)
     HTML_ANIMATION = "html_animation"  # HTML 動畫網頁 -> 逐 frame 截圖 -> MP4 (core.html_video)
     PPTX = "pptx"                # PPTX 原檔 -> 缺圖頁就地補圖 (原文字可編輯) (core.pptx_augment)
+    GOOGLE_PHOTOS = "google_photos"  # Google 相簿 (Picker) -> vision 選圖+配文 -> 相片簡報/影片
 
 
 class JobState(str, Enum):
@@ -295,6 +296,14 @@ class JobOptions(BaseModel):
                     "prompts/persona/<name>.txt — 'default' 或 None / 空 = "
                     "不注入個人風格. 等用戶提供樣本後啟用 (現階段 hook 留空).",
     )
+    photo_title_hint: str | None = Field(
+        default=None,
+        description="google_photos: 相片簡報的主題脈絡 (餵給 vision 取標題/配文)。",
+    )
+    photo_max_select: int | None = Field(
+        default=None,
+        description="google_photos: vision 依 score 全域最多保留幾張 (None = 全留)。",
+    )
 
     model_config = ConfigDict(extra="allow")
 
@@ -313,6 +322,10 @@ class JobSource(BaseModel):
     url: str | None = Field(
         default=None,
         description="網址, 僅 source_type=url 使用 (必須 http:// 或 https://)。",
+    )
+    session_id: str | None = Field(
+        default=None,
+        description="Google Photos Picker session id, 僅 source_type=google_photos 使用。",
     )
 
     model_config = ConfigDict(extra="allow")

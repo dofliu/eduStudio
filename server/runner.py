@@ -67,8 +67,8 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
     mock = bool(rec.options.mock)
     deck_path = store.deck_path(rec.id)
 
-    # url 走網路, 其他都先 check path 存在
-    if rec.source_type != SourceType.URL:
+    # url / google_photos 走網路 (無本機 source.path), 其他都先 check path 存在
+    if rec.source_type not in (SourceType.URL, SourceType.GOOGLE_PHOTOS):
         src_path = Path(rec.source.path) if rec.source.path else None
         if src_path is None or not src_path.exists():
             raise FileNotFoundError(f"source.path 不存在: {rec.source.path}")
@@ -108,7 +108,46 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
     if rec.source_type == SourceType.SONG:
         return await _run_ingest_song(store, rec, src_path, deck_path)
 
+    if rec.source_type == SourceType.GOOGLE_PHOTOS:
+        return await _run_ingest_photos(store, rec, deck_path, mock)
+
     raise ValueError(f"未支援的 source_type: {rec.source_type}")
+
+
+async def _run_ingest_photos(store: JobStore, rec: JobRecord, deck_path, mock: bool) -> dict:
+    """google_photos ingest: 下載 Picker 選中的照片 → vision 選圖+配文 → 寫 deck.json。
+
+    mock=True: 跳過下載, 讀 jobs/<id>/photos/ 內既有照片 + photo_deck mock (不打 Gemini)。
+    產出的 deck (sections/slides, bg_image=照片路徑) 之後走跟 slides_pdf 同一條 render。
+    """
+    from core.config import PROJECT_ROOT
+    from core.photo_deck import photos_to_deck
+
+    photos_dir = store.job_dir(rec.id) / "photos"
+    photos_dir.mkdir(parents=True, exist_ok=True)
+
+    if mock:
+        paths = sorted(p for p in photos_dir.iterdir()
+                       if p.suffix.lower() in (".jpg", ".jpeg", ".png"))
+    else:
+        from core.google_photos import download_selected
+        session_id = rec.source.session_id
+        if not session_id:
+            raise ValueError("google_photos job 缺 source.session_id")
+        paths = await asyncio.to_thread(download_selected, session_id, photos_dir)
+
+    if not paths:
+        raise RuntimeError("沒有可用的照片 (Picker 未選取, 或都不是圖片)")
+
+    deck = await asyncio.to_thread(
+        photos_to_deck, paths,
+        asset_base=PROJECT_ROOT,
+        deck_title_hint=rec.options.photo_title_hint or "",
+        max_select=rec.options.photo_max_select,
+        mock=mock,
+    )
+    deck_path.write_text(json.dumps(deck, ensure_ascii=False, indent=2), encoding="utf-8")
+    return deck
 
 
 async def _run_ingest_song(
@@ -651,8 +690,9 @@ async def _run_render_inner(
     # 判斷 schema: 新 deck schema 有 sections, v1 exam schema 有 problems
     if "sections" in deck and "problems" not in deck:
         # 走哪條 renderer 看 source_type:
-        if rec.source_type == SourceType.SLIDES_PDF:
-            # PR-3h: 簡報走 SlideRenderer (原始投影片當底圖), 不是黑板也不是 pptx
+        if rec.source_type in (SourceType.SLIDES_PDF, SourceType.GOOGLE_PHOTOS):
+            # PR-3h: 簡報走 SlideRenderer (原始投影片/照片當底圖), 不是黑板也不是 pptx。
+            # google_photos 的 deck 也是 bg_image slides, 照片鋪底 + caption 旁白, 同一條。
             deck = deck_to_exam_schema_slides(deck)
         elif rec.source_type in (SourceType.REPO, SourceType.DOCUMENT, SourceType.URL):
             # 長篇內容講解走 Forest pptx 主題, 比黑板適合

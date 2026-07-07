@@ -42,6 +42,7 @@ from .routes import themes as themes_routes
 from .routes import uploads as uploads_routes
 from .routes import uploads_html as uploads_html_routes
 from .routes import uploads_pptx as uploads_pptx_routes
+from .routes import google_photos as google_photos_routes
 from .routes import voices as voices_routes
 from .routes import youtube as youtube_routes
 
@@ -151,6 +152,7 @@ def create_app() -> FastAPI:
     app.include_router(uploads_routes.router)
     app.include_router(uploads_html_routes.router)  # HTML 動畫 → MP4 → 接既有上傳
     app.include_router(uploads_pptx_routes.router)  # PPTX 原檔就地補圖 (文字可編輯)
+    app.include_router(google_photos_routes.router)  # Google 相簿 → 相片簡報/影片
     app.include_router(voices_routes.router)
     app.include_router(library_routes.router)
     app.include_router(editor_routes.router)

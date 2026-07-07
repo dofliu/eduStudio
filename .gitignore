@@ -26,9 +26,10 @@ test_svg.png
 test_svg.py
 ui_*.png
 
-# OAuth 憑證 (publish.py 會用到)
+# OAuth 憑證 (publish.py / tools/photos_auth.py 會用到)
 client_secret*.json
 youtube_token.json
+photos_token.json
 
 # Python / Claude 快取
 __pycache__/

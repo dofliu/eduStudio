@@ -39,6 +39,7 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 | Doc / Repo / URL → AI outline → narrated video | Two-stage outline → full deck → PPTX export | Song mp3 → lyric timeline → AI-image MV |
 | HTML animation (`.html` / URL) → recorded MP4 | Image-less deck → AI fills illustrations into each page's blank space | Flashcards (SM-2), writing correction |
 | Subtitles (SRT) + one-click YouTube upload | PPTX in-place augment (text stays editable) → editable PPTX or one-click video | Per-slide refine + auto chart/diagram |
+| Google Photos → AI-curated photo slideshow (narrated video + PPTX) | — | — |
 
 ### Highlights
 
@@ -49,6 +50,7 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 - **📤 Publish-ready** — PPTX export, YouTube auto-chapters, bilingual subtitle tracks, LaTeX formula rendering, personal-brand footer baked into slides & cards.
 - **🖼️ Smart slide augmentation** — upload an image-less deck (slides PDF *or* PPTX); eduStudio detects text-only pages and drops a matching AI illustration into each page's blank area, keeping the original layout at full size (and, for PPTX, the original text fully editable). Then export an updated deck or a one-click narrated video.
 - **🎞️ HTML animation → video** — turn any self-contained `.html` animation (or a URL) into a frame-accurate MP4 via a virtual-clock headless capture, ready for the same `/library` + YouTube upload path.
+- **❖ Google Photos → photo deck** — pick photos from your Google Photos library (via the Photos Picker API); a vision model quality-filters (blurry / duplicate), writes a caption per photo and a deck title, and produces a narrated slideshow video **and** an exportable PPTX — all through the same review gate and job pipeline.
 - **🔒 Self-hosted & offline-first** — your API key, your machine, your data. No third-party SaaS in the loop.
 
 ### Screenshots
@@ -158,6 +160,7 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 | 文件 / Repo / 網址 → AI 大綱 → 講解影片 | 兩階段大綱 → 完整簡報 → PPTX 匯出 | 歌曲 mp3 → 歌詞時間軸 → AI 生圖 MV |
 | HTML 動畫（`.html` / 網址）→ 錄製 MP4 | 缺圖簡報 → AI 把配圖補進每頁空白處 | 單字卡（SM-2）、寫作批改 |
 | 字幕（SRT）+ 一鍵上傳 YouTube | PPTX 原檔就地補圖（文字仍可編輯）→ 可編輯 PPTX 或一鍵轉影片 | 單頁微調 + 自動圖表/架構圖 |
+| Google 相簿 → AI 選圖+配文 相片簡報（有旁白影片 + PPTX） | — | — |
 
 ### 特色
 
@@ -168,6 +171,7 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 - **📤 隨時可發布** — PPTX 匯出、YouTube 自動章節、雙語字幕軌、LaTeX 公式渲染、個人品牌頁尾自動帶進簡報與圖卡。
 - **🖼️ 缺圖簡報智慧補圖** — 上傳缺圖的簡報（PDF 或 PPTX）；eduStudio 偵測純文字頁，把符合內容的 AI 配圖放進該頁的空白區、原頁維持原大小（PPTX 則直接在原檔上插圖、原文字仍完全可編輯）。接著可匯出新簡報或一鍵產生有旁白的講解影片。
 - **🎞️ HTML 動畫轉影片** — 用虛擬時鐘的無頭瀏覽器逐格擷取，把任意自含 `.html` 動畫（或網址）轉成 fps 精準的 MP4，直接接上既有的 `/library` + YouTube 上傳。
+- **❖ Google 相簿 → 相片簡報** — 從 Google 相簿挑照片（走 Photos Picker API）；視覺模型做品質過濾（模糊/重複）、為每張配一句說明並取簡報標題，產出**有旁白的相片幻燈片影片**＋**可匯出的 PPTX** — 全程走同一套 review gate 與 job pipeline。
 - **🔒 自架、離線優先** — 你的 API key、你的機器、你的資料，中間不經第三方 SaaS。
 
 ### 截圖

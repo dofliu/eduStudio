@@ -405,6 +405,36 @@
 
 ---
 
+## v4.5 — 多媒體來源擴充(2026-06 ~ 2026-07 完成)
+
+> 把「更多輸入來源」接進既有 job pipeline / render / `/library` / YouTube 上傳,
+> 全 offline-first(mock 可測)。詳見 docs/CHANGELOG.md。
+
+### HTML 動畫 → 影片 ✅ (PR #87 / #88)
+- `core/html_video.py`:虛擬時鐘無頭瀏覽器逐格擷取 → fps 精準 MP4;`.html` / URL 皆可。
+- `/upload/html` + `/app` 上傳介面。
+
+### 缺圖簡報補圖 ✅ (PR #89 / #90 / #91 / #92)
+- slides_pdf 偵測純文字頁 → Gemini 生配圖 → **auto 智慧置入原頁空白**(原頁不縮小)。
+- PPTX 原檔就地補圖(**原文字保持可編輯**,`core/pptx_augment.py`)。
+- 含圖 PPTX 匯出(`core/slide_pptx.py`)+ 補圖簡報一鍵轉講解影片。
+
+### 圖片模型三階層 ✅ (PR #94)
+- 便宜 / 中等 / 貴(`gemini-2.5/3.1-flash-image`、`gemini-3-pro-image`)。
+
+### Google 相簿 → 相片簡報 ✅ (PR #95)
+- Photos Picker API(2025 後 Library API 已不可讀相簿)→ vision 品質過濾 + 逐張 caption
+  + 取標題 → deck → **有旁白影片 + 可匯出 PPTX**。
+- `core/photo_deck.py` / `core/google_photos.py` / `tools/photos_auth.py` /
+  `SourceType.GOOGLE_PHOTOS` / `/google-photos/*` / `/app` PhotoSourcePanel。
+
+### 待續(可選)
+- [ ] 相片「資訊圖卡」樣式輸出(照片 + caption 卡片)。
+- [ ] 含外部 asset 的 HTML zip 包裹。
+- [ ] Docker image 補 LibreOffice + CJK 字型(讓 PPTX/render 在正式機可用)。
+
+---
+
 ## v5+ — 長期(看需求再說)
 
 ### 多使用者 / 權限

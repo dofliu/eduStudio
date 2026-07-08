@@ -7,6 +7,20 @@
 
 ---
 
+## Google 相簿相片簡報 + 圖片模型階層 (2026-07-07)
+
+> 新來源「連結 Google 相簿 → AI 選圖+配文 → 相片簡報（影片 + PPTX）」，接在既有 job
+> pipeline 上（最大化複用 render / PPTX 匯出 / SlideEditor / YouTube 上傳）。全 offline-first。
+
+| 項 | PR | 內容 |
+|---|---|---|
+| IMG-TIER | `#94` | 圖片模型選單整理成 便宜 / 中等 / 貴 三品質階層（`gemini-2.5/3.1-flash-image`、`gemini-3-pro-image`），修掉 2.5 被誤標「將停用」（那是 Imagen-4 淘汰，本專案未用）。 |
+| PHOTO-1 | `#95` | **Smart Photo-to-Deck 完整功能**：`core/photo_deck.py`（vision 品質過濾/逐張 caption/取標題，防幻覺、縮圖分批）+ `core/google_photos.py`（Photos Picker 薄層，2025 後 Library API 已不可用）+ `tools/photos_auth.py`（一次性 CLI 授權）；`SourceType.GOOGLE_PHOTOS` 走 ingest→render；`/google-photos/*` 路由 + `/app` PhotoSourcePanel。影片＝job mp4、PPTX＝`/jobs/{id}/pptx`。 |
+
+新增系統相依：**LibreOffice**（PPTX 來源已有）；Google Photos 需一次性 OAuth（`photospicker.mediaitems.readonly`）。
+
+---
+
 ## 多媒體來源擴充 — 簡報缺圖補圖 / HTML 動畫 / PPTX 原生 (2026-06-25 ~ 2026-06-26)
 
 > 接兩條新來源進既有 render + `/library` + YouTube 上傳：①「缺圖簡報自動補圖 → 新簡報 /

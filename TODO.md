@@ -17,6 +17,20 @@
 
 ---
 
+## ✅ 多媒體來源擴充 — 已完成 (2026-06 ~ 2026-07,已歸檔至 ROADMAP v4.5)
+
+> 詳見 [ROADMAP.md](ROADMAP.md) v4.5 與 [docs/CHANGELOG.md](docs/CHANGELOG.md)。
+
+- [x] HTML 動畫（`.html` / URL）→ fps 精準 MP4（PR #87 / #88）
+- [x] 缺圖簡報補圖：偵測純文字頁 → 生配圖 → **auto 智慧置入**（PR #89 / #90）
+- [x] PPTX 原檔就地補圖（**原文字可編輯**）+ 含圖匯出 + 一鍵轉影片（PR #91 / #92）
+- [x] 圖片模型三階層：便宜 / 中等 / 貴（PR #94）
+- [x] **Google 相簿 → 相片簡報**：Picker + vision 選圖/配文 → 影片 + PPTX（PR #95）
+- [ ] 🟢 相片「資訊圖卡」樣式輸出（照片 + caption 卡片）
+- [ ] 🟢 Docker image 補 LibreOffice + CJK 字型（PPTX/render 正式機可用）
+
+---
+
 ## 🌟 eduStudio 統一介面 `/app` — UI 接線補完 (2026-06-06)
 
 > 完整盤點見 **[docs/EDUSTUDIO_UI_WIRING.md](docs/EDUSTUDIO_UI_WIRING.md)**。

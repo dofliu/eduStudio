@@ -25,24 +25,29 @@ TEXT_MODELS: dict[str, dict[str, str]] = {
 }
 
 # ── 圖片生成模型（便宜 / 中等 / 貴 三種品質階層）──
-# 內部 key 維持 legacy/flash/pro（定價表與既有測試沿用），對使用者呈現為 便宜/中等/貴。
-# 三顆皆 gemini-image 家族、live API 實測可用；與 2026-06 Imagen 4 淘汰公告無關
-# （那次淘汰的是 imagen-4.0-* 端點，本專案從未使用）。dict 順序＝下拉顯示順序。
-# 註：劉老師列的 gemini-3.1-pro-image 經實測 404 不存在，正解為 gemini-3-pro-image（GA）。
+# 內部 key = lite/flash/pro，對使用者呈現為 便宜/中等/貴（dict 順序＝下拉顯示順序）。
+# 對齊 Gemini 官方三階 Nano Banana 2 Lite / Nano Banana 2 / Nano Banana Pro；三顆皆
+# gemini-image 家族。與 2026-06 Imagen 4 淘汰公告無關（那次淘汰的是 imagen-4.0-* 端點，
+# 本專案從未使用）。
+# 註 1：gemini-3.1-pro-image 經實測 404 不存在，Pro 正解為 gemini-3-pro-image（GA）。
+# 註 2：入門階 2026-07 由舊世代 gemini-2.5-flash-image 對齊為 gemini-3.1-flash-lite-image
+#   （Nano Banana 2 Lite）。此 id 請於 live API 實測確認可用（沿用「先實測再上」紀律）。
+#   舊 id gemini-2.5-flash-image 仍保留於 MODEL_PRICING（diagram_image_gen / song_images 仍直接用）。
+# 本檔為圖片模型 id 的**單一目錄**；core/models.py 的 image.* 角色直接引用此表（不另寫一份）。
 IMAGE_MODELS: dict[str, dict[str, str]] = {
-    "legacy": {
-        "id": "gemini-2.5-flash-image",
-        "label": "💲 便宜 · 2.5 Flash Image (經濟)",
-        "description": "成本最低，一般配圖夠用",
+    "lite": {
+        "id": "gemini-3.1-flash-lite-image",
+        "label": "💲 便宜 · Nano Banana 2 Lite (3.1 Flash Lite Image)",
+        "description": "成本最低、速度最快，一般配圖夠用",
     },
     "flash": {
         "id": "gemini-3.1-flash-image",
-        "label": "⚡ 中等 · 3.1 Flash Image (主力 · 預設)",
+        "label": "⚡ 中等 · Nano Banana 2 (3.1 Flash Image · 預設)",
         "description": "速度與品質平衡，預設選項",
     },
     "pro": {
         "id": "gemini-3-pro-image",
-        "label": "👑 貴 · Pro Image (最高畫質)",
+        "label": "👑 貴 · Nano Banana Pro (最高畫質)",
         "description": "專業品質，最高畫質繪圖",
     },
 }
@@ -58,9 +63,12 @@ MODEL_PRICING: dict = {
         "output_per_1k_chars": 0.000075,    # ~$0.30 / 1M tokens
     },
     "image": {
-        IMAGE_MODELS["flash"]["id"]: 0.003,
-        IMAGE_MODELS["pro"]["id"]: 0.04,
-        IMAGE_MODELS["legacy"]["id"]: 0.003,
+        IMAGE_MODELS["lite"]["id"]: 0.002,   # 3.1-flash-lite-image（估算 · lite 階，待官方定價校正）
+        IMAGE_MODELS["flash"]["id"]: 0.003,  # 3.1-flash-image
+        IMAGE_MODELS["pro"]["id"]: 0.04,     # 3-pro-image
+        # 舊入門模型：已非下拉選項，但 diagram_image_gen / song_images 仍直接寫死用，
+        # 保留定價避免 core/usage.py 用量計帳把它記成 $0。
+        "gemini-2.5-flash-image": 0.003,
     },
 }
 

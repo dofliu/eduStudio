@@ -24,9 +24,18 @@ class TestModels:
         assert models.DEFAULT_TEXT_MODEL == "gemini-3.5-flash"
         assert models.DEFAULT_IMAGE_MODEL == "gemini-3.1-flash-image"
 
+    def test_entry_tier_aligned_to_lite_image(self):
+        # 2026-07：入門階由 2.5-flash-image 對齊為 Nano Banana 2 Lite。
+        assert models.IMAGE_MODELS["lite"]["id"] == "gemini-3.1-flash-lite-image"
+        # legacy key 已改名為 lite（frontend 只吃 .values()，key 不外露）。
+        assert "legacy" not in models.IMAGE_MODELS
+
     def test_pricing_keyed_by_image_id(self):
+        assert models.MODEL_PRICING["image"]["gemini-3.1-flash-lite-image"] == 0.002
         assert models.MODEL_PRICING["image"]["gemini-3.1-flash-image"] == 0.003
         assert models.MODEL_PRICING["image"]["gemini-3-pro-image"] == 0.04
+        # 舊入門模型仍被 diagram/song 直接用 → 定價保留，避免計帳記 $0。
+        assert models.MODEL_PRICING["image"]["gemini-2.5-flash-image"] == 0.003
 
     def test_options_helpers(self):
         assert len(models.text_model_options()) == 3

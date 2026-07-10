@@ -82,6 +82,15 @@ def test_resolve_id_returns_model_id_only(settings_path):
     assert models.resolve_id("image.pro") == "gemini-3-pro-image"
 
 
+def test_image_roles_derive_from_infocards_catalog(settings_path):
+    """漂移守衛：image.fast/image.pro 的預設 id 必須等於 infocards 圖片目錄的
+    中等/貴兩階（單一來源，2026-07 統一）。任何一邊改 id 不同步即紅。"""
+    from core.infocards.models import IMAGE_MODELS
+
+    assert models.DEFAULTS[models.IMAGE_FAST][1] == IMAGE_MODELS["flash"]["id"]
+    assert models.DEFAULTS[models.IMAGE_PRO][1] == IMAGE_MODELS["pro"]["id"]
+
+
 # ---------- type guard ----------
 
 def test_unknown_role_raises():

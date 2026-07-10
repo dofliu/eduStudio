@@ -35,6 +35,11 @@
 """
 from __future__ import annotations
 
+# 圖片模型 id 的單一目錄在 core/infocards/models.py（便宜/中等/貴 三階 + label + 定價）。
+# image.* 角色直接引用該目錄，避免兩處各寫一份 id 而漂移（2026-07 統一）。
+# 該檔為葉節點（只 import __future__），不會與本檔形成循環。
+from core.infocards.models import IMAGE_MODELS as _IMAGE_CATALOG
+
 # ── provider 名稱（B 階段會擴張：ollama / claude / f5 …）──
 PROVIDER_GEMINI = "gemini"
 PROVIDER_EDGE = "edge"
@@ -60,15 +65,15 @@ ROLES: frozenset[str] = frozenset(
 )
 
 # ── 內建預設表：角色 → (provider, model_id)──
-# id 對齊既有 single-source（core/infocards/models.py 經 live API 實測可用的 Gemini 3 系列）。
-# text.fast/vision 用 3.5-flash（多模態主力）、text.pro 用 3.1-pro-preview、
-# image.fast 用 3.1-flash-image、image.pro 用 3-pro-image（3.1-pro-image 未開放，見 infocards/models.py）。
+# text.fast/vision 用 3.5-flash（多模態主力）、text.pro 用 3.1-pro-preview。
+# image.fast/image.pro 的 id 直接取自 infocards 圖片目錄的「中等/貴」兩階（單一來源，
+# 不再各寫一份 literal）；「便宜」階（lite）只在該目錄當下拉選項，無對應邏輯角色。
 DEFAULTS: dict[str, tuple[str, str]] = {
     TEXT_FAST:  (PROVIDER_GEMINI, "gemini-3.5-flash"),
     TEXT_PRO:   (PROVIDER_GEMINI, "gemini-3.1-pro-preview"),
     VISION:     (PROVIDER_GEMINI, "gemini-3.5-flash"),
-    IMAGE_FAST: (PROVIDER_GEMINI, "gemini-3.1-flash-image"),
-    IMAGE_PRO:  (PROVIDER_GEMINI, "gemini-3-pro-image"),
+    IMAGE_FAST: (PROVIDER_GEMINI, _IMAGE_CATALOG["flash"]["id"]),  # 中等 · Nano Banana 2
+    IMAGE_PRO:  (PROVIDER_GEMINI, _IMAGE_CATALOG["pro"]["id"]),    # 貴 · Nano Banana Pro
     # tts：本 repo 走 provider 子系統（edge/f5/google，預設 edge），非單一 model id。
     # B 階段（F9-3 本機 provider）會把 f5/google 接進來；model_id 暫等同後端名。
     TTS:        (PROVIDER_EDGE, "edge"),

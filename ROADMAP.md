@@ -419,8 +419,11 @@
 - PPTX 原檔就地補圖(**原文字保持可編輯**,`core/pptx_augment.py`)。
 - 含圖 PPTX 匯出(`core/slide_pptx.py`)+ 補圖簡報一鍵轉講解影片。
 
-### 圖片模型三階層 ✅ (PR #94)
-- 便宜 / 中等 / 貴(`gemini-2.5/3.1-flash-image`、`gemini-3-pro-image`)。
+### 圖片模型三階層 ✅ (PR #94 / #98)
+- 便宜 / 中等 / 貴,對齊 Gemini 官方三階 **Nano Banana 2 Lite / 2 / Pro**
+  (`gemini-3.1-flash-lite-image` / `gemini-3.1-flash-image` / `gemini-3-pro-image`)。
+- 入門階 2026-07 由舊世代 `gemini-2.5-flash-image` 對齊為 lite(PR #98);`core.models`
+  的 image 角色改引用 infocards 圖片目錄(單一來源)+ 漂移守衛測試。⚠️ 新 id 待 live 實測。
 
 ### Google 相簿 → 相片簡報 ✅ (PR #95)
 - Photos Picker API(2025 後 Library API 已不可讀相簿)→ vision 品質過濾 + 逐張 caption
@@ -432,6 +435,27 @@
 - [ ] 相片「資訊圖卡」樣式輸出(照片 + caption 卡片)。
 - [ ] 含外部 asset 的 HTML zip 包裹。
 - [ ] Docker image 補 LibreOffice + CJK 字型(讓 PPTX/render 在正式機可用)。
+
+---
+
+## 🔍 程式碼健檢與後續改善 (2026-07)
+
+> 全庫程式碼審查(5 條並行子系統 + 逐一驗證)。完整發現(file:line / 失敗情境 / 修法)
+> 與分 Sprint 執行順序見 [docs/CODE_REVIEW_2026-07.md](docs/CODE_REVIEW_2026-07.md);
+> routine 認領清單見 [TODO.md](TODO.md) 🔍 段。
+
+**體質結論**:明顯高於一般自架開源專案 — 無命令注入面、path traversal 一致防護、secrets
+衛生佳、review gate 主閘門正確;上一份 CODE_REVIEW 的 4 個 P0 已全修。**無遠端未授權嚴重漏洞。**
+
+**兩條主軸(依序償)**:
+1. **產品核心正確性**(直擊「絕不發布錯誤數字」):`clean_json_escapes` 靜默破壞 `\theta`/
+   `\times`/`\frac` 等 LaTeX、exam review gate 可被 `require_review=false` 關掉、解題寫死
+   舊模型 — 這幾項最該先修。
+2. **一次沒做完的架構遷移**:`core/` 是頂層腳本(solve/pipeline/slide_ingest)的空殼再匯出層
+   (依賴方向反),外溢成 Gemini client(13+ 檔)/ ffmpeg(14+ 檔)到處手刻。最高槓桿是把
+   邏輯搬進 core、統一抽象。
+
+✅ 已動:圖片入門階對齊 Nano Banana 2 Lite + 統一兩個登錄表(PR #98)。
 
 ---
 

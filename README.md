@@ -46,7 +46,7 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 - **🛡️ Human review gate** — AI output (especially exam answers / numbers) stops at an editable review screen before rendering. The product's core principle: *never publish unverified AI numbers.* Exam solutions are review-locked by design.
 - **🗂️ One course = one workspace** — pick a course at the top; every video and visual you generate is automatically filed under it (sources · tasks · products), NotebookLM-style.
 - **🎙️ Your own voice** — F5-TTS voice cloning lets narration speak in *your* voice, with automatic fallback to edge-tts / Google TTS.
-- **🧩 Gemini 3 powered** — `gemini-3.5-flash` / `gemini-3.1-pro-preview` for text, `gemini-3.1-flash-image` / `gemini-3-pro-image` for images, fully configurable in-app.
+- **🧩 Gemini 3 powered** — `gemini-3.5-flash` / `gemini-3.1-pro-preview` for text; three image tiers **Nano Banana 2 Lite / 2 / Pro** (`gemini-3.1-flash-lite-image` / `gemini-3.1-flash-image` / `gemini-3-pro-image`), fully configurable in-app.
 - **📤 Publish-ready** — PPTX export, YouTube auto-chapters, bilingual subtitle tracks, LaTeX formula rendering, personal-brand footer baked into slides & cards.
 - **🖼️ Smart slide augmentation** — upload an image-less deck (slides PDF *or* PPTX); eduStudio detects text-only pages and drops a matching AI illustration into each page's blank area, keeping the original layout at full size (and, for PPTX, the original text fully editable). Then export an updated deck or a one-click narrated video.
 - **🎞️ HTML animation → video** — turn any self-contained `.html` animation (or a URL) into a frame-accurate MP4 via a virtual-clock headless capture, ready for the same `/library` + YouTube upload path.
@@ -167,7 +167,7 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 - **🛡️ 人工審查關卡** — AI 產出（尤其解題答案 / 數字）會停在**可編輯的審查頁**，核准後才渲染。核心原則：*絕不發布未經查證的 AI 數值*。考卷解答一律強制審查。
 - **🗂️ 一門課＝一工作空間** — 右上選課，之後產的每支影片 / 每張圖卡都自動歸到該課（來源 · 任務 · 成品），NotebookLM 式管理。
 - **🎙️ 你自己的聲音** — F5-TTS 聲音複製讓旁白用**你的**聲音念，並自動退回 edge-tts / Google TTS。
-- **🧩 Gemini 3 驅動** — 文字用 `gemini-3.5-flash` / `gemini-3.1-pro-preview`，圖片用 `gemini-3.1-flash-image` / `gemini-3-pro-image`，App 內可自由設定。
+- **🧩 Gemini 3 驅動** — 文字用 `gemini-3.5-flash` / `gemini-3.1-pro-preview`；圖片三階層 **Nano Banana 2 Lite / 2 / Pro**（便宜 `gemini-3.1-flash-lite-image`／中等 `gemini-3.1-flash-image`／貴 `gemini-3-pro-image`），App 內可自由設定。
 - **📤 隨時可發布** — PPTX 匯出、YouTube 自動章節、雙語字幕軌、LaTeX 公式渲染、個人品牌頁尾自動帶進簡報與圖卡。
 - **🖼️ 缺圖簡報智慧補圖** — 上傳缺圖的簡報（PDF 或 PPTX）；eduStudio 偵測純文字頁，把符合內容的 AI 配圖放進該頁的空白區、原頁維持原大小（PPTX 則直接在原檔上插圖、原文字仍完全可編輯）。接著可匯出新簡報或一鍵產生有旁白的講解影片。
 - **🎞️ HTML 動畫轉影片** — 用虛擬時鐘的無頭瀏覽器逐格擷取，把任意自含 `.html` 動畫（或網址）轉成 fps 精準的 MP4，直接接上既有的 `/library` + YouTube 上傳。

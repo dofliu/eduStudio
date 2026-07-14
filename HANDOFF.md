@@ -71,7 +71,7 @@ eduStudio/
 
 1. **build 一定帶 `--base=/app/`**，否則 /app 空白 404。
 2. **Gemini 2.5-flash 預設開 thinking** → 吃掉 max_output_tokens 致回空+慢 5x。逐頁/批次呼叫一律 `thinking_config=types.ThinkingConfig(thinking_budget=0)`（見 `slide_ingest.py`）。
-3. **Gemini 3 模型 id 要 live 實測**（這 repo 有 preview id 非 GA 前科）。目前設定頁用：文字 `gemini-3.5-flash` / `gemini-3.1-flash-lite` / `gemini-3.1-pro-preview`；圖片 `gemini-3.1-flash-image` / `gemini-3-pro-image` / `gemini-2.5-flash-image`。劉老師口述的 `gemini-3.1-pro` / `gemini-3.1-pro-image` 實測 **404**（API 沒有），用 `client.models.list()` 查該 key 真正可用的。
+3. **Gemini 3 模型 id 要 live 實測**（這 repo 有 preview id 非 GA 前科）。目前設定頁用：文字 `gemini-3.5-flash` / `gemini-3.1-flash-lite` / `gemini-3.1-pro-preview`；圖片三階 `gemini-3.1-flash-lite-image`（Nano Banana 2 Lite · 2026-07 新入門階 PR #98 · **尚待 live 實測**）/ `gemini-3.1-flash-image` / `gemini-3-pro-image`。劉老師口述的 `gemini-3.1-pro` / `gemini-3.1-pro-image` 實測 **404**（API 沒有），用 `client.models.list()` 查該 key 真正可用的。圖片模型 id 的單一目錄在 `core/infocards/models.py`，`core.models` 的 image 角色引用它（改一處即同步）。
 4. **CI 裝套件是寫死清單**（`.github/workflows/test.yml`），不是 `requirements.txt`。新增「非 importorskip 直接 import」的依賴要手動加進去（已加 google-genai；缺 ffmpeg 的測試要優雅降級）。
 5. **bash 工具在 Windows 是 cp950**，curl 傳含中文的 JSON 會亂碼 → 用 Python urllib/requests（UTF-8）打 API。
 6. **改前端後**：build 即生效（server 直接 serve `web/eduapp`），硬重新整理 /app；**改後端後**：要重啟 uvicorn。

@@ -7,6 +7,18 @@
 
 ---
 
+## 程式碼健檢 + 圖片模型入門階對齊 (2026-07-09 ~ 2026-07-10)
+
+> 全庫程式碼審查(5 條並行子系統 + 逐一驗證)產出分 Tier 改善規劃;圖片模型入門階對齊官方
+> 三階並統一兩個登錄表。後續認領清單見 `TODO.md` 🔍 段、方向見 `ROADMAP.md` 🔍 段。
+
+| 項 | PR | 內容 |
+|---|---|---|
+| REVIEW | `#97` | `docs/CODE_REVIEW_2026-07.md` — 全庫審查 + 分 Sprint 改善規劃(Tier 0 產品正確性 / T1 穩定性 / T2 安全 / T3 架構)。結論:體質高於一般自架專案、無遠端未授權嚴重漏洞、上一份 CODE_REVIEW 的 4 個 P0 已全修。 |
+| IMG-LITE | `#98` | 圖片入門階 `gemini-2.5-flash-image` → `gemini-3.1-flash-lite-image`(**Nano Banana 2 Lite**),對齊官方三階 Lite/2/Pro;`core.models` 的 image 角色改引用 `core/infocards/models.py` 目錄(單一來源,不再各寫一份)+ 漂移守衛測試;保留 `gemini-2.5-flash-image` 定價(diagram/song 仍直接用)。⚠️ 新 id 待 live 實測確認。 |
+
+---
+
 ## Google 相簿相片簡報 + 圖片模型階層 (2026-07-07)
 
 > 新來源「連結 Google 相簿 → AI 選圖+配文 → 相片簡報（影片 + PPTX）」，接在既有 job

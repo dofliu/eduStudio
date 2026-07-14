@@ -17,6 +17,52 @@
 
 ---
 
+## 🔍 程式碼審查後續改善 (2026-07,見 [docs/CODE_REVIEW_2026-07.md](docs/CODE_REVIEW_2026-07.md))
+
+> 2026-07 全庫程式碼審查(5 條並行子系統 + 逐一驗證)。完整發現含 file:line、失敗情境、
+> 修法與分 Sprint 執行順序在 [docs/CODE_REVIEW_2026-07.md](docs/CODE_REVIEW_2026-07.md)。
+> 此處只列 routine 認領用的勾選清單,依 Tier 由上而下、Sprint 順序做。
+> **守 offline-first**:改抽象 / 加測試可自主;動 render / schema 跑 `pytest`;需 live 打
+> Gemini 驗證的(如新 model id)寫 proposal 後 STOP。
+
+### ✅ 已完成
+- [x] 🟡 **圖片入門階對齊 Nano Banana 2 Lite** + 統一兩個登錄表(infocards ↔ core.models 單一
+  來源 + 漂移守衛測試)(2026-07, PR #98)。⚠️ `gemini-3.1-flash-lite-image` 待 live 實測確認。
+
+### Sprint 1 — 產品核心止血(最優先,直擊「絕不發布錯誤數字」)
+- [ ] 🔴 **T0-1 `clean_json_escapes` 公式修復**(`core/text_utils.py:95`)— 黑名單排除 `bfnrtu`
+  導致 `\theta`/`\times`/`\frac` 被 `json.loads` 靜默解析成控制字元(Tab/換頁…)。改白名單 + 回歸測試。
+- [ ] 🔴 **T0-2 exam review gate 不可被關**(`server/jobs.py:68`)— `_resolve_default_review` 對
+  `EXAM_PDF`/`SONG` 強制 True、忽略 caller 的 `require_review=false`(`uploads_pptx.py` 亦寫死 False)。
+- [ ] 🔴 **T1-1 dubber filtergraph 索引修復**(`core/video/dubber.py:214`)— 缺音檔即 ffmpeg 崩;
+  對保留段用連續計數器 `j` 編號。
+- [ ] 🟡 **T2-2 / T2-3 兩個一行修**:base compose 綁 `127.0.0.1`(`docker-compose.yml:29`)、
+  `editor.py:234` 的 `j.error` 加 `_html_escape`。
+
+### Sprint 2 — 穩定性根源(統一抽象順帶解 timeout / model)
+- [ ] 🔴 **T1-2 外部呼叫補 timeout**(23 個 subprocess 僅 2 個帶 / 所有 `generate_content` 皆無)。
+- [ ] 🟡 **T3-2 統一 Gemini client** → `core/providers`(13+ 檔各自 `genai.Client(...)`,順帶落地
+  model 一致 + 一半的 timeout)。
+- [ ] 🟡 **T3-3 建 `core/ffmpeg.py` 共用 runner**(14+ 檔手刻,順帶另一半 timeout + returncode 檢查)。
+- [ ] 🟡 **T0-4 解題走 `resolve_id` + 設定頁金鑰**(`solve.py:30/168`:寫死舊模型 + 直讀 os.environ 繞過設定頁)。
+- [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、dubber 暫存清理。
+
+### Sprint 3 — 安全縱深 + 輸入界限
+- [ ] 🟡 **T2-1 SSRF 位址過濾**(`core/adapters/url.py`,擋內網 / metadata IP + 關 redirect)。
+- [ ] 🟢 **T2-4 schema 輸入界限**(`server/schemas.py` 加 `ge/le/max_length/max_items`)。
+- [ ] 🟢 **T0-3 review_assist 覆蓋率提示**(三角 / 開根號步驟目前靜默零檢查,別讓「無 flag」被當「已驗證」)。
+- [ ] 🟢 **T3-7 成本記帳分 model**(圖片輸入未計 / 費率不分 model / 未知 model 記 $0)。
+
+### Sprint 4+ — 架構償債(長期,最高槓桿但工程最大)
+- [ ] 🔴 **T3-1 反轉 core 依賴**:把邏輯搬進 `core/`、根腳本變薄 CLI(現 `core/` 是頂層腳本的空殼再匯出層)。
+- [ ] 🟡 **T3-4 刪 `app.py`(Track A)+ 收斂三個並存 UI**(Track A / legacy `web/` / 官方 `frontend/`)。
+- [ ] 🟡 **T3-5 拆 god 檔**:`pptx_style.py`(2536)/ `runner.py`(1468)/ `app.jsx`(3508)/ `solve_with_gemini`(203 行)。
+- [ ] 🟡 **T3-6 測試結構鏡射原始碼樹 + 補零測模組**(`batch` / `publish` / `slide_ingest` / `app.py`)。
+- [ ] 🟢 **T3-7 logging 收斂**(根腳本 `print`→`logging_setup`)+ CI 改 `pip install -r requirements.txt`。
+- [ ] 🟢 (可選)`diagram_image_gen` / `song_images` 寫死的 `gemini-2.5-flash-image` 遷到 lite 目錄(定價已保留,現況計帳正確)。
+
+---
+
 ## ✅ 多媒體來源擴充 — 已完成 (2026-06 ~ 2026-07,已歸檔至 ROADMAP v4.5)
 
 > 詳見 [ROADMAP.md](ROADMAP.md) v4.5 與 [docs/CHANGELOG.md](docs/CHANGELOG.md)。

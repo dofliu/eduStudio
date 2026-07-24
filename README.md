@@ -107,6 +107,14 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 
 Then open **`http://127.0.0.1:8000/app/`**.
 
+> ⚠️ The ASGI path is **`server.main:app`** — there is no root `main.py`. Running
+> `uvicorn main:app` fails with *"Error loading ASGI app. Could not import module 'main'"*.
+> Equivalent: `python -m server.main`.
+
+📖 **New here?** The full [**User Manual**](docs/USER_MANUAL.md) covers every station, the
+config reference, the REST API and troubleshooting. For the shortest path (exam → video →
+YouTube) see [onboarding](docs/onboarding.md).
+
 ### Dependency layers
 
 Dependencies are split so you install only what you actually use. `requirements.txt`
@@ -140,6 +148,17 @@ The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 ### Tech stack
 
 `Python 3.12` · `FastAPI` · `React 19 + Vite` · `Google Gemini 3` · `faster-whisper` · `F5-TTS` · `edge-tts` · `PyMuPDF` · `python-pptx` · `matplotlib` (LaTeX) · `ffmpeg`
+
+### Documentation
+
+| Doc | For |
+|---|---|
+| 📖 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) | **Full user manual** — every station, config reference, REST API, troubleshooting (English quick-reference inside) |
+| 🚀 [`docs/onboarding.md`](docs/onboarding.md) | Getting started 0→1 (exam → video → YouTube) |
+| 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production deploy (token · CORS · reverse proxy · TLS) |
+| 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | Contributing + non-negotiable hard rules |
+| 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Roadmap · backlog · changelog |
+| 🔍 [`docs/CODE_REVIEW_2026-07.md`](docs/CODE_REVIEW_2026-07.md) | Latest code audit + improvement plan |
 
 ---
 
@@ -226,6 +245,12 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 
 接著打開 **`http://127.0.0.1:8000/app/`**。
 
+> ⚠️ 啟動路徑是 **`server.main:app`** —— 專案**沒有**根目錄 `main.py`。打成 `uvicorn main:app`
+> 會報 *"Error loading ASGI app. Could not import module 'main'"*。等價指令:`python -m server.main`。
+
+📖 **第一次用?** 完整 [**使用手冊**](docs/USER_MANUAL.md) 涵蓋每個工作站、設定對照、REST API
+與疑難排解。最短路徑(考卷 → 影片 → YouTube)看 [上手指南](docs/onboarding.md)。
+
 ### 依賴分層
 
 依賴刻意拆開，只裝你會用到的。光裝 `requirements.txt` 就足以跑起 server 與主要 pipeline
@@ -245,6 +270,17 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 - **LibreOffice**（`libreoffice-impress`）— *只有* PPTX 來源功能需要（上傳 PPTX 就地補圖、PPTX→影片），用來把 `.pptx` 渲成 PDF 做逐頁分析。其餘軸（考卷／簡報 PDF／文件／HTML／song）都不需要。
 
 內附的 `Dockerfile` 已幫你裝好 ffmpeg 與 CJK 字型。
+
+### 文件
+
+| 文件 | 用途 |
+|---|---|
+| 📖 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) | **完整使用手冊** — 每個工作站、設定對照、REST API、疑難排解(內含英文速查) |
+| 🚀 [`docs/onboarding.md`](docs/onboarding.md) | 從 0 到 1 上手(考卷 → 影片 → YouTube) |
+| 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | 正式上線部署(token · CORS · 反向代理 · TLS) |
+| 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | 貢獻指南 + 不可妥協的硬規則 |
+| 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | 路線圖 · 待辦 · 變更紀錄 |
+| 🔍 [`docs/CODE_REVIEW_2026-07.md`](docs/CODE_REVIEW_2026-07.md) | 最新程式碼稽核 + 改善規劃 |
 
 ### 專案結構
 

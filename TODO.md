@@ -28,6 +28,10 @@
 ### ✅ 已完成
 - [x] 🟡 **圖片入門階對齊 Nano Banana 2 Lite** + 統一兩個登錄表(infocards ↔ core.models 單一
   來源 + 漂移守衛測試)(2026-07, PR #98)。⚠️ `gemini-3.1-flash-lite-image` 待 live 實測確認。
+- [x] 🟡 **完整使用手冊 `docs/USER_MANUAL.md`**(所有工作站 / 設定對照 / REST API 速查 /
+  Job 狀態機 / 疑難排解 / FAQ + 英文速查)+ README 中英雙語加「文件」導覽段 + `server.main:app`
+  啟動雷提示(2026-07)。
+- [ ] 🟢 補 `docs/screenshots/` 四張截圖(README / 手冊預留位,需實機瀏覽器)。
 
 ### Sprint 1 — 產品核心止血(最優先,直擊「絕不發布錯誤數字」)
 - [ ] 🔴 **T0-1 `clean_json_escapes` 公式修復**(`core/text_utils.py:95`)— 黑名單排除 `bfnrtu`

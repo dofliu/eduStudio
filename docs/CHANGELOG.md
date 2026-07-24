@@ -7,6 +7,19 @@
 
 ---
 
+## 完整使用手冊 + README 文件導覽 (2026-07-14)
+
+> 新增 `docs/USER_MANUAL.md`(完整操作參考,補在 onboarding 0→1 之上);README 中英雙語加
+> 「文件」導覽段與 `server.main:app` 啟動雷提示。
+
+| 項 | 內容 |
+|---|---|
+| MANUAL | `docs/USER_MANUAL.md` — 目錄 / 安裝與啟動(含 `server.main:app` vs `main:app` 常見雷)/ 設定(env 完整表 + 模型三階)/ 核心概念(工作空間 · Job 狀態機 mermaid · 審查關卡 · 成本)/ 三大工作站逐一 / 發布 YouTube / CLI / 疑難排解 / REST API 速查 / FAQ + 英文速查。 |
+| README | 中英雙語各加「文件 / Documentation」導覽段(手冊 / onboarding / deployment / contributing / roadmap / code review)+ 快速開始補 `server.main:app` 啟動路徑警告。 |
+| ROADMAP / TODO | 反映手冊已完成;截圖補齊列為待辦。 |
+
+---
+
 ## 程式碼健檢 + 圖片模型入門階對齊 (2026-07-09 ~ 2026-07-10)
 
 > 全庫程式碼審查(5 條並行子系統 + 逐一驗證)產出分 Tier 改善規劃;圖片模型入門階對齊官方

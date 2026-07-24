@@ -455,7 +455,9 @@
    (依賴方向反),外溢成 Gemini client(13+ 檔)/ ffmpeg(14+ 檔)到處手刻。最高槓桿是把
    邏輯搬進 core、統一抽象。
 
-✅ 已動:圖片入門階對齊 Nano Banana 2 Lite + 統一兩個登錄表(PR #98)。
+✅ 已動:圖片入門階對齊 Nano Banana 2 Lite + 統一兩個登錄表(PR #98);完整使用手冊
+[docs/USER_MANUAL.md](docs/USER_MANUAL.md)(所有工作站 / 設定 / API / 疑難排解 + 英文速查)
++ README 中英雙語加「文件」導覽段。
 
 ---
 

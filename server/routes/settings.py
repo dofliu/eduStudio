@@ -10,7 +10,11 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from core import settings as settings_store
-from core.infocards.models import image_model_options, text_model_options
+from core.infocards.models import (
+    image_model_options,
+    specialized_model_options,
+    text_model_options,
+)
 from core.models import provider_catalog, role_catalog
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -34,6 +38,7 @@ def _payload() -> dict:
     view = settings_store.public_view()
     view["text_models"] = text_model_options()    # [{id,label,description}]
     view["image_models"] = image_model_options()
+    view["specialized_models"] = specialized_model_options()
     view["roles"] = role_catalog()                 # [{role,label,kind,default,provider}] 逐角色管理用
     view["providers"] = provider_catalog()          # [{id,label}] 可指派 provider（F9-3e）
     return view

@@ -167,3 +167,18 @@ class TestFileEndpoints:
         results = r.json()["results"]
         assert results["dubbed_video"] == "/tmp/out.mp4"
         assert results["_args"] == ["https://youtu.be/x", "auto", "zh_TW"]  # 邊界轉換
+
+    def test_song_runtime_error_is_json_503(self, client, monkeypatch):
+        """第三方 STT/model 失敗不能退成 Starlette 純文字 Internal Server Error。"""
+        import core.song_build as song_build
+
+        def fail_transcribe(*args, **kwargs):
+            raise RuntimeError("Whisper model cache missing")
+
+        monkeypatch.setattr(song_build, "build_song_json_from_media", fail_transcribe)
+        r = client.post(
+            "/localization/song/transcribe",
+            files={"file": ("song.mp3", b"ID3", "audio/mpeg")},
+        )
+        assert r.status_code == 503
+        assert "Whisper model cache missing" in r.json()["detail"]

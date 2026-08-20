@@ -14,6 +14,8 @@ scaffold 階段 (iter 10): 只有 schema + 主要 function 簽名, 還沒實作�
 """
 from __future__ import annotations
 
+from core.infocards.models import DEFAULT_TEXT_MODEL
+
 import json
 import os
 import time
@@ -100,7 +102,7 @@ class IdeateConfig(TypedDict):
     """整份 config.yaml 的 ideate 段落 — 後續 iter 加 PyYAML 讀檔。"""
 
     watched_folders: list[WatchedFolder]
-    llm_model: str                       # 預設 "gemini-2.5-flash"
+    llm_model: str                       # 預設 DEFAULT_TEXT_MODEL
     max_proposals_per_file: int          # 預設 3
     enabled: bool                        # off 時 ideate 完全不跑
 
@@ -206,7 +208,7 @@ def propose_from_file(
     # 1.5 (iter 25) 自動判斷 source_type:
     #   candidate["source_type"] == "auto" → 跑 detect, 失敗 fallback "document"
     #   其他值 (exam_pdf / slides_pdf / document) → 強制不變 (向後相容)
-    model_name = config.get("llm_model", "gemini-2.5-flash")
+    model_name = config.get("llm_model", DEFAULT_TEXT_MODEL)
     hint_st = candidate.get("source_type", "document")
     if hint_st == "auto":
         detected = detect_source_type(path, model_name=model_name)
@@ -253,7 +255,7 @@ _DETECTABLE_SOURCE_TYPES: frozenset[str] = frozenset({
 
 def detect_source_type(
     pdf_path: Path,
-    model_name: str = "gemini-2.5-flash",
+    model_name: str = DEFAULT_TEXT_MODEL,
 ) -> str | None:
     """看 PDF 前 2 頁判斷 source_type。
 
@@ -262,7 +264,7 @@ def detect_source_type(
 
     參數:
         pdf_path: 要分類的 PDF
-        model_name: Gemini 模型 (預設 gemini-2.5-flash)
+        model_name: Gemini 模型（預設為集中式 model catalog 的最新穩定型號）
 
     回傳:
         合法 source_type 字串 (高 / 中信心度), 或 None (低信心度 / 失敗)。

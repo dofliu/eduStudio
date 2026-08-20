@@ -1,7 +1,7 @@
 """AI 直接生圖 — iter 56, Option B.
 
 差別於 core/diagram_gen.py (用 Gemini 寫 matplotlib code → AST validate →
-subprocess render). 這個直接呼 Gemini 2.5 Flash Image API 拿 image bytes
+subprocess render). 這個直接呼 Gemini Nano Banana 2 API 拿 image bytes
 寫檔.
 
 跟 diagram_gen 比較:
@@ -10,7 +10,7 @@ subprocess render). 這個直接呼 Gemini 2.5 Flash Image API 拿 image bytes
 - diagram_image_gen (本檔): 圖文 LLM 直接生圖. 自由風格, 適合架構 / 流程 /
   概念圖. 但 LLM 圖也會醜, 需要 review (硬規則 #1).
 
-用戶選擇 model: gemini-2.5-flash-image-preview (cheap 路, 不是 imagen 那條)
+預設 model: gemini-3.1-flash-image（Nano Banana 2，不是 Imagen 端點）
 """
 from __future__ import annotations
 
@@ -19,12 +19,13 @@ import os
 from pathlib import Path
 from typing import Any
 
+from core.infocards.models import IMAGE_MODELS
+
 logger = logging.getLogger(__name__)
 
 
-# Gemini 影像生成 model — Flash family 比 imagen 便宜
-# 2026-05-15: GA 後 -preview 後綴拿掉, 改成 gemini-2.5-flash-image
-IMAGE_MODEL = "gemini-2.5-flash-image"
+# Gemini 影像生成 model 的單一目錄在 core.infocards.models。
+IMAGE_MODEL = IMAGE_MODELS["flash"]["id"]
 
 
 def _build_diagram_prompt(section: dict, deck_title: str = "") -> str:

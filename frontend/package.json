@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:app": "vite build",
     "dev": "vite",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test edustudio/*.test.js"
   },
   "dependencies": {
     "react": "^19.2.0",

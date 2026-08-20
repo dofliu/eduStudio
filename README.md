@@ -115,6 +115,10 @@ Then open **`http://127.0.0.1:8000/app/`**.
 config reference, the REST API and troubleshooting. For the shortest path (exam → video →
 YouTube) see [onboarding](docs/onboarding.md).
 
+📚 **Serialized comics:** the internal Comic Production System covers Series Bible,
+script/storyboard, evidence-gated AI generation, editable Word bubbles, versioned release
+and the Internal Reader. See [Comic Production System](docs/COMIC_PRODUCTION_SYSTEM.md).
+
 ### Dependency layers
 
 Dependencies are split so you install only what you actually use. `requirements.txt`

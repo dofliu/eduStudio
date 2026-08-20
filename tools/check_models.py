@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_models.py — 模型 id 自我健檢（C-5）。
 
-把系統「會拿去打 Gemini API」的 model id（角色登錄表 + 設定頁可選清單 + 設定頁實際覆寫）
+把系統登錄的 Gemini model id（角色登錄表 + 設定頁可選清單 + 專用 API 型號 + 設定頁實際覆寫）
 全部蒐齊，再呼叫 ``client.models.list()`` 比對這些 id 在你這把 key 底下**是否真的還存在**，
 把不存在的 id 標紅。這 repo 有過用 preview id 結果 404 的前科（見 ``core/infocards/models.py``
 註解），自架者換 key / Google 改版後可跑這支自查，免得排版到一半才炸。
@@ -57,6 +57,8 @@ def collect_configured_models() -> list[dict]:
        只收 provider == gemini 的角色（``tts`` 等跳過）。
     2. **設定頁可選清單**（``core/infocards/models.py`` 的 ``TEXT_MODELS`` / ``IMAGE_MODELS``）
        — UI 下拉讓使用者挑的全部 id，就算現在沒選中也該存在（免得選了才 404）。
+    3. **專用 API 型號**（``SPECIALIZED_MODELS``）— 尚未接線，但設定頁會顯示的 Live / TTS /
+       Omni model 也必須確定存在，避免未來接線時使用過期 id。
 
     回傳：每個**唯一** id 一筆 ``{"id": str, "sources": [str, ...]}``（sources 已去重排序），
     全表依 id 排序，輸出穩定。
@@ -81,6 +83,8 @@ def collect_configured_models() -> list[dict]:
         _add(spec["id"], f"設定頁下拉 文字/{key}")
     for key, spec in infocard_models.IMAGE_MODELS.items():
         _add(spec["id"], f"設定頁下拉 圖片/{key}")
+    for key, spec in infocard_models.SPECIALIZED_MODELS.items():
+        _add(spec["id"], f"設定頁資訊 專用/{key}")
 
     return [
         {"id": mid, "sources": sorted(by_id[mid])}

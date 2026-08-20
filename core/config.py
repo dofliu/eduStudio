@@ -186,7 +186,7 @@ def get_settings_path() -> str:
 
 
 # ---------- LLM 模型 ----------
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 
 
 def get_gemini_model() -> str:

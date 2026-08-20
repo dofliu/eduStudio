@@ -8,6 +8,9 @@ import './themes.css';
 import './components.css';
 import './layout.css';
 import './screens.css';
+import './creator.css';
+import { WORKFLOWS, createTaskBrief, inferWorkflowIntent } from './workflows.js';
+import ComicStudio from './comic-studio.jsx';
 
 /* eduStudio — mock data (Traditional-Chinese, STEM teaching context) */
 
@@ -161,6 +164,7 @@ const { useState, useRef, useEffect, useLayoutEffect, createContext, useContext 
 
 /* ───────────────────────── Icons (lucide-style) ───────────────────────── */
 const ICONS = {
+  home:'<path d="m3 11 9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/><path d="M9 21v-7h6v7"/>',
   video:'<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
   palette:'<circle cx="13.5" cy="6.5" r=".6" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r=".6" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r=".6" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r=".6" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/>',
   inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
@@ -205,6 +209,7 @@ const ICONS = {
   'panel-left':'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
   'graduation-cap':'<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
   'book-open':'<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
   wand:'<path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/>',
   'arrow-right':'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   trash:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
@@ -500,12 +505,13 @@ function LocalizeMenu({ localized = [], onChange, size = "sm", label = "一鍵�
 Object.assign(window, { LocalizeMenu, LangChip });
 /* eduStudio — App shell: Sidebar, Topbar, ProjectMenu, CostPanel */
 
+// 固定導覽只保留跨工作流程的核心區域。影片／簡報／圖卡／漫畫只在被選中時出現，
+// 避免一進站就把所有產製功能攤給使用者。
 const WORKSTATIONS = [
-  { key: "video",    label: "影片", icon: "video",       hue: "var(--es-ws-video)",    sub: "旁白教學影片 · 配音 · 摘要 · 字幕" },
-  { key: "visual",   label: "視覺", icon: "palette",     hue: "var(--es-ws-visual)",   sub: "教學簡報 · 圖卡 · 海報" },
-  { key: "material", label: "素材 · Project", icon: "inbox", hue: "var(--es-ws-material)", sub: "來源匯入 · 成品庫" },
-  { key: "publish",  label: "發布", icon: "upload",      hue: "var(--es-ws-publish)",  sub: "YouTube · 匯出 · 分享" },
-  { key: "status",   label: "製作狀態", icon: "activity", hue: "var(--es-info)",        sub: "所有任務進度 · 審核 / 製作 / 完成" },
+  { key: "home",     label: "開始製作", icon: "home",     hue: "var(--es-primary)",     sub: "描述需求 · 選擇成品" },
+  { key: "material", label: "Project",  icon: "folder",   hue: "var(--es-ws-material)", sub: "來源 · 素材 · 成品庫" },
+  { key: "status",   label: "我的任務", icon: "activity", hue: "var(--es-info)",        sub: "進度 · 審核 · 完成" },
+  { key: "publish",  label: "發布",     icon: "upload",   hue: "var(--es-ws-publish)", sub: "YouTube · 匯出 · 分享" },
 ];
 
 function Brand({ collapsed }) {
@@ -522,14 +528,26 @@ function Brand({ collapsed }) {
   );
 }
 
-function Sidebar({ active, onNav, collapsed, onToggle, onOpenToolbox }) {
+function Sidebar({ active, currentWorkflow, onNav, collapsed, onToggle, onOpenToolbox }) {
+  const workflowItem = currentWorkflow
+    ? {
+        key: currentWorkflow.route,
+        label: currentWorkflow.label,
+        icon: currentWorkflow.icon,
+        hue: currentWorkflow.hue,
+        sub: "目前開啟的製作流程",
+      }
+    : null;
+  const navItems = workflowItem
+    ? [WORKSTATIONS[0], workflowItem, ...WORKSTATIONS.slice(1)]
+    : WORKSTATIONS;
   return (
     <aside className={"es-sidebar" + (collapsed ? " is-collapsed" : "")}>
       <Brand collapsed={collapsed} />
 
       <nav className="es-nav">
         {!collapsed && <div className="es-nav-label">工作站</div>}
-        {WORKSTATIONS.map(w => (
+        {navItems.map(w => (
           <button key={w.key}
             className={"es-nav-item" + (active === w.key ? " is-active" : "")}
             style={{ "--ws-hue": w.hue }}
@@ -1360,6 +1378,19 @@ const ES_MEDIA_LANGS = [
   { v: "vi-VN", label: "Tiếng Việt" }, { v: "es-ES", label: "Español" }, { v: "fr-FR", label: "Français" },
 ];
 
+// 後端／proxy 發生 500 時不保證 body 是 JSON。先讀文字再嘗試解析，避免真正錯誤被
+// `Unexpected token 'I'` 這類二次 JSON parse error 蓋掉。
+async function esReadApiResponse(response) {
+  const raw = await response.text();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const compact = raw.replace(/\s+/g, " ").trim().slice(0, 240);
+    throw new Error(`伺服器回傳非 JSON（HTTP ${response.status}）：${compact || "空白回應"}`);
+  }
+}
+
 // 影音工具表單：配音 / 會議摘要 / 歌詞抽取（translateGemma 同步端點，回文字/路徑非 job）。
 // tool 由上層九宮格的卡片決定（"dub" | "meeting" | "song"），不再自帶選擇器。
 function MediaToolForm({ tool }) {
@@ -1396,7 +1427,7 @@ function MediaToolForm({ tool }) {
         fd.append("file", file); fd.append("language", "auto");
       }
       const r = await fetch(endpoint, { method: "POST", body: fd });
-      const data = await r.json();
+      const data = await esReadApiResponse(r);
       if (!r.ok || data.error) throw new Error(data.detail || data.error || "處理失敗");
       setOut(data);
     } catch (e) { setErr(String((e && e.message) || e)); }
@@ -2106,8 +2137,8 @@ function esReadFileB64(file) {
   });
 }
 
-function VisualComposer({ projectId }) {
-  const [mode, setMode] = useState("slides");
+function VisualComposer({ projectId, initialMode = "slides" }) {
+  const [mode, setMode] = useState(initialMode);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("牛頓三大運動定律");
   const [content, setContent] = useState("");
@@ -2537,7 +2568,7 @@ function VisualCard({ o, onLocalize, projectId = "" }) {
   );
 }
 
-function VisualStation({ projectId }) {
+function VisualStation({ projectId, initialMode = "slides" }) {
   const [outputs, setOutputs] = useState(VISUAL_OUTPUTS);
   const localize = (id, l) => setOutputs(o => o.map(x => x.id === id ? { ...x, localized: l } : x));
   return (
@@ -2548,7 +2579,7 @@ function VisualStation({ projectId }) {
           <p className="es-screen-sub">教學簡報、資訊圖卡與海報 — 由教材一鍵生成可審查的視覺成品。</p>
         </div>
       </div>
-      <VisualComposer projectId={projectId} />
+      <VisualComposer projectId={projectId} initialMode={initialMode} />
       <div className="es-list-head"><h2 className="es-h2">視覺成品</h2></div>
       <div className="es-vgrid">
         {outputs.map(o => <VisualCard key={o.id} o={o} onLocalize={localize} projectId={projectId} />)}
@@ -3310,6 +3341,19 @@ function SettingsDrawer({ open, onClose }) {
               );
             })}
             <div className="es-cap es-mut" style={{ marginTop: 4 }}>留空＝沿用系統預設。文字角色可改用本機（Ollama）省雲端額度——本機跑前需自行啟動 ollama；認不出時自動退回雲端（可關）。語音（TTS）後端於 .env / tts_config.json 設定。</div>
+            {(data?.specialized_models || []).length > 0 && (
+              <details style={{ marginTop: 8 }}>
+                <summary className="es-cap" style={{ cursor: "pointer" }}>專用 API 型號（已核對，尚未接入目前工作流程）</summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                  {data.specialized_models.map(m => (
+                    <div key={m.id} className="es-cap es-mut">
+                      <span style={{ color: "var(--es-fg-1)" }}>{m.label}</span><br />
+                      <code>{m.id}</code> · {m.pipeline}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
 
           <div>
@@ -3409,10 +3453,215 @@ function StatusStation({ onReview, onGoPublish }) {
   );
 }
 
+/* ───────────────────────── Goal-first creator home ───────────────────────── */
+function CreatorHome({ activeProject, onOpenWorkflow }) {
+  const [requestText, setRequestText] = useState("");
+  const [brief, setBrief] = useState(null);
+  const [error, setError] = useState("");
+
+  const selectWorkflow = (workflow) => {
+    setError("");
+    setBrief(createTaskBrief(workflow.id, requestText, activeProject));
+  };
+
+  const analyzeIntent = () => {
+    const result = inferWorkflowIntent(requestText);
+    if (result.workflow) {
+      selectWorkflow(result.workflow);
+      return;
+    }
+    setBrief(null);
+    if (result.reason === "empty") {
+      setError("請描述想製作的內容，或直接選擇下方成品類型。");
+    } else if (result.reason === "ambiguous") {
+      setError("需求同時包含多種成品，請先選擇這次的主要輸出。");
+    } else {
+      setError("目前無法確定成品類型，請從影片、簡報、圖卡或漫畫中選擇。");
+    }
+  };
+
+  return (
+    <div className="es-home">
+      <section className="es-home-hero">
+        <div className="es-home-eyebrow"><Icon name="sparkles" size={15} /> Goal-first Studio</div>
+        <h1 className="es-home-title">這次想製作什麼？</h1>
+        <p className="es-home-lead">
+          直接描述素材、成品與讀者；eduStudio 會先整理成任務摘要，確認後才開啟需要的工作台。
+        </p>
+
+        <div className="es-intent-box">
+          <textarea
+            className="es-intent-input"
+            value={requestText}
+            onChange={(event) => { setRequestText(event.target.value); setError(""); }}
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") analyzeIntent();
+            }}
+            placeholder="例如：把這份齒輪箱講義做成 8 頁、給大學生看的教學漫畫"
+            aria-label="描述這次想製作的內容"
+          />
+          <Button className="es-intent-action" variant="primary" icon="wand" onClick={analyzeIntent}>
+            分析需求
+          </Button>
+        </div>
+        {error && <div className="es-intent-error"><Icon name="alert-triangle" size={13} /> {error}</div>}
+      </section>
+
+      {brief && (
+        <section className="es-task-brief" aria-live="polite">
+          <div className="es-task-brief-main">
+            <div className="es-task-brief-title">
+              <span className="es-workflow-icon" style={{ "--wf-hue": brief.workflow.hue }}>
+                <Icon name={brief.workflow.icon} size={20} />
+              </span>
+              已辨識為「{brief.workflow.label}」
+            </div>
+            <div className="es-task-brief-meta">
+              <Badge tone="primary">{brief.projectLabel}</Badge>
+              <Badge tone="neutral">下一步：{brief.workflow.nextStep}</Badge>
+            </div>
+            <div className="es-task-brief-request">
+              {brief.requestText || `從「${brief.workflow.label}」開始，進入工作台後補齊來源與內容。`}
+            </div>
+            <div className="es-task-brief-boundary">確認只會開啟工作流程，不會立即呼叫 AI API。</div>
+          </div>
+          <div className="es-task-brief-actions">
+            <Button variant="ghost" onClick={() => setBrief(null)}>重新選擇</Button>
+            <Button variant="primary" iconRight="arrow-right" onClick={() => onOpenWorkflow(brief)}>
+              確認並開啟
+            </Button>
+          </div>
+        </section>
+      )}
+
+      <section>
+        <div className="es-workflow-head">
+          <div>
+            <h2 className="es-h2">或直接選擇成品</h2>
+            <p className="es-body-2 es-mut" style={{ marginTop: 5 }}>首頁只顯示主要產製方向，詳細設定進入工作台後才展開。</p>
+          </div>
+          <Badge tone={activeProject ? "success" : "neutral"}>{activeProject ? activeProject.title : "尚未指定 Project"}</Badge>
+        </div>
+        <div className="es-workflow-grid" style={{ marginTop: 14 }}>
+          {WORKFLOWS.map((workflow) => (
+            <button
+              key={workflow.id}
+              className="es-workflow-card"
+              style={{ "--wf-hue": workflow.hue }}
+              onClick={() => selectWorkflow(workflow)}
+            >
+              {workflow.badge && <Badge className="es-workflow-badge" tone="accent">{workflow.badge}</Badge>}
+              <span className="es-workflow-icon"><Icon name={workflow.icon} size={21} /></span>
+              <span className="es-workflow-label">{workflow.label}</span>
+              <span className="es-workflow-summary">{workflow.summary}</span>
+              <span className="es-workflow-go">建立任務摘要 <Icon name="arrow-right" size={14} /></span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ───────────────────────── Comic workstation · Phase 1 shell ───────────────────────── */
+const COMIC_FLOW = ["Series", "Brief", "Script", "Storyboard", "Image", "Layout", "QA"];
+
+function ComicStationPhaseOne({ activeProject, launchContext }) {
+  const [seriesTitle, setSeriesTitle] = useState("");
+  const [episodeTitle, setEpisodeTitle] = useState("");
+  const [audience, setAudience] = useState("大學生");
+  const [pages, setPages] = useState(8);
+  const [profile, setProfile] = useState("educational_evidence");
+  const requestText = launchContext?.requestText || "";
+
+  return (
+    <div className="es-comic-shell">
+      <div className="es-screen-head">
+        <div>
+          <div className="es-row es-gap-sm">
+            <h1 className="es-h1">漫畫工作站</h1>
+            <Badge tone="accent">內部 MVP · Phase 1</Badge>
+          </div>
+          <p className="es-screen-sub">由 Series Bible 與 Episode Brief 開始，逐步建立腳本、分鏡、畫面、版面與 QA。</p>
+        </div>
+      </div>
+
+      <div className="es-comic-flow" aria-label="漫畫製作流程">
+        {COMIC_FLOW.map((step, index) => (
+          <div key={step} className={"es-comic-step" + (index < 2 ? " is-active" : "")}>{index + 1}. {step}</div>
+        ))}
+      </div>
+
+      <div className="es-comic-grid">
+        <Card className="es-comic-panel">
+          <div>
+            <h2 className="es-h2">Episode Brief</h2>
+            <p className="es-body-2 es-mut" style={{ marginTop: 5 }}>先鎖定系列、集數與讀者；這一階段不呼叫生圖 API。</p>
+          </div>
+          <div className="es-comic-fields">
+            <Field label="所屬 Project">
+              <input className="es-input" value={activeProject?.title || "尚未指定 Project"} disabled readOnly />
+            </Field>
+            <Field label="內容治理模式">
+              <select className="es-input" value={profile} onChange={(event) => setProfile(event.target.value)}>
+                <option value="educational_evidence">教學內容 · Evidence required</option>
+                <option value="general_serial">一般連載 · Continuity first</option>
+                <option value="technical_story">技術故事 · Evidence + Continuity</option>
+              </select>
+            </Field>
+            <Field label="系列名稱">
+              <input className="es-input" value={seriesTitle} onChange={(event) => setSeriesTitle(event.target.value)} placeholder="例如：海風值班日誌" />
+            </Field>
+            <Field label="本集標題">
+              <input className="es-input" value={episodeTitle} onChange={(event) => setEpisodeTitle(event.target.value)} placeholder="例如：齒間的線索" />
+            </Field>
+            <Field label="目標讀者">
+              <input className="es-input" value={audience} onChange={(event) => setAudience(event.target.value)} />
+            </Field>
+            <Field label="預計頁數">
+              <input className="es-input" type="number" min="1" max="60" value={pages} onChange={(event) => setPages(Number(event.target.value) || 1)} />
+            </Field>
+            <Field className="is-wide" label="本次構想">
+              <textarea className="es-input" style={{ minHeight: 104, resize: "vertical" }} defaultValue={requestText} placeholder="描述本集主題、衝突、角色與希望讀者帶走的內容" />
+            </Field>
+          </div>
+          <div className="es-comic-boundary">
+            <Icon name="info" size={15} /> Phase 1 先建立作者端入口與資料欄位。正式儲存、Script API、Storyboard schema 與 image generation 尚未接線，因此不會把此畫面誤報為已完成漫畫系統。
+          </div>
+          <Button variant="primary" iconRight="arrow-right" disabled>下一步：建立 Script（Phase 2）</Button>
+        </Card>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Card className="es-comic-panel">
+            <div><h2 className="es-h3">Series 必要資料</h2></div>
+            <ul className="es-comic-checklist">
+              <li>角色與外觀 anchor</li>
+              <li>世界觀、畫風與色盤</li>
+              <li>角色語氣與禁項</li>
+              <li>前情、伏筆與 continuity</li>
+              <li>輸出版本與連載節奏</li>
+            </ul>
+          </Card>
+          <Card className="es-comic-panel">
+            <div><h2 className="es-h3">本輪已帶入</h2></div>
+            <div className="es-task-brief-meta">
+              <Badge tone="neutral">{activeProject?.title || "未指定 Project"}</Badge>
+              <Badge tone="neutral">{pages} 頁</Badge>
+              <Badge tone="neutral">{audience}</Badge>
+            </div>
+            <div className="es-cap es-mut">Profile：{profile}</div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* eduStudio — App orchestrator */
 
 function App() {
-  const [ws, setWs] = useState("video");
+  const [ws, setWs] = useState("home");
+  const [workflowContext, setWorkflowContext] = useState(null);
   // 一課一工作空間：真實 /projects + 記住目前作用中的課（空＝全部/不限）。
   const [projects, setProjects] = useState([]);
   const [activePid, setActivePid] = useState(() => localStorage.getItem("edustudio-active-project") || "");
@@ -3462,7 +3711,16 @@ function App() {
     } catch (e) { return { ok: false, err: String((e && e.message) || e) }; }
   };
 
-  const wsTitle = (WORKSTATIONS.find(w => w.key === ws) || {}).label || "";
+  const currentWorkflow = workflowContext?.workflow || null;
+  const wsTitle = currentWorkflow?.route === ws
+    ? currentWorkflow.label
+    : (WORKSTATIONS.find(w => w.key === ws) || {}).label || "";
+
+  const openWorkflow = (brief) => {
+    if (!brief?.workflow) return;
+    setWorkflowContext(brief);
+    setWs(brief.workflow.route);
+  };
 
   const completeReview = () => {
     setCompleted(true);
@@ -3471,7 +3729,7 @@ function App() {
 
   return (
     <div className={"es-app" + (collapsed ? " is-collapsed" : "")}>
-      <Sidebar active={ws} onNav={setWs} collapsed={collapsed}
+      <Sidebar active={ws} currentWorkflow={currentWorkflow} onNav={setWs} collapsed={collapsed}
         onToggle={() => setCollapsed(c => !c)} onOpenToolbox={() => setToolboxOpen(true)} />
 
       <div className="es-main">
@@ -3479,8 +3737,10 @@ function App() {
           onPickProject={pickProject} onCreateProject={createProject} avatarName={brandSpeaker ? brandSpeaker.trim()[0] : "師"}
           wsTitle={wsTitle} usage={usage} onOpenCost={() => setCostOpen(true)} onOpenSettings={() => setSettingsOpen(true)} theme={theme} onTheme={setTheme} />
         <main className="es-content" key={ws + activePid}>
+          {ws === "home" && <CreatorHome activeProject={activeProject} onOpenWorkflow={openWorkflow} />}
           {ws === "video" && <VideoStation projectId={activePid} onReview={setReviewTask} onGoPublish={() => setWs("publish")} onGoStatus={() => setWs("status")} />}
-          {ws === "visual" && <VisualStation projectId={activePid} />}
+          {ws === "visual" && <VisualStation projectId={activePid} initialMode={currentWorkflow?.visualMode || "slides"} />}
+          {ws === "comic" && <ComicStudio activeProject={activeProject} launchContext={workflowContext} />}
           {ws === "material" && <ProjectStation activePid={activePid} projects={projects} onProjectsChanged={loadProjects} onPickProject={pickProject} />}
           {ws === "publish" && <PublishStation />}
           {ws === "status" && <StatusStation onReview={setReviewTask} onGoPublish={() => setWs("publish")} />}

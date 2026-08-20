@@ -10,9 +10,45 @@ device="cpu", compute_type="int8")`。但本機 base 模型 snapshot 不完整�
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 # 預設 large-v3：本機已完整 cache；base snapshot 殘缺且 HF 抓不回。
 _DEFAULT_MODEL = "large-v3"
+
+
+def get_whisper_model_name() -> str:
+    """目前會載入的模型名稱（供 health/selfcheck 與 loader 共用）。"""
+    return os.environ.get("WHISPER_MODEL") or _DEFAULT_MODEL
+
+
+def get_whisper_model_status() -> dict:
+    """不觸發下載地檢查 faster-whisper model 是否已在本機完整 cache。"""
+    name = get_whisper_model_name()
+    model_path = Path(name)
+    cached_path = ""
+    if model_path.is_dir():
+        candidate = model_path / "model.bin"
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            cached_path = str(candidate)
+    else:
+        try:
+            from huggingface_hub import try_to_load_from_cache
+
+            candidate = try_to_load_from_cache(
+                f"Systran/faster-whisper-{name}", "model.bin")
+            if (
+                isinstance(candidate, str)
+                and Path(candidate).is_file()
+                and Path(candidate).stat().st_size > 0
+            ):
+                cached_path = candidate
+        except Exception:
+            cached_path = ""
+    return {
+        "model": name,
+        "cached": bool(cached_path),
+        "device_preference": os.environ.get("WHISPER_DEVICE") or "cuda_then_cpu",
+    }
 
 
 def load_whisper_model(model: str | None = None):
@@ -23,7 +59,7 @@ def load_whisper_model(model: str | None = None):
     """
     from faster_whisper import WhisperModel
 
-    name = model or os.environ.get("WHISPER_MODEL") or _DEFAULT_MODEL
+    name = model or get_whisper_model_name()
     forced = os.environ.get("WHISPER_DEVICE")
     candidates = [("cpu", "int8")] if forced == "cpu" else [("cuda", "float16"), ("cpu", "int8")]
     last_err: Exception | None = None

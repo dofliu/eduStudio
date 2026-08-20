@@ -42,6 +42,36 @@ class TestSettingsStore:
         assert view["has_gemini_api_key"] is True
         assert "secret-key-123" not in str(view)   # 明文不外洩
 
+    def test_retired_image_preview_migrates_to_ga(self, settings_path):
+        import json
+        from core import settings as st
+
+        settings_path.write_text(json.dumps({
+            "image_model": "gemini-3.1-flash-image-preview",
+            "model_roles": {"image.pro": "gemini-3-pro-image-preview"},
+        }), encoding="utf-8")
+        assert st.get_setting("image_model") == "gemini-3.1-flash-image"
+        assert st.get_setting("model_roles") == {"image.pro": "gemini-3-pro-image"}
+
+    def test_update_persists_ga_model_id(self, settings_path):
+        import json
+        from core import settings as st
+
+        st.update({"image_model": "gemini-3.1-flash-image-preview"})
+        raw = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert raw["image_model"] == "gemini-3.1-flash-image"
+
+    def test_retired_text_default_migrates_to_latest_stable(self, settings_path):
+        import json
+        from core import settings as st
+
+        settings_path.write_text(json.dumps({
+            "text_model": "gemini-2.5-flash",
+            "model_roles": {"vision": "gemini-2.5-flash"},
+        }), encoding="utf-8")
+        assert st.get_setting("text_model") == "gemini-3.6-flash"
+        assert st.get_setting("model_roles") == {"vision": "gemini-3.6-flash"}
+
 
 class TestModelRoles:
     """M-3：逐角色 model 覆寫（model_roles）持久化 + 清洗 + 對 resolve() 生效。"""
@@ -167,6 +197,12 @@ class TestSettingsRoute:
         body = r.json()
         assert body["has_gemini_api_key"] is False
         assert isinstance(body["text_models"], list) and body["text_models"]
+        assert {m["id"] for m in body["specialized_models"]} == {
+            "gemini-3.5-live-translate-preview",
+            "gemini-3.1-flash-live-preview",
+            "gemini-3.1-flash-tts-preview",
+            "gemini-omni-flash-preview",
+        }
         # 寫入
         r2 = client.post("/settings", json={"text_model": "gemini-2.5-pro", "brand_speaker": "劉老師", "gemini_api_key": "SECRET_XYZ_789"})
         assert r2.status_code == 200

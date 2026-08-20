@@ -32,6 +32,7 @@ from .ratelimit import install_limiter
 from .routes import editor as editor_routes
 from .routes import jobs as jobs_routes
 from .routes import infocards as infocards_routes
+from .routes import comics as comics_routes
 from .routes import library as library_routes
 from .routes import localization as localization_routes
 from .routes import projects as projects_routes
@@ -161,6 +162,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_routes.router)   # eduStudio 合併 PR-M1: Project 薄層
     app.include_router(localization_routes.router)  # eduStudio 合併 B-2: translateGemma 收編
     app.include_router(infocards_routes.router)   # eduStudio 合併 C-4: infoCard 收編
+    app.include_router(comics_routes.router)      # eduStudio: file-first 漫畫製作與連載 reader
     app.include_router(settings_routes.router)    # eduStudio 設定頁: 品牌/API/模型
 
     # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor
@@ -230,6 +232,7 @@ def create_app() -> FastAPI:
             get_gemini_api_key,
             get_mono_font_path,
         )
+        from core.whisper_util import get_whisper_model_status
 
         return {
             "status": "ok",
@@ -245,7 +248,13 @@ def create_app() -> FastAPI:
             "font_main_exists": os.path.exists(get_font_path()),
             "font_fallback_exists": os.path.exists(get_fallback_font_path()),
             "font_mono_exists": os.path.exists(get_mono_font_path()),
+            "whisper": get_whisper_model_status(),
         }
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> Response:
+        """統一介面目前沒有品牌 favicon；明確回 204，避免瀏覽器持續製造 404 噪音。"""
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # 根路徑 = 統一入口 landing（合併 C-4 方案 A）。landing 缺檔則 fallback 舊行為。
     @app.get("/", include_in_schema=False)
@@ -257,6 +266,9 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _startup() -> None:
+        # `uvicorn server.main:app` 不會進 main()；hidden/redirected Windows process 若仍是
+        # CP950，下面 selfcheck 的 ✅/⚠ 會讓啟動直接 UnicodeEncodeError。
+        setup_utf8_stdout()
         # eager init store, 把 jobs/ 既有 state 讀回 cache
         store = get_default_store()
         print(f"[server] job store ready: {len(store.list())} 筆既有 job")

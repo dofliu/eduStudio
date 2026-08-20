@@ -19,6 +19,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.infocards.models import DEFAULT_TEXT_MODEL
+
 logger = logging.getLogger(__name__)
 
 
@@ -169,8 +171,8 @@ def extract_and_render_mermaid_from_text(
 
 # ---------- iter 57b: AI 生 mermaid syntax (沒既有 mermaid 時用) ----------
 
-# Gemini text model — gemini-2.5-flash, text gen 比 image gen 便宜很多
-MERMAID_GEN_MODEL = "gemini-2.5-flash"
+# Gemini text model 由集中式 model catalog 管理。
+MERMAID_GEN_MODEL = DEFAULT_TEXT_MODEL
 
 # 系統 prompt for mermaid 生成 — 強調 syntax 純淨度跟 簡潔
 _MERMAID_GEN_PROMPT_TEMPLATE = """你是一位資深技術插畫師, 擅長把概念轉成 Mermaid 流程圖.

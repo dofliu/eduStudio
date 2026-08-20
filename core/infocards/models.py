@@ -4,23 +4,64 @@
 """
 from __future__ import annotations
 
-# ── 文字 / 邏輯模型（2026-06 劉老師更新為 Gemini 3 系列；2.5 將逐步停止支援）──
-# id 均經 live API 實測可用（gemini-3.1-pro 不存在→正解 gemini-3.1-pro-preview）。
+# ── 文字 / 邏輯模型（2026-08-18 依官方 models.list 更新）──
+# 這裡只收錄能直接走本專案既有 generateContent pipeline 的型號；Live / TTS / Omni
+# 需要不同 request/response 契約，不可混進一般文字角色下拉，否則選得到卻無法正常產出。
 TEXT_MODELS: dict[str, dict[str, str]] = {
     "flash": {
+        "id": "gemini-3.6-flash",
+        "label": "✦ Gemini 3.6 Flash（最新主力 · Stable）",
+        "description": "代理、多模態與一般內容生成的最新穩定預設",
+    },
+    "flash_35": {
         "id": "gemini-3.5-flash",
-        "label": "⚡ 3.5 Flash (主力 · 速度品質兼顧)",
-        "description": "一般生成主力，速度與品質平衡",
+        "label": "✦ Gemini 3.5 Flash（Stable）",
+        "description": "高效能穩定模型，適合一般生成與程式設計",
     },
     "lite": {
+        "id": "gemini-3.5-flash-lite",
+        "label": "⚡ Gemini 3.5 Flash-Lite（快速省成本 · Stable）",
+        "description": "高吞吐、低延遲與成本效益優先",
+    },
+    "lite_31": {
         "id": "gemini-3.1-flash-lite",
-        "label": "🪶 3.1 Flash Lite (最省)",
-        "description": "最低成本，簡單任務適用",
+        "label": "⚡ Gemini 3.1 Flash-Lite（Stable）",
+        "description": "效能與成本平衡的既有穩定 Lite 模型",
     },
     "pro": {
         "id": "gemini-3.1-pro-preview",
-        "label": "🚀 3.1 Pro (深度推理)",
-        "description": "最強推理，複雜內容/長文",
+        "label": "✧ Gemini 3.1 Pro（深度推理 · Preview）",
+        "description": "複雜問題、長文與進階代理工作",
+    },
+    "flash_preview": {
+        "id": "gemini-3-flash-preview",
+        "label": "✦ Gemini 3 Flash（Preview）",
+        "description": "舊一代 Gemini 3 Flash 預覽型號，供相容性測試",
+    },
+}
+
+# 專用 pipeline 型號：model id 已由帳號的 models.list 驗證存在，但目前不放入一般角色下拉。
+# 後續若實作 Live / audio / Interactions API，可從這個目錄接線，不必再次猜 model id。
+SPECIALIZED_MODELS: dict[str, dict[str, str]] = {
+    "live_translate": {
+        "id": "gemini-3.5-live-translate-preview",
+        "label": "Gemini 3.5 Live Translate（Preview）",
+        "pipeline": "Live API / bidiGenerateContent",
+    },
+    "live": {
+        "id": "gemini-3.1-flash-live-preview",
+        "label": "Gemini 3.1 Flash Live（Preview）",
+        "pipeline": "Live API / bidiGenerateContent",
+    },
+    "tts": {
+        "id": "gemini-3.1-flash-tts-preview",
+        "label": "Gemini 3.1 Flash TTS（Preview）",
+        "pipeline": "GenerateContent / audio output",
+    },
+    "omni": {
+        "id": "gemini-omni-flash-preview",
+        "label": "Gemini Omni Flash（Preview）",
+        "pipeline": "Interactions API / video output",
     },
 }
 
@@ -30,9 +71,7 @@ TEXT_MODELS: dict[str, dict[str, str]] = {
 # gemini-image 家族。與 2026-06 Imagen 4 淘汰公告無關（那次淘汰的是 imagen-4.0-* 端點，
 # 本專案從未使用）。
 # 註 1：gemini-3.1-pro-image 經實測 404 不存在，Pro 正解為 gemini-3-pro-image（GA）。
-# 註 2：入門階 2026-07 由舊世代 gemini-2.5-flash-image 對齊為 gemini-3.1-flash-lite-image
-#   （Nano Banana 2 Lite）。此 id 請於 live API 實測確認可用（沿用「先實測再上」紀律）。
-#   舊 id gemini-2.5-flash-image 仍保留於 MODEL_PRICING（diagram_image_gen / song_images 仍直接用）。
+# 註 2：入門階為 gemini-3.1-flash-lite-image（Nano Banana 2 Lite）。
 # 本檔為圖片模型 id 的**單一目錄**；core/models.py 的 image.* 角色直接引用此表（不另寫一份）。
 IMAGE_MODELS: dict[str, dict[str, str]] = {
     "lite": {
@@ -53,7 +92,7 @@ IMAGE_MODELS: dict[str, dict[str, str]] = {
 }
 
 # ── 預設模型 ──
-DEFAULT_TEXT_MODEL = TEXT_MODELS["flash"]["id"]    # gemini-3.5-flash
+DEFAULT_TEXT_MODEL = TEXT_MODELS["flash"]["id"]    # gemini-3.6-flash
 DEFAULT_IMAGE_MODEL = IMAGE_MODELS["flash"]["id"]  # gemini-3.1-flash-image
 
 # ── 成本定價（USD，估算值）──
@@ -66,8 +105,7 @@ MODEL_PRICING: dict = {
         IMAGE_MODELS["lite"]["id"]: 0.002,   # 3.1-flash-lite-image（估算 · lite 階，待官方定價校正）
         IMAGE_MODELS["flash"]["id"]: 0.003,  # 3.1-flash-image
         IMAGE_MODELS["pro"]["id"]: 0.04,     # 3-pro-image
-        # 舊入門模型：已非下拉選項，但 diagram_image_gen / song_images 仍直接寫死用，
-        # 保留定價避免 core/usage.py 用量計帳把它記成 $0。
+        # 舊工作紀錄仍可能引用此 model id，保留歷史用量估算相容性。
         "gemini-2.5-flash-image": 0.003,
     },
 }
@@ -81,3 +119,8 @@ def text_model_options() -> list[dict[str, str]]:
 def image_model_options() -> list[dict[str, str]]:
     """UI 下拉用：所有圖片模型選項。"""
     return list(IMAGE_MODELS.values())
+
+
+def specialized_model_options() -> list[dict[str, str]]:
+    """設定頁資訊用：已核對但尚需專用 pipeline 的 Preview 型號。"""
+    return list(SPECIALIZED_MODELS.values())

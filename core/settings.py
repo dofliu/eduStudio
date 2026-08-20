@@ -22,6 +22,43 @@ _LOCK = threading.Lock()
 _KNOWN = ("gemini_api_key", "text_model", "image_model", "model_roles",
           "brand_speaker", "brand_org", "brand_url")
 
+# Gemini model lifecycle migration。舊 settings.json 仍可能留著舊預設或已 shutdown 的
+# preview id；讀取與寫入時都正規化，避免更新程式後仍被持久化設定覆蓋。
+_MODEL_ID_MIGRATIONS = {
+    "gemini-2.5-flash": "gemini-3.6-flash",
+    "gemini-3.1-flash-image-preview": "gemini-3.1-flash-image",
+    "gemini-3-pro-image-preview": "gemini-3-pro-image",
+}
+
+
+def _migrate_model_id(value):
+    if not isinstance(value, str):
+        return value
+    return _MODEL_ID_MIGRATIONS.get(value.strip(), value.strip())
+
+
+def _migrate_model_settings(data: dict) -> dict:
+    """回傳正規化副本；不在讀取時偷偷改寫使用者檔案。"""
+    out = dict(data)
+    for key in ("text_model", "image_model"):
+        if key in out:
+            out[key] = _migrate_model_id(out[key])
+    roles = out.get("model_roles")
+    if isinstance(roles, dict):
+        migrated = {}
+        for role, spec in roles.items():
+            if isinstance(spec, str):
+                migrated[role] = _migrate_model_id(spec)
+            elif isinstance(spec, dict):
+                item = dict(spec)
+                if "model" in item:
+                    item["model"] = _migrate_model_id(item["model"])
+                migrated[role] = item
+            else:
+                migrated[role] = spec
+        out["model_roles"] = migrated
+    return out
+
 
 def _clean_model_roles(v) -> dict:
     """只保留合法角色 → 有效覆寫；其餘（未知角色/空值/非 dict/未知 provider）丟棄。
@@ -49,7 +86,7 @@ def _load() -> dict:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, dict) else {}
+        return _migrate_model_settings(data) if isinstance(data, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -78,6 +115,8 @@ def update(patch: dict) -> dict:
                 else:
                     data.pop(k, None)          # 空 dict / 全無效 ＝ 清除逐角色覆寫
                 continue
+            if k in {"text_model", "image_model"}:
+                v = _migrate_model_id(v)
             if v is None or v == "":
                 data.pop(k, None)
             else:

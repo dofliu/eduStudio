@@ -32,8 +32,8 @@ from core.glossary import Glossary, glossary_path_for, load_glossary, save_gloss
 # 會靜默寫進 json，下游分流 produced_by/kind 時才爆；Literal 讓 pydantic 在「寫入當下」
 # 就擋掉，錯誤早暴露。
 SourceType = Literal["exam_pdf", "slides_pdf", "repo", "document", "url", "youtube"]
-ArtifactKind = Literal["infographic", "deck", "video", "srt", "image"]
-ProducedBy = Literal["infoCard", "autoSolver", "translateGemma"]
+ArtifactKind = Literal["infographic", "deck", "video", "srt", "image", "comic", "pdf", "docx", "html"]
+ProducedBy = Literal["infoCard", "autoSolver", "translateGemma", "eduStudio"]
 # artifacts[].state 沿 autoSolver JobState 語意（exam_pdf 仍強制 review）。
 ArtifactState = Literal["draft", "awaiting_review", "approved", "published"]
 

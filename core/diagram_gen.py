@@ -158,9 +158,11 @@ def _propose_matplotlib_code(spec: DiagramSpec) -> str:
     from google import genai
     from google.genai import types
 
+    from core.config import get_gemini_api_key
+    from core.models import TEXT_FAST, resolve_id
     from core.prompts_loader import load_prompt
 
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = get_gemini_api_key()
     if not api_key:
         raise RuntimeError("缺 GEMINI_API_KEY")
 
@@ -175,7 +177,7 @@ def _propose_matplotlib_code(spec: DiagramSpec) -> str:
 
     client = genai.Client(api_key=api_key)
     resp = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=resolve_id(TEXT_FAST),
         contents=[prompt],
         config=types.GenerateContentConfig(
             temperature=0.3,           # 偏保守, 別亂編幾何

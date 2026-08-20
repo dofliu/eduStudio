@@ -28,6 +28,7 @@ from core.ideate import (
     load_proposals,
     save_proposals,
 )
+from core.models import VISION, resolve_id
 
 from ..ideate_runner import get_scan_state, run_ideate_async, start_async_scan
 from ..jobs import JobStore, get_default_store
@@ -359,7 +360,7 @@ def _build_scan_config(req: "ScanFolderRequest", folder: Path) -> dict:
                 "scan_window_days": req.scan_window_days,
             }
         ],
-        "llm_model": "gemini-2.5-flash",
+        "llm_model": resolve_id(VISION),
         "max_proposals_per_file": req.max_proposals_per_file,
         "enabled": True,
     }

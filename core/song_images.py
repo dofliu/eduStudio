@@ -3,7 +3,7 @@
 對應 docs/SONG_MV_TRACK_RFC.md §4.2 (畫面生成). 兩層:
 - build_image_prompt: 確定性組 prompt (歌詞語意 + 統一 visual_style + 風格 suffix),
   0 API call — routine / 測試可自由跑。
-- generate_segment_image: 真呼 gemini-2.5-flash-image 燒 **image 額度** (GATE) —
+- generate_segment_image: 真呼 Nano Banana 2 燒 **image 額度** (GATE) —
   複用 core.diagram_image_gen 既有 Gemini image 呼叫 pattern。
 
 offline-first: routine 不自主跑 generate_segment_image (燒額度), 由

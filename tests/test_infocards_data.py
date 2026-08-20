@@ -18,10 +18,11 @@ from core.infocards.schemas import (
 # ── models ──
 class TestModels:
     def test_model_ids(self):
-        # 2026-06 更新為 Gemini 3 系列（2.5 將停用）；id 均 live 實測可用。
-        assert models.TEXT_MODELS["flash"]["id"] == "gemini-3.5-flash"
+        # 2026-08-18 更新；id 均由帳號 models.list 實測可用。
+        assert models.TEXT_MODELS["flash"]["id"] == "gemini-3.6-flash"
+        assert models.TEXT_MODELS["lite"]["id"] == "gemini-3.5-flash-lite"
         assert models.IMAGE_MODELS["pro"]["id"] == "gemini-3-pro-image"
-        assert models.DEFAULT_TEXT_MODEL == "gemini-3.5-flash"
+        assert models.DEFAULT_TEXT_MODEL == "gemini-3.6-flash"
         assert models.DEFAULT_IMAGE_MODEL == "gemini-3.1-flash-image"
 
     def test_entry_tier_aligned_to_lite_image(self):
@@ -34,12 +35,19 @@ class TestModels:
         assert models.MODEL_PRICING["image"]["gemini-3.1-flash-lite-image"] == 0.002
         assert models.MODEL_PRICING["image"]["gemini-3.1-flash-image"] == 0.003
         assert models.MODEL_PRICING["image"]["gemini-3-pro-image"] == 0.04
-        # 舊入門模型仍被 diagram/song 直接用 → 定價保留，避免計帳記 $0。
+        # 舊工作紀錄仍可能引用 → 定價保留，避免歷史計帳記 $0。
         assert models.MODEL_PRICING["image"]["gemini-2.5-flash-image"] == 0.003
 
     def test_options_helpers(self):
-        assert len(models.text_model_options()) == 3
+        assert len(models.text_model_options()) == 6
         assert len(models.image_model_options()) == 3
+        assert len(models.specialized_model_options()) == 4
+        assert {m["id"] for m in models.specialized_model_options()} == {
+            "gemini-3.5-live-translate-preview",
+            "gemini-3.1-flash-live-preview",
+            "gemini-3.1-flash-tts-preview",
+            "gemini-omni-flash-preview",
+        }
 
 
 # ── cost ──

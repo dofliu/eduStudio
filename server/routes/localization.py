@@ -11,6 +11,7 @@ multipart 上傳 + 已搬入的模組（OCR/whisper/edge-tts，lazy）。長任�
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import tempfile
 
@@ -27,6 +28,7 @@ from core.video.dubber import get_video_dubber
 from .projects import get_default_project_store
 
 router = APIRouter(prefix="/localization", tags=["localization"])
+log = logging.getLogger(__name__)
 
 
 def _u(code: str | None) -> str:
@@ -137,6 +139,19 @@ def _first(gen) -> str:
     for chunk in gen:
         out = chunk
     return out
+
+
+def _raise_media_error(label: str, exc: Exception) -> None:
+    """把影音依賴錯誤轉成可被前端穩定解析的 JSON 503，同時保留 server traceback。"""
+    log.exception("%s failed", label)
+    message = str(exc).strip() or type(exc).__name__
+    # 避免 ffmpeg／第三方 SDK 的超長 stderr 整包塞進 UI，但保留足夠根因線索。
+    if len(message) > 500:
+        message = message[:500] + "…"
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=f"{label}失敗：{message}",
+    ) from exc
 
 
 # ---------- F9-2i：課程 glossary → 翻譯固定譯名 ----------
@@ -324,8 +339,11 @@ async def meeting_summarize(
     path = _save_upload(file)
     types = [t.strip() for t in summary_types.split(",") if t.strip()]
     try:
-        res = await asyncio.to_thread(
-            meeting_summarizer.process_video, path, _u(language), types or None)
+        try:
+            res = await asyncio.to_thread(
+                meeting_summarizer.process_video, path, _u(language), types or None)
+        except Exception as exc:  # 重依賴／模型／ffmpeg 錯誤要回 JSON，不讓 Starlette 回純文字 500
+            _raise_media_error("會議摘要", exc)
     finally:
         try:
             os.remove(path)
@@ -357,8 +375,11 @@ async def song_transcribe(
     suffix = os.path.splitext(file.filename or "")[1] or ".mp3"
     path = _save_upload(file, suffix=suffix)
     try:
-        song = await asyncio.to_thread(
-            build_song_json_from_media, path, song_title, language=language)
+        try:
+            song = await asyncio.to_thread(
+                build_song_json_from_media, path, song_title, language=language)
+        except Exception as exc:
+            _raise_media_error("歌曲轉錄", exc)
         # audio_path 用上傳原始檔名（呼叫端之後自行放檔）
         song["audio_path"] = file.filename or os.path.basename(path)
     finally:
@@ -389,10 +410,13 @@ async def dub_video(
         path = _save_upload(file, suffix=".mp4")
     source = url or path
     try:
-        dubber = get_video_dubber()
-        results = await asyncio.to_thread(
-            dubber.process_video,
-            source, _u(source_lang), _u(target_lang), burn_subtitles=burn_subtitles)
+        try:
+            dubber = get_video_dubber()
+            results = await asyncio.to_thread(
+                dubber.process_video,
+                source, _u(source_lang), _u(target_lang), burn_subtitles=burn_subtitles)
+        except Exception as exc:
+            _raise_media_error("影片配音", exc)
     finally:
         if path:
             try:

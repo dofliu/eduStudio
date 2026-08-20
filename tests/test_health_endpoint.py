@@ -50,9 +50,11 @@ class TestHealthShape:
             "font_main_exists",
             "font_fallback_exists",
             "font_mono_exists",
+            "whisper",
         }
         missing = expected_keys - set(data.keys())
         assert not missing, f"/health 缺診斷欄位: {missing}"
+        assert set(data["whisper"]) >= {"model", "cached", "device_preference"}
 
     def test_jobs_count_is_int(self, client):
         resp = client.get("/health")

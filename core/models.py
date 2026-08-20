@@ -39,6 +39,7 @@ from __future__ import annotations
 # image.* 角色直接引用該目錄，避免兩處各寫一份 id 而漂移（2026-07 統一）。
 # 該檔為葉節點（只 import __future__），不會與本檔形成循環。
 from core.infocards.models import IMAGE_MODELS as _IMAGE_CATALOG
+from core.infocards.models import TEXT_MODELS as _TEXT_CATALOG
 
 # ── provider 名稱（B 階段會擴張：ollama / claude / f5 …）──
 PROVIDER_GEMINI = "gemini"
@@ -69,9 +70,9 @@ ROLES: frozenset[str] = frozenset(
 # image.fast/image.pro 的 id 直接取自 infocards 圖片目錄的「中等/貴」兩階（單一來源，
 # 不再各寫一份 literal）；「便宜」階（lite）只在該目錄當下拉選項，無對應邏輯角色。
 DEFAULTS: dict[str, tuple[str, str]] = {
-    TEXT_FAST:  (PROVIDER_GEMINI, "gemini-3.5-flash"),
-    TEXT_PRO:   (PROVIDER_GEMINI, "gemini-3.1-pro-preview"),
-    VISION:     (PROVIDER_GEMINI, "gemini-3.5-flash"),
+    TEXT_FAST:  (PROVIDER_GEMINI, _TEXT_CATALOG["flash"]["id"]),
+    TEXT_PRO:   (PROVIDER_GEMINI, _TEXT_CATALOG["pro"]["id"]),
+    VISION:     (PROVIDER_GEMINI, _TEXT_CATALOG["flash"]["id"]),
     IMAGE_FAST: (PROVIDER_GEMINI, _IMAGE_CATALOG["flash"]["id"]),  # 中等 · Nano Banana 2
     IMAGE_PRO:  (PROVIDER_GEMINI, _IMAGE_CATALOG["pro"]["id"]),    # 貴 · Nano Banana Pro
     # tts：本 repo 走 provider 子系統（edge/f5/google，預設 edge），非單一 model id。

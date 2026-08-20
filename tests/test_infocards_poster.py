@@ -44,8 +44,11 @@ class TestBuildPrompt:
 
 
 class TestGeneratePoster:
-    def test_returns_image_and_prompt(self, monkeypatch):
+    def test_returns_image_and_prompt(self, monkeypatch, tmp_path):
         seen = {}
+
+        # 海報預設契約應以內建 image.pro 驗證，不讀開發者本機的 legacy image_model。
+        monkeypatch.setenv("ES_SETTINGS_PATH", str(tmp_path / "settings.json"))
 
         def fake_img(prompt, model=None, api_key=None, files=None):
             seen["model"] = model

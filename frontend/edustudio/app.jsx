@@ -2302,8 +2302,6 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
                 </button>
               );
             })}
-              </button>
-            ))}
           </div>
 
           <div className="es-vc-fields">
@@ -2949,6 +2947,7 @@ function esLibToPubRecord(it) {
     channel: "youtube", status,
     meta: metaBits.join(" · "),
     artifact_url: it.artifact_url,
+    srt_exists: !!it.srt_exists,
     yt_url: yt && yt.url ? yt.url : null,
     progress: yt && typeof yt.progress_percent === "number" ? yt.progress_percent : null,
     error: yt && yt.error ? yt.error : null,
@@ -2998,7 +2997,7 @@ function PublishComposer({ items, selected, onSelect, langs, onToggleLang, onPub
           </button>
           <div className="es-pubtarget-row">
             <button className="es-pubtarget" disabled={!sel} onClick={() => sel && onExport(sel)}><span className="es-pubtarget-ico" style={{ color: "var(--es-ws-video)" }}><Icon name="download" size={18} /></span> 下載 MP4</button>
-            <button className="es-pubtarget" disabled={!sel || !sel.srt_disabled} onClick={() => sel && onExport(sel, ".srt")} style={{ opacity: 1 }}><span className="es-pubtarget-ico" style={{ color: "var(--es-error)" }}><Icon name="file-text" size={18} /></span> 下載字幕</button>
+            <button className="es-pubtarget" disabled={!sel || !sel.srt_exists} onClick={() => sel && onExport(sel, ".srt")} style={{ opacity: 1 }}><span className="es-pubtarget-ico" style={{ color: "var(--es-error)" }}><Icon name="file-text" size={18} /></span> 下載字幕</button>
           </div>
           <div className="es-pubtarget-row">
             <button className="es-pubtarget" disabled={!sel} onClick={() => sel && onShare(sel)}><span className="es-pubtarget-ico" style={{ color: "var(--es-accent)" }}><Icon name="share" size={18} /></span> 複製分享連結</button>

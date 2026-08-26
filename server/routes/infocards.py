@@ -176,6 +176,13 @@ def _first_slide_thumb(deck: dict) -> str:
             return s["imageUrl"]
     return ""
 
+def _first_section_thumb(data: dict) -> str:
+    """資訊圖卡 data → 第一個 section 的 imageUrl（有才當縮圖）。"""
+    for section in data.get("sections") or []:
+        if section.get("imageUrl"):
+            return section["imageUrl"]
+    return ""
+
 
 @router.post("/generate", dependencies=[Depends(rate_limit)])
 def generate(req: GenerateRequest) -> dict:
@@ -198,7 +205,7 @@ def generate(req: GenerateRequest) -> dict:
             data, model=req.imageModel, custom=req.customStylePrompt)
         dd = data.model_dump()
         title = dd.get("mainTitle") or _lib_title(req, "資訊圖卡")
-        lid = _auto_save_library("infographic", title, dd, thumb=_first_slide_thumb(dd))
+        lid = _auto_save_library("infographic", title, dd, thumb=_first_section_thumb(dd))
         _attach_to_project(req.projectId, "infographic", title, lid)
         return {"success": True, "type": "infographic", "data": dd}
 
@@ -330,3 +337,4 @@ def get_share(share_id: str) -> dict:
     if item is None:
         raise HTTPException(status_code=404, detail="分享不存在或已過期")
     return item
+

@@ -159,6 +159,23 @@ async def upload_and_create_job(
             f"repo / url 請走 POST /jobs JSON",
         )
 
+    from core.project import ProjectNotFoundError
+
+    # 先驗證 project_id：避免「文件已寫入但 project 掛載失敗」造成孤兒 job。
+    # 呼叫方給空字串時維持既有全域 job 行為。
+    project_store = None
+    if project_id:
+        from .projects import get_default_project_store
+
+        project_store = get_default_project_store()
+        try:
+            project_store.get(project_id)
+        except ProjectNotFoundError as e:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                f"project 不存在: {project_id}",
+            ) from e
+
     if not file.filename:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "缺檔名")
 
@@ -215,16 +232,39 @@ async def upload_and_create_job(
         options=options,
     )
     rec = store.create(req)
-    schedule_job(store, rec.id)
-
-    # 歸屬到 Project（一課一工作空間）：有帶 project_id 就掛進 project.jobs[]。
-    if project_id:
-        from core.project import ProjectNotFoundError
-        from .projects import get_default_project_store
+    try:
+        schedule_job(store, rec.id)
+        if project_id and project_store is not None:
+            project_store.add_job(project_id, rec.id)
+    except ProjectNotFoundError as e:
         try:
-            get_default_project_store().add_job(project_id, rec.id)
-        except ProjectNotFoundError as e:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {project_id}") from e
+            store.delete(rec.id)
+        except Exception:
+            pass
+        try:
+            target.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"project 不存在: {project_id}",
+        ) from e
+    except Exception as e:
+        # 避免孤兒 job / 與已寫入來源檔不同步；出錯就回滾建檔。
+        try:
+            store.delete(rec.id)
+        except Exception:
+            pass
+        try:
+            target.unlink(missing_ok=True)
+        except Exception:
+            pass
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"建立任務失敗: {e}",
+        ) from e
 
     return CreateJobResponse(
         job_id=rec.id,

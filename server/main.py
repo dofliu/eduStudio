@@ -237,7 +237,9 @@ def create_app() -> FastAPI:
         return {
             "status": "ok",
             "service": "autoSolverVideo",
-            "ui_built": WEB_DIST.exists(),
+            "ui_built": (WEB_DIST.exists() or WEB_EDUAPP.exists()),
+            "ui_dist_built": WEB_DIST.exists(),
+            "ui_eduapp_built": WEB_EDUAPP.exists(),
             # setup diagnostics — 給 onboarding / monitoring
             "gemini_api_key_set": bool(get_gemini_api_key()),
             "tts_config_exists": TTS_CONFIG_PATH.exists(),
@@ -261,7 +263,7 @@ def create_app() -> FastAPI:
     async def root():
         if LANDING_PAGE.is_file():
             return FileResponse(LANDING_PAGE)
-        target = "/ui/" if WEB_DIST.exists() else "/editor"
+        target = "/app/" if WEB_EDUAPP.exists() else ("/ui/" if WEB_DIST.exists() else "/editor")
         return RedirectResponse(url=target, status_code=307)
 
     @app.on_event("startup")

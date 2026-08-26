@@ -181,6 +181,7 @@ def test_ready_episode_exports_and_publishes(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(store, "_export_docx_word_shapes", lambda *_: (_ for _ in ()).throw(ImportError("no COM")))
     episode, docx_path, mode = store.export_docx("course", episode.story_id, episode.version)
     assert html_path.stat().st_size > 0
+    assert "杜夫" in html_path.read_text(encoding="utf-8")
     assert pdf_path.stat().st_size > 0
     assert docx_path.stat().st_size > 0
     assert mode == "editable_table_fallback"
@@ -197,6 +198,51 @@ def test_ready_episode_exports_and_publishes(tmp_path, monkeypatch) -> None:
     assert episode.releases[-1].withdrawn_at is not None
 
 
+def test_dialogue_layout_is_image_aware_and_manual_coordinates_are_preserved(tmp_path) -> None:
+    store = _store(tmp_path)
+    episode = _ready_episode(store)
+    page = episode.pages[0].model_copy(update={
+        "dialogues": [
+            Dialogue(dialogue_id="d1", speaker_id="dofu", text="先看左側的低細節留白。"),
+            Dialogue(dialogue_id="d2", speaker_id="dofu", text="第二顆泡泡不可與第一顆重疊。"),
+        ]
+    })
+    laid_out = store.resolve_dialogue_layout(episode, page)
+    assert len(laid_out) == 2
+    assert (laid_out[0].x, laid_out[0].y) != (laid_out[1].x, laid_out[1].y)
+    assert all(item.bubble_style == "rounded_callout" for item in laid_out)
+    assert all(item.tail_x is not None and item.tail_y is not None for item in laid_out)
+    assert store._rect_overlap(
+        (laid_out[0].x, laid_out[0].y, laid_out[0].w, laid_out[0].h),
+        (laid_out[1].x, laid_out[1].y, laid_out[1].w, laid_out[1].h),
+    ) == 0
+
+    manual = Dialogue(
+        dialogue_id="manual",
+        text="人工定位",
+        layout_mode="MANUAL",
+        x=0.41,
+        y=0.32,
+        w=0.27,
+        h=0.11,
+        tail_x=0.55,
+        tail_y=0.70,
+    )
+    manual_page = page.model_copy(update={"dialogues": [manual]})
+    resolved_manual = store.resolve_dialogue_layout(episode, manual_page)[0]
+    assert (resolved_manual.x, resolved_manual.y, resolved_manual.w, resolved_manual.h) == (0.41, 0.32, 0.27, 0.11)
+    assert (resolved_manual.tail_x, resolved_manual.tail_y) == (0.55, 0.70)
+
+    overflow_page = page.model_copy(update={
+        "dialogues": [
+            Dialogue(dialogue_id=f"d{i}", speaker_id="dofu", text=f"對白 {i}")
+            for i in range(1, 5)
+        ]
+    })
+    resolved_overflow = store.resolve_dialogue_layout(episode, overflow_page)
+    assert [item.dialogue_id for item in resolved_overflow] == ["d1", "d2", "d3", "d4"]
+
+
 def test_hold_needs_reason_and_current_gate_cannot_be_skipped(tmp_path) -> None:
     store = _store(tmp_path)
     episode = _episode(store)
@@ -210,9 +256,11 @@ def test_hold_needs_reason_and_current_gate_cannot_be_skipped(tmp_path) -> None:
 
 def test_fork_preserves_old_version(tmp_path) -> None:
     store = _store(tmp_path)
-    episode = _episode(store)
+    episode = _ready_episode(store)
     forked = store.fork_version("course", episode.story_id, "v0.1", "v0.2")
     assert forked.version == "v0.2"
+    assert forked.exports == {}
+    assert all(store.resolve_asset(forked, asset.asset_id).is_file() for asset in forked.assets)
     assert store.get_episode("course", episode.story_id, "v0.1").version == "v0.1"
 
 

@@ -113,13 +113,23 @@ class Dialogue(BaseModel):
     dialogue_id: str
     speaker_id: str = "narrator"
     text: str
-    bubble_style: str = "rounded"
+    bubble_style: str = "rounded_callout"
+    layout_mode: Literal["AUTO", "MANUAL"] = "AUTO"
     x: float = 0.08
     y: float = 0.06
     w: float = 0.38
     h: float = 0.12
     font_size: float = 16.0
     tail_target: str = ""
+    tail_x: float | None = None
+    tail_y: float | None = None
+
+    @field_validator("x", "y", "w", "h", "tail_x", "tail_y")
+    @classmethod
+    def validate_normalized_coordinate(cls, value: float | None) -> float | None:
+        if value is not None and not 0 <= value <= 1:
+            raise ValueError("泡泡座標必須介於 0 與 1")
+        return value
 
 
 class ComicPage(BaseModel):
@@ -414,6 +424,8 @@ class ComicStore:
 
     def fork_version(self, project_id: str, story_id: str, from_version: str, new_version: str) -> EpisodeManifest:
         current = self.get_episode(project_id, story_id, from_version)
+        if self._manifest_file(project_id, story_id, new_version).is_file():
+            raise ComicConflictError(f"episode version 已存在: {story_id}/{new_version}")
         forked = current.model_copy(
             deep=True,
             update={
@@ -422,11 +434,19 @@ class ComicStore:
                 "state": "QA" if current.pages else "BRIEF",
                 "hold_reason": "",
                 "qa_records": [],
+                "exports": {},
                 "releases": [],
                 "created_at": utc_now(),
                 "updated_at": utc_now(),
             },
         )
+        target_root = self.episode_dir(project_id, story_id, new_version)
+        # manifest 內的 asset path 是版本相對路徑；fork 時必須一併複製，不能引用舊版檔案。
+        for asset in current.assets:
+            source = self.resolve_asset(current, asset.asset_id)
+            destination = target_root / asset.path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
         return self.create_episode(forked)
 
     def discover_package(self, package_path: Path | str) -> PackageDiscovery:
@@ -744,6 +764,179 @@ class ComicStore:
             raise ComicNotFoundError(f"asset 檔案不存在: {asset.path}")
         return path
 
+    @staticmethod
+    def _rect_overlap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+        left = max(a[0], b[0])
+        top = max(a[1], b[1])
+        right = min(a[0] + a[2], b[0] + b[2])
+        bottom = min(a[1] + a[3], b[1] + b[3])
+        return max(0.0, right - left) * max(0.0, bottom - top)
+
+    def resolve_dialogue_layout(self, episode: EpisodeManifest, page: ComicPage) -> list[Dialogue]:
+        """依實際場景圖的低細節區配置泡泡；MANUAL 座標則完整保留。"""
+        if not page.dialogues:
+            return []
+
+        try:
+            series = self.get_series(episode.project_id, episode.series_id)
+            character_ids = [character.character_id for character in series.characters]
+        except ComicNotFoundError:
+            character_ids = list(dict.fromkeys(episode.characters))
+        if len(character_ids) == 1:
+            speaker_anchors = {character_ids[0]: 0.50}
+        elif character_ids:
+            speaker_anchors = {
+                character_id: 0.34 + index * 0.36 / (len(character_ids) - 1)
+                for index, character_id in enumerate(character_ids)
+            }
+        else:
+            speaker_anchors = {}
+        speaker_target_y = {character_id: 0.72 for character_id in character_ids}
+
+        edge_map = None
+        if page.image_asset_id:
+            try:
+                from PIL import Image, ImageFilter
+
+                asset_path = self.resolve_asset(episode, page.image_asset_id)
+                with Image.open(asset_path) as source:
+                    edge_map = source.convert("L").resize((240, 320)).filter(ImageFilter.FIND_EDGES)
+            except (OSError, ComicNotFoundError):
+                edge_map = None
+            else:
+                # 本機 OpenCV 只用來找人臉位置，不做人名辨識；角色仍依 Series 順序由左至右配對。
+                try:
+                    import cv2
+
+                    frame = cv2.imread(str(asset_path))
+                    if frame is not None and character_ids:
+                        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                        detected: list[tuple[float, float, float, float]] = []
+                        for cascade_name, scale, neighbors, flip, confidence in (
+                            ("haarcascade_frontalface_default.xml", 1.08, 4, False, 1.0),
+                            ("haarcascade_frontalface_default.xml", 1.05, 3, False, 0.9),
+                            ("haarcascade_profileface.xml", 1.05, 3, False, 0.65),
+                            ("haarcascade_profileface.xml", 1.05, 3, True, 0.65),
+                        ):
+                            cascade = cv2.CascadeClassifier(cv2.data.haarcascades + cascade_name)
+                            detection_frame = cv2.flip(gray, 1) if flip else gray
+                            for face_x, face_y, face_w, face_h in cascade.detectMultiScale(
+                                detection_frame, scaleFactor=scale, minNeighbors=neighbors, minSize=(36, 36)
+                            ):
+                                center_x = (face_x + face_w / 2) / frame.shape[1]
+                                if flip:
+                                    center_x = 1 - center_x
+                                center_y = (face_y + face_h / 2) / frame.shape[0]
+                                width_ratio = face_w / frame.shape[1]
+                                if 0.28 <= center_y <= 0.72 and 0.035 <= width_ratio <= 0.28:
+                                    detected.append((center_x, center_y, width_ratio, width_ratio * confidence))
+                        unique_faces: list[tuple[float, float, float, float]] = []
+                        for candidate in sorted(detected, key=lambda item: item[3], reverse=True):
+                            if all(
+                                abs(candidate[0] - prior[0]) > 0.08 or abs(candidate[1] - prior[1]) > 0.08
+                                for prior in unique_faces
+                            ):
+                                unique_faces.append(candidate)
+                        if len(unique_faces) >= len(character_ids):
+                            visible = sorted(unique_faces[:len(character_ids)], key=lambda item: item[0])
+                            speaker_anchors = {
+                                character_id: round(face[0], 4)
+                                for character_id, face in zip(character_ids, visible)
+                            }
+                            speaker_target_y = {
+                                character_id: round(min(0.84, face[1] + 0.12), 4)
+                                for character_id, face in zip(character_ids, visible)
+                            }
+                except (ImportError, OSError):
+                    pass
+
+        # 候選點分散在不同高度；依頁碼輪替同分候選，避免整個 episode 都排成同一列。
+        candidates = [
+            (0.05, 0.06), (0.55, 0.06),
+            (0.05, 0.25), (0.55, 0.25),
+            (0.05, 0.44), (0.55, 0.44),
+            (0.10, 0.62), (0.52, 0.62),
+        ]
+        offset = (page.page_no * 3) % len(candidates)
+        candidates = candidates[offset:] + candidates[:offset]
+        occupied: list[tuple[float, float, float, float]] = []
+        resolved: list[Dialogue] = []
+
+        layout_dialogues = page.dialogues[:3]
+        overflow_dialogues = page.dialogues[3:]
+
+        for index, dialogue in enumerate(layout_dialogues):
+            text_units = sum(2 if ord(char) > 127 else 1 for char in dialogue.text)
+            if dialogue.layout_mode == "MANUAL":
+                width = min(0.70, max(0.18, dialogue.w))
+                height = min(0.30, max(0.08, dialogue.h))
+                x = min(max(0.02, dialogue.x), 0.98 - width)
+                y = min(max(0.02, dialogue.y), 0.82 - height)
+            else:
+                width = min(0.46, max(0.32, dialogue.w, 0.34 + max(0, text_units - 28) * 0.002))
+                line_capacity = max(12, int(width * 70))
+                estimated_lines = max(2, (text_units + line_capacity - 1) // line_capacity)
+                height = min(0.20, max(0.115, dialogue.h, 0.075 + estimated_lines * 0.026))
+                ranked: list[tuple[float, float, float]] = []
+                for order, (candidate_x, candidate_y) in enumerate(candidates):
+                    x0 = min(candidate_x, 0.95 - width)
+                    y0 = min(candidate_y, 0.82 - height)
+                    rect = (x0, y0, width, height)
+                    overlap = sum(self._rect_overlap(rect, prior) for prior in occupied)
+                    detail = 0.0
+                    if edge_map is not None:
+                        left = max(0, int(x0 * edge_map.width))
+                        top = max(0, int(y0 * edge_map.height))
+                        right = min(edge_map.width, max(left + 1, int((x0 + width) * edge_map.width)))
+                        bottom = min(edge_map.height, max(top + 1, int((y0 + height) * edge_map.height)))
+                        histogram = edge_map.crop((left, top, right, bottom)).histogram()
+                        pixel_count = max(1, sum(histogram))
+                        detail = sum(level * count for level, count in enumerate(histogram)) / (255 * pixel_count)
+                    speaker_x = speaker_anchors.get(dialogue.speaker_id, 0.5)
+                    proximity = abs((x0 + width / 2) - speaker_x)
+                    tail_gap = max(0.0, 0.72 - (y0 + height))
+                    tail_ergonomics = abs(tail_gap - 0.24)
+                    # overlap 是硬性高權重；order 只負責穩定打破平手。
+                    ranked.append((detail + proximity * 0.12 + tail_ergonomics * 0.18 + overlap * 80 + order * 0.0005, x0, y0))
+                _, x, y = min(ranked, key=lambda item: item[0])
+
+            manual_tail = dialogue.layout_mode == "MANUAL"
+            target_x = dialogue.tail_x if manual_tail and dialogue.tail_x is not None else speaker_anchors.get(dialogue.speaker_id, 0.5)
+            target_y = (
+                dialogue.tail_y
+                if manual_tail and dialogue.tail_y is not None
+                else max(speaker_target_y.get(dialogue.speaker_id, 0.72), y + height + 0.08)
+            )
+            target_x = min(0.94, max(0.06, target_x))
+            target_y = min(0.94, max(y + height + 0.045, target_y))
+            occupied.append((x, y, width, height))
+            resolved.append(
+                dialogue.model_copy(
+                    update={
+                        "bubble_style": "rounded_callout",
+                        "x": round(x, 4),
+                        "y": round(y, 4),
+                        "w": round(width, 4),
+                        "h": round(height, 4),
+                        "tail_x": round(target_x, 4),
+                        "tail_y": round(target_y, 4),
+                    }
+                )
+            )
+        return [*resolved, *overflow_dialogues]
+
+    def auto_layout_episode(self, project_id: str, story_id: str, version: str) -> EpisodeManifest:
+        """把 image-aware 配置寫回 manifest，供 UI 預覽與後續人工微調。"""
+        episode = self.get_episode(project_id, story_id, version)
+        pages = [
+            page.model_copy(update={"dialogues": self.resolve_dialogue_layout(episode, page)})
+            for page in episode.pages
+        ]
+        target_state = episode.state
+        if target_state in {"BRIEF", "STORYBOARD", "IMAGE"} and pages:
+            target_state = "LAYOUT"
+        return self.update_episode(project_id, story_id, version, {"pages": pages, "state": target_state})
+
     def compose_prompts(self, project_id: str, story_id: str, version: str) -> EpisodeManifest:
         episode = self.get_episode(project_id, story_id, version)
         series = self.get_series(project_id, episode.series_id)
@@ -822,7 +1015,14 @@ Negative prompt: {negative}.
             items=items,
         )
 
-    def build_reader_html(self, episode: EpisodeManifest, *, asset_prefix: str = "") -> str:
+    def build_reader_html(
+        self,
+        episode: EpisodeManifest,
+        *,
+        asset_prefix: str = "",
+        speaker_names: dict[str, str] | None = None,
+    ) -> str:
+        speaker_names = speaker_names or {}
         pages_html: list[str] = []
         for page in episode.pages:
             image = ""
@@ -830,7 +1030,7 @@ Negative prompt: {negative}.
                 src = f"{asset_prefix}{html.escape(page.image_asset_id)}"
                 image = f'<img src="{src}" alt="{html.escape(page.alt_text)}" loading="lazy">'
             dialogue = "".join(
-                f'<p><strong>{html.escape(item.speaker_id)}</strong>：{html.escape(item.text)}</p>'
+                f'<p><strong>{html.escape(speaker_names.get(item.speaker_id, item.speaker_id))}</strong>：{html.escape(item.text)}</p>'
                 for item in page.dialogues
             )
             pages_html.append(
@@ -886,10 +1086,15 @@ main{{width:min(1040px,calc(100% - 28px));margin:auto;padding:42px 0 70px}}h1{{f
 
     def export_html(self, project_id: str, story_id: str, version: str) -> tuple[EpisodeManifest, Path]:
         episode = self.get_episode(project_id, story_id, version)
+        series = self.get_series(project_id, episode.series_id)
+        speaker_names = {item.character_id: item.name for item in series.characters}
         out = self.episode_dir(project_id, story_id, version) / "exports" / f"{episode.story_id}_{version}_reader.html"
         out.parent.mkdir(parents=True, exist_ok=True)
         prefix = f"/projects/{episode.project_id}/comics/episodes/{episode.story_id}/{version}/assets/"
-        out.write_text(self.build_reader_html(episode, asset_prefix=prefix), encoding="utf-8")
+        out.write_text(
+            self.build_reader_html(episode, asset_prefix=prefix, speaker_names=speaker_names),
+            encoding="utf-8",
+        )
         updated = self._record_exports(
             episode,
             {"html": out.relative_to(self.episode_dir(project_id, story_id, version)).as_posix()},
@@ -902,23 +1107,58 @@ main{{width:min(1040px,calc(100% - 28px));margin:auto;padding:42px 0 70px}}h1{{f
         episode = self.get_episode(project_id, story_id, version)
         if not episode.pages or any(not page.image_asset_id for page in episode.pages):
             raise ComicGateError("PDF 匯出需要每頁 scene asset")
+        series = self.get_series(project_id, episode.series_id)
+        speaker_names = {item.character_id: item.name for item in series.characters}
         font_path = config.get_font_path()
         font = ImageFont.truetype(font_path, 30)
         small = ImageFont.truetype(font_path, 21)
+
+        def wrap_text(value: str, target_font: Any, max_width: int) -> list[str]:
+            lines: list[str] = []
+            current = ""
+            for char in value:
+                candidate = current + char
+                if current and target_font.getlength(candidate) > max_width:
+                    lines.append(current)
+                    current = char
+                else:
+                    current = candidate
+            if current:
+                lines.append(current)
+            return lines
+
         rendered: list[Image.Image] = []
         for page in episode.pages:
             source = Image.open(self.resolve_asset(episode, page.image_asset_id or "")).convert("RGB")
             canvas = Image.new("RGB", (1240, 1754), "white")
             source.thumbnail((1160, 1390))
             x = (1240 - source.width) // 2
-            canvas.paste(source, (x, 70))
+            image_top = 70
+            canvas.paste(source, (x, image_top))
             draw = ImageDraw.Draw(canvas)
-            y = 1490
-            for dialog in page.dialogues[:3]:
-                draw.rounded_rectangle((60, y, 1180, y + 72), radius=24, fill="#f8fbff", outline="#173042", width=3)
-                text = f"{dialog.speaker_id}：{dialog.text}"
-                draw.text((88, y + 18), text[:70], font=small, fill="#10202c")
-                y += 80
+            for dialog in self.resolve_dialogue_layout(episode, page):
+                left = int(x + dialog.x * source.width)
+                top = int(image_top + dialog.y * source.height)
+                right = int(left + dialog.w * source.width)
+                bottom = int(top + dialog.h * source.height)
+                target_x = int(x + (dialog.tail_x or dialog.x + dialog.w / 2) * source.width)
+                target_y = int(image_top + (dialog.tail_y or dialog.y + dialog.h + 0.1) * source.height)
+                base_x = min(right - 34, max(left + 34, target_x))
+                fill = "#ffffff"
+                outline = "#173f5f"
+                # 三角尾巴先畫、泡泡本體後畫，交界被本體覆蓋成一體成形。
+                tail_points = [(base_x - 24, bottom - 3), (base_x + 24, bottom - 3), (target_x, target_y)]
+                draw.polygon(tail_points, fill=fill, outline=outline)
+                draw.line([tail_points[0], tail_points[2], tail_points[1]], fill=outline, width=4, joint="curve")
+                draw.rounded_rectangle((left, top, right, bottom), radius=28, fill=fill, outline=outline, width=4)
+                text = f"{speaker_names.get(dialog.speaker_id, dialog.speaker_id)}：{dialog.text}"
+                lines = wrap_text(text, small, max(80, right - left - 44))
+                line_height = small.getbbox("國Ay")[3] + 5
+                text_height = len(lines) * line_height
+                text_y = max(top + 15, top + (bottom - top - text_height) // 2)
+                for line in lines[:4]:
+                    draw.text((left + 22, text_y), line, font=small, fill="#10202c")
+                    text_y += line_height
             draw.text((60, 28), f"{episode.story_id} · {episode.version} · P{page.page_no:02d}", font=font, fill="#173042")
             rendered.append(canvas)
         out = self.episode_dir(project_id, story_id, version) / "exports" / f"{episode.story_id}_{version}.pdf"
@@ -1042,45 +1282,49 @@ main{{width:min(1040px,calc(100% - 28px));margin:auto;padding:42px 0 70px}}h1{{f
                 background.Top = 18
                 background.WrapFormat.Type = 3
                 background.ZOrder(1)
-                positions = [(28, 34), (308, 34), (168, 650)]
-                for bubble_no, dialog in enumerate(page.dialogues[:3], start=1):
-                    left, top = positions[bubble_no - 1]
-                    shape = doc.Shapes.AddShape(5, left, top, 240, 120, anchor)
-                    shape.Name = f"P{index:02d}_{bubble_no}_DIALOGUE_EDITABLE"
-                    shape.AlternativeText = "可直接編輯的漫畫對白文字框"
+                for bubble_no, dialog in enumerate(self.resolve_dialogue_layout(episode, page), start=1):
+                    left = 18 + dialog.x * 559
+                    top = 18 + dialog.y * 806
+                    width = max(178, dialog.w * 559)
+                    body_height = max(118, dialog.h * 806)
+                    target_x = 18 + (dialog.tail_x or dialog.x + dialog.w / 2) * 559
+                    target_y = 18 + (dialog.tail_y or dialog.y + dialog.h + 0.1) * 806
+                    total_height = body_height
+                    # Word msoShapeRoundedRectangularCallout：尾巴與圓角文字框是同一個 Shape。
+                    shape = doc.Shapes.AddShape(106, left, top, width, total_height, anchor)
+                    shape.Name = f"P{index:02d}_{bubble_no}_DIALOGUE_CALLOUT_EDITABLE"
+                    shape.AlternativeText = "可直接編輯並移動的一體成形漫畫對話框"
                     shape.RelativeHorizontalPosition = 1
                     shape.RelativeVerticalPosition = 1
                     shape.Left = left
                     shape.Top = top
                     shape.WrapFormat.Type = 3
                     shape.Fill.ForeColor.RGB = 0xFFFFFF
-                    shape.Line.ForeColor.RGB = 0x304B62
+                    shape.Line.ForeColor.RGB = (0x79 << 16) | (0x4E << 8) | 0x1F
+                    shape.Line.Weight = 1.75
+                    tip_ratio = (target_x - left) / max(1, width)
+                    shape.Adjustments.SetItem(1, min(2.5, max(-2.5, tip_ratio - 0.5)))
+                    # Adjustment 2 可大於 1，讓尾巴延伸到本體外，而不把文字框一起拉高。
+                    shape.Adjustments.SetItem(2, min(5.5, max(0.62, (target_y - top) / max(1, body_height))))
+                    shape.Adjustments.SetItem(3, 0.18)
                     shape.TextFrame.MarginLeft = 9
                     shape.TextFrame.MarginRight = 9
                     shape.TextFrame.MarginTop = 7
                     shape.TextFrame.MarginBottom = 7
                     shape.TextFrame.TextRange.Text = dialog.text
                     shape.TextFrame.TextRange.Font.Name = "Microsoft JhengHei"
-                    shape.TextFrame.TextRange.Font.Size = 15
+                    shape.TextFrame.TextRange.Font.Size = min(18, max(13, dialog.font_size))
                     shape.TextFrame.TextRange.Font.Bold = True
                     shape.TextFrame.TextRange.Font.Color = 0x000000
-                    size = 15.0
-                    while bool(shape.TextFrame.Overflowing) and size > 12.5:
+                    shape.TextFrame.TextRange.ParagraphFormat.Alignment = 1
+                    size = float(min(18, max(13, dialog.font_size)))
+                    while bool(shape.TextFrame.Overflowing) and size > 12.0:
                         size -= 0.5
                         shape.TextFrame.TextRange.Font.Size = size
                     if bool(shape.TextFrame.Overflowing):
                         raise RuntimeError(f"Word bubble overflow: P{index:02d}_{bubble_no}")
-                    tail = doc.Shapes.AddShape(7, left + 104, top + 112, 24, 24, anchor)
-                    tail.Name = f"P{index:02d}_{bubble_no}_DIALOGUE_TAIL"
-                    tail.AlternativeText = "獨立對白尾巴；可移動指向說話者"
-                    tail.RelativeHorizontalPosition = 1
-                    tail.RelativeVerticalPosition = 1
-                    tail.Left = left + 104
-                    tail.Top = top + 112
-                    tail.WrapFormat.Type = 3
-                    tail.Fill.ForeColor.RGB = 0xFFFFFF
-                    tail.Line.ForeColor.RGB = 0x304B62
-            doc.SaveAs2(str(out), 16)
+            # Word COM 不接受相對路徑；即使 ComicStore 以相對 project root 初始化也要轉絕對路徑。
+            doc.SaveAs2(str(out.resolve()), 16)
         except Exception as exc:
             raise RuntimeError(f"Word Shapes 匯出失敗: {exc}") from exc
         finally:

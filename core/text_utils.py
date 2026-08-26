@@ -29,6 +29,39 @@ _SYMBOL_MAP = {
     "leq": "≤", "geq": "≥", "infty": "∞", "partial": "∂", "nabla": "∇",
     "rightarrow": "→", "leftarrow": "←", "Rightarrow": "⇒",
 }
+_LATEX_COMMANDS = {
+    *(cmd.lower() for cmd in _GREEK_MAP.keys()),
+    *(cmd.lower() for cmd in _SYMBOL_MAP.keys()),
+    "frac",
+    "sqrt",
+    "text",
+    "vec",
+    "hat",
+    "bar",
+    "tilde",
+    "dot",
+    "ddot",
+    "sin",
+    "cos",
+    "tan",
+    "cot",
+    "sec",
+    "csc",
+    "log",
+    "ln",
+    "exp",
+    "lim",
+    "sum",
+    "int",
+    "sinh",
+    "cosh",
+    "tanh",
+    "arcsin",
+    "arccos",
+    "arctan",
+    "min",
+    "max",
+}
 
 
 def strip_latex(text: str, *, preserve_identifiers: bool = False) -> str:
@@ -91,5 +124,51 @@ def clean_json_escapes(text: str) -> str:
     """
     # 第一步: \u 後若不是 4 位 hex, 把 \ 加倍
     text = re.sub(r'(?<!\\)\\u(?![0-9a-fA-F]{4})', r'\\\\u', text)
-    # 第二步: \ 後若不是合法轉義字元, 加倍 (排除前面已是 \ 的情況)
-    return re.sub(r'(?<!\\)\\(?!["\\/bfnrtu])', r'\\\\', text)
+
+    # 第二步: 只保留 JSON 真實合法 escape，其餘全補一個反斜線。
+    # 但對 b/f/n/r/t 前綴，要避免把 \beta / \times / \frac 當成合法控制字元吞掉：
+    # 僅保留「單一 escape 字元」(例如 \n), 若接著延展成 LaTeX 命令則補逃逸。
+    out = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] != "\\":
+            out.append(text[i])
+            i += 1
+            continue
+
+        if i + 1 >= n:
+            out.append("\\\\")
+            i += 1
+            continue
+
+        ch = text[i + 1]
+        if ch in {'"', "/", "\\"}:
+            out.append(f"\\{ch}")
+            i += 2
+            continue
+        if ch == "u":
+            # 這裡只會是合法情況；非法已在第一步補掉
+            out.append(f"\\{text[i+1:i+6] if i+6 <= n else text[i+1:]}")
+            i += min(6, n - i)
+            continue
+        if ch in {"b", "f", "n", "r", "t"}:
+            # 先看是否是 "\command" 的開頭，例如 \beta、\times
+            j = i + 1
+            k = j + 1
+            while k < n and text[k].isalpha():
+                k += 1
+            token = text[j:k]
+            if len(token) > 1 and token.lower() in _LATEX_COMMANDS:
+                out.append(f"\\\\{token}")
+                i = k
+                continue
+            out.append(f"\\{ch}")
+            i += 2
+            continue
+
+        # 其餘都不是 JSON 合法 escape：補一個反斜線交給 JSON 可解析為純字面字元
+        out.append(f"\\\\{ch}")
+        i += 2
+
+    return "".join(out)

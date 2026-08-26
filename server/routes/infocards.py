@@ -1,8 +1,7 @@
 """routes/infocards.py — infoCard 後端端點（eduStudio 合併 Phase C-4）。
 
 對齊 infoCard server.ts 的 /api 契約，前端 build 成靜態檔後改打本 server。後端統一呼叫
-Gemini（不再瀏覽器直呼）。本批上 comic + poster 兩模式 + health + share（SQLite）；
-presentation 移植進行中，暫回 501。
+Gemini（不再瀏覽器直呼）。本次上線包含 comic/poster/infographic/card/presentation + health + share（SQLite）。
 """
 from __future__ import annotations
 
@@ -23,7 +22,7 @@ from core.infocards.share_store import get_share_store
 
 router = APIRouter(prefix="/api", tags=["infocards"])
 
-_SUPPORTED_MODES = ("presentation", "poster", "comic", "infographic")
+_SUPPORTED_MODES = ("presentation", "poster", "comic", "infographic", "card")
 
 
 class GenerateRequest(BaseModel):
@@ -113,7 +112,7 @@ def health() -> dict:
         "status": "ok",
         "service": "infocards",
         "modes": list(_SUPPORTED_MODES),
-        "implemented": ["comic", "poster", "infographic", "presentation"],
+        "implemented": ["comic", "poster", "infographic", "card", "presentation"],
     }
 
 
@@ -149,7 +148,7 @@ def _auto_save_library(asset_type: str, title: str, data: dict, thumb: str = "")
 
 
 # 視覺成品型別 → Project ArtifactKind（一課一工作空間歸屬）。
-_ARTIFACT_KIND = {"poster": "image", "presentation": "deck", "infographic": "infographic"}
+_ARTIFACT_KIND = {"poster": "image", "presentation": "deck", "infographic": "infographic", "comic": "comic"}
 
 
 def _attach_to_project(project_id: str, asset_type: str, title: str, library_id: str | None) -> None:
@@ -176,6 +175,15 @@ def _first_slide_thumb(deck: dict) -> str:
             return s["imageUrl"]
     return ""
 
+
+def _first_panel_thumb(data: dict) -> str:
+    """漫畫 data → 第一格 panel 的 imageUrl（有才當縮圖）。"""
+    for p in data.get("panels") or []:
+        if p.get("imageUrl"):
+            return p["imageUrl"]
+    return ""
+
+
 def _first_section_thumb(data: dict) -> str:
     """資訊圖卡 data → 第一個 section 的 imageUrl（有才當縮圖）。"""
     for section in data.get("sections") or []:
@@ -195,14 +203,17 @@ def generate(req: GenerateRequest) -> dict:
             panels=req.panels, model=text_model, files=req.files)
         data = comic_service.generate_comic_images(data, model=image_model,
                                                    custom=req.customStylePrompt)
-        return {"success": True, "type": "comic", "data": data.model_dump()}
+        dd = data.model_dump()
+        lid = _auto_save_library("comic", _lib_title(req, "教學漫畫"), dd, thumb=_first_panel_thumb(dd))
+        _attach_to_project(req.projectId, "comic", _lib_title(req, "教學漫畫"), lid)
+        return {"success": True, "type": "comic", "data": dd}
 
     if mode in ("infographic", "card"):
         data = infographic_service.generate_infographic_data(
             req.text, req.style, custom=req.customStylePrompt,
             aspect_ratio=req.aspectRatio, model=text_model, files=req.files)
         data = infographic_service.generate_infographic_images(
-            data, model=req.imageModel, custom=req.customStylePrompt)
+            data, model=image_model, custom=req.customStylePrompt)
         dd = data.model_dump()
         title = dd.get("mainTitle") or _lib_title(req, "資訊圖卡")
         lid = _auto_save_library("infographic", title, dd, thumb=_first_section_thumb(dd))
@@ -337,4 +348,3 @@ def get_share(share_id: str) -> dict:
     if item is None:
         raise HTTPException(status_code=404, detail="分享不存在或已過期")
     return item
-

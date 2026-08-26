@@ -106,14 +106,14 @@ class TestCreateAndGet:
         rec = store.create(req)
         assert rec.options.require_review is False
 
-    def test_explicit_require_review_overrides_default(self, store):
+    def test_exam_pdf_require_review_cannot_be_disabled(self, store):
         req = CreateJobRequest(
             source_type=SourceType.EXAM_PDF,
             source=JobSource(path="/fake.pdf"),
             options=JobOptions(require_review=False),
         )
         rec = store.create(req)
-        assert rec.options.require_review is False    # 強制 False 也認
+        assert rec.options.require_review is True
 
 
 # ---------- List ----------

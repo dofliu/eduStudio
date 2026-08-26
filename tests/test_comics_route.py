@@ -63,6 +63,11 @@ def test_crud_and_offline_generation(client) -> None:
     assert prompts.status_code == 200 and prompts.json()["pages"][0]["image_prompt"]
     images = c.post("/projects/p/comics/episodes/W01_C01/generate/images", json={"mock": True})
     assert images.status_code == 200 and images.json()["generated"] == [1, 2]
+    layout = c.post("/projects/p/comics/episodes/W01_C01/auto-layout")
+    assert layout.status_code == 200 and layout.json()["state"] == "LAYOUT"
+    first_dialogue = layout.json()["pages"][0]["dialogues"][0]
+    assert first_dialogue["bubble_style"] == "rounded_callout"
+    assert first_dialogue["tail_x"] is not None and first_dialogue["tail_y"] is not None
 
     report = c.get("/projects/p/comics/episodes/W01_C01/validation").json()
     assert report["publish_ready"] is False

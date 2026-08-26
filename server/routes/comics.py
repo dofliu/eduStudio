@@ -137,6 +137,13 @@ class _ScriptGen(BaseModel):
 class _DialogueGen(BaseModel):
     speakerId: str
     text: str
+    layoutMode: str = "AUTO"
+    x: float | None = Field(default=None, ge=0, le=1)
+    y: float | None = Field(default=None, ge=0, le=1)
+    w: float | None = Field(default=None, ge=0, le=1)
+    h: float | None = Field(default=None, ge=0, le=1)
+    tailX: float | None = Field(default=None, ge=0, le=1)
+    tailY: float | None = Field(default=None, ge=0, le=1)
 
 
 class _PageGen(BaseModel):
@@ -346,6 +353,21 @@ def fork_episode(
         raise _http_error(exc) from exc
 
 
+@router.post("/episodes/{story_id}/auto-layout", response_model=EpisodeManifest)
+def auto_layout_episode(
+    pid: str,
+    story_id: str,
+    version: str = "v0.1",
+    project_store: ProjectStore = Depends(get_default_project_store),
+    comic_store: ComicStore = Depends(get_default_comic_store),
+) -> EpisodeManifest:
+    _ensure_project(pid, project_store)
+    try:
+        return comic_store.auto_layout_episode(pid, story_id, version)
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
 def _script_prompt(episode: EpisodeManifest, series: Series) -> str:
     evidence = "\n".join(
         f"- {item.source_id}: {item.title}; supports={'; '.join(item.supported_claims)}; limits={'; '.join(item.limits)}"
@@ -425,6 +447,8 @@ def _storyboard_prompt(episode: EpisodeManifest) -> str:
 
 每頁要有 pageNo、beat、sceneDescription、camera、learningPoint、evidenceIds、dialogues、altText。
 dialogues 每頁 1–3 句，每句只表達一件事；speakerId 必須是角色 ID 或 narrator。
+每句 dialogue 可附 x、y、w、h、tailX、tailY（皆為 0–1 正規化座標）與 layoutMode=AUTO。
+泡泡要依人物、視線與 negative space 分散在不同高度，不可每頁都固定排在最上方；tailX/tailY 指向說話者。
 sceneDescription 要保留 34–38% integrated negative space，且不得要求生成任何可讀中文或 speech bubble。
 altText 要能讓看不到圖片的讀者理解人物、動作與技術證據。
 沒有來源支持時 evidenceIds 留空，對白不得把推論寫成已證實結果。
@@ -442,7 +466,18 @@ def _mock_pages(episode: EpisodeManifest) -> list[_PageGen]:
             camera="medium shot",
             learningPoint=(episode.learning_objectives or ["待教師確認學習目標"])[0],
             evidenceIds=[episode.evidence[0].source_id] if episode.evidence else [],
-            dialogues=[_DialogueGen(speakerId=speakers[(index - 1) % len(speakers)], text=f"MOCK 對白 {index}；僅供流程測試。")],
+            dialogues=[
+                _DialogueGen(
+                    speakerId=speakers[(index - 1) % len(speakers)],
+                    text=f"MOCK 對白 {index}；僅供流程測試。",
+                    x=[0.06, 0.56, 0.08, 0.52][(index - 1) % 4],
+                    y=[0.08, 0.25, 0.43, 0.58][(index - 1) % 4],
+                    w=0.38,
+                    h=0.13,
+                    tailX=[0.30, 0.70][(index - 1) % 2],
+                    tailY=0.78,
+                )
+            ],
             altText=f"MOCK 第 {index} 頁流程示意，尚未生成正式漫畫場景。",
         )
         for index in range(1, episode.page_count + 1)
@@ -484,6 +519,14 @@ def generate_storyboard(
                         dialogue_id=f"p{item.pageNo:02d}_d{idx:02d}",
                         speaker_id=dialog.speakerId,
                         text=dialog.text,
+                        bubble_style="rounded_callout",
+                        layout_mode="MANUAL" if str(dialog.layoutMode).upper() == "MANUAL" else "AUTO",
+                        x=dialog.x if dialog.x is not None else (0.06 if idx % 2 else 0.56),
+                        y=dialog.y if dialog.y is not None else (0.08 + ((item.pageNo + idx) % 3) * 0.19),
+                        w=dialog.w if dialog.w is not None else 0.38,
+                        h=dialog.h if dialog.h is not None else 0.13,
+                        tail_x=dialog.tailX,
+                        tail_y=dialog.tailY,
                     )
                     for idx, dialog in enumerate(item.dialogues, start=1)
                 ],
@@ -821,7 +864,15 @@ def reader(
             ),
         )
         prefix = f"/projects/{pid}/comics/episodes/{story_id}/{episode.version}/assets/"
-        return HTMLResponse(comic_store.build_reader_html(episode, asset_prefix=prefix))
+        series = comic_store.get_series(pid, episode.series_id)
+        speaker_names = {item.character_id: item.name for item in series.characters}
+        return HTMLResponse(
+            comic_store.build_reader_html(
+                episode,
+                asset_prefix=prefix,
+                speaker_names=speaker_names,
+            )
+        )
     except Exception as exc:
         raise _http_error(exc) from exc
 

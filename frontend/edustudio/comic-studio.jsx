@@ -92,16 +92,22 @@ function dialogueText(page) {
   return (page.dialogues || []).map(item => `${item.speaker_id} | ${item.text}`).join('\n');
 }
 
-function parseDialogues(value, pageNo) {
+function parseDialogues(value, pageNo, existing = []) {
   return splitLines(value).map((line, index) => {
     const separator = line.indexOf('|');
     const speaker = separator >= 0 ? line.slice(0, separator).trim() : 'narrator';
     const text = separator >= 0 ? line.slice(separator + 1).trim() : line;
+    const prior = existing[index] || {};
     return {
+      ...prior,
       dialogue_id: `p${String(pageNo).padStart(2, '0')}_d${String(index + 1).padStart(2, '0')}`,
-      speaker_id: speaker || 'narrator', text, bubble_style: 'rounded',
-      x: 0.08, y: index < 2 ? 0.06 : 0.81, w: 0.38, h: 0.12,
-      font_size: 16, tail_target: '',
+      speaker_id: speaker || 'narrator', text, bubble_style: 'rounded_callout',
+      layout_mode: prior.layout_mode || 'AUTO',
+      x: prior.x ?? (index % 2 ? 0.55 : 0.06),
+      y: prior.y ?? (0.08 + (index % 3) * 0.2),
+      w: prior.w ?? 0.38, h: prior.h ?? 0.13,
+      font_size: prior.font_size || 16, tail_target: prior.tail_target || '',
+      tail_x: prior.tail_x ?? (index % 2 ? 0.7 : 0.3), tail_y: prior.tail_y ?? 0.78,
     };
   });
 }
@@ -292,7 +298,11 @@ export default function ComicStudio({ activeProject, launchContext }) {
       `${base}/episodes/${encodeURIComponent(episode.story_id)}/generate/images?version=${encodeURIComponent(episode.version)}`,
       { method: 'POST', body: JSON.stringify({ mock: offlineMock, page_numbers: [pageNo], use_references: true }) },
     ));
-    setEpisode(result.episode);
+    const laidOut = await fetchJson(
+      `${base}/episodes/${encodeURIComponent(episode.story_id)}/auto-layout?version=${encodeURIComponent(episode.version)}`,
+      { method: 'POST' },
+    );
+    setEpisode(laidOut);
     if (result.failed?.length) setError(result.failed.map(item => `P${item.page_no}: ${item.error}`).join('；'));
   }
 
@@ -301,6 +311,24 @@ export default function ComicStudio({ activeProject, launchContext }) {
       ...current,
       pages: current.pages.map(page => page.page_no === pageNo ? { ...page, ...updates } : page),
     }));
+  }
+
+  function updateDialogue(pageNo, dialogueIndex, updates) {
+    setEpisode(current => ({
+      ...current,
+      pages: current.pages.map(page => page.page_no === pageNo ? {
+        ...page,
+        dialogues: page.dialogues.map((dialogue, index) => index === dialogueIndex ? { ...dialogue, ...updates } : dialogue),
+      } : page),
+    }));
+  }
+
+  async function autoLayout() {
+    const saved = await run('依畫面配置泡泡', () => fetchJson(
+      `${base}/episodes/${encodeURIComponent(episode.story_id)}/auto-layout?version=${encodeURIComponent(episode.version)}`,
+      { method: 'POST' },
+    ));
+    setEpisode(saved);
   }
 
   async function savePages() {
@@ -504,18 +532,29 @@ export default function ComicStudio({ activeProject, launchContext }) {
         </section>}
 
         {tab === 'pages' && <section className="es-comic-pages">
-          <div className="es-comic-section-head"><div><h2>逐頁 Storyboard 與 Dialogue</h2><p>對白採「speaker ID | 文字」，Traditional Chinese 後製，不進生圖。</p></div><Btn variant="primary" onClick={savePages} disabled={!editable || !episode.pages.length}>儲存全部頁面</Btn></div>
+          <div className="es-comic-section-head"><div><h2>逐頁 Storyboard 與 Dialogue</h2><p>對白採「speaker ID | 文字」；泡泡會依場景留白自動配置，也可逐顆手動微調。</p></div><div className="es-comic-actions"><Btn onClick={autoLayout} disabled={!editable || !episode.pages.length} busy={busy === '依畫面配置泡泡'}>依畫面配置泡泡</Btn><Btn variant="primary" onClick={savePages} disabled={!editable || !episode.pages.length}>儲存全部頁面</Btn></div></div>
           {!episode.pages.length && <div className="es-card es-comic-placeholder">請先在「劇本與分鏡」產生或建立 storyboard。</div>}
           {episode.pages.map(page => <article key={page.page_no} className="es-card es-comic-page-card">
             <div className="es-comic-page-preview">
               {page.image_asset_id ? <img src={`${base}/episodes/${encodeURIComponent(episode.story_id)}/${episode.version}/assets/${encodeURIComponent(page.image_asset_id)}`} alt={page.alt_text} /> : <div className="es-comic-no-image">P{String(page.page_no).padStart(2, '0')}<small>尚無場景圖</small></div>}
+              {(page.dialogues || []).map((dialogue, index) => <React.Fragment key={dialogue.dialogue_id || index}>
+                <svg className="es-comic-bubble-tail" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points={`${((dialogue.tail_x ?? (dialogue.x + dialogue.w / 2)) - 0.018) * 100},${(dialogue.y + dialogue.h - 0.004) * 100} ${((dialogue.tail_x ?? (dialogue.x + dialogue.w / 2)) + 0.018) * 100},${(dialogue.y + dialogue.h - 0.004) * 100} ${(dialogue.tail_x ?? (dialogue.x + dialogue.w / 2)) * 100},${(dialogue.tail_y ?? (dialogue.y + dialogue.h + 0.1)) * 100}`} /></svg>
+                <div className="es-comic-live-bubble" style={{ left: `${dialogue.x * 100}%`, top: `${dialogue.y * 100}%`, width: `${dialogue.w * 100}%`, height: `${dialogue.h * 100}%` }}>{dialogue.text}</div>
+              </React.Fragment>)}
               <span className="es-badge">{page.beat || '未命名 beat'}</span>
             </div>
             <div className="es-comic-page-editor">
               <h3>P{String(page.page_no).padStart(2, '0')}</h3>
               <Field label="場景"><textarea className="es-textarea" disabled={!editable} value={page.scene_description} onChange={e => updatePage(page.page_no, { scene_description: e.target.value })} /></Field>
               <div className="es-comic-inline-fields"><Field label="Camera"><input className="es-input" disabled={!editable} value={page.camera} onChange={e => updatePage(page.page_no, { camera: e.target.value })} /></Field><Field label="Learning point"><input className="es-input" disabled={!editable} value={page.learning_point} onChange={e => updatePage(page.page_no, { learning_point: e.target.value })} /></Field></div>
-              <Field label="對白（一行一顆泡泡）"><textarea className="es-textarea" disabled={!editable} value={dialogueText(page)} onChange={e => updatePage(page.page_no, { dialogues: parseDialogues(e.target.value, page.page_no) })} /></Field>
+              <Field label="對白（一行一顆泡泡）"><textarea className="es-textarea" disabled={!editable} value={dialogueText(page)} onChange={e => updatePage(page.page_no, { dialogues: parseDialogues(e.target.value, page.page_no, page.dialogues) })} /></Field>
+              {!!page.dialogues?.length && <details className="es-comic-bubble-controls"><summary>泡泡版面與指向設定</summary><div className="es-comic-bubble-list">{page.dialogues.map((dialogue, dialogueIndex) => <article key={dialogue.dialogue_id || dialogueIndex}>
+                <div><strong>{dialogue.speaker_id}</strong><select className="es-select" disabled={!editable} value={dialogue.layout_mode || 'AUTO'} onChange={e => updateDialogue(page.page_no, dialogueIndex, { layout_mode: e.target.value })}><option value="AUTO">AUTO</option><option value="MANUAL">MANUAL</option></select></div>
+                <div className="es-comic-coordinate-grid">{[
+                  ['x', '左', dialogue.x], ['y', '上', dialogue.y], ['w', '寬', dialogue.w], ['h', '高', dialogue.h],
+                  ['tail_x', '指向 X', dialogue.tail_x], ['tail_y', '指向 Y', dialogue.tail_y],
+                ].map(([key, label, value]) => <Field key={key} label={`${label} %`}><input className="es-input" type="number" min="0" max="100" step="1" disabled={!editable} value={Math.round((value ?? 0) * 100)} onChange={e => updateDialogue(page.page_no, dialogueIndex, { [key]: Math.min(1, Math.max(0, Number(e.target.value) / 100)), layout_mode: 'MANUAL' })} /></Field>)}</div>
+              </article>)}</div></details>}
               <Field label="Alt text"><input className="es-input" disabled={!editable} value={page.alt_text} onChange={e => updatePage(page.page_no, { alt_text: e.target.value })} /></Field>
               <details><summary>Image Prompt</summary><textarea className="es-textarea es-codearea is-tall" disabled={!editable} value={page.image_prompt} onChange={e => updatePage(page.page_no, { image_prompt: e.target.value })} /></details>
               <Btn variant="accent" size="sm" disabled={!editable || !page.image_prompt} onClick={() => generatePageImage(page.page_no)} busy={busy === `生成 P${page.page_no} 圖片`}>生成／重生本頁圖片</Btn>

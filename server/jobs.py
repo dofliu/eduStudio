@@ -65,9 +65,10 @@ def _resolve_default_review(source_type: SourceType, opt_value: bool | None) -> 
         逐段微調對齊/換圖, 同硬規則 #1; 見 SONG_MV_TRACK_RFC §2 中間產物)
     slides_pdf / repo / document / url → False (講解風險低,可直接渲染)
     """
-    if opt_value is not None:
-        return opt_value
-    return source_type in (SourceType.EXAM_PDF, SourceType.SONG)
+    # exam_pdf / song 依硬規則需要人工審核，不能被呼叫方關閉 require_review。
+    if source_type in (SourceType.EXAM_PDF, SourceType.SONG):
+        return True
+    return opt_value if opt_value is not None else False
 
 
 # R-1: 重啟時被視為「中斷」的 in-flight 狀態。

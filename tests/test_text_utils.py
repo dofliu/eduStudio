@@ -109,14 +109,14 @@ class TestCleanJsonEscapes:
     def test_realistic_llm_output(self):
         """模擬 Gemini 在 JSON 裡夾混 LaTeX 的常見 bug。
 
-        已知限制: \\b 是 JSON 合法 backspace, regex 守舊不動 \\beta (避免誤殺真 backspace).
-        \\f \\n \\r \\t \\u 同樣放行. 所以 \\alpha / \\gamma 會被加倍, \\beta 留原樣
-        (LLM 寫到 narration 時用希臘字母對照表 β 比較安全).
+        已修補: 將 LaTeX command 類型（如 \\beta / \\theta / \\times / \\frac）
+        也補為 \\beta / \\times / \\frac 讓 json.loads 不會吃掉控制字元.
         """
-        bad = r'"\alpha + \beta = \gamma"'
+        bad = r'"\alpha + \beta = \gamma; \theta \times r"'
         good = clean_json_escapes(bad)
         assert r"\\alpha" in good
         assert r"\\gamma" in good
-        # \beta 跟 JSON \b backspace 衝突, regex 不動
-        assert r"\\beta" not in good
-        assert r"\beta" in good
+        assert r"\\beta" in good
+        assert r"\\theta" in good
+        assert r"\\times" in good
+        assert clean_json_escapes(r'"\frac{1}{2}"') == r'"\\frac{1}{2}"'

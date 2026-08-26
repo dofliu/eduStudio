@@ -66,6 +66,22 @@ def test_health_exempt_even_with_token(monkeypatch):
     assert c.get("/health").status_code == 200
 
 
+def test_ai_event_sink_is_noop_without_token(monkeypatch):
+    monkeypatch.delenv(TOKEN_ENV, raising=False)
+    c = _client()
+    r = c.post("/api/v1/events/ai", json={"source": "browser-instrumentation"})
+    assert r.status_code == 204
+    assert r.content == b""
+
+
+def test_ai_event_sink_exempt_even_with_token(monkeypatch):
+    monkeypatch.setenv(TOKEN_ENV, TOKEN)
+    c = _client()
+    r = c.post("/api/v1/events/ai", json={"source": "browser-instrumentation"})
+    assert r.status_code == 204
+    assert r.content == b""
+
+
 def test_openapi_protected_with_token(monkeypatch):
     monkeypatch.setenv(TOKEN_ENV, TOKEN)
     c = _client()

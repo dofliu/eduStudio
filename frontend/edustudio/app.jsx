@@ -54,64 +54,6 @@ const TASK_TYPES = {
   subtitle: { label: "字幕",      icon: "captions", desc: "為既有影片生成多語字幕",           hue: "var(--es-warning)" },
 };
 
-const VIDEO_TASKS = [
-  { id: "v1", title: "期中考 第 3 題 — 斜向拋體解題", type: "solve", status: "review",
-    source: "期中考卷 2026 春.pdf", duration: "04:32", segments: 6, approved: 1, lang: "zh-TW",
-    updated: "12 分鐘前", cost: 0.42, model: "Gemini 2.5 Pro" },
-  { id: "v2", title: "MIT Lecture 12 — 配音翻譯", type: "dub", status: "running",
-    source: "MIT 8.01 Lecture 12", progress: 62, lang: "en", target: "zh-TW",
-    updated: "進行中", cost: 1.18, model: "Gemini 2.5 Pro" },
-  { id: "v3", title: "教學討論會 0530 — 重點摘要", type: "summary", status: "approved",
-    source: "教學討論會錄音 0530.m4a", duration: "06:10", lang: "zh-TW",
-    updated: "昨天", cost: 0.31, model: "Gemini 2.5 Flash" },
-  { id: "v4", title: "自由落體實驗講解", type: "solve", status: "queued",
-    source: "自由落體實驗.mp4", lang: "zh-TW", updated: "排隊中 · 第 2 位", cost: 0, model: "Gemini 2.5 Pro" },
-  { id: "v5", title: "第 6 章 動量 — 字幕生成", type: "subtitle", status: "failed",
-    source: "第 6 章 動量.mp4", lang: "zh-TW", updated: "1 小時前", cost: 0.05, model: "Gemini 2.5 Flash",
-    error: "來源影片無音軌，無法生成字幕" },
-];
-
-/* Review-gate segments for task v1 — narration + formulas + numbers to verify */
-const f = (s) => s; // formula HTML passthrough
-const REVIEW_SEGMENTS = [
-  {
-    id: "seg1", t: "00:00 – 00:18", status: "approved", confidence: 0.97,
-    narration: "本題為斜向拋體運動。物體以初速度 v₀ = 20 m/s、仰角 θ = 30° 拋出，忽略空氣阻力，重力加速度取 g = 9.8 m/s²。",
-    formula: null,
-    values: [ { k: "v₀", v: "20 m/s" }, { k: "θ", v: "30°" }, { k: "g", v: "9.8 m/s²" } ],
-  },
-  {
-    id: "seg2", t: "00:18 – 00:52", status: "review", confidence: 0.74, flag: "數值可能需修正",
-    narration: "首先將初速度分解為水平與垂直分量。水平分量為 v₀ cos θ，垂直分量為 v₀ sin θ。",
-    formula: f("<span class='es-eq'>v<sub>0x</sub> = v<sub>0</sub>cos θ = 20 × cos 30° = <mark class='es-flag'>17.3</mark> m/s</span><span class='es-eq'>v<sub>0y</sub> = v<sub>0</sub>sin θ = 20 × sin 30° = 10.0 m/s</span>"),
-    values: [ { k: "v₀ₓ", v: "17.3 m/s", flag: true, suggest: "17.32 m/s" }, { k: "v₀ᵧ", v: "10.0 m/s" } ],
-  },
-  {
-    id: "seg3", t: "00:52 – 01:40", status: "review", confidence: 0.91,
-    narration: "在最高點，垂直速度為零。利用運動學公式可求得最大高度 H。",
-    formula: f("<span class='es-eq'>H = <span class='es-frac'><span class='es-fnum'>v<sub>0y</sub>²</span><span class='es-fden'>2g</span></span> = <span class='es-frac'><span class='es-fnum'>10²</span><span class='es-fden'>2 × 9.8</span></span> = 5.10 m</span>"),
-    values: [ { k: "H", v: "5.10 m" } ],
-  },
-  {
-    id: "seg4", t: "01:40 – 02:30", status: "pending", confidence: 0.88,
-    narration: "整體飛行時間為上升與下降時間之和，可由垂直分量除以重力加速度的兩倍求得。",
-    formula: f("<span class='es-eq'>t = <span class='es-frac'><span class='es-fnum'>2 v<sub>0y</sub></span><span class='es-fden'>g</span></span> = <span class='es-frac'><span class='es-fnum'>2 × 10</span><span class='es-fden'>9.8</span></span> = 2.04 s</span>"),
-    values: [ { k: "t", v: "2.04 s" } ],
-  },
-  {
-    id: "seg5", t: "02:30 – 03:20", status: "pending", confidence: 0.85,
-    narration: "水平方向為等速運動，射程等於水平速度乘以飛行時間。",
-    formula: f("<span class='es-eq'>R = v<sub>0x</sub> · t = 17.3 × 2.04 = <mark class='es-flag'>35.3</mark> m</span>"),
-    values: [ { k: "R", v: "35.3 m", flag: true, suggest: "35.32 m" } ],
-  },
-  {
-    id: "seg6", t: "03:20 – 04:32", status: "pending", confidence: 0.93,
-    narration: "綜上所述，此斜向拋體的最大高度約為 5.1 公尺，水平射程約為 35.3 公尺，總飛行時間約 2.04 秒。建議學生注意三角函數值的有效位數。",
-    formula: null,
-    values: [],
-  },
-];
-
 const VISUAL_MODES = {
   slides: { label: "教學簡報", icon: "presentation", desc: "成套投影片 · 16:9", hue: "var(--es-ws-video)" },
   // 圖卡與海報合併為單一視覺成品（單張大圖），用版式(直式海報/方形圖卡/橫式)區分用途。
@@ -119,6 +61,10 @@ const VISUAL_MODES = {
   // 資訊圖卡：多區塊結構化版面，支援逐區（區域選擇）refine。
   infographic: { label: "資訊圖卡", icon: "layout-grid", desc: "多區塊 · 可逐區微調", hue: "var(--es-ws-material)" },
 };
+
+const VISUAL_MODE_ORDER = ["slides", "poster", "infographic"];
+const VISUAL_MODE_CANONICAL = { card: "infographic" };
+const normalizeVisualMode = (value) => VISUAL_MODE_CANONICAL[value] || value || "slides";
 
 const VISUAL_OUTPUTS = [
   { id: "g1", mode: "slides", title: "第 7 章 動量守恆 — 教學簡報", meta: "12 張", status: "approved", localized: ["en", "ja"] },
@@ -155,8 +101,8 @@ const TOOLBOX = [
 ];
 
 Object.assign(window, {
-  LANGS, PROJECTS, SOURCE_TYPES, SOURCES, TASK_TYPES, VIDEO_TASKS,
-  REVIEW_SEGMENTS, VISUAL_MODES, VISUAL_OUTPUTS, LIBRARY, PUBLISH_ITEMS,
+  LANGS, PROJECTS, SOURCE_TYPES, SOURCES, TASK_TYPES,
+  VISUAL_MODES, VISUAL_OUTPUTS, LIBRARY, PUBLISH_ITEMS,
   TOOLBOX,
 });
 /* eduStudio — shared UI primitives (Icon set, Button, Badge, Card, Field…) */
@@ -225,6 +171,9 @@ const ICONS = {
   'message-square':'<path d="M22 17a2 2 0 0 1-2 2H6l-4 4V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>',
   'pen-tool':'<path d="M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586 1.586a1 1 0 0 1 0 1.414z"/><path d="m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0 .776.746L13 18"/><path d="m2.3 2.3 7.286 7.286"/><circle cx="11" cy="11" r="2"/>',
 };
+ICONS['trash-2'] = ICONS.trash;
+ICONS['external-link'] = ICONS.link;
+ICONS.save = ICONS.download;
 
 function Icon({ name, size = 18, strokeWidth = 1.9, className = "", style = {} }) {
   const inner = ICONS[name] || ICONS['file'];
@@ -1586,16 +1535,14 @@ function ProposalsPanel({ onJobCreated }) {
 function VideoStation({ projectId, onReview, onGoPublish, onGoStatus }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [usingMock, setUsingMock] = useState(false);
   const [toast, setToast] = useState(null);
 
   const refresh = () => fetch("/jobs").then(r => r.json()).then(d => {
     const list = (d.jobs || d || []).map(esJobToTask);
-    if (list.length) { setTasks(list); setUsingMock(false); }
-    else if (!usingMock) { setTasks([]); }
+    setTasks(list);
     setLoading(false);
     return list;
-  }).catch(() => { setTasks(VIDEO_TASKS); setUsingMock(true); setLoading(false); return []; });
+  }).catch(() => { setTasks([]); setLoading(false); return []; });
 
   useEffect(() => { refresh(); }, []);
 
@@ -1667,7 +1614,8 @@ function VideoStation({ projectId, onReview, onGoPublish, onGoStatus }) {
   const retry = async (task) => {
     if (!task._stype || !task._src) { flash("無法重試：缺原始來源"); return; }
     try {
-      const r = await fetch("/jobs", {
+      const retryUrl = task.project_id ? "/projects/" + task.project_id + "/jobs" : (projectId ? "/projects/" + projectId + "/jobs" : "/jobs");
+      const r = await fetch(retryUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source_type: task._stype, source: task._src, options: {} }),
       });
@@ -1776,19 +1724,19 @@ function ReviewGate({ task, onClose, onComplete }) {
   const [dirty, setDirty] = useState(false);
   const deckRef = useRef(null);   // 原始 deck.json（存回時依 seg._path 寫回 narration）
 
-  // 真實 job → 取 deck.json（autoSolver /jobs/{id}/draft）映射成分段；非 job 或失敗 fallback mock。
+  // 真實 job → 取 deck.json（autoSolver /jobs/{id}/draft）映射成分段；非 job 或失敗則不顯示假的 mock 段落。
   useEffect(() => {
     let alive = true;
     if (task && task._job && task.id) {
       fetch("/jobs/" + task.id + "/draft").then(r => r.ok ? r.json() : Promise.reject())
         .then(d => { if (alive) { const deck = d.deck || d; deckRef.current = deck; setSegs(esDeckToSegments(deck)); setLoading(false); } })
-        .catch(() => { if (alive) { setSegs(REVIEW_SEGMENTS.map(s => ({ ...s }))); setLoading(false); } });
+        .catch(() => { if (alive) { setSegs([]); setLoading(false); } });
       // F9-1d: 取確定性 review 校驗可疑點，配位到分段顯示 ⚠（輔助提醒、不阻擋）。
       // fail-open：抓不到（舊 job / 端點錯）就不顯示，絕不卡審查。
       fetch("/jobs/" + task.id + "/review-flags").then(r => r.ok ? r.json() : { flags: [] })
         .then(d => { const fl = (d && d.flags) || []; if (alive && fl.length) setSegs(cur => esAttachReviewFlags(cur, fl)); })
         .catch(() => {});
-    } else { setSegs(REVIEW_SEGMENTS.map(s => ({ ...s }))); setLoading(false); }
+    } else { setSegs([]); setLoading(false); }
     return () => { alive = false; };
   }, [task]);
 
@@ -2111,7 +2059,7 @@ const ES_ANIM_OPTIONS = [{ v: "fade", label: "淡入" }, { v: "slide", label: "�
 const ES_ASPECT_OPTIONS = [{ v: "vertical", label: "直式（海報）" }, { v: "square", label: "方形（圖卡）" }, { v: "horizontal", label: "橫式" }];
 const ES_TYPO_OPTIONS = [{ v: "modern", label: "現代" }, { v: "classic", label: "古典" }, { v: "mono", label: "等寬" }, { v: "handwriting", label: "手寫" }];
 // 各模式預設數量；count 拿來當 slideCount(slides)；poster 固定單張。
-const ES_DEFAULT_COUNT = { slides: 10, poster: 1 };
+const ES_DEFAULT_COUNT = { slides: 10, poster: 1, infographic: 1 };
 
 const esSelectStyle = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--es-border)", background: "var(--es-bg-1)", color: "var(--es-fg-1)", cursor: "pointer" };
 
@@ -2138,7 +2086,7 @@ function esReadFileB64(file) {
 }
 
 function VisualComposer({ projectId, initialMode = "slides" }) {
-  const [mode, setMode] = useState(initialMode);
+  const [mode, setMode] = useState(normalizeVisualMode(initialMode));
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("牛頓三大運動定律");
   const [content, setContent] = useState("");
@@ -2162,13 +2110,21 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
   const [vemph, setVemph] = useState("");
   const [animation, setAnimation] = useState("fade");
   const [advOpen, setAdvOpen] = useState(false);
-  const m = VISUAL_MODES[mode];
+  const modeKey = normalizeVisualMode(mode);
+  const m = VISUAL_MODES[modeKey] || VISUAL_MODES.infographic;
 
   // 模式 → 後端 /api/generate mode。圖卡/海報合併走 poster（單張大圖）；資訊圖卡走 infographic（多區塊）。
-  const backendMode = { poster: "poster", slides: "presentation", infographic: "infographic" }[mode] || null;
+  const backendMode = { poster: "poster", slides: "presentation", infographic: "infographic" }[modeKey] || null;
 
   // 切模式時重設數量為該模式預設，並清掉上一個結果/大綱。
-  const pickMode = (k) => { setMode(k); setResult(null); setErr(""); setOutlines(null); setCount(ES_DEFAULT_COUNT[k] || 1); };
+  const pickMode = (k) => {
+    const nextMode = normalizeVisualMode(k);
+    setMode(nextMode);
+    setResult(null);
+    setErr("");
+    setOutlines(null);
+    setCount(ES_DEFAULT_COUNT[nextMode] || 1);
+  };
 
   // 共用生成核心：依使用者選項組 body；extra 可帶 selectedOutline 等覆寫欄位。
   const runGenerate = async (extra) => {
@@ -2180,7 +2136,7 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
       const body = {
         mode: backendMode, text: gi.text, style,
         customStylePrompt: style === "custom" ? customPrompt : "",
-        slideCount: mode === "slides" ? count : 10,
+        slideCount: modeKey === "slides" ? count : 10,
         aspectRatio: aspect, density, typography,
         animation, audience, purpose, tone, visualEmphasis: vemph,
         projectId: projectId || "",   // 有作用中課程→成品掛進該課程
@@ -2206,7 +2162,7 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
       const r = await fetch("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "outline", text: esBuildGenInput(genSource, title, content, files).text, files: esBuildGenInput(genSource, title, content, files).files.map(f => ({ mimeType: f.mimeType, data: f.data })), style,
-          customStylePrompt: style === "custom" ? customPrompt : "", slideCount: mode === "slides" ? count : 10,
+          customStylePrompt: style === "custom" ? customPrompt : "", slideCount: modeKey === "slides" ? count : 10,
           audience, purpose, tone, visualEmphasis: vemph }),
       });
       const data = await r.json();
@@ -2251,20 +2207,26 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
       setErr(""); alert("分享連結已複製：\n" + full);
     } catch (e) { setErr("分享發生錯誤：" + ((e && e.message) || e)); }
   };
-  // 加入第一個 Project 的成品庫：POST /projects/{pid}/artifacts。
+  // 加入目前選定 Project 的成品庫：POST /projects/{pid}/artifacts。
   const ES_MODE_ARTKIND = { poster: "image", slides: "deck", infographic: "infographic" };
   const addToProject = async () => {
     if (!result) return;
+    if (!projectId) {
+      setErr("尚未選擇 Project，請先到「素材」工作站建立並指定");
+      return;
+    }
     try {
-      const list = await fetch("/projects").then(r => r.json());
-      const proj = (list || [])[0];
-      if (!proj) { setErr("尚無 Project，請先到「素材」工作站建立"); return; }
-      const r = await fetch("/projects/" + proj.project_id + "/artifacts", {
+      const r = await fetch("/projects/" + projectId + "/artifacts", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: ES_MODE_ARTKIND[mode] || "image", produced_by: "infoCard", state: "draft", lang: "zh-TW" }),
+        body: JSON.stringify({ kind: ES_MODE_ARTKIND[modeKey] || "image", produced_by: "infoCard", state: "draft", lang: "zh-TW" }),
       });
-      if (!r.ok) { let d = r.status; try { d = (await r.json()).detail || d; } catch {} setErr("加入失敗：" + d); return; }
-      setErr(""); alert("已加入 Project「" + (proj.title || proj.project_id) + "」的成品庫");
+      if (!r.ok) {
+        let d = r.status;
+        try { d = (await r.json()).detail || d; } catch {}
+        setErr("加入失敗：" + d);
+        return;
+      }
+      setErr(""); alert("已加入選取 Project（" + projectId + "）的成品庫");
     } catch (e) { setErr("加入發生錯誤：" + ((e && e.message) || e)); }
   };
 
@@ -2330,11 +2292,16 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
         <div className="es-vc-input">
           <div className="es-field-label" style={{ marginBottom: 10 }}>選擇模式</div>
           <div className="es-vmode-grid">
-            {Object.entries(VISUAL_MODES).map(([k, v]) => (
-              <button key={k} className={"es-vmode" + (mode === k ? " is-active" : "")} style={{ "--ws-hue": v.hue }} onClick={() => pickMode(k)}>
-                <Icon name={v.icon} size={20} />
-                <span className="es-vmode-name">{v.label}</span>
-                <span className="es-vmode-desc">{v.desc} · 已接後端</span>
+            {VISUAL_MODE_ORDER.map((k) => {
+              const v = VISUAL_MODES[k];
+              return (
+                <button key={k} className={"es-vmode" + (modeKey === k ? " is-active" : "")} style={{ "--ws-hue": v.hue }} onClick={() => pickMode(k)}>
+                  <Icon name={v.icon} size={20} />
+                  <span className="es-vmode-name">{v.label}</span>
+                  <span className="es-vmode-desc">{v.desc} · 已接後端</span>
+                </button>
+              );
+            })}
               </button>
             ))}
           </div>
@@ -2376,13 +2343,13 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
                   {ES_STYLE_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
                 </select>
               </Field>
-              <Field label={mode === "slides" ? "張數" : "數量"}>
-                {mode === "slides" ? (
+              <Field label={modeKey === "slides" ? "張數" : "數量"}>
+                {modeKey === "slides" ? (
                   <select style={esSelectStyle} value={count} onChange={(e) => setCount(Number(e.target.value))}>
                     {[6, 8, 10, 12, 15, 20].map(n => <option key={n} value={n}>{n} 張</option>)}
                   </select>
                 ) : (
-                  <div className="es-select-fake">{mode === "infographic" ? "自動分區" : "1 張"}</div>
+                  <div className="es-select-fake">{modeKey === "infographic" ? "自動分區" : "1 張"}</div>
                 )}
               </Field>
             </div>
@@ -2397,14 +2364,14 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
                   {ES_DENSITY_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
                 </select>
               </Field>
-              {mode === "slides" && (
+              {modeKey === "slides" && (
                 <Field label="字型風格">
                   <select style={esSelectStyle} value={typography} onChange={(e) => setTypography(e.target.value)}>
                     {ES_TYPO_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
                   </select>
                 </Field>
               )}
-              {(mode === "poster" || mode === "infographic") && (
+              {modeKey !== "slides" && (
                 <Field label="版式" hint="直式＝海報 · 方形＝圖卡">
                   <select style={esSelectStyle} value={aspect} onChange={(e) => setAspect(e.target.value)}>
                     {ES_ASPECT_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
@@ -2414,7 +2381,7 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
             </div>
 
             {/* 簡報專屬：受眾／目的／語氣／視覺取向／動畫（對齊 infoCard 簡報設定面板）。 */}
-            {mode === "slides" && (
+            {modeKey === "slides" && (
               <div style={{ marginTop: 4 }}>
                 <button className="es-row es-gap-xs" style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 0", color: "var(--es-fg-2)" }} onClick={() => setAdvOpen(a => !a)}>
                   <Icon name={advOpen ? "chevron-down" : "chevron-right"} size={15} /> <span className="es-cap">簡報進階設定（受眾 · 目的 · 語氣 · 視覺取向 · 動畫）</span>
@@ -2464,7 +2431,7 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
             <Button variant="primary" icon="wand" className="es-vc-gen" disabled={busy || outlineBusy} onClick={generate}>
               {busy ? <><Spinner size={16} /> 生成中…</> : <>生成{m.label}</>}
             </Button>
-            {mode === "slides" && (
+            {modeKey === "slides" && (
               <Button variant="default" icon="list" disabled={busy || outlineBusy} onClick={previewOutlines}>
                 {outlineBusy ? <><Spinner size={15} /> 規劃中…</> : <>先預覽大綱</>}
               </Button>
@@ -2490,19 +2457,19 @@ function VisualComposer({ projectId, initialMode = "slides" }) {
         <div className="es-vc-preview">
           <div className="es-vc-preview-label"><Icon name="eye" size={13} /> {result ? "生成結果" : "即時預覽"} · {m.label}</div>
           <div className="es-vc-stage">{result
-            ? <RealPreview mode={mode} result={result}
-                selectedSection={mode === "infographic" && secOpen ? secIdx : -1}
-                onPickSection={mode === "infographic" && result.data && result.data.sections ? pickSection : undefined} />
-            : <VisualPreview mode={mode} />}</div>
+            ? <RealPreview mode={modeKey} result={result}
+                selectedSection={modeKey === "infographic" && secOpen ? secIdx : -1}
+                onPickSection={modeKey === "infographic" && result.data && result.data.sections ? pickSection : undefined} />
+            : <VisualPreview mode={modeKey} />}</div>
           <div className="es-row es-gap-sm" style={{ justifyContent: "center", flexWrap: "wrap" }}>
             <Button variant="ghost" size="sm" icon="refresh-cw" disabled={busy} onClick={generate}>重新生成</Button>
-            {mode === "slides" && result && result.data && result.data.slides ? (
+            {modeKey === "slides" && result && result.data && result.data.slides ? (
               <Button variant="default" size="sm" icon="pencil" onClick={() => setRefineOpen(o => !o)}>微調單頁</Button>
             ) : null}
-            {mode === "infographic" && result && result.data && result.data.sections ? (
+            {modeKey === "infographic" && result && result.data && result.data.sections ? (
               <Button variant="default" size="sm" icon="pencil" onClick={() => setSecOpen(o => !o)}>逐區微調</Button>
             ) : null}
-            {mode === "slides" && result && result.data && (
+            {modeKey === "slides" && result && result.data && (
               <Button variant="default" size="sm" icon="download" onClick={() => exportPptx(result.data)}>匯出 PPTX</Button>
             )}
             {result && <span className="es-cap es-mut" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="check-circle" size={13} style={{ color: "var(--es-success)" }} /> {projectId ? "已存入此課程素材庫" : "已自動存入素材庫"}</span>}
@@ -2569,8 +2536,6 @@ function VisualCard({ o, onLocalize, projectId = "" }) {
 }
 
 function VisualStation({ projectId, initialMode = "slides" }) {
-  const [outputs, setOutputs] = useState(VISUAL_OUTPUTS);
-  const localize = (id, l) => setOutputs(o => o.map(x => x.id === id ? { ...x, localized: l } : x));
   return (
     <div className="es-screen">
       <div className="es-screen-head">
@@ -2580,10 +2545,6 @@ function VisualStation({ projectId, initialMode = "slides" }) {
         </div>
       </div>
       <VisualComposer projectId={projectId} initialMode={initialMode} />
-      <div className="es-list-head"><h2 className="es-h2">視覺成品</h2></div>
-      <div className="es-vgrid">
-        {outputs.map(o => <VisualCard key={o.id} o={o} onLocalize={localize} projectId={projectId} />)}
-      </div>
     </div>
   );
 }
@@ -2623,6 +2584,7 @@ const VLIB_TYPE_META = {
   poster: { label: "圖卡 · 海報", icon: "image", hue: "var(--es-ws-visual)" },
   presentation: { label: "教學簡報", icon: "presentation", hue: "var(--es-ws-video)" },
   infographic: { label: "資訊圖卡", icon: "layout-grid", hue: "var(--es-ws-material)" },
+  comic: { label: "教學漫畫", icon: "book-open", hue: "var(--es-ws-material)" },
 };
 
 // 開圖：Chrome 禁止 window.open() 直接導向 data: URL（會「無法連上這個網站」），
@@ -3413,6 +3375,20 @@ function StatusStation({ onReview, onGoPublish }) {
       flash("已重新建立任務"); refresh();
     } catch (e) { flash("重試發生錯誤：" + e.message); }
   };
+  const taskLocalize = (taskId, localized) => {
+    const next = Array.isArray(localized)
+      ? localized.filter(Boolean)
+      : (typeof localized === "string" && localized ? [localized] : []);
+    setTasks((prev) => prev.map(t => t.id === taskId ? { ...t, localized: next } : t));
+  };
+  const taskCancel = async (task) => {
+    if (!confirm(`確定取消任務「${task.title}」？`)) return;
+    try {
+      const r = await fetch("/jobs/" + task.id, { method: "DELETE" });
+      if (!r.ok && r.status !== 404) { flash("取消失敗（" + r.status + "）"); return; }
+      flash("已取消任務"); refresh();
+    } catch (e) { flash("取消發生錯誤：" + e.message); }
+  };
 
   const groups = [
     { key: "review", label: "待審核", icon: "eye", items: tasks.filter(t => t.status === "review") },
@@ -3442,8 +3418,9 @@ function StatusStation({ onReview, onGoPublish }) {
             <div className="es-list-head"><h2 className="es-h2"><Icon name={g.icon} size={16} /> {g.label} <span className="es-mut">{g.items.length}</span></h2></div>
             <div className="es-task-list">
               {g.items.map(t => <TaskCard key={t.id} task={t} onReview={onReview}
-                onLocalize={() => {}} onRetry={taskRetry} onPublish={() => onGoPublish && onGoPublish()}
-                onDelete={taskDelete} onRerender={() => { flash("已排程重渲染章節"); refresh(); }} />)}
+                onLocalize={taskLocalize} onCancel={taskCancel} onRetry={taskRetry}
+                onPublish={() => onGoPublish && onGoPublish()} onDelete={taskDelete}
+                onRerender={() => { flash("已排程重渲染章節"); refresh(); }} />)}
             </div>
           </div>
         ))}

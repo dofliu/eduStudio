@@ -434,7 +434,7 @@ class TestCatchAll:
         self, store, make_job, stubs
     ):
         stubs["render_phase_raise"] = RuntimeError("天外飛來一筆")
-        job_id = make_job(require_review=False)  # 要走到 render_phase
+        job_id = make_job(source_type=SourceType.SLIDES_PDF, require_review=False)  # 要走到 render_phase
         await run_job(store, job_id)  # 不該 propagate
         rec = store.get(job_id)
         assert rec.state == JobState.FAILED
@@ -445,7 +445,7 @@ class TestCatchAll:
     async def test_detach_still_runs_on_unexpected(self, store, make_job, stubs):
         """catch-all 路徑也走 finally → detach + contextvar reset."""
         stubs["render_phase_raise"] = RuntimeError("boom")
-        job_id = make_job(require_review=False)
+        job_id = make_job(source_type=SourceType.SLIDES_PDF, require_review=False)
         await run_job(store, job_id)
         assert stubs["detach_calls"] == [job_id]
         assert current_job_id.get() is None

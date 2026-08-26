@@ -168,11 +168,20 @@
 }
 
 @media (max-width: 620px) {
+  .es-home { gap: 20px; }
+  .es-home-hero { padding: 24px 18px; border-radius: 24px; }
+  .es-home-title { font-size: clamp(28px, 9vw, 36px); }
+  .es-home-lead { font-size: 14px; }
   .es-intent-box, .es-task-brief { grid-template-columns: 1fr; }
-  .es-intent-action { min-height: 44px; }
+  .es-intent-action { width: 100%; min-height: 44px; }
+  .es-workflow-head { align-items: flex-start; flex-direction: column; gap: 10px; }
   .es-workflow-grid { grid-template-columns: minmax(0, 1fr); }
-  .es-workflow-card { min-width: 0; }
-  .es-workflow-card { min-height: 145px; }
+  .es-workflow-card {
+    width: 100%;
+    min-width: 0;
+    min-height: 145px;
+    padding: 16px;
+  }
   .es-task-brief-actions { justify-content: flex-end; }
   .es-comic-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .es-comic-fields { grid-template-columns: 1fr; }

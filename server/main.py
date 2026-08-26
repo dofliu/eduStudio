@@ -165,6 +165,15 @@ def create_app() -> FastAPI:
     app.include_router(comics_routes.router)      # eduStudio: file-first 漫畫製作與連載 reader
     app.include_router(settings_routes.router)    # eduStudio 設定頁: 品牌/API/模型
 
+    @app.post("/api/v1/events/ai", include_in_schema=False)
+    async def ai_event_sink() -> Response:
+        """相容瀏覽器/AI 外掛的背景 telemetry 呼叫，避免測試與操作 log 持續出現 404。
+
+        為什麼回 204 而不是收資料：目前 eduStudio 沒有事件追蹤資料模型，也不應在未設計
+        retention / privacy boundary 前落盤；這裡只把外部 instrumentation 的噪音收斂成 no-op。
+        """
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor
     # 用 StaticFiles mount /ui/assets 處理已知 asset 檔, 其餘 /ui/* 走 SPA fallback
     # (deep link 例如 /ui/jobs/abc 直接刷新時 fallback 到 index.html, 由 React Router 處理)

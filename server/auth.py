@@ -28,7 +28,8 @@ COOKIE_NAME = "es_auth"
 
 # 這些路徑即使開了驗證也要可達, 否則使用者無法登入 / 監控無法探活。
 # /auth: 登入端點本身。/health: 給 Docker healthcheck / 監控(只回布林診斷, 不含密鑰)。
-_EXEMPT_PREFIXES = ("/auth", "/health")
+# /api/v1/events: 相容外部瀏覽器/AI instrumentation 的 no-op event sink；不讀取、不落盤。
+_EXEMPT_PREFIXES = ("/auth", "/health", "/api/v1/events")
 
 
 def get_api_token() -> str | None:

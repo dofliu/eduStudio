@@ -17,6 +17,7 @@
 | `/library` | PASS | 回傳 `31` 筆 library entries |
 | Desktop visual smoke | PASS | 首頁、sidebar、product cards、search bar 正常可視 |
 | Mobile visual smoke | PARTIAL | 可載入，但左側 rail 與 card 寬度造成內容橫向裁切 |
+| Runtime log review | PARTIAL | 本機測試期間觀察到安全設定警告與重複 404 event call |
 
 ## 2. 修補項目
 
@@ -110,6 +111,16 @@ Smoke test 結果：
 
 目前 full test suite、frontend build、server smoke 與核心 API smoke 均通過，未觀察到 Phase 2 修補後的阻斷性功能缺失。
 
+### P2：Runtime 仍有重複無效 event call
+
+本機 server log 在 Chrome visual smoke 期間出現多次：
+
+```text
+POST /api/v1/events/ai HTTP/1.1" 404 Not Found
+```
+
+目前只能確認這是 runtime 期間發生的無效 endpoint call，尚不能從本次證據判定來源是 frontend code、browser extension、devtool instrumentation，或舊版 client 快取。建議下一輪優先追查來源，若屬於 frontend 呼叫，應移除或補上對應 API handler；若屬外部 extension/instrumentation，應在測試報告中明確排除。
+
 ### P2：Mobile responsive layout 尚未完全收斂
 
 Mobile 版目前不是空白或 crash，但主內容仍受到 sidebar/固定 card 寬度影響而橫向裁切。這屬於介面設計與 responsive polish 問題，不影響 backend/API 測試結果，但會影響手機使用體驗。
@@ -119,6 +130,17 @@ Mobile 版目前不是空白或 crash，但主內容仍受到 sidebar/固定 car
 1. 在 mobile breakpoint 將 left rail 改為 bottom navigation 或 collapsible drawer。
 2. 將 product cards 改為單欄 full-width。
 3. 讓 hero input 與 CTA 在窄螢幕下垂直堆疊。
+
+### P3：本機安全與外部服務設定仍是部署前項目
+
+Server 啟動自檢顯示：
+
+```text
+gemini_api_key: 未設定
+EDUSTUDIO_API_TOKEN 未設定
+```
+
+這不阻斷 localhost smoke test，但表示目前不能宣稱 Gemini generation 已完成 live end-to-end 驗證，也不能在未設定 `EDUSTUDIO_API_TOKEN` 的狀態下暴露到內網或公網。
 
 ### P3：外部工具相依測試未完整覆蓋
 

@@ -67,11 +67,13 @@ jobs:
       # google-genai (2026-06-07 加): eduStudio 整合後 infocards 視覺生成 + 影片
       # pipeline 都靠它, tests/test_infocards_*.py 的 gemini helper 測試直接 import
       # `from google.genai import types`(非 importorskip)→ 不裝會 ModuleNotFoundError。
-      # 純 Python wheel, 不卡 build。f5-tts 等重型平台相依仍不裝(相關 test 有 skipif)。
+      # python-docx (2026-08-28 加): 漫畫 DOCX fallback export 的核心依賴；CI 會刻意
+      # 模擬 Word COM 不可用，必須真的走 fallback，不能靠開發機全域套件掩蓋缺依賴。
+      # 兩者皆為純 Python wheel, 不卡 build。f5-tts 等重型平台相依仍不裝(相關 test 有 skipif)。
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode pymupdf matplotlib google-genai
+          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode pymupdf matplotlib google-genai python-docx
           pip install -r requirements-dev.txt
 
       - name: Run pytest

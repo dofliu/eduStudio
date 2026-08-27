@@ -19,6 +19,7 @@ mutagen>=1.47          # MP3 duration 抓取, 算字幕時間軸用
 pydantic>=2.6          # schema / settings (Track B)
 edge-tts>=7.0          # 預設 TTS backend (cloud 免費)
 matplotlib>=3.7        # LaTeX 公式渲染 (mathtext → 透明 PNG, core/formula_render.py)
+python-docx>=1.1       # 漫畫 DOCX fallback 匯出；無 Word COM 時仍需可產出可編輯文件
 
 # ============================================================
 # llm — Gemini 2.5 Flash 是主要 LLM (vision + text)

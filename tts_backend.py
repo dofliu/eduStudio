@@ -34,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import subprocess
 from abc import ABC, abstractmethod
@@ -532,7 +533,13 @@ def load_tts_backend(config_path: Path | None = None) -> TTSBackend:
         rate=edge_cfg.get("rate", "-5%"),
     )
 
-    backend_name = cfg.get("backend", "edge")
+    # per-job override（server.runner）優先於持久設定；這也是 README/.env 對外承諾的
+    # TTS_PROVIDER 行為。先前 runner 雖設定 env，但 loader 完全沒讀，導致指定 edge
+    # 的短測試仍誤載 F5，單支影片無預警多跑數十分鐘。
+    provider_override = (os.environ.get("TTS_PROVIDER") or "").strip().lower()
+    if provider_override and provider_override not in {"edge", "f5", "google"}:
+        raise ValueError(f"不支援的 TTS_PROVIDER: {provider_override!r}")
+    backend_name = provider_override or cfg.get("backend", "edge")
     if backend_name == "f5":
         f5cfg = cfg.get("f5", {}) or {}
         primary = F5TTS(

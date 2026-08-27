@@ -48,6 +48,7 @@ PIPELINE_CONFIG_PATH = BASE_DIR / "pipeline_config.json"
 # normalize_text(), 由 backend.synthesize() 自動套用。pipeline.py 只管編排。
 _TTS_BACKEND = None
 _TTS_CONFIG_MTIME = None
+_TTS_PROVIDER_KEY = None
 def _get_tts_backend():
     """建 TTS backend；tts_config.json 改過(換聲音)就重載，否則沿用快取。
 
@@ -56,15 +57,18 @@ def _get_tts_backend():
     (劉老師回報「選了劉老師最後都一樣 被固定了」)。改成依 tts_config.json mtime 失效快取——
     換聲音(POST /voices 改寫 tts_config)後下一個 job 會重載，但同一 job 內不變(F5 模型不必重載)。
     """
-    global _TTS_BACKEND, _TTS_CONFIG_MTIME
+    global _TTS_BACKEND, _TTS_CONFIG_MTIME, _TTS_PROVIDER_KEY
     from tts_backend import CONFIG_PATH
     try:
         mtime = os.path.getmtime(CONFIG_PATH)
     except OSError:
         mtime = None
-    if _TTS_BACKEND is None or mtime != _TTS_CONFIG_MTIME:
+    provider_key = (os.environ.get("TTS_PROVIDER") or "").strip().lower() or None
+    if (_TTS_BACKEND is None or mtime != _TTS_CONFIG_MTIME
+            or provider_key != _TTS_PROVIDER_KEY):
         _TTS_BACKEND = load_tts_backend()
         _TTS_CONFIG_MTIME = mtime
+        _TTS_PROVIDER_KEY = provider_key
     return _TTS_BACKEND
 
 async def gen_tts(text, out_path):

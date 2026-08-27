@@ -10,6 +10,8 @@ def test_reloads_when_tts_config_mtime_changes(monkeypatch):
     monkeypatch.setattr(pipeline, "load_tts_backend", lambda: (loads.append(1), object())[1])
     pipeline._TTS_BACKEND = None
     pipeline._TTS_CONFIG_MTIME = None
+    pipeline._TTS_PROVIDER_KEY = None
+    monkeypatch.delenv("TTS_PROVIDER", raising=False)
     times = iter([100.0, 100.0, 200.0])
     monkeypatch.setattr(pipeline.os.path, "getmtime", lambda p: next(times))
 
@@ -23,6 +25,7 @@ def test_reloads_when_tts_config_mtime_changes(monkeypatch):
 
     pipeline._TTS_BACKEND = None
     pipeline._TTS_CONFIG_MTIME = None
+    pipeline._TTS_PROVIDER_KEY = None
 
 
 def test_missing_config_still_loads_once(monkeypatch):
@@ -31,6 +34,8 @@ def test_missing_config_still_loads_once(monkeypatch):
     monkeypatch.setattr(pipeline, "load_tts_backend", lambda: (loads.append(1), object())[1])
     pipeline._TTS_BACKEND = None
     pipeline._TTS_CONFIG_MTIME = None
+    pipeline._TTS_PROVIDER_KEY = None
+    monkeypatch.delenv("TTS_PROVIDER", raising=False)
 
     def _boom(p):
         raise OSError("no file")
@@ -42,3 +47,26 @@ def test_missing_config_still_loads_once(monkeypatch):
 
     pipeline._TTS_BACKEND = None
     pipeline._TTS_CONFIG_MTIME = None
+    pipeline._TTS_PROVIDER_KEY = None
+
+
+def test_reloads_when_per_job_provider_changes(monkeypatch):
+    """同一長駐 server 由 F5 job 切到 Edge job時，backend cache 必須失效。"""
+    loads = []
+    monkeypatch.setattr(pipeline, "load_tts_backend", lambda: (loads.append(1), object())[1])
+    monkeypatch.setattr(pipeline.os.path, "getmtime", lambda p: 100.0)
+    pipeline._TTS_BACKEND = None
+    pipeline._TTS_CONFIG_MTIME = None
+    pipeline._TTS_PROVIDER_KEY = None
+
+    monkeypatch.setenv("TTS_PROVIDER", "f5")
+    first = pipeline._get_tts_backend()
+    monkeypatch.setenv("TTS_PROVIDER", "edge")
+    second = pipeline._get_tts_backend()
+
+    assert len(loads) == 2
+    assert second is not first
+
+    pipeline._TTS_BACKEND = None
+    pipeline._TTS_CONFIG_MTIME = None
+    pipeline._TTS_PROVIDER_KEY = None

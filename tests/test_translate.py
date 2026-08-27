@@ -84,6 +84,8 @@ class TestTranslateWithGemini:
 
     def test_missing_key_raises(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        # 隔離本機設定頁金鑰，避免 offline test 誤打真 API。
+        monkeypatch.setattr(translate, "get_gemini_api_key", lambda: None)
         with pytest.raises(translate.TranslateError) as ei:
             translate.translate_with_gemini("文字", target_lang="en")
         assert "GEMINI_API_KEY" in str(ei.value)

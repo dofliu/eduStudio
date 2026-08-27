@@ -74,6 +74,14 @@ class TestHealthShape:
 
     def test_gemini_key_reflects_env(self, client, monkeypatch):
         """GEMINI_API_KEY 設了 → True, 沒設 → False."""
+        from core import config
+
+        # 隔離本機設定頁金鑰；此測試只驗環境變數對 health response 的影響。
+        monkeypatch.setattr(
+            config,
+            "get_gemini_api_key",
+            lambda: __import__("os").environ.get("GEMINI_API_KEY"),
+        )
         monkeypatch.setenv("GEMINI_API_KEY", "AIzaTest")
         assert client.get("/health").json()["gemini_api_key_set"] is True
 

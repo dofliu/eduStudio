@@ -23,6 +23,23 @@ def _strip_fence(text: str) -> str:
     return t.strip()
 
 
+def _image_mime(raw: bytes) -> str:
+    """依影像檔頭判斷 data URL MIME；未知格式維持既有 PNG fallback。
+
+    Gemini image model 可能回 JPEG。若一律標成 ``image/png``，瀏覽器雖常會自動
+    sniff，PPTX 匯出或嚴格解碼器仍可能因 MIME 與內容不一致而失敗。
+    """
+    if raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if raw.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if len(raw) >= 12 and raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    return "image/png"
+
+
 def _client(api_key: str | None):
     key = api_key or config.get_gemini_api_key()
     if not key:
@@ -128,4 +145,4 @@ def generate_image_b64(prompt: str, *, model: str | None = None,
                            ts=datetime.now(timezone.utc).isoformat())
     except Exception:
         pass
-    return "data:image/png;base64," + base64.b64encode(raw).decode()
+    return f"data:{_image_mime(raw)};base64," + base64.b64encode(raw).decode()

@@ -122,6 +122,21 @@ class TestGoogleTTSSynthesize:
 
 
 class TestLoadTTSBackend:
+    def test_env_override_takes_priority_over_config(self, tmp_path, monkeypatch):
+        """per-job TTS_PROVIDER=edge 必須覆蓋持久設定的 f5。"""
+        cfg = {"backend": "f5", "f5": {"ref_audio": "x.wav", "ref_text": "hi"}}
+        cfg_path = tmp_path / "tts_config.json"
+        cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+        monkeypatch.setenv("TTS_PROVIDER", "edge")
+        assert isinstance(load_tts_backend(cfg_path), EdgeTTS)
+
+    def test_invalid_env_override_fails_explicitly(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "tts_config.json"
+        cfg_path.write_text("{}", encoding="utf-8")
+        monkeypatch.setenv("TTS_PROVIDER", "unknown")
+        with pytest.raises(ValueError, match="TTS_PROVIDER"):
+            load_tts_backend(cfg_path)
+
     def test_backend_google_returns_fallback_wrapper(self, tmp_path):
         """tts_config.json backend=google → FallbackTTS(GoogleTTS, EdgeTTS)."""
         cfg = {

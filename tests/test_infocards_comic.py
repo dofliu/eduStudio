@@ -60,6 +60,15 @@ class TestGeminiHelper:
         assert out.startswith("data:image/png;base64,")
         assert base64.b64decode(out.split(",", 1)[1]) == b"PNGBYTES"
 
+    def test_generate_image_b64_uses_detected_jpeg_mime(self, monkeypatch):
+        monkeypatch.setattr(gem, "_client", lambda api_key=None: _FakeClient(_FakeResp(None)))
+        import core.diagram_image_gen as dig
+        jpeg = b"\xff\xd8\xff\xe0" + b"JPEGDATA"
+        monkeypatch.setattr(dig, "_extract_image_bytes", lambda resp: jpeg)
+        out = gem.generate_image_b64("draw a wind turbine")
+        assert out.startswith("data:image/jpeg;base64,")
+        assert base64.b64decode(out.split(",", 1)[1]) == jpeg
+
     def test_generate_image_b64_no_image_returns_blank(self, monkeypatch):
         monkeypatch.setattr(gem, "_client", lambda api_key=None: _FakeClient(_FakeResp(None)))
         import core.diagram_image_gen as dig

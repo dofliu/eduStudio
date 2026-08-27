@@ -24,6 +24,7 @@ import logging
 import os
 import shutil
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 
 from core.logging_setup import (
@@ -37,6 +38,25 @@ from .schemas import JobRecord, JobState, SourceType, StageInfo, utc_now
 
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _tts_provider_override(provider: str | None):
+    """只在單一 render 期間套用 TTS_PROVIDER，結束後還原全域環境。
+
+    FastAPI server 是長駐 process；若 per-job 選項直接留在 ``os.environ``，後續沒指定
+    provider 的 job 會沿用上一支影片的聲音。context scope 可避免跨 job 污染。
+    """
+    old = os.environ.get("TTS_PROVIDER")
+    if provider:
+        os.environ["TTS_PROVIDER"] = provider
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop("TTS_PROVIDER", None)
+        else:
+            os.environ["TTS_PROVIDER"] = old
 
 
 # ---------- Stage helpers ----------
@@ -628,7 +648,8 @@ async def _run_render(
     with video_dimensions_override(aspect, resolution):
         with talking_head_override(th_mode, is_short_form=is_short):
             with course_pronunciation_override(course_pron):
-                await _run_render_inner(store, rec, section_id=section_id)
+                with _tts_provider_override(rec.options.tts_provider):
+                    await _run_render_inner(store, rec, section_id=section_id)
 
 
 def _resolve_course_pronunciation(rec: JobRecord) -> dict[str, str] | None:
@@ -714,10 +735,6 @@ async def _run_render_inner(
 
     artifacts_dir = store.artifacts_dir(rec.id)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-    # TTS 覆寫: options.tts_provider → 設環境變數,pipeline 內部讀取
-    if rec.options.tts_provider:
-        os.environ["TTS_PROVIDER"] = rec.options.tts_provider
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -150,14 +150,19 @@ def _call_outline_gemini(prompt: str) -> dict:
     所有 outline_* 函式呼叫這個, 確保 retry 策略 / fence 處理 / 錯誤存檔
     全程一致, 改一處全 source type 受益。
     """
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
+    from core.models import PROVIDER_GEMINI, TEXT_FAST, resolve
 
-    from google import genai
-    from google.genai import types
+    provider_name, _ = resolve(TEXT_FAST)
+    client = types = None
+    if provider_name == PROVIDER_GEMINI:
+        api_key = get_gemini_api_key()
+        if not api_key:
+            raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
+        from google import genai
+        from google.genai import types as genai_types
 
-    client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key)
+        types = genai_types
 
     raw_text = ""
     last_err = None
@@ -169,24 +174,30 @@ def _call_outline_gemini(prompt: str) -> dict:
     ]
     for attempt_i, params in enumerate(attempts, start=1):
         try:
-            cfg_kwargs = {
-                "temperature": params["temp"],
-                "max_output_tokens": params["max_tokens"],
-            }
-            if params["no_thinking"]:
-                try:
-                    cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-                except Exception:
-                    pass  # SDK 不支援就 fallback 到一般 retry
-            resp = client.models.generate_content(
-                model=get_gemini_model(),
-                contents=[prompt],
-                config=types.GenerateContentConfig(**cfg_kwargs),
-            )
-            raw_text = (resp.text or "").strip()
-            from core import usage
-            usage.record_text_now("video", get_gemini_model(), prompt, raw_text,
-                                  label="outline")
+            if provider_name == PROVIDER_GEMINI:
+                cfg_kwargs = {
+                    "temperature": params["temp"],
+                    "max_output_tokens": params["max_tokens"],
+                }
+                if params["no_thinking"]:
+                    model_for_check = get_gemini_model()
+                    if "2.5" in model_for_check or "thinking" in model_for_check:
+                        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                resp = client.models.generate_content(
+                    model=get_gemini_model(),
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(**cfg_kwargs),
+                )
+                raw_text = (resp.text or "").strip()
+                from core import usage
+                usage.record_text_now("video", get_gemini_model(), prompt, raw_text,
+                                      label="outline")
+            else:
+                from core.providers import generate_text_for_role
+
+                raw_text = generate_text_for_role(
+                    TEXT_FAST, prompt, temperature=params["temp"], station="video",
+                ).strip()
             cleaned = _strip_fence(raw_text)
             cleaned = clean_json_escapes(cleaned)
             outline_dict = json.loads(cleaned)

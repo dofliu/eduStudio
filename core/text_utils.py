@@ -32,36 +32,30 @@ _SYMBOL_MAP = {
 _LATEX_COMMANDS = {
     *(cmd.lower() for cmd in _GREEK_MAP.keys()),
     *(cmd.lower() for cmd in _SYMBOL_MAP.keys()),
-    "frac",
-    "sqrt",
-    "text",
-    "vec",
-    "hat",
-    "bar",
-    "tilde",
-    "dot",
-    "ddot",
-    "sin",
-    "cos",
-    "tan",
-    "cot",
-    "sec",
-    "csc",
-    "log",
-    "ln",
-    "exp",
-    "lim",
-    "sum",
-    "int",
-    "sinh",
-    "cosh",
-    "tanh",
-    "arcsin",
-    "arccos",
-    "arctan",
-    "min",
-    "max",
+    # b
+    "beta", "bar", "begin", "end", "bmatrix", "pmatrix", "vmatrix", "cases",
+    "boldsymbol", "bf", "bold", "bullet", "big", "bigg", "bmod", "box", "binom",
+    "bot", "backslash", "bowtie", "breve",
+    # f
+    "frac", "cfrac", "dfrac", "tfrac", "flat", "forall", "frown", "fbox",
+    # n
+    "nu", "nabla", "neq", "ne", "not", "neg", "norm", "notin", "ni", "natural",
+    "nrightarrow", "nleftarrow", "newline", "noindent", "nonumber",
+    # r
+    "rho", "right", "rangle", "rbrace", "rbracket", "rfloor", "rceil", "root", "rm", "re", "real",
+    # t
+    "theta", "tau", "times", "tan", "tanh", "text", "textbf", "textit", "textrm", "textsf",
+    "texttt", "textnormal", "textstyle", "tilde", "to", "top", "triangle", "tag", "tfrac",
+    # 常用符號與數學函數
+    "sqrt", "vec", "hat", "dot", "ddot",
+    "sin", "cos", "cot", "sec", "csc", "log", "ln", "exp", "lim", "sum", "int", "iint", "iiint", "oint",
+    "sinh", "cosh", "arcsin", "arccos", "arctan", "min", "max", "inf", "sup", "det", "dim",
+    "left", "quad", "qquad", "over", "cdots", "ldots", "vdots", "ddots",
+    "cong", "equiv", "sim", "simeq", "propto", "le", "ge", "ll", "gg",
+    "subset", "supset", "subseteq", "supseteq", "in", "cap", "cup", "setminus",
+    "wedge", "vee", "oplus", "otimes", "odot",
 }
+
 
 
 def strip_latex(text: str, *, preserve_identifiers: bool = False) -> str:
@@ -153,19 +147,29 @@ def clean_json_escapes(text: str) -> str:
             i += min(6, n - i)
             continue
         if ch in {"b", "f", "n", "r", "t"}:
-            # 先看是否是 "\command" 的開頭，例如 \beta、\times
+            # 先看是否是 "\command" 的開頭，例如 \beta、\times、\frac、\rho、\nabla
             j = i + 1
             k = j + 1
             while k < n and text[k].isalpha():
                 k += 1
             token = text[j:k]
-            if len(token) > 1 and token.lower() in _LATEX_COMMANDS:
+            # 對於 b/f/r，若後面接字母（len > 1），LLM 幾乎必為 LaTeX/單字轉義，絕非退格/換頁/CR
+            # 對於 t/n，若符合已知 LaTeX 指令（如 \theta, \times, \nu, \nabla, \to 等）則補逃逸；否則保留合法 \n, \t
+            is_latex = False
+            if len(token) > 1:
+                if ch in {"b", "f", "r"}:
+                    is_latex = True
+                elif token.lower() in _LATEX_COMMANDS:
+                    is_latex = True
+
+            if is_latex:
                 out.append(f"\\\\{token}")
                 i = k
                 continue
             out.append(f"\\{ch}")
             i += 2
             continue
+
 
         # 其餘都不是 JSON 合法 escape：補一個反斜線交給 JSON 可解析為純字面字元
         out.append(f"\\\\{ch}")

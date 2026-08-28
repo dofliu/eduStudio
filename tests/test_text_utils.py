@@ -120,3 +120,35 @@ class TestCleanJsonEscapes:
         assert r"\\theta" in good
         assert r"\\times" in good
         assert clean_json_escapes(r'"\frac{1}{2}"') == r'"\\frac{1}{2}"'
+
+    def test_t0_1_latex_control_chars_not_eaten_by_json_loads(self):
+        """T0-1 回歸測試：確保 \\theta, \\tau, \\times, \\nu, \\nabla, \\beta, \\frac, \\rho, \\to, \\textbf 等
+        不會被 json.loads 解析成控制字元 (Tab, Newline, Backspace, Formfeed, CR)。"""
+        import json
+
+        # 模擬 LLM 吐出的 raw json 字串片段（單反斜線）
+        raw_json = (
+            r'{"formula": "\theta = 30^\circ, \tau = 5 \times 10^6, '
+            r'\nu = 0.3, \nabla \times F, \beta_1, \frac{a}{b}, \rho = 7850, \to \textbf{result}"}'
+        )
+        cleaned = clean_json_escapes(raw_json)
+        parsed = json.loads(cleaned)
+
+        # 驗證反斜線被正確保留為字面字元，未被解析成 \t (tab), \n (newline), \b (backspace), \f (formfeed), \r (CR)
+        formula = parsed["formula"]
+        assert "\t" not in formula
+        assert "\n" not in formula
+        assert "\b" not in formula
+        assert "\f" not in formula
+        assert "\r" not in formula
+
+        assert r"\theta" in formula
+        assert r"\tau" in formula
+        assert r"\times" in formula
+        assert r"\nu" in formula
+        assert r"\nabla" in formula
+        assert r"\beta" in formula
+        assert r"\frac" in formula
+        assert r"\rho" in formula
+        assert r"\to" in formula
+        assert r"\textbf" in formula

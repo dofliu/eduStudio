@@ -11,7 +11,14 @@ import json
 import re
 
 from core import config
-from core.models import IMAGE_FAST, TEXT_FAST, resolve_id
+from core.models import (
+    IMAGE_FAST,
+    PROVIDER_GEMINI,
+    TEXT_FAST,
+    VISION,
+    resolve,
+    resolve_id,
+)
 
 _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 
@@ -91,11 +98,25 @@ def generate_json(prompt: str, *, model: str | None = None,
     station 標記成本歸屬（成本面板用，預設 visual）。
     files：多模態參考檔（PDF/圖片 inline data），讓生成讀取使用者真實教材而非只靠標題。
     """
+    # 有參考檔代表多模態理解，必須走 vision role；純文字才可由設定頁切到 Ollama。
+    # 顯式 model 視為 API caller 指定 Gemini model，維持原有向後相容行為。
+    role = VISION if files else TEXT_FAST
+    provider_name, role_model = resolve(role)
+    if model is None and provider_name != PROVIDER_GEMINI:
+        from core.providers import generate_text_for_role
+
+        text = generate_text_for_role(
+            role, prompt, temperature=temperature, station=station,
+        ) or "{}"
+        try:
+            return json.loads(_strip_fence(text))
+        except json.JSONDecodeError:
+            return {}
+
     from google.genai import types
 
     client = _client(api_key)
-    # M-2: model id 走角色登錄表（text.fast）而非寫死常數；caller 顯式傳 model 則優先。
-    used_model = model or resolve_id(TEXT_FAST)
+    used_model = model or role_model
     cfg: dict = {"response_mime_type": "application/json", "temperature": temperature}
     if response_schema is not None:
         cfg["response_schema"] = response_schema

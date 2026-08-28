@@ -34,38 +34,18 @@ def _get_language_info(code: str) -> tuple[str, str, str]:
 
 
 def _gemini_complete(prompt: str) -> str:
-    """單次 Gemini completion（取代原 ollama.chat）。沿用 core.config 金鑰/模型。
+    """單次文字 completion；實際 provider 由 ``text.fast`` role 決定。
 
     為什麼溫度 0.2：翻譯/批改/學習這類任務要穩定、低發散。金鑰缺則丟 RuntimeError，
-    由各方法的 try/except 轉成使用者可讀的失敗字串（保留 translateGemma 原行為）。
+    由各方法的 try/except 轉成使用者可讀的失敗字串。選 Ollama 時不建立 Gemini client；
+    本機失敗是否退雲端則由既有 ``LOCAL_MODEL_FALLBACK`` policy 控制。
     """
-    from core.config import get_gemini_api_key, get_gemini_model
+    from core.models import TEXT_FAST
+    from core.providers import generate_text_for_role
 
-    key = get_gemini_api_key()
-    if not key:
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-
-    from google import genai
-    from google.genai import types
-
-    used_model = get_gemini_model()
-    client = genai.Client(api_key=key)
-    resp = client.models.generate_content(
-        model=used_model,
-        contents=[prompt],
-        config=types.GenerateContentConfig(temperature=0.2),
-    )
-    text = (resp.text or "").strip()
-    # 用量計帳（在地化站）；吞例外不拖垮翻譯。
-    try:
-        from datetime import datetime, timezone
-
-        from core import usage
-        usage.record_text("language", len(prompt), len(text),
-                          model=used_model, ts=datetime.now(timezone.utc).isoformat())
-    except Exception:
-        pass
-    return text
+    return generate_text_for_role(
+        TEXT_FAST, prompt, temperature=0.2, station="language",
+    ).strip()
 
 
 class TranslateGemmaService:

@@ -138,14 +138,7 @@ def script_repo(
     if raw_content.get("source_kind") != "repo":
         raise ValueError(f"script_repo 只吃 repo, 收到 {raw_content.get('source_kind')}")
 
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client(api_key=api_key)
+    client, types = _provider_client()
     from .length_mode import preset as _length_preset
     p = _length_preset(length_mode)
 
@@ -221,14 +214,7 @@ def script_long_form(
     if kind not in ("document", "url"):
         raise ValueError(f"script_long_form 只吃 document / url, 收到 {kind!r}")
 
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client(api_key=api_key)
+    client, types = _provider_client()
     from .length_mode import preset as _length_preset
     p = _length_preset(length_mode)
 
@@ -423,6 +409,21 @@ def _dedupe_image_paths_across_deck(sections_out: list[dict]) -> None:
 
 # ---------- Internals ----------
 
+def _provider_client():
+    """Gemini role 才建立 SDK client；Ollama role 完全不讀 Gemini key。"""
+    from core.models import PROVIDER_GEMINI, TEXT_FAST, resolve
+
+    provider_name, _ = resolve(TEXT_FAST)
+    if provider_name != PROVIDER_GEMINI:
+        return None, None
+    api_key = get_gemini_api_key()
+    if not api_key:
+        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
+    from google import genai
+    from google.genai import types
+
+    return genai.Client(api_key=api_key), types
+
 def _call_with_retry(client, types, prompt: str, section_id: str, sec_outline: dict) -> dict:
     """單一 section 的 Gemini call, 兩次 retry, 失敗回佔位 slide。
 
@@ -436,24 +437,33 @@ def _call_with_retry(client, types, prompt: str, section_id: str, sec_outline: d
     ]
     for attempt_i, params in enumerate(attempts, start=1):
         try:
-            cfg_kwargs = {
-                "temperature": params["temp"],
-                "max_output_tokens": params["max_tokens"],
-            }
-            if params["no_thinking"]:
-                try:
-                    cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-                except Exception:
-                    pass
-            resp = client.models.generate_content(
-                model=get_gemini_model(),
-                contents=[prompt],
-                config=types.GenerateContentConfig(**cfg_kwargs),
-            )
-            raw_text = (resp.text or "").strip()
-            from core import usage
-            usage.record_text_now("video", get_gemini_model(), prompt, raw_text,
-                                  label=f"script:{section_id}")
+            from core.models import PROVIDER_GEMINI, TEXT_FAST, resolve
+
+            provider_name, _ = resolve(TEXT_FAST)
+            if provider_name == PROVIDER_GEMINI:
+                cfg_kwargs = {
+                    "temperature": params["temp"],
+                    "max_output_tokens": params["max_tokens"],
+                }
+                if params["no_thinking"]:
+                    model_for_check = get_gemini_model()
+                    if "2.5" in model_for_check or "thinking" in model_for_check:
+                        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+                resp = client.models.generate_content(
+                    model=get_gemini_model(),
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(**cfg_kwargs),
+                )
+                raw_text = (resp.text or "").strip()
+                from core import usage
+                usage.record_text_now("video", get_gemini_model(), prompt, raw_text,
+                                      label=f"script:{section_id}")
+            else:
+                from core.providers import generate_text_for_role
+
+                raw_text = generate_text_for_role(
+                    TEXT_FAST, prompt, temperature=params["temp"], station="video",
+                ).strip()
             cleaned = _strip_fence(raw_text)
             cleaned = clean_json_escapes(cleaned)
             section = json.loads(cleaned)

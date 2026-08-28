@@ -29,9 +29,9 @@ jobs:
         python-version: ['3.10', '3.12']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -85,7 +85,7 @@ jobs:
   # 見 U-3)。正式對外前端是 frontend/ (/app, edustudio-frontend), 由下方
   # frontend-app-build job 把關。此 job 保留是因 /ui · /studio 仍在 server 提供 (帶退場
   # banner), 退場前繼續守 legacy 型別不退步; 待 /studio 路由與 build 產物正式移除後可一併刪。
-  # 單一 job ubuntu × node 20, 不開 matrix (frontend 不需要跨 OS 驗證).
+  # 單一 job ubuntu × node 24, 不開 matrix (frontend 不需要跨 OS 驗證).
   frontend-typecheck:
     runs-on: ubuntu-latest
     defaults:
@@ -93,11 +93,11 @@ jobs:
         working-directory: web
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
@@ -111,7 +111,7 @@ jobs:
   # base:'/app/')。先前 CI 只 typecheck legacy web/, 真正的 /app 前端從未進 CI ——
   # app.jsx 壞了不會被擋。frontend/edustudio 是純 JSX (無 tsconfig) → tsc --noEmit 不適用,
   # 有意義的護網是 `npm run build` (vite build): JSX 解析錯 / import 缺失 / 建置失敗都會紅。
-  # 產物輸出到 gitignore 的 web/eduapp, 不污染 repo。單一 job ubuntu × node 20。
+  # 產物輸出到 gitignore 的 web/eduapp, 不污染 repo。單一 job ubuntu × node 24。
   frontend-app-build:
     runs-on: ubuntu-latest
     defaults:
@@ -119,11 +119,11 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 

@@ -1,9 +1,8 @@
 """共用 faster-whisper 模型載入器。
 
 為什麼集中：原本 meeting/dubber/translation 各自 hardcode `WhisperModel("base",
-device="cpu", compute_type="int8")`。但本機 base 模型 snapshot 不完整且抓不回來
-（HF head-call error），而 large-v3 已完整 cache → 改用 large-v3，並優先走 GPU
-（劉老師 RTX 4080，large-v3 在 cuda 約 2 秒轉一段，cpu 要 ~28 秒）。
+device="cpu", compute_type="int8")`。現在統一預設 large-v3，並優先走 GPU；模型若尚未
+存在於 Hugging Face cache，faster-whisper 會在第一次使用時下載。
 
 模型/裝置可用 env 覆寫：WHISPER_MODEL、WHISPER_DEVICE。
 """
@@ -12,7 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-# 預設 large-v3：本機已完整 cache；base snapshot 殘缺且 HF 抓不回。
+# 預設 large-v3；實際 cache 狀態由 get_whisper_model_status() 動態檢查。
 _DEFAULT_MODEL = "large-v3"
 
 

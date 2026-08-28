@@ -5,7 +5,7 @@
 slides_pdf 補圖是把每頁 PDF 渲成 PNG, 原頁文字因此變成圖、不可再編輯。若使用者
 手上是 .pptx 原檔, 更好的作法是直接在原檔上動手:
 
-  1. pptx → pdf → 逐頁 PNG (僅供分析, 用 LibreOffice + PyMuPDF)。
+  1. pptx → pdf → 逐頁 PNG (僅供分析, 用 LibreOffice／PowerPoint + PyMuPDF)。
   2. 偵測缺圖頁 + 每頁空白區 (複用 core.slide_image_gen)。
   3. 為缺圖頁生 AI 配圖 (複用 generate_slide_image; prompt 取自該頁文字)。
   4. 打開「原始 .pptx」, 把配圖**加進**該頁空白區 — 原本的文字方塊 / 圖形全部
@@ -16,7 +16,8 @@ slides_pdf 補圖是把每頁 PDF 渲成 PNG, 原頁文字因此變成圖、不�
 依賴
 ----
 - python-pptx (匯入/匯出 .pptx)
-- LibreOffice (soffice) — pptx→pdf 渲染; 缺它則 render_pptx_to_pdf raise。
+- LibreOffice (soffice) — 跨平台優先的 pptx→pdf 渲染器。
+- Windows PowerPoint COM — 本機已裝 Office 時的 fallback（需 pywin32）。
 - PyMuPDF (fitz) — pdf→png。
 mock=True 走 PIL 佔位圖 (不打 Gemini), 但仍需 LibreOffice 渲染原頁 (除非 caller
 直接給 page_pngs)。
@@ -24,25 +25,47 @@ mock=True 走 PIL 佔位圖 (不打 Gemini), 但仍需 LibreOffice 渲染原頁 
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
+def _render_with_powerpoint(src_pptx: Path, pdf: Path) -> Path:
+    """Windows PowerPoint COM fallback；以獨立 process 隔離 Office COM lifecycle。"""
+    if os.name != "nt":
+        raise RuntimeError("PowerPoint COM fallback 僅支援 Windows")
+    tool = Path(__file__).resolve().parent.parent / "tools" / "pptx_to_pdf.py"
+    res = subprocess.run(
+        [sys.executable, str(tool), str(src_pptx.resolve()), str(pdf.resolve())],
+        capture_output=True, text=True, timeout=180,
+    )
+    if res.returncode != 0:
+        detail = (res.stderr or res.stdout or "unknown error")[-500:]
+        raise RuntimeError(f"PowerPoint 轉檔失敗 (code {res.returncode}): {detail}")
+    if not pdf.is_file() or pdf.stat().st_size == 0:
+        raise RuntimeError("PowerPoint 轉檔未產生有效 PDF")
+    return pdf
+
+
 def render_pptx_to_pdf(src_pptx: str | Path, out_dir: str | Path, *, timeout: int = 180) -> Path:
-    """用 LibreOffice headless 把 .pptx 轉成 .pdf, 回傳 pdf 路徑。"""
+    """把 .pptx 轉成 .pdf；優先 LibreOffice，Windows 可退 PowerPoint COM。"""
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    src_pptx = Path(src_pptx)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pdf = out_dir / (src_pptx.stem + ".pdf")
     if not soffice:
+        if os.name == "nt":
+            return _render_with_powerpoint(src_pptx, pdf)
         raise RuntimeError(
             "找不到 LibreOffice (soffice), 無法把 PPTX 轉成 PDF 做分析。"
             "請安裝 libreoffice-impress。"
         )
-    src_pptx = Path(src_pptx)
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
     # 用獨立 profile 避免併發鎖
     profile = (out_dir / "_lo_profile").resolve().as_uri()
     cmd = [
@@ -50,7 +73,6 @@ def render_pptx_to_pdf(src_pptx: str | Path, out_dir: str | Path, *, timeout: in
         "--convert-to", "pdf", "--outdir", str(out_dir), str(src_pptx),
     ]
     res = subprocess.run(cmd, capture_output=True, timeout=timeout)
-    pdf = out_dir / (src_pptx.stem + ".pdf")
     if res.returncode != 0 or not pdf.exists():
         raise RuntimeError(
             f"LibreOffice 轉檔失敗 (code {res.returncode}): "

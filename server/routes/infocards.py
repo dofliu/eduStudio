@@ -5,6 +5,8 @@ Gemini（不再瀏覽器直呼）。本次上線包含 comic/poster/infographic/
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
@@ -17,26 +19,32 @@ from core.infocards import (
     poster_service,
     presentation_service,
 )
-from core.infocards.models import DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL
+from core.infocards.schemas import (
+    AnimationType,
+    DensityType,
+    InfographicAspectRatio,
+    InfographicStyle,
+    TypographyType,
+)
 from core.infocards.share_store import get_share_store
 
 router = APIRouter(prefix="/api", tags=["infocards"])
 
-_SUPPORTED_MODES = ("presentation", "poster", "comic", "infographic", "card")
+_SUPPORTED_MODES = ("presentation", "poster", "comic", "infographic", "card", "outline")
 
 
 class GenerateRequest(BaseModel):
     """/api/generate 請求（對齊 infoCard server.ts，常用欄位）。"""
 
-    mode: str
+    mode: Literal["presentation", "poster", "comic", "infographic", "card", "outline"]
     text: str = ""
-    style: str = "professional"
+    style: InfographicStyle = "professional"
     customStylePrompt: str = ""
     slideCount: int = 10
     panels: int = 4
-    typography: str | None = None
-    density: str = "balanced"
-    aspectRatio: str = "vertical"
+    typography: TypographyType | None = None
+    density: DensityType = "balanced"
+    aspectRatio: InfographicAspectRatio = "vertical"
     refinement: str = ""
     selectedOutline: dict | None = None
     files: list[dict] = Field(default_factory=list)   # 多模態參考檔 [{mimeType, data(base64)}]
@@ -44,7 +52,7 @@ class GenerateRequest(BaseModel):
     textModel: str = ""
     projectId: str = ""    # 可選：歸屬的 Project（一課一工作空間），空＝只存全域素材庫
     # 簡報受眾／語氣引導（對齊 infoCard brandConfig；空字串＝不指定）。
-    animation: str = "fade"
+    animation: AnimationType = "fade"
     audience: str = ""
     purpose: str = ""
     tone: str = ""
@@ -78,8 +86,8 @@ class RefineSlideRequest(BaseModel):
     persona: dict | None = None
     slideIndex: int | None = None
     totalSlides: int | None = None
-    imageModel: str = DEFAULT_IMAGE_MODEL
-    textModel: str = DEFAULT_TEXT_MODEL
+    imageModel: str = ""
+    textModel: str = ""
 
 
 class RefineSectionRequest(BaseModel):
@@ -87,8 +95,8 @@ class RefineSectionRequest(BaseModel):
 
     section: dict
     instruction: str
-    imageModel: str = DEFAULT_IMAGE_MODEL
-    textModel: str = DEFAULT_TEXT_MODEL
+    imageModel: str = ""
+    textModel: str = ""
     regenerateImage: bool = True
 
 
@@ -116,15 +124,17 @@ def health() -> dict:
     }
 
 
-def _resolve_models(req: "GenerateRequest") -> tuple[str, str]:
+def _resolve_models(req: "GenerateRequest") -> tuple[str | None, str | None]:
     """模型解析優先序：請求顯式 > 角色登錄表（設定頁逐角色/單值 → 內建預設）。
 
     M-2：設定頁/預設 fallback 改走 ``core.models.resolve_id``（角色登錄表單一真實來源），
     取代原本散落的 ``get_setting("text_model") or DEFAULT_*`` 鏈，並向前相容 M-3 逐角色設定。
     """
     from core import models
-    tm = req.textModel or models.resolve_id(models.TEXT_FAST)
-    im = req.imageModel or models.resolve_id(models.IMAGE_FAST)
+    # 空值必須保留為 None，讓下游 helper 能依 role 同時解析 provider + model。
+    # 若先只 resolve 成 model id，會把設定頁選到的 Ollama provider 資訊丟掉。
+    tm = req.textModel or None
+    im = req.imageModel or None
     return tm, im
 
 
@@ -295,7 +305,7 @@ def refine_slide(req: RefineSlideRequest) -> dict:
     slide = refine_service.refine_presentation_slide(
         req.slide, req.instruction, style=req.style, custom=req.customStylePrompt,
         persona=req.persona, slide_index=req.slideIndex, total_slides=req.totalSlides,
-        model=req.textModel, image_model=req.imageModel)
+        model=req.textModel or None, image_model=req.imageModel or None)
     return {"success": True, "slide": slide.model_dump()}
 
 
@@ -306,7 +316,7 @@ def refine_section(req: RefineSectionRequest) -> dict:
 
     section = refine_service.refine_infographic_section(
         req.section, req.instruction,
-        model=req.textModel, image_model=req.imageModel,
+        model=req.textModel or None, image_model=req.imageModel or None,
         regenerate_image=req.regenerateImage)
     return {"success": True, "section": section.model_dump()}
 

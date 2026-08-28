@@ -43,6 +43,19 @@ class TestBuildPrompt:
 
 # ---------- LLM 方法（mock _gemini_complete）----------
 class TestTranslate:
+    def test_completion_routes_through_text_provider(self, monkeypatch):
+        from core import providers
+        seen = {}
+        monkeypatch.setattr(
+            providers, "generate_text_for_role",
+            lambda role, prompt, **kwargs: seen.update(
+                role=role, prompt=prompt, kwargs=kwargs) or "  LOCAL  ",
+        )
+
+        assert svc._gemini_complete("translate") == "LOCAL"
+        assert seen["role"] == "text.fast"
+        assert seen["kwargs"]["station"] == "language"
+
     def test_translate_returns_gemini_output(self, monkeypatch):
         monkeypatch.setattr(svc, "_gemini_complete", lambda prompt: "MOCKED")
         assert svc.translator.translate("hello", "en_US", "zh_TW") == "MOCKED"

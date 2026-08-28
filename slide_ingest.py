@@ -188,14 +188,16 @@ def detect_chapters_with_gemini(thumbs: list[bytes], total_pages: int) -> list[d
 
     model = narration_model()
     parts = [types.Part.from_bytes(data=t, mime_type="image/png") for t in thumbs]
+    cfg_kwargs = {"temperature": 0.1, "max_output_tokens": 4096}
+    if "2.5" in model or "thinking" in model:
+        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+
     resp = client.models.generate_content(
         model=model,
         contents=parts + [CHAPTER_PROMPT],
         # thinking_budget=0: flash 系列預設開 thinking, 會吃掉 max_output_tokens 導致回空/截斷,
         # 且每次呼叫慢 5 倍 (11s→2s)。章節切分/旁白都不需要 thinking。
-        config=types.GenerateContentConfig(
-            temperature=0.1, max_output_tokens=4096,
-            thinking_config=types.ThinkingConfig(thinking_budget=0)),
+        config=types.GenerateContentConfig(**cfg_kwargs),
     )
     raw = (resp.text or "").strip()
     from core import usage
@@ -322,15 +324,18 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
             temp = 0.5
 
         try:
+            cfg_kwargs = {
+                "temperature": temp,
+                "max_output_tokens": NARRATION_MAX_TOKENS,
+            }
+            if "2.5" in model or "thinking" in model:
+                # 關 thinking: 開著會吃掉 token 讓旁白被截斷 (反而觸發 retry) + 慢 5 倍
+                cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+
             resp = client.models.generate_content(
                 model=model,
                 contents=parts + [prompt],
-                config=types.GenerateContentConfig(
-                    temperature=temp,
-                    max_output_tokens=NARRATION_MAX_TOKENS,
-                    # 關 thinking: 開著會吃掉 token 讓旁白被截斷 (反而觸發 retry) + 慢 5 倍
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                ),
+                config=types.GenerateContentConfig(**cfg_kwargs),
             )
             from core import usage
             usage.record_text_now("video", model, prompt, resp.text or "",

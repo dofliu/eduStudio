@@ -231,10 +231,8 @@ def solve_with_gemini(pdf_path: Path) -> dict:
                 cfg_kwargs = {"temperature": temp, "max_output_tokens": MAX_TOKENS}
                 if no_thinking:
                     # Gemini 2.5 Flash: thinking_budget=0 關閉內部思考, 全部額度給輸出文字
-                    try:
+                    if "2.5" in MODEL or "thinking" in MODEL:
                         cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-                    except Exception:
-                        pass  # 若 SDK 不支援就忽略
                 resp2 = client.models.generate_content(
                     model=MODEL,
                     contents=parts + [prompt],
@@ -307,10 +305,8 @@ def solve_with_gemini(pdf_path: Path) -> dict:
                     "temperature": 0.2 if attempt == 0 else 0.5,
                     "max_output_tokens": 32768,  # 放大上限, 避免複雜 3D 題 SVG 被截斷
                 }
-                try:
+                if "2.5" in MODEL or "thinking" in MODEL:
                     cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-                except Exception:
-                    pass  # 舊 SDK 不支援就忽略
                 resp3 = client.models.generate_content(
                     model=MODEL,
                     contents=parts + [_prompt],

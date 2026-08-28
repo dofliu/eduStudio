@@ -6,6 +6,8 @@ path 需 LibreOffice (pptx→pdf), 無 soffice 則 skip。
 from __future__ import annotations
 
 import io
+import importlib.util
+import os
 import shutil
 
 import pytest
@@ -21,6 +23,15 @@ from server.jobs import JobStore, get_default_store
 from server.main import create_app
 
 _HAS_SOFFICE = bool(shutil.which("soffice") or shutil.which("libreoffice"))
+_HAS_POWERPOINT = False
+if os.name == "nt" and importlib.util.find_spec("win32com") is not None:
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r"PowerPoint.Application\CurVer"):
+            _HAS_POWERPOINT = True
+    except OSError:
+        pass
+_HAS_PPT_CONVERTER = _HAS_SOFFICE or _HAS_POWERPOINT
 
 
 def _pptx_bytes(n=2):
@@ -105,7 +116,7 @@ class TestToVideo:
         assert c.post(f"/jobs/{rec.id}/to-video").status_code == 400
 
 
-@pytest.mark.skipif(not _HAS_SOFFICE, reason="需要 LibreOffice 做 pptx→pdf")
+@pytest.mark.skipif(not _HAS_PPT_CONVERTER, reason="需要 LibreOffice 或 PowerPoint 做 pptx→pdf")
 class TestHappyPath:
     def test_creates_job_and_augments(self, client):
         c, store = client

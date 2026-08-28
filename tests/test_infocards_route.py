@@ -126,9 +126,20 @@ class TestGenerate:
         assert body["success"] is True and body["type"] == "presentation"
         assert body["data"]["mainTitle"] == "簡報"
 
-    def test_unknown_mode_400(self, client):
+    def test_unknown_mode_422(self, client):
         r = client.post("/api/generate", json={"mode": "bogus", "text": "t"})
-        assert r.status_code == 400
+        assert r.status_code == 422
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("style", "educational"), ("density", "concise")],
+    )
+    def test_invalid_generation_option_422(self, client, field, value):
+        payload = {"mode": "presentation", "text": "t", "style": "navy"}
+        payload[field] = value
+        r = client.post("/api/generate", json=payload)
+        assert r.status_code == 422
+        assert field in r.text
 
 
 class TestShare:

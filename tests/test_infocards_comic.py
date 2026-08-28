@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import json
 
 import core.infocards.comic_service as comic
 import core.infocards.gemini as gem
@@ -39,6 +40,47 @@ class TestGeminiHelper:
     def test_generate_json_bad_returns_empty(self, monkeypatch):
         monkeypatch.setattr(gem, "_client", lambda api_key=None: _FakeClient(_FakeResp("not json")))
         assert gem.generate_json("p") == {}
+
+    def test_generate_json_uses_ollama_role_without_gemini(self, tmp_path, monkeypatch):
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({
+            "model_roles": {
+                "text.fast": {"provider": "ollama", "model": "qwen3:4b"},
+            },
+        }), encoding="utf-8")
+        monkeypatch.setenv("ES_SETTINGS_PATH", str(settings))
+        monkeypatch.setattr(
+            gem, "_client", lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("選 Ollama 的純文字生成不應建立 Gemini client")),
+        )
+        from core import providers
+        monkeypatch.setattr(
+            providers, "ollama_generate",
+            lambda prompt, *, model, **k: '{"provider":"ollama","ok":true}',
+        )
+
+        assert gem.generate_json("return json") == {"provider": "ollama", "ok": True}
+
+    def test_generate_json_with_files_uses_vision_not_text_ollama(self, tmp_path, monkeypatch):
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({
+            "model_roles": {
+                "text.fast": {"provider": "ollama", "model": "qwen3:4b"},
+            },
+        }), encoding="utf-8")
+        monkeypatch.setenv("ES_SETTINGS_PATH", str(settings))
+        monkeypatch.setattr(gem, "_client", lambda api_key=None: _FakeClient(_FakeResp('{"vision":true}')))
+        from core import providers
+        monkeypatch.setattr(
+            providers, "ollama_generate",
+            lambda *a, **k: (_ for _ in ()).throw(
+                AssertionError("含檔案的請求必須走 vision role，不可送到文字 Ollama")),
+        )
+        pdf = base64.b64encode(b"PDF").decode()
+
+        assert gem.generate_json(
+            "read", files=[{"mimeType": "application/pdf", "data": pdf}],
+        ) == {"vision": True}
 
     def test_build_contents_text_only(self):
         # 無檔 → 純文字（行為不變）

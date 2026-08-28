@@ -33,11 +33,12 @@ import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+_IS_WINDOWS = os.name == "nt"
 
 
 def _render_with_powerpoint(src_pptx: Path, pdf: Path) -> Path:
     """Windows PowerPoint COM fallback；以獨立 process 隔離 Office COM lifecycle。"""
-    if os.name != "nt":
+    if not _IS_WINDOWS:
         raise RuntimeError("PowerPoint COM fallback 僅支援 Windows")
     tool = Path(__file__).resolve().parent.parent / "tools" / "pptx_to_pdf.py"
     res = subprocess.run(
@@ -60,7 +61,7 @@ def render_pptx_to_pdf(src_pptx: str | Path, out_dir: str | Path, *, timeout: in
     out_dir.mkdir(parents=True, exist_ok=True)
     pdf = out_dir / (src_pptx.stem + ".pdf")
     if not soffice:
-        if os.name == "nt":
+        if _IS_WINDOWS:
             return _render_with_powerpoint(src_pptx, pdf)
         raise RuntimeError(
             "找不到 LibreOffice (soffice), 無法把 PPTX 轉成 PDF 做分析。"

@@ -1,7 +1,7 @@
 """POST /upload/pptx — PPTX 原檔就地補圖路由測試。
 
-驗證: 非 .pptx → 400; 空檔 → 400; happy path (建 job + 背景補圖, mock) — happy
-path 需 LibreOffice (pptx→pdf), 無 soffice 則 skip。
+驗證: 非 .pptx → 400; 空檔 → 400; happy path (建 job + 背景補圖, mock)。
+真實 PPTX→PDF 需要 LibreOffice 或 Windows PowerPoint，明確標為本機 office_live release gate。
 """
 from __future__ import annotations
 
@@ -117,6 +117,7 @@ class TestToVideo:
 
 
 @pytest.mark.skipif(not _HAS_PPT_CONVERTER, reason="需要 LibreOffice 或 PowerPoint 做 pptx→pdf")
+@pytest.mark.office_live
 class TestHappyPath:
     def test_creates_job_and_augments(self, client):
         c, store = client

@@ -136,7 +136,12 @@ text) — add a layer only when you want the matching feature.
 
 - **ffmpeg / ffprobe** — *required* for any video render or audio extraction. `apt install ffmpeg` · `brew install ffmpeg` · `choco install ffmpeg`.
 - **Noto CJK fonts** (e.g. `fonts-noto-cjk`) — needed for correct Chinese rendering in slides / blackboard. Paths are overridable via `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` / `CLAUDE_MONO_FONT_PATH`.
-- **LibreOffice** (`libreoffice-impress`) — *only* for the PPTX-source features (upload-PPTX in-place augment and PPTX→video), used to render `.pptx` → PDF for page analysis. All other tracks (exam / slides-PDF / doc / HTML / song) don't need it.
+- **LibreOffice** (`libreoffice-impress`) — cross-platform renderer for PPTX-source features. On Windows, installed Microsoft PowerPoint is used as a COM fallback. All other tracks (exam / slides-PDF / doc / HTML / song) don't need either renderer.
+
+### Local release gates and portable model cache
+
+- Cloud CI runs all unit/contract/integration tests and explicitly excludes `office_live`, because hosted runners do not guarantee a desktop Office runtime. Before a Windows release, run `pytest -m office_live tests/test_uploads_pptx.py -q` locally.
+- To move the Whisper model cache to another computer, set `HF_HOME` before starting the server (for example `HF_HOME=D:\hf-cache`). `/health` must report `whisper.cached=true`; `cache_source` shows which cache setting was used. An incomplete snapshot is not accepted as cached.
 
 The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 
@@ -271,7 +276,12 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 
 - **ffmpeg / ffprobe** — 任何影片 render 或抽音訊*必需*。`apt install ffmpeg`／`brew install ffmpeg`／`choco install ffmpeg`。
 - **Noto CJK 字型**（例 `fonts-noto-cjk`）— 簡報／黑板中文正確顯示所需。路徑可用 `CLAUDE_FONT_PATH`／`CLAUDE_FALLBACK_FONT_PATH`／`CLAUDE_MONO_FONT_PATH` 覆寫。
-- **LibreOffice**（`libreoffice-impress`）— *只有* PPTX 來源功能需要（上傳 PPTX 就地補圖、PPTX→影片），用來把 `.pptx` 渲成 PDF 做逐頁分析。其餘軸（考卷／簡報 PDF／文件／HTML／song）都不需要。
+- **LibreOffice**（`libreoffice-impress`）— PPTX 來源功能的跨平台 renderer；Windows 已安裝 Microsoft PowerPoint 時可自動改走 COM fallback。其餘軸（考卷／簡報 PDF／文件／HTML／song）都不需要這兩種 renderer。
+
+### 本機 release gates 與可攜式模型 cache
+
+- 雲端 CI 執行 unit／contract／integration tests，並明確排除 `office_live`，因為 hosted runner 不保證具備 desktop Office runtime。Windows 發布前須在本機執行 `pytest -m office_live tests/test_uploads_pptx.py -q`。
+- Whisper cache 搬到新電腦後，啟動 server 前設定 `HF_HOME`（例如 `HF_HOME=D:\hf-cache`）。`/health` 必須回報 `whisper.cached=true`，`cache_source` 會顯示採用的 cache 設定；缺檔 snapshot 不會被誤判為可用。
 
 內附的 `Dockerfile` 已幫你裝好 ffmpeg 與 CJK 字型。
 

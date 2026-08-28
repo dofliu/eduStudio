@@ -104,3 +104,37 @@ class TestAugmentPptx:
             mock=True, page_pngs=pages, max_images=1,
         )
         assert summary["inserted"] == 1
+
+
+class TestPptxConverterBoundary:
+    """CI 鎖 converter 選路；真正 Office round-trip 由 office_live gate 負責。"""
+
+    def test_windows_without_soffice_uses_powerpoint(self, tmp_path, monkeypatch):
+        src = tmp_path / "deck.pptx"
+        src.write_bytes(b"PK")
+        expected = tmp_path / "out" / "deck.pdf"
+        calls = []
+
+        monkeypatch.setattr(pa, "_IS_WINDOWS", True)
+        monkeypatch.setattr(pa.shutil, "which", lambda _: None)
+
+        def fake_powerpoint(source, output):
+            calls.append((source, output))
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"%PDF-1.4")
+            return output
+
+        monkeypatch.setattr(pa, "_render_with_powerpoint", fake_powerpoint)
+        result = pa.render_pptx_to_pdf(src, expected.parent)
+
+        assert result == expected
+        assert calls == [(src, expected)]
+
+    def test_non_windows_without_converter_fails_actionably(self, tmp_path, monkeypatch):
+        src = tmp_path / "deck.pptx"
+        src.write_bytes(b"PK")
+        monkeypatch.setattr(pa, "_IS_WINDOWS", False)
+        monkeypatch.setattr(pa.shutil, "which", lambda _: None)
+
+        with pytest.raises(RuntimeError, match="libreoffice-impress"):
+            pa.render_pptx_to_pdf(src, tmp_path / "out")

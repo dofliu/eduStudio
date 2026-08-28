@@ -77,7 +77,13 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run pytest
-        run: pytest -v
+        # Office live round-trip 是本機 release gate；GitHub hosted runner 不具備可保證的
+        # PowerPoint/LibreOffice desktop runtime。CI 負責 unit/contract/integration tests。
+        run: pytest -v -m "not office_live"
+
+      - name: Verify Office live gate is collected
+        # 防止本機 release gate 被改名或意外刪除；只 collect，不在 hosted runner 假裝跑 Office。
+        run: pytest --collect-only -q -m office_live tests/test_uploads_pptx.py
 
   # iter 64: frontend typecheck. tsc --noEmit 找型別漏洞, 不 build (build 太慢
   # 且需要 lockfile 完整裝 — typecheck 只要 tsc + @types/*).

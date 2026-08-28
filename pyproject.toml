@@ -2,6 +2,7 @@
 [tool.pytest.ini_options]
 minversion = "7.0"
 testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "-ra",                    # short summary for all (a)ll except (p)assed
     "--strict-markers",        # 未註冊 marker 直接 fail
@@ -15,4 +16,5 @@ filterwarnings = [
 markers = [
     "slow: 標註跑得慢的測試 (例: 真的呼叫 Gemini / FFmpeg)",
     "integration: 跨多個模組的整合測試 (FastAPI TestClient 等)",
+    "office_live: 需要本機 LibreOffice 或 Windows PowerPoint 的 release gate；雲端 CI 不執行",
 ]

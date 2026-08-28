@@ -7,6 +7,19 @@
 
 ---
 
+## P3 技術債收斂（2026-08-28）
+
+| 項 | 內容 |
+|---|---|
+| LIFESPAN | FastAPI `@app.on_event("startup")` 遷移為 lifespan async context manager，啟動恢復／selfcheck／security warning 行為不變並補契約測試。 |
+| ASYNCIO | pytest 明確固定 `asyncio_default_fixture_loop_scope=function`，避免 plugin 預設變動造成 fixture loop 行為漂移。 |
+| OFFICE-GATE | GitHub Actions 明確執行 `not office_live`，另以 collect-only 防 gate 被刪；Windows 本機 PowerPoint COM round-trip 維持 release gate。 |
+| WHISPER-CACHE | Whisper 動態解析 `HF_HUB_CACHE`／`HF_HOME`／`XDG_CACHE_HOME`，partial snapshot fail-closed，health 新增 `cache_source`。 |
+
+詳細驗收見 [`P3_COMPLETION_PLAN_2026-08-28.md`](P3_COMPLETION_PLAN_2026-08-28.md)。
+
+---
+
 ## 完整使用手冊 + README 文件導覽 (2026-07-14)
 
 > 新增 `docs/USER_MANUAL.md`(完整操作參考,補在 onboarding 0→1 之上);README 中英雙語加

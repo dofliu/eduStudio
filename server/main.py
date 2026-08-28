@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import argparse
 import mimetypes
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncIterator
 
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -73,6 +75,34 @@ WEB_EDUAPP = PROJECT_ROOT / "web" / "eduapp"
 LANDING_PAGE = PROJECT_ROOT / "server" / "static" / "landing.html"
 
 
+def _run_startup_checks() -> None:
+    """初始化可恢復的 runtime 狀態，供 FastAPI lifespan 與測試共用。
+
+    為什麼保持同步：這些工作都是短時間的本機設定／檔案狀態檢查，沒有需要跨
+    lifespan 保存的 async resource；抽成函式後可精確驗證啟動順序。
+    """
+    # `uvicorn server.main:app` 不會進 main()；hidden/redirected Windows process 若仍是
+    # CP950，下面 selfcheck 的 Unicode 符號會讓啟動直接 UnicodeEncodeError。
+    setup_utf8_stdout()
+    # eager init store，把 jobs/ 既有 state 讀回 cache。
+    store = get_default_store()
+    print(f"[server] job store ready: {len(store.list())} 筆既有 job")
+    # R-1：把因重啟中斷而卡住的 in-flight job 標 failed（可一鍵重試）。
+    interrupted = store.resume_interrupted()
+    if interrupted:
+        print(f"[server] R-1: 標記 {len(interrupted)} 個重啟中斷的 job 為 failed: {interrupted}")
+    # D-5：環境自檢；S-1：沒設 token 時提醒不可暴露公網。
+    print_startup_selfcheck()
+    warn_if_open()
+
+
+@asynccontextmanager
+async def _app_lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """FastAPI 建議的 lifespan；取代 deprecated startup event API。"""
+    _run_startup_checks()
+    yield
+
+
 def _legacy_banner_html() -> str:
     """legacy UI (`/ui`) 頂部退場提示 banner（U-3）。
 
@@ -128,6 +158,7 @@ def create_app() -> FastAPI:
             "PR-2b 會新增 repo / document / url。"
         ),
         version="0.2.0",
+        lifespan=_app_lifespan,
     )
 
     # CORS 收緊 (S-2): 預設只放行本機 origin, 部署時用 EDUSTUDIO_ALLOWED_ORIGINS 覆寫。
@@ -274,23 +305,6 @@ def create_app() -> FastAPI:
             return FileResponse(LANDING_PAGE)
         target = "/app/" if WEB_EDUAPP.exists() else ("/ui/" if WEB_DIST.exists() else "/editor")
         return RedirectResponse(url=target, status_code=307)
-
-    @app.on_event("startup")
-    async def _startup() -> None:
-        # `uvicorn server.main:app` 不會進 main()；hidden/redirected Windows process 若仍是
-        # CP950，下面 selfcheck 的 ✅/⚠ 會讓啟動直接 UnicodeEncodeError。
-        setup_utf8_stdout()
-        # eager init store, 把 jobs/ 既有 state 讀回 cache
-        store = get_default_store()
-        print(f"[server] job store ready: {len(store.list())} 筆既有 job")
-        # R-1: 把因重啟中斷而卡住的 in-flight job 標 failed (可一鍵重試)
-        interrupted = store.resume_interrupted()
-        if interrupted:
-            print(f"[server] R-1: 標記 {len(interrupted)} 個重啟中斷的 job 為 failed: {interrupted}")
-        # D-5: 環境自檢 — 印清楚的綠/紅 (ffmpeg/字型/GEMINI key), 缺什麼一眼可見
-        print_startup_selfcheck()
-        # S-1: 沒設 token 就大聲警告勿暴露公網
-        warn_if_open()
 
     return app
 

@@ -1,4 +1,4 @@
 # Dev / test only - 跑 tests/ 跟 CI 用. 一般使用者不需要。
 pytest>=7.4
-pytest-asyncio>=0.23  # FastAPI async route 測試需要
+pytest-asyncio>=0.24  # 支援 asyncio_default_fixture_loop_scope，固定每個 fixture 使用 function loop
 httpx>=0.25            # FastAPI TestClient 底層 (跟 fastapi 版本對應)

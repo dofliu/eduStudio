@@ -69,11 +69,13 @@ jobs:
       # `from google.genai import types`(非 importorskip)→ 不裝會 ModuleNotFoundError。
       # python-docx (2026-08-28 加): 漫畫 DOCX fallback export 的核心依賴；CI 會刻意
       # 模擬 Word COM 不可用，必須真的走 fallback，不能靠開發機全域套件掩蓋缺依賴。
+      # python-pptx (P3 加): hosted runner 不跑 Office live gate，但必須執行 PPTX mock/unit
+      # tests 並能 collect 該 gate；否則 importorskip 會讓 CI 連契約測試都沒跑。
       # 兩者皆為純 Python wheel, 不卡 build。f5-tts 等重型平台相依仍不裝(相關 test 有 skipif)。
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode pymupdf matplotlib google-genai python-docx
+          pip install fastapi uvicorn pydantic python-multipart httpx beautifulsoup4 Pillow fonttools mutagen qrcode pymupdf matplotlib google-genai python-docx python-pptx
           pip install -r requirements-dev.txt
 
       - name: Run pytest

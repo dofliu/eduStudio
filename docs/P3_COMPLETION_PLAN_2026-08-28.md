@@ -12,7 +12,7 @@
 |---|---|---|---|
 | P3-1 | Framework debt | FastAPI startup lifecycle | 移除 `@app.on_event`，改用 `FastAPI(lifespan=...)`；TestClient 證明 startup checks 只執行一次 |
 | P3-2 | Test debt | pytest-asyncio loop scope | `asyncio_default_fixture_loop_scope=function` 明確寫入設定；完整 pytest 不再出現該設定 warning |
-| P3-3 | Infrastructure boundary | PowerPoint fallback CI 邊界 | CI 保留 unit／contract／integration tests 並明確排除 `office_live`；Windows 本機真實 PPTX round-trip release gate 通過 |
+| P3-3 | Infrastructure boundary | PowerPoint fallback CI 邊界 | CI 安裝 `python-pptx` 執行 mock／unit／contract tests 並明確排除 `office_live`；Windows 本機真實 PPTX round-trip release gate 通過 |
 | P3-4 | Portability debt | Whisper cache portability | 動態支援 `HF_HUB_CACHE`／`HF_HOME`／`XDG_CACHE_HOME`；只接受完整 snapshot；loader 直接使用解析出的本機路徑；`/health` 回報 `cached` 與 `cache_source` |
 
 ## Targeted evidence

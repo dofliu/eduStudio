@@ -1,7 +1,7 @@
 # eduStudio P3 完成計畫與驗收矩陣
 
 日期：2026-08-28
-狀態：本機驗收完成，等待本次實作 commit 的雲端 CI
+狀態：P3 完成；本機、live server 與雲端 CI 均通過
 基準版本：`2f445a2`
 
 ## 範圍
@@ -25,6 +25,8 @@
 - Frontend：正式 `/app` unit tests `7 passed` 且 production build 成功；legacy web TypeScript 與 Vite build 成功。
 - Live server：lifespan 啟動成功且 stderr 無 FastAPI startup deprecation；`/health` 回報 `whisper.cached=true`、`cache_source=HF_HOME`。
 - Whisper live load：本機 `D:\hf-cache` snapshot 由 RTX 4080 以 `cuda／float16` 載入。
+- GitHub Actions final run `33147497327`：6／6 jobs 全綠，四組 backend matrix 的 Office gate collection 均通過。
+- 首次 P3 CI `33147327744` 暴露 CI 未安裝 `python-pptx`，導致 gate 無法 collect；已將該 dependency 納入 CI，未隱藏此 negative finding。
 
 ## 證據邊界
 

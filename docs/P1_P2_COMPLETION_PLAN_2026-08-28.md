@@ -1,7 +1,7 @@
 # eduStudio P1／P2 完成計畫與驗收矩陣
 
 日期：2026-08-28
-狀態：本機驗證完成，等待 GitHub Actions 與最終報告
+狀態：P1／P2 技術驗收完成；Google Photos 保留使用者 OAuth consent 邊界
 基準版本：`8da9935`
 
 ## 範圍
@@ -26,7 +26,7 @@
 - P1-2：既有六檔修改已納入 regression；完整 backend `2839 passed, 1 skipped`。
 - P1-3：以 Windows PowerPoint COM fallback 完成真實 PPTX → PDF round-trip，`6 passed`。
 - P1-4：非法 `mode`／`style`／`density` live 均回 `422`。
-- P1-5：Actions 已升級至 `checkout@v6`、`setup-python@v6`、`setup-node@v6` 與 Node 24；待雲端 CI readback。
+- P1-5：Actions 已升級至 `checkout@v6`、`setup-python@v6`、`setup-node@v6` 與 Node 24；GitHub Actions run `33134989128` 全部 6／6 jobs 通過。
 - P2-1：Whisper `large-v3` 由 RTX 4080 以 `cuda / float16` 載入；meeting、song、dubbing 三條 live API 均回 `200` 且產物非空。
 - P2-2：OAuth credentials/bootstrap/callback 邊界通過；帳號 consent 尚未完成，`/google-photos/status` 誠實回 `authorized=false`。
 - P2-3：token server live：health `200`、匿名 API `401`、Bearer `200`、cookie `200`、event sink exemption `204`。
@@ -36,8 +36,8 @@
 
 1. Unit／contract：錯誤處理、provider 選路、request validation。
 2. Integration：FastAPI route、檔案轉換、provider/backend 邊界。
-3. Live：Ollama、Whisper、LibreOffice、Gemini 與實際 artifact。
+3. Live：Ollama、Whisper、Windows PowerPoint COM、Gemini 與實際 artifact。
 4. UI smoke：四工作站可進入與操作，並確認產出狀態可追蹤。
 5. Release：backend full suite、frontend test/typecheck/build、secret scan、GitHub Actions、local/remote SHA。
 
-最終結果與證據將另寫入版本化 DOCX 報告；未通過或需外部帳號互動的項目保留為 `[BLOCKER]`，不以 mock 或靜態檢查冒充 live 成功。
+最終結果與證據已寫入 `reports/eduStudio_P1_P2_Function_Verification_Report_2026-08-28_v1.0.docx`；需外部帳號互動的 Google Photos consent 保留為 `[BLOCKER]`，不以 mock 或靜態檢查冒充 live 成功。

@@ -5,7 +5,7 @@
 #   1. cp .env.example .env  # 填 GEMINI_API_KEY
 #   2. cp tts_config.example.json tts_config.json  # 預設 edge tts 即可
 #   3. docker compose up -d  # 背景啟動
-#   4. 瀏覽器開 http://localhost:8000/app/  # 統一 /app 介面 (/ui /studio 為 legacy)
+#   4. 瀏覽器開 http://localhost:8000/app/  # 統一 /app 介面 (legacy /ui /studio 已退場轉址)
 #
 # 停止:
 #   docker compose down       # 停容器, 保留 volume

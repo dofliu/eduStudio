@@ -153,7 +153,7 @@ The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 | **`/app`** | Unified workstation — goal-oriented home + four content workstations (Video · Slides · Cards · Comics), with per-course Project / Publish / Status views | primary |
 | `/api`, `/localization`, `/projects`, `/jobs` | REST backend (generation, translation, projects, jobs) | |
 | `/docs` | Auto-generated OpenAPI docs | |
-| `/studio`, `/ui` | Legacy standalone UIs (kept for reference) | legacy |
+| `/studio`, `/ui` | Retired legacy UIs — both 307-redirect to `/app/` (U-5, 2026-08-30) | retired |
 
 ### Tech stack
 
@@ -312,7 +312,7 @@ eduStudio/
 ├── core/          後端核心(影片 pipeline / infocards 視覺 / translation 在地化 / comics 漫畫 / project …)
 ├── server/        FastAPI routes
 ├── frontend/      統一 /app 前端原始碼(React 19 + Vite，自包含建置)
-├── web/           前端建置產物(/app /studio /ui 靜態檔)
+├── web/           前端建置產物(僅 /app=web/eduapp;legacy /ui /studio 已退場)
 ├── tests/         2800+ pytest
 └── STATUS.yaml    專案現況
 ```

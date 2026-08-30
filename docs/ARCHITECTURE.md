@@ -47,8 +47,8 @@ AI 產出都過得了一道人工審查關卡**（review gate，硬規則 #1，�
 
 **分層紀律**：`core/` 是純內容引擎，**不 import FastAPI**，可獨立跑測試與 CLI（`app.py`、
 `pipeline.py`、`batch.py`、`solve.py` 等）。`server/` 只負責 HTTP、job 編排、持久化與安全，
-重活全委派給 `core/`。前端只透過 HTTP 跟後端講話，**不直連 Gemini**（`/studio` legacy 例外，
-正在退場，見 U-1/U-3）。
+重活全委派給 `core/`。前端只透過 HTTP 跟後端講話，**不直連 Gemini**（原 `/studio` 的
+client-side 直連已隨 U-1 退場堵住）。
 
 ---
 
@@ -153,9 +153,10 @@ AI 產出都過得了一道人工審查關卡**（review gate，硬規則 #1，�
 - 原始碼 [`frontend/edustudio/`](../frontend/edustudio)（React 19 + Vite），`base` 在
   `vite.config.ts` **寫死 `/app/`**（消除 footgun，見 U-6），`npm run build` 產物落 `web/eduapp/`，
   由 `server/main.py` mount 在 `/app/*`（assets + SPA fallback）。
-- `/ui`、`/studio` 是 **legacy，正在退場**：server 在 index.html 注入退場 banner 導向 `/app`；
-  `/studio` 仍 client-side 直連 Gemini（繞過計費 + review gate，是要堵的漏洞 U-1）。
-- 此 repo 無瀏覽器自動化：前端以 `npx tsc --noEmit` + `npm run build` 編譯過為準，**視覺由人後驗**。
+- `/ui`、`/studio` **已退場**（U-1 2026-06 / U-5 2026-08-30）：兩路徑一律 307 轉址 `/app/`；
+  原 `/ui` 的 web/ 原始碼專案已移除（考古走 git 歷史），`/studio` 的 client-side 直連
+  Gemini 漏洞隨 U-1 關閉。
+- 此 repo 無瀏覽器自動化：前端以 `npm test`（node --test）+ `npm run build` 編譯過為準，**視覺由人後驗**。
 
 ---
 

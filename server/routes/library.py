@@ -35,7 +35,7 @@ class LibraryItem(BaseModel):
     srt_exists: bool             # 同名 .srt 存在 → 上傳能帶字幕
     youtube: YoutubeUpload | None = None     # 上傳記錄, 沒上傳過為 None
     artifact_url: str            # GET /jobs/{id}/artifacts/{name}, 給 <video src>
-    publish_url: str             # /ui/jobs/{id}/publish/{name}, 給 React Router
+    publish_url: str             # 發布入口(U-5 起 /ui 退場 → 指 /app/ 發布站)
 
 
 class LibraryResponse(BaseModel):
@@ -97,6 +97,8 @@ async def list_library(store: JobStore = Depends(get_default_store)) -> LibraryR
                 srt_exists=srt_path.exists(),
                 youtube=yt,
                 artifact_url=f"/jobs/{job.id}/artifacts/{a.name}",
-                publish_url=f"/ui/jobs/{job.id}/publish/{a.name}",
+                # U-5: legacy /ui 退場 — 發布走 /app 發布站(SPA 無 per-job deep link,
+                # 舊 /ui/jobs/.../publish/... 路徑會 307 回 /app/, 這裡直接給正解)
+                publish_url="/app/",
             ))
     return LibraryResponse(items=items, total=len(items))

@@ -39,7 +39,7 @@ PUBLISH_SCRIPT = BASE_DIR / "publish.py"
 # Track A (這個 Flask app) 進入 v3.1 棄用準備期, 預設根路徑 redirect 到 Track B.
 # 環境變數 KEEP_TRACK_A=1 可保留原行為 (給仍依賴 /upload 上傳 / 即時渲染進度頁的場景)。
 KEEP_TRACK_A = os.environ.get("KEEP_TRACK_A", "").lower() in ("1", "true", "yes")
-TRACK_B_URL = os.environ.get("TRACK_B_URL", "http://localhost:8000/ui/")
+TRACK_B_URL = os.environ.get("TRACK_B_URL", "http://localhost:8000/app/")  # U-5: /ui 退場, 導 /app
 TRACK_A_BANNER_HTML = f"""
 <div style="background:#fef3c7;border-bottom:2px solid #f59e0b;padding:8px 16px;font-size:13px;color:#78350f;text-align:center">
   ⚠ <strong>Track A (Flask v1) 已進入棄用準備期 (v3.1)</strong> — 主要編輯流程已搬到

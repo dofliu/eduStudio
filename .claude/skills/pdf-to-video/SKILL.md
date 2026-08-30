@@ -73,7 +73,7 @@ curl -s http://localhost:8000/jobs/<job_id> | jq -r .state
 `state=awaiting_review` 時,**停下,叫用戶開 UI**:
 
 ```
-http://localhost:8000/ui/jobs/<job_id>
+http://localhost:8000/app/ (製作狀態 → 該 job → Review)
 ```
 
 用戶逐題對 step 文字 / 公式 / 易錯提醒,**改完按 Approve**。skill 不要自動 approve。
@@ -131,7 +131,7 @@ curl -s http://localhost:8000/jobs/<job_id>/artifacts | jq
   3. python scripts/submit_job.py exam "D:/exams/midterm_2026.pdf"
      → job_id = abc123
   4. poll state, 等到 awaiting_review
-  5. 「請開 http://localhost:8000/ui/jobs/abc123 逐題 review, 改完按 Approve 我會繼續」
+  5. 「請開 http://localhost:8000/app/ 在製作狀態找到該 job 逐題 review, 改完按 Approve 我會繼續」
   6. 用戶按 approve 後 state → rendering
   7. 等 done, 印 artifacts 路徑
 ```

@@ -139,7 +139,7 @@ server 啟動時會印一輪**自檢**:ffmpeg / 字型 / API key 在不在,缺�
 | `/docs` | 自動產生的 OpenAPI 互動文件 | |
 | `/api` `/localization` `/projects` `/jobs` … | REST 後端 | |
 | `/health` | 健康檢查(回布林,給監控 / Docker healthcheck) | |
-| `/studio` `/ui` | 舊版獨立 UI(保留參考) | legacy |
+| `/studio` `/ui` | 已退場(2026-08-30 U-5),一律 307 轉導 `/app/` | 轉址 |
 
 ---
 

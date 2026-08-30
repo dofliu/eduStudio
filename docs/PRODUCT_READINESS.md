@@ -229,6 +229,12 @@
   **U-1（2026-06-15）退場**＝307 轉址 `/app/`（已過 `/app` 功能對等確認，呼應本項「完全移除
   build 產物等對等確認後再做」）。`/ui`（影片站，已與 `/app` 對等）暫保留 banner 過渡，待後續
   小 PR 視情況比照退場。
+- [x] 🟡 **U-5 `/ui` 正式退場**（offline）— ✅ 2026-08-30 完成（劉老師拍板「確認不影響現有系統
+  就可以退場」；P2-4 四站 click-through 已驗 `/app` 對等）。`/ui` 比照 `/studio` 一律 **307 轉址
+  `/app/`**；web/ 的 legacy 前端原始碼專案（React 18, autosolvervideo-web）與 U-3 banner 機制移除
+  （考古走 git 歷史）；`library.publish_url` 改指 `/app/`、landing 卡片移除、`TRACK_B_URL` 預設改
+  `/app/`、skills/腳本指引同步。**Dockerfile 改建 frontend/ → web/eduapp**（順修「image 只有
+  /ui 沒有 /app」的缺口）；CI 刪 legacy frontend-typecheck job、frontend-app-build 補跑 npm test。
 - [x] 🟡 **U-4 成本面板真實化收尾**（offline，接 Phase 4）— ✅ **2026-06-16 對帳補登**（實作早於
   **PR #35（commit `1a63b97`）** 在 C-1（#34）影片/解析計帳落地後隨即完成，但當時漏勾 checkbox／
   漏補 ✅ 行，本輪查證後補正）。成本面板已**全面接真 `/api/usage`、移除所有 mock 示意數字**：

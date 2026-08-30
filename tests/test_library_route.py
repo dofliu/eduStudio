@@ -340,10 +340,11 @@ class TestLibraryItemFields:
         assert items[0]["artifact_url"] == f"/jobs/{job_id}/artifacts/q1.mp4"
 
     def test_publish_url_format(self, client):
+        # U-4: legacy /ui 退場 → 發布入口一律指 /app 發布站
         c, store = client
-        job_id = _make_done_job(store, ["q1.mp4"])
+        _make_done_job(store, ["q1.mp4"])
         items = c.get("/library").json()["items"]
-        assert items[0]["publish_url"] == f"/ui/jobs/{job_id}/publish/q1.mp4"
+        assert items[0]["publish_url"] == "/app/"
 
     def test_mp4_size_bytes_passthrough(self, client):
         c, store = client

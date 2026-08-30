@@ -34,8 +34,8 @@ cd frontend && npm install && npm run build   # 或 npm run build:app
   `web/eduapp/`，server serve 在 `/app`。
 - **base 已在 `frontend/vite.config.ts` 寫死成 `/app/`** → 直接 `npm run build`（或語意別名
   `npm run build:app`）即可，**不必**再記得在 CLI 帶 `--base=/app/`（以前漏了會整頁空白 404）。
-- `web/`（serve 在 `/ui`）與 `web/studio/`（`/studio`，外部 infoCard 預建產物）為 **legacy**，
-  正在收斂退場，新前端功能一律進 `/app`。
+- legacy 前端已全數退場（U-1 `/studio`、U-5 `/ui`，2026-08-30）：`web/` 現在只是 build
+  輸出目錄（`web/eduapp`），兩個舊路徑一律 307 轉址 `/app/`。前端功能一律進 `/app`。
 
 ## 跑測試（送 PR 前必做）
 

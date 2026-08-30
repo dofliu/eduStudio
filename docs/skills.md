@@ -61,7 +61,7 @@ document` 或 `url`。Git repo 也是 `submit_job.py repo`。
   ↓
 [poll /jobs/<id> 直到 state ∈ {awaiting_review, rendering}]
   ↓
-[exam → awaiting_review → 開 http://localhost:8000/ui/jobs/<id> review]
+[exam → awaiting_review → 開 http://localhost:8000/app/ (製作狀態) review]
   ↓ (用戶 approve)
 [poll 直到 done]
   ↓

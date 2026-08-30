@@ -87,33 +87,8 @@ jobs:
         # 防止本機 release gate 被改名或意外刪除；只 collect，不在 hosted runner 假裝跑 Office。
         run: pytest --collect-only -q -m office_live tests/test_uploads_pptx.py
 
-  # iter 64: frontend typecheck. tsc --noEmit 找型別漏洞, 不 build (build 太慢
-  # 且需要 lockfile 完整裝 — typecheck 只要 tsc + @types/*).
-  # 注意: web/ 是 legacy 前端 (/ui · /studio, autosolvervideo-web, 已標 legacy 退場,
-  # 見 U-3)。正式對外前端是 frontend/ (/app, edustudio-frontend), 由下方
-  # frontend-app-build job 把關。此 job 保留是因 /ui · /studio 仍在 server 提供 (帶退場
-  # banner), 退場前繼續守 legacy 型別不退步; 待 /studio 路由與 build 產物正式移除後可一併刪。
-  # 單一 job ubuntu × node 24, 不開 matrix (frontend 不需要跨 OS 驗證).
-  frontend-typecheck:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Typecheck (tsc --noEmit)
-        run: npx tsc --noEmit
+  # (U-5 2026-08-30: 原 frontend-typecheck job 已隨 legacy web/ (/ui) 前端退場刪除;
+  #  唯一正式前端 frontend/ 由下方 frontend-app-build 把關。)
 
   # T-2 (2026-06-10): 把關「唯一正式對外前端」frontend/ (/app, React 19 + Vite, U-6 已寫死
   # base:'/app/')。先前 CI 只 typecheck legacy web/, 真正的 /app 前端從未進 CI ——
@@ -137,6 +112,9 @@ jobs:
 
       - name: Install deps
         run: npm ci
+
+      - name: Unit tests (node --test)
+        run: npm test
 
       - name: Build (/app, vite build, base=/app/)
         run: npm run build

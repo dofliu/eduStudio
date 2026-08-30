@@ -1,8 +1,11 @@
-# autoSolverVideo Dockerfile — v4 階段 1 A 第一版 (draft, 未實測)
+# eduStudio Dockerfile
 #
 # Multi-stage build:
-#   1. web-builder: Node 20 + Vite 建 React UI → /web/dist
-#   2. final:       Python 3.12 + FFmpeg + Noto CJK + 程式碼 + web/dist 服務
+#   1. app-builder: Node 20 + Vite 建統一 /app 前端 (frontend/) → /web/eduapp
+#   2. final:       Python 3.12 + FFmpeg + Noto CJK + 程式碼 + web/eduapp 服務
+#
+# U-5 (2026-08-30): legacy /ui 前端退場 — 原 web-builder stage(建 web/→dist)移除,
+# 改建唯一正式前端 frontend/ (/app)。修掉「image 只有 /ui 沒有 /app」的舊缺口。
 #
 # 目標 image size: ~700 MB (python:3.12-slim ~150MB + ffmpeg ~80MB + fonts ~80MB
 #                 + Python deps ~400MB)
@@ -23,19 +26,19 @@
 #   - production reverse proxy (nginx)
 
 # ============================================================
-# Stage 1 — web builder
+# Stage 1 — /app 前端 builder（frontend/, React 19 + Vite, base 已寫死 /app/）
 # ============================================================
-FROM node:20-slim AS web-builder
+FROM node:20-slim AS app-builder
 
-WORKDIR /web
+WORKDIR /frontend
 
 # 先 COPY 鎖檔 + package.json, 利用 layer cache (deps 沒變不重裝)
-COPY web/package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci --no-audit --no-fund
 
-COPY web/ ./
+COPY frontend/ ./
 RUN npm run build
-# → /web/dist 是 vite production build 產出
+# → vite.config.ts outDir 解析為 /web/eduapp (process.cwd()=/frontend 的 ../web/eduapp)
 
 
 # ============================================================
@@ -67,8 +70,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # (.dockerignore 已排除 __pycache__ / .git / videos/ / output/ / 等 runtime 目錄)
 COPY . .
 
-# 從 web-builder 拷貝 React build artifacts 進來
-COPY --from=web-builder /web/dist ./web/dist
+# 從 app-builder 拷貝 /app build artifacts 進來 (server serve 於 /app/)
+COPY --from=app-builder /web/eduapp ./web/eduapp
 
 # 字型環境變數對齊 fonts-noto-cjk 的安裝路徑
 # CJK 主字型 + 符號 fallback

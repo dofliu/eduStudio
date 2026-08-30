@@ -42,10 +42,10 @@
   `server/routes/comics.py` + `frontend/edustudio/comic-studio.jsx`),連載 Series Bible /
   證據鎖定生成 / 六道 QA gate / 版本化發布 + Internal Reader,與其他 track 共用
   Project/設定/provider/成本。見 docs/COMIC_PRODUCTION_SYSTEM.md。
-- **前端收斂**:`/app` 是唯一正式介面(2026-08 改版:目標導向首頁 + 影片 · 簡報 · 圖卡 ·
+- **前端收斂**:`/app` 是唯一前端(2026-08 改版:目標導向首頁 + 影片 · 簡報 · 圖卡 ·
   漫畫 四工作站 + 專案/發布/狀態)。`/ui`(原 autoSolver)、`/studio`(原 infoCard,
-  client-side 直連 Gemini)**標 legacy 退場中**
-  (頂部退場 banner 導向 `/app`;build 產物待 `/app` 對等人工驗收後移除)。
+  client-side 直連 Gemini)**已退場**(U-1 / U-5 2026-08-30):web/ 原始碼專案已移除,
+  兩路徑一律 307 轉址 `/app/`;Dockerfile/CI 也只建 `frontend/`。
 - **一門課＝一工作空間**:頂部選課,之後產的每支影片/每張圖卡自動歸到該課
   (來源 · 任務 · 成品),NotebookLM 式管理。
 

@@ -67,9 +67,9 @@ mimetypes.add_type("image/svg+xml", ".svg")
 setup_logging()
 
 
-# 對齊 vite.config.ts 的 build outDir
-WEB_DIST = PROJECT_ROOT / "web" / "dist"
 # eduStudio 合併 C-4: 統一 app（Claude Design 設計、infoCard React19 build，base=/app/）。
+# （U-5 2026-08-30: legacy `/ui` 前端已退場 — web/ 原始碼專案與 web/dist 產物皆移除，
+#  `/ui` 與 `/studio` 一樣改 307 轉址到 `/app/`。）
 WEB_EDUAPP = PROJECT_ROOT / "web" / "eduapp"
 # eduStudio 合併 C-4 方案 A: 統一入口 landing（外觀可獨立替換，待 Claude Design 重做）。
 LANDING_PAGE = PROJECT_ROOT / "server" / "static" / "landing.html"
@@ -101,51 +101,6 @@ async def _app_lifespan(_: FastAPI) -> AsyncIterator[None]:
     """FastAPI 建議的 lifespan；取代 deprecated startup event API。"""
     _run_startup_checks()
     yield
-
-
-def _legacy_banner_html() -> str:
-    """legacy UI (`/ui`) 頂部退場提示 banner（U-3）。
-
-    收斂到 `/app` 單一介面前的過渡步驟：在舊介面頂部固定一條提示，導使用者改用
-    `/app`。純前端提示、不移除任何功能、可逆（避免反悔）。
-
-    （`/studio` 已於 U-1 退場 → 改 307 轉址至 `/app/`，不再注入 banner。）
-    """
-    return (
-        '<div role="alert" style="position:fixed;top:0;left:0;right:0;z-index:2147483647;'
-        "background:#b45309;color:#fff;padding:10px 16px;text-align:center;"
-        'font:14px/1.4 system-ui,-apple-system,"Noto Sans TC",sans-serif;'
-        'box-shadow:0 1px 4px rgba(0,0,0,.35)">'
-        "⚠ 此介面為 <b>legacy（即將退場）</b>，請改用統一介面 "
-        '<a href="/app/" style="color:#fff;font-weight:700;text-decoration:underline">/app</a>。'
-        "</div>"
-    )
-
-
-def _inject_legacy_banner(html: str) -> str:
-    """把 legacy banner 注入 index.html `<body>` 起始處（找不到 body 則前置）。"""
-    banner = _legacy_banner_html()
-    lowered = html.lower()
-    body_idx = lowered.find("<body")
-    if body_idx == -1:
-        return banner + html
-    close = html.find(">", body_idx)
-    if close == -1:
-        return banner + html
-    return html[: close + 1] + banner + html[close + 1 :]
-
-
-def _serve_legacy_spa(root: Path, full_path: str) -> FileResponse | HTMLResponse:
-    """legacy SPA 服務：實檔直接回，index.html / deep-link 回注入 banner 的 HTML。"""
-    target = (root / full_path).resolve()
-    try:
-        target.relative_to(root.resolve())
-    except ValueError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "非法路徑")
-    if target.is_file() and target.name != "index.html":
-        return FileResponse(target)
-    html = (root / "index.html").read_text(encoding="utf-8")
-    return HTMLResponse(_inject_legacy_banner(html))
 
 
 def create_app() -> FastAPI:
@@ -205,32 +160,19 @@ def create_app() -> FastAPI:
         """
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    # React UI (PR-3e): web/dist 若存在就服務 /ui/*, 否則繼續用 vanilla /editor
-    # 用 StaticFiles mount /ui/assets 處理已知 asset 檔, 其餘 /ui/* 走 SPA fallback
-    # (deep link 例如 /ui/jobs/abc 直接刷新時 fallback 到 index.html, 由 React Router 處理)
-    if WEB_DIST.exists():
-        assets_dir = WEB_DIST / "assets"
-        if assets_dir.exists():
-            app.mount(
-                "/ui/assets",
-                StaticFiles(directory=str(assets_dir)),
-                name="ui-assets",
-            )
-
-        @app.get("/ui/{full_path:path}", include_in_schema=False)
-        async def spa_fallback(full_path: str) -> Response:
-            # 實檔 (例如 /ui/vite.svg) 直接回；index.html / deep-link 回注入退場
-            # banner (U-3) 的 HTML。防 path traversal 在 helper 內。
-            return _serve_legacy_spa(WEB_DIST, full_path)
-
     # U-1: `/studio` 退場。原 infoCard 前端 client-side 直連 Gemini（繞過後端計費 +
     # review gate），其源碼不在本 repo，且視覺功能已於 U-2 在 `/app` 補齊對等（逐區
     # refine / 區域選擇）。故不再 serve 該 SPA，改一律 307 轉址到 `/app/`：關掉繞過
-    # 漏洞、舊書籤/連結不 404。無條件註冊（即使殘留 web/studio build 也不會被服務）。
+    # 漏洞、舊書籤/連結不 404。
+    # U-5 (2026-08-30 劉老師拍板): `/ui`（原 autoSolver React 前端）同樣退場 —
+    # web/ 原始碼專案與 build 產物已移除，功能已由 `/app` 對等覆蓋
+    # （review gate / proposals / library / YouTube 發布，P2-4 四站 click-through 驗過）。
     # 307（暫時）而非 301/308：不被瀏覽器永久快取，保留反悔餘地。
     @app.get("/studio", include_in_schema=False)
     @app.get("/studio/{full_path:path}", include_in_schema=False)
-    async def studio_sunset(full_path: str = "") -> RedirectResponse:
+    @app.get("/ui", include_in_schema=False)
+    @app.get("/ui/{full_path:path}", include_in_schema=False)
+    async def legacy_sunset(full_path: str = "") -> RedirectResponse:
         return RedirectResponse(url="/app/", status_code=307)
 
     # eduStudio 合併 C-4: 統一 app（Claude Design 設計）serve 在 /app/*（同 /ui 模式）。
@@ -277,8 +219,8 @@ def create_app() -> FastAPI:
         return {
             "status": "ok",
             "service": "autoSolverVideo",
-            "ui_built": (WEB_DIST.exists() or WEB_EDUAPP.exists()),
-            "ui_dist_built": WEB_DIST.exists(),
+            # U-5: legacy /ui 退場後唯一前端 = /app（web/eduapp），兩鍵語意合一
+            "ui_built": WEB_EDUAPP.exists(),
             "ui_eduapp_built": WEB_EDUAPP.exists(),
             # setup diagnostics — 給 onboarding / monitoring
             "gemini_api_key_set": bool(get_gemini_api_key()),
@@ -303,7 +245,7 @@ def create_app() -> FastAPI:
     async def root():
         if LANDING_PAGE.is_file():
             return FileResponse(LANDING_PAGE)
-        target = "/app/" if WEB_EDUAPP.exists() else ("/ui/" if WEB_DIST.exists() else "/editor")
+        target = "/app/" if WEB_EDUAPP.exists() else "/editor"
         return RedirectResponse(url=target, status_code=307)
 
     return app

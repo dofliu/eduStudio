@@ -2,7 +2,7 @@
 """scripts/run_ideate.py — 一鍵跑 ideate.py 自動內容企劃 (v4 階段 2 B iter 23)。
 
 讀一個 watched folder 的 PDF, 餵 Gemini Vision 提出影片企劃, 結果寫進
-jobs/proposals.json。寫完後開 http://localhost:8000/ui/proposals 可在 UI
+jobs/proposals.json。寫完後開 http://localhost:8000/app/ 可在 UI
 逐一核准 / 忽略。
 
 用法:
@@ -158,7 +158,7 @@ def main() -> int:
         print(f"✓ 完成。proposals.json 寫到: {PROPOSALS_PATH}")
         if proposals:
             print(f"   {len(proposals)} 個新提案待 review")
-            print(f"   開 http://localhost:8000/ui/proposals 逐一核准 / 忽略")
+            print(f"   開 http://localhost:8000/app/ 逐一核准 / 忽略 (proposals)")
         else:
             print("   (沒新提案 — 可能 dedupe 後全去掉了, 或 Gemini 沒回什麼)")
     return 0

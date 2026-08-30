@@ -51,7 +51,7 @@ python -m pytest tests/ -q          # 2845 passed (2026-08-28)；CI 6 jobs 全�
 | `/app` | **統一工作站**（目標導向首頁 + 影片/簡報/圖卡/漫畫 四工作站 + 專案/發布/狀態）— 唯一維護的前端 |
 | `/api` `/localization` `/projects` `/jobs` | REST 後端 |
 | `/docs` | OpenAPI |
-| `/studio` `/ui` | 舊獨立前端（不再維護，可留可刪） |
+| `/studio` `/ui` | 已退場（U-5 2026-08-30）：一律 307 轉導 `/app/`；原 web/ 原始碼專案已移除（要考古走 git 歷史） |
 
 ## 架構速覽
 
@@ -66,7 +66,7 @@ eduStudio/
 │   └── project.py  Project(一課一工作空間)
 ├── server/        FastAPI routes (jobs/uploads/projects/infocards/comics/settings/localization…)
 ├── frontend/      統一 /app 前端原始碼 (React 19 + Vite；app.jsx + comic-studio.jsx)
-├── web/           build 產物 (/app=eduapp、/studio、/ui)
+├── web/           build 產物 (僅 /app=eduapp;legacy /ui /studio 已退場)
 ├── tests/         2845 pytest
 ├── STATUS.yaml    完整逐項歷史
 └── HANDOFF.md     本檔

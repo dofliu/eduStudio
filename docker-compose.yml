@@ -26,7 +26,9 @@ services:
     container_name: autosolvervideo-server
     restart: unless-stopped   # 解 P0 #1 部分: container 掛掉自動重啟
     ports:
-      - "8000:8000"
+      # base = 「localhost 自己玩」: 只綁 127.0.0.1, 不上內網/公網
+      # (預設零驗證, 直接綁 0.0.0.0 等於整個內網都打得到; 對外請疊 prod compose + 反向代理)
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
 

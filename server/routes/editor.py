@@ -231,7 +231,8 @@ def _render_job_card(j: JobRecord, store: JobStore) -> str:
         except Exception:
             pass
 
-    error_html = f'<div class="job-error">⚠ {j.error}</div>' if j.error else ""
+    # j.error 可能含來源檔名/外部工具輸出等不可信字串, 進 DOM 前一律 escape (防 XSS)
+    error_html = f'<div class="job-error">⚠ {_html_escape(j.error)}</div>' if j.error else ""
 
     # actions 依狀態變: review 中可 edit + approve, done 可下載
     actions = []

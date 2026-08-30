@@ -204,14 +204,19 @@ class VideoDubber:
         output_path = os.path.join(output_dir, "dubbed_audio.wav")
         filter_parts = []
         inputs = []
-        for i, seg in enumerate(segments):
+        # ffmpeg 的輸入串流索引 = `-i` 的順序；缺音檔的 segment 會被跳過，
+        # 所以 filtergraph 要用「保留段」的連續計數器 j，不能用 enumerate 的 i
+        # （skip 會留洞 → [i:a] 指到不存在的輸入、amix 引用不到 [a{i}]，ffmpeg 直接崩）。
+        j = 0
+        for seg in segments:
             if not seg.audio_path or not os.path.exists(seg.audio_path):
                 continue
             target_duration = seg.end - seg.start
             adjusted_path = self.adjust_audio_speed(seg.audio_path, target_duration)
             inputs.extend(['-i', adjusted_path])
             delay_ms = int(seg.start * 1000)
-            filter_parts.append(f'[{i}:a]adelay={delay_ms}|{delay_ms}[a{i}]')
+            filter_parts.append(f'[{j}:a]adelay={delay_ms}|{delay_ms}[a{j}]')
+            j += 1
         if not filter_parts:
             return ""
         mix_inputs = ''.join([f'[a{i}]' for i in range(len(filter_parts))])

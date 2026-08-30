@@ -30,7 +30,7 @@ prod override 做了什麼：
 
 | 項目 | base（自用） | prod override |
 | --- | --- | --- |
-| port 綁定 | `8000:8000`（所有介面） | `127.0.0.1:8000:8000`（只 loopback，外部走反向代理） |
+| port 綁定 | `127.0.0.1:8000:8000`（只 loopback；2026-08 起 base 也不再綁所有介面，要上內網請走 prod + 反向代理） | `127.0.0.1:8000:8000`（只 loopback，外部走反向代理） |
 | restart policy | `unless-stopped` | `always`（daemon 重啟也拉回） |
 | container log | 無上限 | json-file，`max-size 10m` × `max-file 5`（落盤 + rotation） |
 | 提權 | 預設 | `no-new-privileges:true` |

@@ -56,6 +56,33 @@ def test_merge_empty_segments_returns_blank(tmp_path):
     assert d.merge_dubbed_audio([Segment(0.0, 1.0, "x")], 1.0, str(tmp_path)) == ""
 
 
+def test_merge_skips_missing_audio_with_contiguous_indices(tmp_path, monkeypatch):
+    # 三段中間缺一段音檔: filtergraph 的輸入索引與 [aN] 標籤都必須連續 (0,1),
+    # 不能沿用 enumerate 的 (0,2) — 否則 [2:a] 指到不存在的輸入、amix 引用不到 [a1],
+    # ffmpeg 直接崩 (CODE_REVIEW_2026-07 T1-1)。
+    d = _dubber(tmp_path)
+    a0 = tmp_path / "seg0.mp3"
+    a2 = tmp_path / "seg2.mp3"
+    a0.write_bytes(b"x")
+    a2.write_bytes(b"x")
+    segs = [
+        Segment(0.0, 1.0, "a", audio_path=str(a0)),
+        Segment(1.0, 2.0, "b", audio_path=str(tmp_path / "missing.mp3")),  # 缺檔 → skip
+        Segment(2.0, 3.0, "c", audio_path=str(a2)),
+    ]
+    captured: dict = {}
+    monkeypatch.setattr(d, "adjust_audio_speed", lambda path, dur: path)
+    monkeypatch.setattr(d, "_run_cmd_checked", lambda cmd, what: captured.setdefault("cmd", cmd))
+    monkeypatch.setattr(d, "_assert_nonempty_file", lambda path, what: None)
+    out = d.merge_dubbed_audio(segs, 3.0, str(tmp_path))
+    assert out.endswith("dubbed_audio.wav")
+    cmd = captured["cmd"]
+    assert cmd.count("-i") == 2  # 只餵兩個存在的音檔
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "[0:a]" in fc and "[1:a]" in fc and "[2:a]" not in fc
+    assert "[a0][a1]amix=inputs=2" in fc  # 標籤連續且 amix 數量一致
+
+
 def test_speech_rate_table():
     assert VideoDubber.SPEECH_RATE["zh_TW"] == 4.0
     assert "default" in VideoDubber.SPEECH_RATE

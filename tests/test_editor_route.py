@@ -280,6 +280,16 @@ class TestEditorIndex:
         assert '/tmp/<evil>"x.pdf' not in r.text
         assert "/tmp/&lt;evil&gt;&quot;x.pdf" in r.text
 
+    def test_job_error_escaped_in_card(self, client):
+        # j.error 可能含來源檔名/外部工具輸出, 進卡片前必須 escape (T2-3)
+        c, store = client
+        rec = _make_job(store, state=JobState.FAILED)
+        rec.error = "<img src=x onerror=alert(1)>boom"
+        r = c.get("/editor")
+        assert r.status_code == 200
+        assert "<img src=x onerror=" not in r.text
+        assert "&lt;img src=x onerror=alert(1)&gt;boom" in r.text
+
 
 class TestEditorPage:
     def test_nonexistent_job_404(self, client):

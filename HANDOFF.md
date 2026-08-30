@@ -1,14 +1,16 @@
 # eduStudio — 交接筆記 (Handoff)
 
-> 給接手的人 / 下一個 Claude Code session 用。最後更新：2026-06-07。
-> 這份是「快速接手」摘要；完整逐項歷史見 `STATUS.yaml`。
+> 給接手的人 / 下一個 Claude Code session 用。最後更新：2026-08-30。
+> 這份是「快速接手」摘要；完整逐項歷史見 `STATUS.yaml`、階段摘要見 `docs/CHANGELOG.md`。
 
 ## 這是什麼
 
 eduStudio = 單一可自架的 **Python FastAPI server**，把老師的素材變成教學內容：
-- **影片**：考卷/簡報/文件/repo/網址 → 旁白教學影片 + 字幕 + YouTube
-- **視覺**：教學簡報 / 圖卡 / 海報（Gemini 生成 + PPTX 匯出）
+- **影片**：考卷/簡報/文件/repo/網址/HTML 動畫/相簿/歌曲 → 旁白教學影片 + 字幕 + YouTube
+- **視覺**：教學簡報 / 圖卡 / 海報（Gemini 生成 + PPTX 匯出、缺圖簡報補圖）
 - **在地化**：翻譯 / 配音 / 會議摘要 / 學習工具
+- **漫畫（2026-08 新，內部 MVP）**：連載教學漫畫 — Series Bible / 證據鎖定生成 / 六道 QA gate /
+  版本化發布 + 內部閱讀器（`docs/COMIC_PRODUCTION_SYSTEM.md`）
 - 核心理念：**每個 AI 產出都有人工審查關卡**（考卷解答強制審查）；**一門課＝一個工作空間**。
 
 由三個前身專案整合而成（autoSolver = 本體 / infoCard / translateGemma），現在**完全獨立**，舊 repo 已擱置（保留供參考細項功能）。
@@ -38,14 +40,15 @@ npm install        # 第一次
 npx vite build --base=/app/        # ⚠️ --base=/app/ 一定要帶，漏了 /app 整頁空白 404
 
 # 測試
-python -m pytest tests/ -q          # 2394 passed；CI 4 matrix + frontend-typecheck 全綠
+python -m pytest tests/ -q          # 2845 passed (2026-08-28)；CI 6 jobs 全綠（office_live 為
+                                    # Windows 本機 release gate，CI 明確排除）
 ```
 
 ## 介面
 
 | 路徑 | 內容 |
 |---|---|
-| `/app` | **統一工作站**（影片/視覺/素材·Project/發布/製作狀態）— 唯一維護的前端 |
+| `/app` | **統一工作站**（目標導向首頁 + 影片/簡報/圖卡/漫畫 四工作站 + 專案/發布/狀態）— 唯一維護的前端 |
 | `/api` `/localization` `/projects` `/jobs` | REST 後端 |
 | `/docs` | OpenAPI |
 | `/studio` `/ui` | 舊獨立前端（不再維護，可留可刪） |
@@ -56,13 +59,15 @@ python -m pytest tests/ -q          # 2394 passed；CI 4 matrix + frontend-typec
 eduStudio/
 ├── core/          後端核心
 │   ├── (影片 pipeline: outliner/scriptor/slide_ingest/pipeline/runner…)
-│   ├── infocards/ 視覺生成(簡報/圖卡/海報/漫畫已移除)、PPTX 匯出、視覺素材庫
+│   ├── infocards/ 視覺生成(簡報/圖卡/海報)、PPTX 匯出、視覺素材庫、comic_service
+│   ├── comics.py  Comic Core(連載/版本/證據/QA/發布,file-first)
 │   ├── translation/ learning/ meeting/ video/ storage/   (translateGemma 移植)
+│   ├── providers.py + ollama_client.py  provider 抽象(Gemini 主力;文字角色可指本機 Ollama)
 │   └── project.py  Project(一課一工作空間)
-├── server/        FastAPI routes (jobs/uploads/projects/infocards/settings/localization…)
-├── frontend/      統一 /app 前端原始碼 (React 19 + Vite，自包含；app.jsx 是單一大 bundle)
+├── server/        FastAPI routes (jobs/uploads/projects/infocards/comics/settings/localization…)
+├── frontend/      統一 /app 前端原始碼 (React 19 + Vite；app.jsx + comic-studio.jsx)
 ├── web/           build 產物 (/app=eduapp、/studio、/ui)
-├── tests/         2394 pytest
+├── tests/         2845 pytest
 ├── STATUS.yaml    完整逐項歷史
 └── HANDOFF.md     本檔
 ```
@@ -76,7 +81,22 @@ eduStudio/
 5. **bash 工具在 Windows 是 cp950**，curl 傳含中文的 JSON 會亂碼 → 用 Python urllib/requests（UTF-8）打 API。
 6. **改前端後**：build 即生效（server 直接 serve `web/eduapp`），硬重新整理 /app；**改後端後**：要重啟 uvicorn。
 
-## 本 session（2026-06-07）做了什麼
+## 最近狀態（2026-08-30 快照）
+
+- **分支**：全部工作已收斂到 `main` 單一分支（feature branch 均已合併刪除,PR 到 #100）。
+- **2026-08-20 ~ 08-26**：`/app` 改版**目標導向首頁** + 新增**漫畫工作站**(內部 MVP,獨立
+  Comic Core)；視覺模式 UI alias 收斂、視覺審查修復。
+- **2026-08-27 ~ 08-28**：P0 live E2E 稽核 → **P1/P2 驗證完成**（Ollama provider 接線 live 通、
+  PPTX round-trip、`/api/generate` validation、Actions Node 24、Whisper `large-v3` 三流程、
+  token 部署驗證、四站 click-through）→ **P3 技術債收斂**（FastAPI lifespan、asyncio loop
+  scope、office gate CI 邊界、Whisper cache 可攜 `HF_HOME`）。backend `2845 passed`。
+- **唯一 BLOCKER**：Google Photos 帳號 OAuth consent 未完成（需劉老師一次性授權,
+  `/google-photos/status` 回 `authorized=false`）。
+- 驗收證據：`docs/P1_P2_COMPLETION_PLAN_2026-08-28.md`、`docs/P3_COMPLETION_PLAN_2026-08-28.md`、
+  `reports/eduStudio_P1_P2_Function_Verification_Report_2026-08-28_v1.0.docx`。
+- 下一步候選清單見 `TODO.md` 🌟 段（2026-08-30 盤點）。
+
+## 更早的 session（2026-06-07）做了什麼
 
 整合 + 一大批 /app UI 補完 + 修復，重點：
 - **整合**：資料夾 autoSolverVideo→eduStudio、GitHub repo 改名、前端原始碼搬進 `frontend/` 自包含、README/metadata、CI 修綠。
@@ -90,14 +110,15 @@ eduStudio/
 - **個人品牌**：帶進簡報母片頁尾 + 圖卡/海報底部(overlay)。
 - **端到端 smoke 驗收通過**（真 Gemini 生海報+簡報、品牌頁尾、素材庫、Project 歸屬、PPTX 匯出全 OK）。
 
-## 還沒做 / 待加強（接手可挑）
+## 還沒做 / 待加強（接手可挑,完整清單見 TODO.md 🌟 段）
 
-1. **計費準確化**（優先級高）：目前只算視覺/在地化 Gemini 呼叫，**沒算影片 render pipeline**(最大宗)，且單價是估算。要把 pipeline 的 Gemini 呼叫接進 `core/usage` 計帳 + 對齊真實單價。
-2. **影片旁白模型遷 3.x**：`slide_ingest.py` 的 `MODEL` 還是 `gemini-2.5-flash`(會被淘汰)，要先驗證 3.x 旁白品質再換（3.5-flash 實測接受 thinking_budget=0）。
-3. **`gemini-3.1-pro-image`**：劉老師想用但 API 還沒開放，等開放再從 `gemini-3-pro-image` 換過去（`core/infocards/models.py`）。
-4. **素材庫 lightbox**：點圖目前開新分頁(已修 data:→blob)，可做頁內彈大圖更順；簡報縮圖點擊只開第一頁圖，可做完整 deck 檢視。
-5. **舊專案功能細項**：infoCard/translateGemma 可能有沒轉過來的細節，用到再回原 repo 撈。
-6. **CI Node.js 20 actions** 之後升 v4 消棄用警告（不急）。
+1. **Google Photos OAuth consent**（唯一 BLOCKER）：需劉老師帳號一次性授權（`tools/photos_auth.py`）。
+2. **計費準確化**（優先級高）：目前只算視覺/在地化 Gemini 呼叫，**沒算影片 render pipeline**(最大宗)，且單價是估算。要把 pipeline 的 Gemini 呼叫接進 `core/usage` 計帳 + 對齊真實單價。
+3. **影片旁白模型遷 3.x**（C-3 GATE）：`slide_ingest.py` 的 `MODEL` 還是 `gemini-2.5-flash`(會被淘汰)，要先驗證 3.x 旁白品質再換（3.5-flash 實測接受 thinking_budget=0）。
+4. **2026-07 程式碼審查殘項**：T1-1 dubber filtergraph、T2-2 compose 綁 127.0.0.1、T2-3 editor
+   `j.error` escape、T1-2 timeout、T3-2 統一 Gemini client 等（`TODO.md` 🔍 段,T0-1/T0-2 已修）。
+5. **素材庫 lightbox**：點圖目前開新分頁(已修 data:→blob)，可做頁內彈大圖更順；簡報縮圖點擊只開第一頁圖，可做完整 deck 檢視。
+6. **舊專案功能細項**：infoCard/translateGemma 可能有沒轉過來的細節，用到再回原 repo 撈。
 
 ## 詳細記憶（選讀）
 

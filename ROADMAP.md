@@ -438,6 +438,30 @@
 
 ---
 
+## v4.6 — 漫畫工作站 + 全面驗證輪(2026-08 完成)
+
+> 直接 commit 到 main(無 PR)。詳見 docs/CHANGELOG.md 對應三段與
+> docs/P1_P2_COMPLETION_PLAN_2026-08-28.md / docs/P3_COMPLETION_PLAN_2026-08-28.md。
+
+### 教學漫畫工作站(內部 MVP)✅ (2026-08-20 ~ 08-26)
+- `/app` 改版**目標導向首頁**(輸入需求自動歸類)+ 第四內容工作站「漫畫」。
+- 獨立 Comic Core(`core/comics.py`):Series Bible / Evidence Pack / 六道 QA gate /
+  版本化(`CURRENT` immutable)/ HTML·PDF·DOCX·ZIP 匯出 / Internal Reader,
+  file-first + fail-closed。見 [docs/COMIC_PRODUCTION_SYSTEM.md](docs/COMIC_PRODUCTION_SYSTEM.md)。
+
+### P0 live E2E 稽核 → P1/P2 驗證 ✅ (2026-08-27 ~ 08-28)
+- **Ollama provider production 接線**(文字角色巢狀 provider 覆寫,live 通,不打 Gemini)。
+- PPTX live round-trip、`/api/generate` validation(422)、Actions v6 + Node 24、
+  Whisper `large-v3` 三流程 live、token 部署驗證、四站 click-through + 手機 smoke。
+- ⛔ 唯一 BLOCKER:Google Photos 帳號 OAuth consent 未完成(需一次性授權)。
+
+### P3 技術債收斂 ✅ (2026-08-28)
+- FastAPI lifespan 遷移、pytest-asyncio loop scope 固定、office gate CI 邊界
+  (`office_live` 明確排除 + collect-only 防刪)、Whisper cache 可攜(`HF_HOME` 動態解析、
+  partial fail-closed、`/health` 回 `cache_source`)。backend **2845 passed**。
+
+---
+
 ## 🔍 程式碼健檢與後續改善 (2026-07)
 
 > 全庫程式碼審查(5 條並行子系統 + 逐一驗證)。完整發現(file:line / 失敗情境 / 修法)
@@ -457,7 +481,8 @@
 
 ✅ 已動:圖片入門階對齊 Nano Banana 2 Lite + 統一兩個登錄表(PR #98);完整使用手冊
 [docs/USER_MANUAL.md](docs/USER_MANUAL.md)(所有工作站 / 設定 / API / 疑難排解 + 英文速查)
-+ README 中英雙語加「文件」導覽段。
++ README 中英雙語加「文件」導覽段;**T0-1 `clean_json_escapes` 白名單修復、T0-2 exam/song
+review gate 不可被關**(2026-08 修,2026-08-30 查證,見 TODO.md 🔍 段勾稽)。
 
 ---
 

@@ -1,7 +1,7 @@
 """語言碼分隔符轉換 helper（canonical = ``zh-TW``，BCP-47 連字號）。
 
 唯一使用場景:呼叫 **translateGemma 邊界**。translateGemma 內部用底線式
-``zh_TW``,但本系統 canonical 一律用 BCP-47 連字號 ``zh-TW``(DESIGN_SPEC §3.1 /
+``zh_TW``,但本系統 canonical 一律用 BCP-47 連字號 ``zh-TW``(docs/archive/DESIGN_SPEC.md §3.1 /
 core/translate.py 模組 docstring)。為避免底線式 ``zh_TW`` 在 core/RAG/Shell 裡到處
 擴散,集中在這一層只在進出 translateGemma 時做純字串的分隔符轉換。
 

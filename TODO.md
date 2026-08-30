@@ -17,6 +17,29 @@
 
 ---
 
+## 🌟 下一步候選 (2026-08-30 文件盤點)
+
+> 2026-08-20 ~ 08-28 完成:漫畫工作站 MVP、目標導向首頁、P0 live E2E 稽核、P1/P2 驗證
+> (Ollama 接線 / PPTX round-trip / request validation / CI Node 24 / Whisper 三流程 /
+> token 部署 / 四站 click-through)、P3 技術債(lifespan / asyncio / office gate / Whisper cache)。
+> 見 [docs/P1_P2_COMPLETION_PLAN_2026-08-28.md](docs/P1_P2_COMPLETION_PLAN_2026-08-28.md) /
+> [docs/P3_COMPLETION_PLAN_2026-08-28.md](docs/P3_COMPLETION_PLAN_2026-08-28.md)。以下為候選,優先序待劉老師拍板:
+
+- [ ] 🔴 **Google Photos OAuth consent**(P2-2 唯一 BLOCKER,需劉老師帳號一次性授權,
+  `tools/photos_auth.py`)— 完成後相片簡報軸才算 live 全通。
+- [ ] 🔴 **Sprint 1 收尾三小修**(見下方 🔍 段):T1-1 dubber filtergraph、T2-2 compose 綁
+  127.0.0.1、T2-3 editor `j.error` escape — 都是小改,直接止血。
+- [ ] 🟡 **Sprint 2 穩定性根源**:T1-2 外部呼叫補 timeout、T3-2 統一 Gemini client(13+ 檔)、
+  T3-3 `core/ffmpeg.py` 共用 runner、T0-4 解題走 `resolve_id`。
+- [ ] 🟡 **C-3 GATE:影片旁白/解題遷 gemini-3.x**(`slide_ingest.py`/`solve.py` 仍 2.5-flash,
+  需開額度 A/B 驗品質;Ollama 接線已通,亦可評估本機旁白)。
+- [ ] 🟡 **計費準確化**:影片 render pipeline 的 Gemini 呼叫入帳(目前最大宗未計)+ 對齊真實單價。
+- [ ] 🟢 **漫畫工作站正式化**:內部 MVP → 對外(需正式 QA 流程實測一輪 + 手冊補漫畫教學案例)。
+- [ ] 🟢 **README / 手冊補 4 張截圖**(`docs/screenshots/`,需實機瀏覽器)。
+- [ ] 🟢 **legacy `/studio` `/ui` 退場驗收**(T3-4 前置:確認 `/app` 對等後移除 build 產物)。
+
+---
+
 ## 🔍 程式碼審查後續改善 (2026-07,見 [docs/CODE_REVIEW_2026-07.md](docs/CODE_REVIEW_2026-07.md))
 
 > 2026-07 全庫程式碼審查(5 條並行子系統 + 逐一驗證)。完整發現含 file:line、失敗情境、
@@ -34,14 +57,14 @@
 - [ ] 🟢 補 `docs/screenshots/` 四張截圖(README / 手冊預留位,需實機瀏覽器)。
 
 ### Sprint 1 — 產品核心止血(最優先,直擊「絕不發布錯誤數字」)
-- [ ] 🔴 **T0-1 `clean_json_escapes` 公式修復**(`core/text_utils.py:95`)— 黑名單排除 `bfnrtu`
-  導致 `\theta`/`\times`/`\frac` 被 `json.loads` 靜默解析成控制字元(Tab/換頁…)。改白名單 + 回歸測試。
-- [ ] 🔴 **T0-2 exam review gate 不可被關**(`server/jobs.py:68`)— `_resolve_default_review` 對
-  `EXAM_PDF`/`SONG` 強制 True、忽略 caller 的 `require_review=false`(`uploads_pptx.py` 亦寫死 False)。
+- [x] 🔴 **T0-1 `clean_json_escapes` 公式修復**(`core/text_utils.py`)— ✅ 已修(2026-08,
+  經 2026-08-30 查證:只保留 JSON 真實合法 escape、b/f/n/r/t 延展成 LaTeX 命令時補逃逸)。
+- [x] 🔴 **T0-2 exam review gate 不可被關**(`server/jobs.py`)— ✅ 已修(2026-08,經 2026-08-30
+  查證:`_resolve_default_review` 對 `EXAM_PDF`/`SONG` 一律 True、忽略 caller 傳入值)。
 - [ ] 🔴 **T1-1 dubber filtergraph 索引修復**(`core/video/dubber.py:214`)— 缺音檔即 ffmpeg 崩;
-  對保留段用連續計數器 `j` 編號。
+  對保留段用連續計數器 `j` 編號(2026-08-30 查證仍未修:`[{i}:a]` 用 enumerate 索引,skip 會留洞)。
 - [ ] 🟡 **T2-2 / T2-3 兩個一行修**:base compose 綁 `127.0.0.1`(`docker-compose.yml:29`)、
-  `editor.py:234` 的 `j.error` 加 `_html_escape`。
+  `server/routes/editor.py:234` 的 `j.error` 加 `_html_escape`(2026-08-30 查證兩者皆未修)。
 
 ### Sprint 2 — 穩定性根源(統一抽象順帶解 timeout / model)
 - [ ] 🔴 **T1-2 外部呼叫補 timeout**(23 個 subprocess 僅 2 個帶 / 所有 `generate_content` 皆無)。

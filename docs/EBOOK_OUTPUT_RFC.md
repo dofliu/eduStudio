@@ -30,7 +30,7 @@
 4. **學術誠信延續**(硬規則 #1):AI 產出題目/內容仍可設 `require_review=True`,
    計算題人工確認數值才打包。
 5. **Claude API 為主**:版本改寫與題目生成用 Claude（`claude-sonnet-4`),與現有 Gemini 分工。
-   ⚠️ 與 INTEGRATION_KICKOFF §5「翻譯切 Gemini」決策不衝突(那是翻譯;這是改寫/出題,
+   ⚠️ 與 INTEGRATION_KICKOFF(現存 docs/archive/)§5「翻譯切 Gemini」決策不衝突(那是翻譯;這是改寫/出題,
    可獨立選型,待拍板)。
 
 ---
@@ -156,7 +156,7 @@ anthropic>=0.30   # Claude API（若尚未安裝）
 3. **EPUB 版本**:EPUB 2(相容) vs EPUB 3(MathML 數學公式)?工程教科書建議 3。
 4. **公式渲染**:LaTeX → MathML?或截圖貼圖?（repo 已有 `core/formula_render.py` mathtext→PNG 可複用）
 5. **中文字型**:EPUB 需內嵌字型;建議打包思源宋體（OFL 授權）。
-6. **改寫/出題模型**:Claude vs Gemini?(INTEGRATION_KICKOFF 翻譯已定 Gemini,但改寫/出題可獨立決。)
+6. **改寫/出題模型**:Claude vs Gemini?(INTEGRATION_KICKOFF(docs/archive/)翻譯已定 Gemini,但改寫/出題可獨立決。)
 
 ---
 

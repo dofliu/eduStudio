@@ -51,7 +51,8 @@ eduStudio is a single, self-hostable **Python FastAPI** server that helps teache
 - **🖼️ Smart slide augmentation** — upload an image-less deck (slides PDF *or* PPTX); eduStudio detects text-only pages and drops a matching AI illustration into each page's blank area, keeping the original layout at full size (and, for PPTX, the original text fully editable). Then export an updated deck or a one-click narrated video.
 - **🎞️ HTML animation → video** — turn any self-contained `.html` animation (or a URL) into a frame-accurate MP4 via a virtual-clock headless capture, ready for the same `/library` + YouTube upload path.
 - **❖ Google Photos → photo deck** — pick photos from your Google Photos library (via the Photos Picker API); a vision model quality-filters (blurry / duplicate), writes a caption per photo and a deck title, and produces a narrated slideshow video **and** an exportable PPTX — all through the same review gate and job pipeline.
-- **🔒 Self-hosted & offline-first** — your API key, your machine, your data. No third-party SaaS in the loop.
+- **📚 Teaching comics (internal MVP, 2026-08)** — a fourth content workstation for serialized teaching comics: Series Bible (world / character visual lock), evidence-gated AI generation, six QA gates, versioned releases and an internal reader. Fail-closed: nothing publishes without evidence, alt text and human approval. See [Comic Production System](docs/COMIC_PRODUCTION_SYSTEM.md).
+- **🔒 Self-hosted & offline-first** — your API key, your machine, your data. No third-party SaaS in the loop. Text roles can even run on **local Ollama** (per-role provider override in Settings, live-verified 2026-08) for zero-cloud-cost generation.
 
 ### Screenshots
 
@@ -149,14 +150,14 @@ The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 
 | Path | What | |
 |---|---|---|
-| **`/app`** | Unified workstation (Video · Visual · Material/Project · Publish · Status) | primary |
+| **`/app`** | Unified workstation — goal-oriented home + four content workstations (Video · Slides · Cards · Comics), with per-course Project / Publish / Status views | primary |
 | `/api`, `/localization`, `/projects`, `/jobs` | REST backend (generation, translation, projects, jobs) | |
 | `/docs` | Auto-generated OpenAPI docs | |
 | `/studio`, `/ui` | Legacy standalone UIs (kept for reference) | legacy |
 
 ### Tech stack
 
-`Python 3.12` · `FastAPI` · `React 19 + Vite` · `Google Gemini 3` · `faster-whisper` · `F5-TTS` · `edge-tts` · `PyMuPDF` · `python-pptx` · `matplotlib` (LaTeX) · `ffmpeg`
+`Python 3.12` · `FastAPI` · `React 19 + Vite` · `Google Gemini 3` · `Ollama` (optional local LLM) · `faster-whisper` · `F5-TTS` · `edge-tts` · `PyMuPDF` · `python-pptx` · `matplotlib` (LaTeX) · `ffmpeg`
 
 ### Documentation
 
@@ -165,8 +166,10 @@ The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 | 📖 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) | **Full user manual** — every station, config reference, REST API, troubleshooting (English quick-reference inside) |
 | 🚀 [`docs/onboarding.md`](docs/onboarding.md) | Getting started 0→1 (exam → video → YouTube) |
 | 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production deploy (token · CORS · reverse proxy · TLS) |
+| 📚 [`docs/COMIC_PRODUCTION_SYSTEM.md`](docs/COMIC_PRODUCTION_SYSTEM.md) | Comic Production System (internal MVP) |
 | 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | Contributing + non-negotiable hard rules |
 | 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Roadmap · backlog · changelog |
+| 🚦 [`docs/PRODUCT_READINESS.md`](docs/PRODUCT_READINESS.md) | Productization audit main line (Phase 0–9) |
 | 🔍 [`docs/CODE_REVIEW_2026-07.md`](docs/CODE_REVIEW_2026-07.md) | Latest code audit + improvement plan |
 
 ---
@@ -200,7 +203,8 @@ eduStudio 是一套**單一、可自架的 Python FastAPI** 伺服器，幫老�
 - **🖼️ 缺圖簡報智慧補圖** — 上傳缺圖的簡報（PDF 或 PPTX）；eduStudio 偵測純文字頁，把符合內容的 AI 配圖放進該頁的空白區、原頁維持原大小（PPTX 則直接在原檔上插圖、原文字仍完全可編輯）。接著可匯出新簡報或一鍵產生有旁白的講解影片。
 - **🎞️ HTML 動畫轉影片** — 用虛擬時鐘的無頭瀏覽器逐格擷取，把任意自含 `.html` 動畫（或網址）轉成 fps 精準的 MP4，直接接上既有的 `/library` + YouTube 上傳。
 - **❖ Google 相簿 → 相片簡報** — 從 Google 相簿挑照片（走 Photos Picker API）；視覺模型做品質過濾（模糊/重複）、為每張配一句說明並取簡報標題，產出**有旁白的相片幻燈片影片**＋**可匯出的 PPTX** — 全程走同一套 review gate 與 job pipeline。
-- **🔒 自架、離線優先** — 你的 API key、你的機器、你的資料，中間不經第三方 SaaS。
+- **📚 教學漫畫（內部 MVP，2026-08）** — 第四個內容工作站：連載式教學漫畫，含 Series Bible（世界觀 / 角色 visual lock）、證據鎖定的 AI 生成、六道 QA gate、版本化發布與內部閱讀器。Fail-closed：缺證據、缺 alt text、未人工核准一律不可發布。見 [漫畫製作系統](docs/COMIC_PRODUCTION_SYSTEM.md)。
+- **🔒 自架、離線優先** — 你的 API key、你的機器、你的資料，中間不經第三方 SaaS。文字角色還可**逐角色指向本機 Ollama**（設定頁 provider 覆寫，2026-08 已 live 驗證），零雲端成本生成。
 
 ### 截圖
 
@@ -260,6 +264,9 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 📖 **第一次用?** 完整 [**使用手冊**](docs/USER_MANUAL.md) 涵蓋每個工作站、設定對照、REST API
 與疑難排解。最短路徑(考卷 → 影片 → YouTube)看 [上手指南](docs/onboarding.md)。
 
+📚 **連載教學漫畫:** 內部漫畫製作系統涵蓋 Series Bible、腳本/分鏡、證據鎖定的 AI 生成、
+可編輯的 Word 對白、版本化發布與內部閱讀器,見 [漫畫製作系統](docs/COMIC_PRODUCTION_SYSTEM.md)。
+
 ### 依賴分層
 
 依賴刻意拆開，只裝你會用到的。光裝 `requirements.txt` 就足以跑起 server 與主要 pipeline
@@ -292,19 +299,21 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 | 📖 [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md) | **完整使用手冊** — 每個工作站、設定對照、REST API、疑難排解(內含英文速查) |
 | 🚀 [`docs/onboarding.md`](docs/onboarding.md) | 從 0 到 1 上手(考卷 → 影片 → YouTube) |
 | 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | 正式上線部署(token · CORS · 反向代理 · TLS) |
+| 📚 [`docs/COMIC_PRODUCTION_SYSTEM.md`](docs/COMIC_PRODUCTION_SYSTEM.md) | 漫畫製作系統(內部 MVP) |
 | 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | 貢獻指南 + 不可妥協的硬規則 |
 | 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | 路線圖 · 待辦 · 變更紀錄 |
+| 🚦 [`docs/PRODUCT_READINESS.md`](docs/PRODUCT_READINESS.md) | 產品化推出主線(Phase 0~9 稽核清單) |
 | 🔍 [`docs/CODE_REVIEW_2026-07.md`](docs/CODE_REVIEW_2026-07.md) | 最新程式碼稽核 + 改善規劃 |
 
 ### 專案結構
 
 ```
 eduStudio/
-├── core/          後端核心(影片 pipeline / infocards 視覺 / translation 在地化 / project …)
+├── core/          後端核心(影片 pipeline / infocards 視覺 / translation 在地化 / comics 漫畫 / project …)
 ├── server/        FastAPI routes
 ├── frontend/      統一 /app 前端原始碼(React 19 + Vite，自包含建置)
 ├── web/           前端建置產物(/app /studio /ui 靜態檔)
-├── tests/         2300+ pytest
+├── tests/         2800+ pytest
 └── STATUS.yaml    專案現況
 ```
 

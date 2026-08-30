@@ -38,8 +38,13 @@
                   M1 自動對齊 Demucs+WhisperX 為 GATE)
 ```
 
-- **前端收斂**:`/app` 是唯一正式介面(5 站:影片 · 視覺 · 素材/Project · 發布 · 製作狀態)。
-  `/ui`(原 autoSolver)、`/studio`(原 infoCard,client-side 直連 Gemini)**標 legacy 退場中**
+- **第五條:教學漫畫(2026-08 新,內部 MVP)**:獨立 Comic Core(`core/comics.py` +
+  `server/routes/comics.py` + `frontend/edustudio/comic-studio.jsx`),連載 Series Bible /
+  證據鎖定生成 / 六道 QA gate / 版本化發布 + Internal Reader,與其他 track 共用
+  Project/設定/provider/成本。見 docs/COMIC_PRODUCTION_SYSTEM.md。
+- **前端收斂**:`/app` 是唯一正式介面(2026-08 改版:目標導向首頁 + 影片 · 簡報 · 圖卡 ·
+  漫畫 四工作站 + 專案/發布/狀態)。`/ui`(原 autoSolver)、`/studio`(原 infoCard,
+  client-side 直連 Gemini)**標 legacy 退場中**
   (頂部退場 banner 導向 `/app`;build 產物待 `/app` 對等人工驗收後移除)。
 - **一門課＝一工作空間**:頂部選課,之後產的每支影片/每張圖卡自動歸到該課
   (來源 · 任務 · 成品),NotebookLM 式管理。
@@ -67,9 +72,10 @@
   `image.fast` / `image.pro` / `tts`)→ `(provider, model_id)`。呼叫端只認角色,
   用 `resolve(role)` / `resolve_id(role)` 解析。解析優先序:設定頁逐角色 `model_roles`
   覆寫 → legacy 單值欄位 `text_model`/`image_model` → 內建 `DEFAULTS`。
-- `core/providers.py` — **provider adapter 介面**(B-ready stub):A 階段唯一 LLM/視覺/生圖
-  provider 為 `gemini`;Phase 9 F9-3 本機可插拔(ollama/f5)只要新增實作此協定的 class +
-  `register_provider`,呼叫端零改動。
+- `core/providers.py` — **provider adapter 介面**:`gemini` 主力;**`OllamaProvider` 已
+  production 接線**(2026-08-28 P1-1,文字角色可經設定頁 `model_roles` 巢狀寫法
+  `{"provider": "ollama", "model": "..."}` 指向本機,選 Ollama 不呼叫 Gemini,live 驗證過)。
+  再加新 provider(claude/f5…)只要實作協定 + `register_provider`,呼叫端零改動。
 - 視覺/infocards 世界已全面換接 `resolve()`;影片/解析文字 pipeline 的硬編 id 換接綁 C-3 GATE。
 - `tools/check_models.py` — 模型 id 自我健檢(比對哪些 id 在這把 key 下已不存在,防 preview id 404)。
 
@@ -85,7 +91,7 @@
 3. **字型路徑不寫死。** 用 `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` /
    `CLAUDE_MONO_FONT_PATH`,Win/Mac/Linux 都跑得動。
 4. **設定檔 / 路徑常數集中 `core/config.py`**,不在各模組各定義 `BASE_DIR`。
-5. **動 `server` / `runner` / `schemas` / `core` 要跑 `pytest tests/`**(~2500 tests 護網)。
+5. **動 `server` / `runner` / `schemas` / `core` 要跑 `pytest tests/`**(~2850 tests 護網)。
 6. **Schema dispatch 用 type guard**(`isExamDraft` / `isDeckDraft` / `_deck_has_section_id`),
    不要硬寫 `if "problems" in deck`。
 7. **改 schema 型別寫 migration**(見 docs/CODE_REVIEW.md Round 2 naive↔aware datetime 教訓)。

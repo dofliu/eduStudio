@@ -7,6 +7,21 @@
 
 ---
 
+## 文件整理 + 分支收斂（2026-08-30）
+
+> 全部工作已收斂到 `main` 單一分支（PR #100 前的 feature branch 均已合併刪除）。
+> 文件補上 8 月的漫畫工作站與 P0~P3 驗證輪,整合期規劃文件歸檔。
+
+| 項 | 內容 |
+|---|---|
+| DOCS | README（中英）+ USER_MANUAL 補漫畫工作站、本機 Ollama 文字角色、四工作站首頁結構、測試數更新（2800+）;手冊新增 §7 漫畫站 + `/projects/{pid}/comics` API 速查。 |
+| CHANGELOG | 補 2026-08-20 ~ 08-28 三段（漫畫 MVP / P1-P2 驗證 / P3 已有）。 |
+| TODO | 勾稽 2026-07 審查項:T0-1（clean_json_escapes 白名單）、T0-2（exam/song review gate 不可關）已在 8 月修復,經查證打勾;新增「下一步候選」盤點段。 |
+| ARCHIVE | 整合期文件 `ROADMAP_UNIFIED.md` / `INTEGRATION_KICKOFF.md` / `DESIGN_SPEC.md` 移至 `docs/archive/`（歷史紀錄,不再更新）。 |
+| HANDOFF / STATUS | 交接筆記與 STATUS.yaml 頂部欄位刷新到 2026-08 現況。 |
+
+---
+
 ## P3 技術債收斂（2026-08-28）
 
 | 項 | 內容 |
@@ -17,6 +32,45 @@
 | WHISPER-CACHE | Whisper 動態解析 `HF_HUB_CACHE`／`HF_HOME`／`XDG_CACHE_HOME`，partial snapshot fail-closed，health 新增 `cache_source`。 |
 
 詳細驗收見 [`P3_COMPLETION_PLAN_2026-08-28.md`](P3_COMPLETION_PLAN_2026-08-28.md)。
+
+---
+
+## P0 live E2E 稽核 → P1/P2 驗證完成（2026-08-27 ~ 2026-08-28）
+
+> 全專案稽核 + live 端到端驗證輪:Phase 2/3 runtime 驗證（含 event sink、手機版面修復）後,
+> 關閉稽核抓出的 P1/P2 項。backend full regression `2839 passed`。
+
+| 項 | 內容 |
+|---|---|
+| P1-1 | **Ollama provider production 接線**:文字 role 可指向本機 Ollama（settings `model_roles` 巢狀 provider）,選 Ollama 不呼叫 Gemini;`qwen3:4b` live inference 通過。 |
+| P1-3 | PPTX live round-trip（Windows PowerPoint COM fallback,upload → conversion → augment/export 真跑）。 |
+| P1-4 | `/api/generate` request validation:非法 `mode`/`style`/`density` 回 422 + regression tests。 |
+| P1-5 | GitHub Actions 升級 `checkout/setup-python/setup-node@v6` + Node 24,雲端 CI 6/6 全綠。 |
+| P2-1 | Whisper `large-v3` 三流程 live（影片 STT / 會議摘要 / 歌詞抽取,RTX 4080 cuda/float16）。 |
+| P2-2 | Google Photos OAuth 邊界可測;**帳號 consent 未完成**（`/google-photos/status` 誠實回 `authorized=false`,列 BLOCKER）。 |
+| P2-3 | Token 部署驗證:未授權 401、Bearer/cookie 200、event sink exemption 204。 |
+| P2-4 | 影片/簡報/圖卡/漫畫四工作站 click-through + 手機 390×844 smoke、console zero-error。 |
+| FIX | live 圖片 MIME 修正 + per-job TTS 選擇（`8da9935`）;comic DOCX CI 依賴修正（`b8be2b5`）。 |
+
+驗收矩陣見 [`P1_P2_COMPLETION_PLAN_2026-08-28.md`](P1_P2_COMPLETION_PLAN_2026-08-28.md);
+證據報告在 `reports/eduStudio_P1_P2_Function_Verification_Report_2026-08-28_v1.0.docx`;
+Phase 2/3 runtime 報告見 [`PHASE2_TEST_REPORT_2026-08-27.md`](PHASE2_TEST_REPORT_2026-08-27.md) /
+[`PHASE3_TEST_REPORT_2026-08-27.md`](PHASE3_TEST_REPORT_2026-08-27.md)。
+
+---
+
+## 漫畫工作站 Internal MVP + 目標導向首頁（2026-08-20 ~ 2026-08-26）
+
+> `/app` 改版為**目標導向首頁**（輸入需求自動歸類到 影片/簡報/圖卡/漫畫 四工作站）,
+> 並新增第四個內容工作站「教學漫畫」— 獨立 Comic Core,與既有工作站共用 Project/設定/
+> provider/成本。
+
+| 項 | 內容 |
+|---|---|
+| COMIC | Comic Core（`core/comics.py` + `server/routes/comics.py` + `frontend/edustudio/comic-studio.jsx`）:Series Bible（世界觀/角色 visual lock/voice/glossary）、script/storyboard/camera/對白/alt text、Evidence Pack、逐頁生成、**六道 QA gate**（anatomy/technical/text/safety/page_render/human_approval）、版本化（PASS 才進 `CURRENT`、`CURRENT` immutable、改稿 fork 新版）、HTML/PDF/DOCX/ZIP 匯出、Internal Reader、release 可撤回。File-first + fail-closed。 |
+| UI | 目標導向首頁 + 漫畫工作站介面;視覺模式 UI alias 收斂（`0da0130`）、視覺審查問題修復（`5773819`）、漫畫版面與審查防護強化（`57c2cda`）。 |
+
+設計文件見 [`COMIC_PRODUCTION_SYSTEM.md`](COMIC_PRODUCTION_SYSTEM.md)。
 
 ---
 

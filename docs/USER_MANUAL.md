@@ -24,16 +24,17 @@
 4. [核心概念(工作空間 · Job 生命週期 · 審查關卡 · 成本)](#4-核心概念)
 5. [🎬 影片站](#5-影片站)
 6. [🎨 視覺站](#6-視覺站)
-7. [🌐 在地化站](#7-在地化站)
-8. [📤 發布(YouTube)](#8-發布youtube)
-9. [🗂️ 素材庫 · Library · 專案](#9-素材庫--library--專案)
-10. [⌨️ CLI 與自動化](#10-cli-與自動化)
-11. [🧯 疑難排解](#11-疑難排解)
-12. [🔒 安全與上線](#12-安全與上線)
-13. [附錄 A — 環境變數完整表](#附錄-a--環境變數完整表)
-14. [附錄 B — REST API 速查](#附錄-b--rest-api-速查)
-15. [附錄 C — Job 狀態機](#附錄-c--job-狀態機)
-16. [FAQ](#faq)
+7. [📚 漫畫站(內部 MVP)](#7-漫畫站內部-mvp)
+8. [🌐 在地化站](#8-在地化站)
+9. [📤 發布(YouTube)](#9-發布youtube)
+10. [🗂️ 素材庫 · Library · 專案](#10-素材庫--library--專案)
+11. [⌨️ CLI 與自動化](#11-cli-與自動化)
+12. [🧯 疑難排解](#12-疑難排解)
+13. [🔒 安全與上線](#13-安全與上線)
+14. [附錄 A — 環境變數完整表](#附錄-a--環境變數完整表)
+15. [附錄 B — REST API 速查](#附錄-b--rest-api-速查)
+16. [附錄 C — Job 狀態機](#附錄-c--job-狀態機)
+17. [FAQ](#faq)
 
 ---
 
@@ -51,6 +52,9 @@ eduStudio 是一套**單一、可自架的 Python FastAPI 伺服器**,把老師�
 | HTML 動畫 → 錄製 MP4 | 缺圖簡報 → AI 補配圖 | 單字卡(SM-2)、寫作批改 |
 | 字幕(SRT)+ 一鍵 YouTube | PPTX 就地補圖(文字可編輯) | 單頁微調 + 自動圖表 |
 | Google 相簿 → AI 選圖相片簡報 | — | — |
+
+另有 **📚 教學漫畫工作站(內部 MVP,2026-08)**:連載式教學漫畫 — Series Bible、
+證據鎖定生成、六道 QA gate、版本化發布與內部閱讀器,見 [§7 漫畫站](#7-漫畫站內部-mvp)。
 
 **核心原則**:*絕不發布未經查證的 AI 數值*。AI 產出(尤其考題答案 / 數字)會停在**可編輯的
 審查頁**,人工核准後才渲染。考卷解答一律強制審查、不可繞過。
@@ -131,7 +135,7 @@ server 啟動時會印一輪**自檢**:ffmpeg / 字型 / API key 在不在,缺�
 
 | 路徑 | 用途 | |
 |---|---|---|
-| **`/app/`** | 統一工作站(影片 · 視覺 · 素材/專案 · 發布 · 狀態) | 主要 |
+| **`/app/`** | 統一工作站:目標導向首頁(輸入需求自動歸類)+ 影片 · 簡報 · 圖卡 · 漫畫 四工作站 + 專案/發布/狀態 | 主要 |
 | `/docs` | 自動產生的 OpenAPI 互動文件 | |
 | `/api` `/localization` `/projects` `/jobs` … | REST 後端 | |
 | `/health` | 健康檢查(回布林,給監控 / Docker healthcheck) | |
@@ -175,6 +179,11 @@ server 啟動時會印一輪**自檢**:ffmpeg / 字型 / API key 在不在,缺�
 > 模型 id 的單一目錄在 `core/infocards/models.py`,`core/models.py` 的角色引用它。
 > 換模型只改該檔。**新 model id 上線前務必 live 實測**(此 repo 有 preview id 非 GA、
 > 實測 404 的前科;用 `client.models.list()` 查該 key 真正可用的)。
+
+**本機 Ollama(零雲端成本,2026-08 已 live 驗證)**:文字角色可**逐角色指向本機 Ollama** —
+設定頁 `model_roles` 用巢狀寫法 `{"provider": "ollama", "model": "qwen3:4b"}`(model 換成你
+本機有的);指到 Ollama 的角色**不會呼叫 Gemini**。Ollama 位址用 `OLLAMA_HOST` 指定
+(預設 `http://localhost:11434`)。
 
 ### 3.4 其他常用設定
 
@@ -267,7 +276,34 @@ chokepoint),依 `EDUSTUDIO_MONTHLY_BUDGET` 顯示花到預算的幾 %。
 
 ---
 
-## 7. 在地化站
+## 7. 漫畫站(內部 MVP)
+
+把教學內容做成**連載式教學漫畫**。與影片 / 視覺共用 Project、設定、AI provider 與成本
+紀錄,但以獨立 Comic Core 管理連載、版本、證據與發布規則(file-first:磁碟上的
+`manifest.json` 是單一真相)。完整設計見
+[`COMIC_PRODUCTION_SYSTEM.md`](COMIC_PRODUCTION_SYSTEM.md)。
+
+**流程**:
+
+1. `/app` 首頁輸入需求(例:「把這份齒輪箱講義做成 8 頁教學漫畫」),或直接選**漫畫**。
+2. 選 Project → 建立或選擇 **Series**(連載)與 **Episode**(單集)。
+3. 在 **Series Bible** 維護世界觀、角色 visual lock、角色 voice 與 glossary。
+4. 產生或編輯 script、storyboard、camera、learning point、對白與 alt text。
+5. 建立 **Evidence Pack**;AI prompt 會攜帶角色與世界觀 lock。
+6. 逐頁生成或上傳 scene asset(對白不烙進圖片,保留 34–38% negative space 排版)。
+7. 過 **六道 QA gate**:anatomy / technical / text / safety / page_render / human_approval。
+8. 只有 validation **PASS** 的版本能進 `CURRENT`,只有 `CURRENT` 能發布到內部閱讀器。
+9. 匯出 HTML / PDF / DOCX / source ZIP;發布後可撤回 release,改內容必須 fork 新版本。
+
+**Fail-closed 規則**:mock 圖、缺 evidence、缺 scene、缺 alt text、缺 QA 或未人工核准
+一律不可發布;已核准版本(`CURRENT`)不可就地改稿。
+
+> API 走 `/projects/{pid}/comics/*`(series / episodes / generate / evidence / QA /
+> exports / publish / reader),見[附錄 B](#附錄-b--rest-api-速查)。
+
+---
+
+## 8. 在地化站
 
 | 功能 | 端點 | 說明 |
 |---|---|---|
@@ -282,16 +318,16 @@ chokepoint),依 `EDUSTUDIO_MONTHLY_BUDGET` 顯示花到預算的幾 %。
 
 ---
 
-## 8. 發布(YouTube)
+## 9. 發布(YouTube)
 
-### 8.1 一次性:OAuth 憑證
+### 9.1 一次性:OAuth 憑證
 
 1. [Google Cloud Console](https://console.cloud.google.com/) 建專案 → 啟用 **YouTube Data API v3**。
 2. 建 **OAuth client ID**(桌面應用程式),下載 JSON。
 3. 把 JSON **原封不動**放到專案根目錄(檔名通常 `client_secret_xxx.json`,**不用改名**,
    系統自動配對)。已被 `.gitignore`。
 
-### 8.2 上傳
+### 9.2 上傳
 
 - **GUI**:發布頁對已 `done` 的影片按「發布到 YouTube」。第一次跳瀏覽器授權,token 存
   `youtube_token.json`(gitignore,自動 refresh)。含自動章節、標題 / 說明。
@@ -302,7 +338,7 @@ chokepoint),依 `EDUSTUDIO_MONTHLY_BUDGET` 顯示花到預算的幾 %。
 
 ---
 
-## 9. 素材庫 · Library · 專案
+## 10. 素材庫 · Library · 專案
 
 - **`/library`**:跨考卷 / 跨 job 瀏覽成品(含 path traversal 防護)。
 - **專案(`/projects`)**:一課一工作空間;建課、匯入來源、多課切換、詞彙表(glossary)、
@@ -311,7 +347,7 @@ chokepoint),依 `EDUSTUDIO_MONTHLY_BUDGET` 顯示花到預算的幾 %。
 
 ---
 
-## 10. CLI 與自動化
+## 11. CLI 與自動化
 
 server 要先啟動。排程 / 自動化可用 wrapper:
 
@@ -328,7 +364,7 @@ python batch.py ...                                      # 整份批次(見 --he
 
 ---
 
-## 11. 疑難排解
+## 12. 疑難排解
 
 | 症狀 | 處理 |
 |---|---|
@@ -340,15 +376,15 @@ python batch.py ...                                      # 整份批次(見 --he
 | 第一支影片卡很久 | 正常:F5-TTS 首次下載 ~1.3GB + Gemini 解題需時;想快把 TTS 設 `edge` |
 | `pip install` 卡在 PyMuPDF | Linux 可能要先 `apt install libmupdf-dev`;多數平台有預編 wheel |
 | Gemini 呼叫 404 / 模型不存在 | model id 非 GA(preview 前科)。用 `client.models.list()` 查該 key 可用的,改 `core/infocards/models.py` |
-| YouTube 找不到 `client_secret*.json` | OAuth JSON 沒放到專案根目錄(§8.1),檔名不用改 |
+| YouTube 找不到 `client_secret*.json` | OAuth JSON 沒放到專案根目錄(§9.1),檔名不用改 |
 | YouTube `quotaExceeded` | 當日配額用盡(約 6 支/天),隔天重置 |
 | 重啟後 job 標 failed | 重啟把「正在跑」的 job 標 failed 請重試(止血);`awaiting_review` 的會保留 |
-| 暴露到內網 / 公網安全嗎 | **預設零驗證**,只適合 localhost;對外先設 `EDUSTUDIO_API_TOKEN` + 反向代理 + TLS,見 §12 |
+| 暴露到內網 / 公網安全嗎 | **預設零驗證**,只適合 localhost;對外先設 `EDUSTUDIO_API_TOKEN` + 反向代理 + TLS,見 §13 |
 | PPTX 補圖 / 轉影片失敗 | 需 LibreOffice(`libreoffice-impress`),用來把 `.pptx` 渲成 PDF |
 
 ---
 
-## 12. 安全與上線
+## 13. 安全與上線
 
 自架自用(localhost)可直接跑。**要暴露到內網 / 公網前**務必:
 
@@ -401,6 +437,7 @@ python batch.py ...                                      # 整份批次(見 --he
 | `/proposals` | ideation 提案:`POST /{id}/duplicate` · `PATCH /{id}/ignore` |
 | `/jobs`(YouTube) | `POST /jobs/{id}/artifacts/{name}/publish` · `POST /jobs/{id}/artifacts/{name}/captions` · `GET …/youtube_status` · `GET …/youtube_meta` |
 | `/settings` | `GET/PUT` 設定(API key / 逐角色模型 / 預算) |
+| `/projects/{pid}/comics` | 漫畫:`POST /series` · `POST /episodes` · `POST /episodes/{id}/generate/{script,storyboard,images}` · `PUT …/evidence/{sid}` · `PUT …/qa/{gate}` · `GET …/validation` · `POST …/exports/{kind}` · `POST …/publish` · `GET /reader/{id}` |
 | `/themes` `/voices` `/slide_images` `/google-photos` `/library` | 主題預覽 · 語音清單+試聽 · 簡報配圖 · 相簿 Picker · 成品瀏覽 |
 | `/health` `/status` | 健康檢查 · 系統狀態 |
 
@@ -501,12 +538,13 @@ Verify any new id live before shipping.
 **Three pillars** — 🎬 Video (exam / slides / doc / url / repo / html / photos / song →
 MP4 + SRT → YouTube), 🎨 Visual (slides / infographics / posters → PPTX, image-less-deck
 augment, per-slide refine), 🌐 Localization (video dub / translate / meeting summary /
-flashcards / writing correction / song MV).
+flashcards / writing correction / song MV). Plus an internal **comic workstation**
+(Series Bible, evidence-gated generation, six QA gates, versioned releases — see §7).
 
 **Interfaces** — `/app/` (workstation), `/docs` (OpenAPI), `/health`, `/jobs` `/api`
 `/localization` `/projects` … (REST). API map: [Appendix B](#附錄-b--rest-api-速查).
 
-**Troubleshooting** — see the [疑難排解 table](#11-疑難排解) (symptoms are language-neutral:
+**Troubleshooting** — see the [疑難排解 table](#12-疑難排解) (symptoms are language-neutral:
 `Could not import module "main"` → wrong ASGI path; blank `/app` → frontend not built;
 tofu glyphs → missing CJK fonts; render fails → ffmpeg missing).
 

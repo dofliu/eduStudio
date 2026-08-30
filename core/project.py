@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from core import config
 from core.glossary import Glossary, glossary_path_for, load_glossary, save_glossary
 
-# ---------- 受控字彙（對齊 MERGE_PLAN §7 / DESIGN_SPEC §5）----------
+# ---------- 受控字彙（對齊 MERGE_PLAN §7 / docs/archive/DESIGN_SPEC.md §5）----------
 # 為什麼用 Literal 而非自由字串：schema 的列舉欄位若放任意字串，打字錯（如 "vidoe"）
 # 會靜默寫進 json，下游分流 produced_by/kind 時才爆；Literal 讓 pydantic 在「寫入當下」
 # 就擋掉，錯誤早暴露。
@@ -93,7 +93,7 @@ class Project(BaseModel):
     """Project 聚合根：sources + jobs(只存 id 字串) + artifacts。
 
     jobs[] 只存 autoSolver JobRecord.id 字串 —— 不重造 JobStore，真正 job 狀態在
-    server/jobs.py 的 JobStore（DESIGN_SPEC §5）。
+    server/jobs.py 的 JobStore（docs/archive/DESIGN_SPEC.md §5）。
     """
 
     project_id: str

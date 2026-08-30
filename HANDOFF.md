@@ -76,7 +76,7 @@ eduStudio/
 
 1. **build 一定帶 `--base=/app/`**，否則 /app 空白 404。
 2. **Gemini 2.5-flash 預設開 thinking** → 吃掉 max_output_tokens 致回空+慢 5x。逐頁/批次呼叫一律 `thinking_config=types.ThinkingConfig(thinking_budget=0)`（見 `slide_ingest.py`）。
-3. **Gemini 3 模型 id 要 live 實測**（這 repo 有 preview id 非 GA 前科）。目前設定頁用：文字 `gemini-3.5-flash` / `gemini-3.1-flash-lite` / `gemini-3.1-pro-preview`；圖片三階 `gemini-3.1-flash-lite-image`（Nano Banana 2 Lite · 2026-07 新入門階 PR #98 · **尚待 live 實測**）/ `gemini-3.1-flash-image` / `gemini-3-pro-image`。劉老師口述的 `gemini-3.1-pro` / `gemini-3.1-pro-image` 實測 **404**（API 沒有），用 `client.models.list()` 查該 key 真正可用的。圖片模型 id 的單一目錄在 `core/infocards/models.py`，`core.models` 的 image 角色引用它（改一處即同步）。
+3. **Gemini 3 模型 id 要 live 實測**（這 repo 有 preview id 非 GA 前科）。目前設定頁用：文字 `gemini-3.7-flash`（2026-08-30 遷主力 · **尚待 live 實測**，404 就退 `gemini-3.6-flash`）/ `gemini-3.6-flash` / `gemini-3.5-flash` / `gemini-3.1-flash-lite` / `gemini-3.1-pro-preview`；圖片三階 `gemini-3.1-flash-lite-image`（Nano Banana 2 Lite · 2026-07 新入門階 PR #98 · **尚待 live 實測**）/ `gemini-3.1-flash-image` / `gemini-3-pro-image`。劉老師口述的 `gemini-3.1-pro` / `gemini-3.1-pro-image` 實測 **404**（API 沒有），用 `client.models.list()` 查該 key 真正可用的。圖片模型 id 的單一目錄在 `core/infocards/models.py`，`core.models` 的 image 角色引用它（改一處即同步）。
 4. **CI 裝套件是寫死清單**（`.github/workflows/test.yml`），不是 `requirements.txt`。新增「非 importorskip 直接 import」的依賴要手動加進去（已加 google-genai；缺 ffmpeg 的測試要優雅降級）。
 5. **bash 工具在 Windows 是 cp950**，curl 傳含中文的 JSON 會亂碼 → 用 Python urllib/requests（UTF-8）打 API。
 6. **改前端後**：build 即生效（server 直接 serve `web/eduapp`），硬重新整理 /app；**改後端後**：要重啟 uvicorn。
@@ -114,7 +114,7 @@ eduStudio/
 
 1. **Google Photos OAuth consent**（唯一 BLOCKER）：需劉老師帳號一次性授權（`tools/photos_auth.py`）。
 2. **計費準確化**（優先級高）：目前只算視覺/在地化 Gemini 呼叫，**沒算影片 render pipeline**(最大宗)，且單價是估算。要把 pipeline 的 Gemini 呼叫接進 `core/usage` 計帳 + 對齊真實單價。
-3. **影片旁白模型遷 3.x**（C-3 GATE）：`slide_ingest.py` 的 `MODEL` 還是 `gemini-2.5-flash`(會被淘汰)，要先驗證 3.x 旁白品質再換（3.5-flash 實測接受 thinking_budget=0）。
+3. ~~影片旁白模型遷 3.x~~ ✅ 已收（旁白 2026-06-15 / 解題 2026-08-30 都走 `text.fast` 角色，主力現為 `gemini-3.7-flash`）。剩：跑一次 `python tools/check_models.py` live 確認 3.7 id 存在。
 4. **2026-07 程式碼審查殘項**：T1-1 dubber filtergraph、T2-2 compose 綁 127.0.0.1、T2-3 editor
    `j.error` escape、T1-2 timeout、T3-2 統一 Gemini client 等（`TODO.md` 🔍 段,T0-1/T0-2 已修）。
 5. **素材庫 lightbox**：點圖目前開新分頁(已修 data:→blob)，可做頁內彈大圖更順；簡報縮圖點擊只開第一頁圖，可做完整 deck 檢視。

@@ -18,11 +18,13 @@ from core.infocards.schemas import (
 # ── models ──
 class TestModels:
     def test_model_ids(self):
-        # 2026-08-18 更新；id 均由帳號 models.list 實測可用。
-        assert models.TEXT_MODELS["flash"]["id"] == "gemini-3.6-flash"
+        # 2026-08-30 主力遷 3.7-flash(劉老師拍板);⚠️ 3.7 id 待 live 實測
+        # (tools/check_models.py), 其餘 id 由 2026-08-18 models.list 實測可用。
+        assert models.TEXT_MODELS["flash"]["id"] == "gemini-3.7-flash"
+        assert models.TEXT_MODELS["flash_36"]["id"] == "gemini-3.6-flash"
         assert models.TEXT_MODELS["lite"]["id"] == "gemini-3.5-flash-lite"
         assert models.IMAGE_MODELS["pro"]["id"] == "gemini-3-pro-image"
-        assert models.DEFAULT_TEXT_MODEL == "gemini-3.6-flash"
+        assert models.DEFAULT_TEXT_MODEL == "gemini-3.7-flash"
         assert models.DEFAULT_IMAGE_MODEL == "gemini-3.1-flash-image"
 
     def test_entry_tier_aligned_to_lite_image(self):
@@ -39,7 +41,7 @@ class TestModels:
         assert models.MODEL_PRICING["image"]["gemini-2.5-flash-image"] == 0.003
 
     def test_options_helpers(self):
-        assert len(models.text_model_options()) == 6
+        assert len(models.text_model_options()) == 7  # 2026-08-30 +3.7-flash
         assert len(models.image_model_options()) == 3
         assert len(models.specialized_model_options()) == 4
         assert {m["id"] for m in models.specialized_model_options()} == {

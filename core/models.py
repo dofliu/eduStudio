@@ -66,7 +66,8 @@ ROLES: frozenset[str] = frozenset(
 )
 
 # ── 內建預設表：角色 → (provider, model_id)──
-# text.fast/vision 用 3.5-flash（多模態主力）、text.pro 用 3.1-pro-preview。
+# text.fast/vision 取自文字目錄的 "flash" 鍵（目前 gemini-3.7-flash，2026-08-30 遷）、
+# text.pro 用 3.1-pro-preview。
 # image.fast/image.pro 的 id 直接取自 infocards 圖片目錄的「中等/貴」兩階（單一來源，
 # 不再各寫一份 literal）；「便宜」階（lite）只在該目錄當下拉選項，無對應邏輯角色。
 DEFAULTS: dict[str, tuple[str, str]] = {

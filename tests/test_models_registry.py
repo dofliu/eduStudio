@@ -69,16 +69,16 @@ def test_provider_catalog_shape_and_excludes_tts():
 
 def test_defaults_resolve_when_no_settings(settings_path):
     # settings.json 不存在 → 全走內建預設
-    assert models.resolve("text.fast") == ("gemini", "gemini-3.6-flash")
+    assert models.resolve("text.fast") == ("gemini", "gemini-3.7-flash")
     assert models.resolve("text.pro") == ("gemini", "gemini-3.1-pro-preview")
-    assert models.resolve("vision") == ("gemini", "gemini-3.6-flash")
+    assert models.resolve("vision") == ("gemini", "gemini-3.7-flash")
     assert models.resolve("image.fast") == ("gemini", "gemini-3.1-flash-image")
     assert models.resolve("image.pro") == ("gemini", "gemini-3-pro-image")
     assert models.resolve("tts") == ("edge", "edge")
 
 
 def test_resolve_id_returns_model_id_only(settings_path):
-    assert models.resolve_id("text.fast") == "gemini-3.6-flash"
+    assert models.resolve_id("text.fast") == "gemini-3.7-flash"
     assert models.resolve_id("image.pro") == "gemini-3-pro-image"
 
 
@@ -117,12 +117,12 @@ def test_legacy_image_model_overrides_image_roles(settings_path):
     _write_settings(settings_path, {"image_model": "gemini-9.9-image"})
     assert models.resolve("image.fast") == ("gemini", "gemini-9.9-image")
     assert models.resolve("image.pro") == ("gemini", "gemini-9.9-image")
-    assert models.resolve("text.fast") == ("gemini", "gemini-3.6-flash")
+    assert models.resolve("text.fast") == ("gemini", "gemini-3.7-flash")
 
 
 def test_blank_legacy_value_falls_through_to_default(settings_path):
     _write_settings(settings_path, {"text_model": "   "})
-    assert models.resolve("text.fast") == ("gemini", "gemini-3.6-flash")
+    assert models.resolve("text.fast") == ("gemini", "gemini-3.7-flash")
 
 
 # ---------- per-role override（M-3 設定頁 UI 會寫入；現在先讀，向前相容）----------
@@ -142,7 +142,7 @@ def test_per_role_override_takes_precedence_over_legacy(settings_path):
 
 def test_per_role_override_ignored_when_not_dict(settings_path):
     _write_settings(settings_path, {"model_roles": "oops-not-a-dict"})
-    assert models.resolve("text.fast") == ("gemini", "gemini-3.6-flash")
+    assert models.resolve("text.fast") == ("gemini", "gemini-3.7-flash")
 
 
 def test_per_role_blank_value_falls_through(settings_path):
@@ -181,7 +181,7 @@ def test_nested_override_unknown_provider_ignored(settings_path):
 def test_nested_override_non_default_provider_without_model_falls_through(settings_path):
     # 指到非預設 provider 卻沒帶 model → 無從解析，退完全預設（不拿錯 id 打本機）
     _write_settings(settings_path, {"model_roles": {"text.fast": {"provider": "ollama"}}})
-    assert models.resolve("text.fast") == ("gemini", "gemini-3.6-flash")
+    assert models.resolve("text.fast") == ("gemini", "gemini-3.7-flash")
 
 
 def test_nested_override_default_provider_explicit(settings_path):

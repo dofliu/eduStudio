@@ -88,11 +88,12 @@ class TestCollect:
         assert len(out_ids) == len(set(out_ids)), "id 應去重"
 
     def test_sources_aggregated_for_shared_id(self, tmp_path, monkeypatch):
-        # gemini-3.6-flash 同時是多個角色（text.fast/vision）+ 下拉 flash → 多來源彙整。
+        # gemini-3.7-flash（2026-08-30 主力）同時是多個角色（text.fast/vision）+
+        # 下拉 flash → 多來源彙整。
         # 隔離使用者真實 settings.json；本測試鎖的是內建 registry，不應被本機選項覆寫。
         monkeypatch.setenv("ES_SETTINGS_PATH", str(tmp_path / "settings.json"))
         entries = {e["id"]: e for e in cm.collect_configured_models()}
-        flash = entries.get("gemini-3.6-flash")
+        flash = entries.get("gemini-3.7-flash")
         assert flash is not None
         assert len(flash["sources"]) >= 2
         assert flash["sources"] == sorted(flash["sources"])

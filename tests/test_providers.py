@@ -92,7 +92,7 @@ def test_generate_text_resolves_text_fast_by_default(settings_path, monkeypatch)
 
     assert out == "hello world"
     assert seen["client"] is fake_client
-    assert seen["model"] == "gemini-3.6-flash"   # text.fast 內建預設
+    assert seen["model"] == "gemini-3.7-flash"   # text.fast 內建預設
     assert seen["prompt"] == "hi"
     assert seen["temperature"] == 0.2
 
@@ -130,7 +130,7 @@ def test_generate_text_records_usage(settings_path, monkeypatch):
     GeminiProvider(client=object()).generate_text("the-prompt", station="video")
     assert recorded == {
         "station": "video",
-        "model": "gemini-3.6-flash",
+        "model": "gemini-3.7-flash",
         "prompt": "the-prompt",
         "response": "the-response",
     }
@@ -169,7 +169,7 @@ def test_gemini_tts_raises_not_implemented(tmp_path):
 def test_provider_for_role_text_returns_gemini_and_model(settings_path):
     provider, model_id = provider_for_role("text.fast")
     assert provider is get_provider("gemini")
-    assert model_id == "gemini-3.6-flash"
+    assert model_id == "gemini-3.7-flash"
 
 
 def test_provider_for_role_invalid_role_raises(settings_path):
@@ -282,7 +282,7 @@ def test_generate_text_for_role_gemini_goes_straight(settings_path, monkeypatch)
     seen = _stub_registered_gemini(monkeypatch)
     out = generate_text_for_role("text.fast", "hi", temperature=0.3, station="video")
     assert out == "雲端結果"
-    assert seen["model"] == "gemini-3.6-flash"
+    assert seen["model"] == "gemini-3.7-flash"
     assert seen["temperature"] == 0.3
     assert seen.get("recorded") is True
 
@@ -314,7 +314,7 @@ def test_generate_text_for_role_falls_back_to_cloud_on_local_failure(
     out = generate_text_for_role("text.fast", "翻譯")
     assert out == "雲端結果"
     # 退場用雲端預設 model（gemini），不是本機 id
-    assert seen["model"] == "gemini-3.6-flash"
+    assert seen["model"] == "gemini-3.7-flash"
     assert seen.get("recorded") is True   # 退雲端真燒額度 → 如實計帳
 
 

@@ -8,10 +8,18 @@ from __future__ import annotations
 # 這裡只收錄能直接走本專案既有 generateContent pipeline 的型號；Live / TTS / Omni
 # 需要不同 request/response 契約，不可混進一般文字角色下拉，否則選得到卻無法正常產出。
 TEXT_MODELS: dict[str, dict[str, str]] = {
+    # 2026-08-30 劉老師拍板: 主力遷 gemini-3.7-flash(最新)。
+    # ⚠️ 此 id 尚未經本帳號 live 實測(上次 models.list 核對為 2026-08-18, 當時最新 3.6)
+    #    —— 上線前先跑 `python tools/check_models.py` 確認存在, 404 時退回 flash_36。
     "flash": {
+        "id": "gemini-3.7-flash",
+        "label": "✦ Gemini 3.7 Flash（最新主力）",
+        "description": "代理、多模態與一般內容生成的最新預設",
+    },
+    "flash_36": {
         "id": "gemini-3.6-flash",
-        "label": "✦ Gemini 3.6 Flash（最新主力 · Stable）",
-        "description": "代理、多模態與一般內容生成的最新穩定預設",
+        "label": "✦ Gemini 3.6 Flash（Stable）",
+        "description": "前一代穩定主力，3.7 異常時的退回選項",
     },
     "flash_35": {
         "id": "gemini-3.5-flash",
@@ -92,16 +100,46 @@ IMAGE_MODELS: dict[str, dict[str, str]] = {
 }
 
 # ── 預設模型 ──
-DEFAULT_TEXT_MODEL = TEXT_MODELS["flash"]["id"]    # gemini-3.6-flash
+DEFAULT_TEXT_MODEL = TEXT_MODELS["flash"]["id"]    # gemini-3.7-flash
 DEFAULT_IMAGE_MODEL = IMAGE_MODELS["flash"]["id"]  # gemini-3.1-flash-image
 
 # ── 成本定價（USD，估算值）──
+# 文字 2026-08-30 起分 model 計價（T3-7 部分）：per-1k「字元」估算，"default" 為
+# 未知/新 model 的退路（記主力價，別再記 $0 假便宜）。⚠️ 各檔費率為估算值，
+# 以 Google 官方定價頁為準；新 model（如 3.7-flash）官方價公布後在此校正。
 MODEL_PRICING: dict = {
     "text": {
-        "input_per_1k_chars": 0.00001875,   # ~$0.075 / 1M tokens
-        "output_per_1k_chars": 0.000075,    # ~$0.30 / 1M tokens
+        "default": {
+            "input_per_1k_chars": 0.00001875,   # ~$0.075 / 1M tokens
+            "output_per_1k_chars": 0.000075,    # ~$0.30 / 1M tokens
+        },
+        TEXT_MODELS["flash"]["id"]: {           # 3.7-flash: 暫比照 flash 檔位, 待官方價
+            "input_per_1k_chars": 0.00001875,
+            "output_per_1k_chars": 0.000075,
+        },
+        TEXT_MODELS["flash_36"]["id"]: {
+            "input_per_1k_chars": 0.00001875,
+            "output_per_1k_chars": 0.000075,
+        },
+        TEXT_MODELS["flash_35"]["id"]: {
+            "input_per_1k_chars": 0.00001875,
+            "output_per_1k_chars": 0.000075,
+        },
+        TEXT_MODELS["lite"]["id"]: {            # lite 檔位 ~flash 的一半
+            "input_per_1k_chars": 0.00001,
+            "output_per_1k_chars": 0.00004,
+        },
+        TEXT_MODELS["lite_31"]["id"]: {
+            "input_per_1k_chars": 0.00001,
+            "output_per_1k_chars": 0.00004,
+        },
+        TEXT_MODELS["pro"]["id"]: {             # pro 檔位 ~flash 的 8~10x
+            "input_per_1k_chars": 0.00015,
+            "output_per_1k_chars": 0.0006,
+        },
     },
     "image": {
+        "default": 0.003,                    # 未知圖片 model → 記中等階價, 不再記 $0
         IMAGE_MODELS["lite"]["id"]: 0.002,   # 3.1-flash-lite-image（估算 · lite 階，待官方定價校正）
         IMAGE_MODELS["flash"]["id"]: 0.003,  # 3.1-flash-image
         IMAGE_MODELS["pro"]["id"]: 0.04,     # 3-pro-image

@@ -56,10 +56,11 @@
 - **React 19 + Vite + Tailwind CSS** 統一 `/app` 前端(源碼 `frontend/edustudio/`,
   `base` 寫死 `/app/`,build 產物在 `web/`)。
 - **Google Gemini 3 系列**(設定頁可逐角色配,見「模型抽象」):
-  - 文字:`gemini-3.5-flash`(主力)/ `gemini-3.1-flash-lite` / `gemini-3.1-pro-preview`
+  - 文字:`gemini-3.7-flash`(主力,2026-08-30 劉老師拍板遷入,⚠️ 待 live 實測
+    `tools/check_models.py`)/ `gemini-3.1-flash-lite` / `gemini-3.1-pro-preview`
   - 生圖:`gemini-3.1-flash-image`(主力)/ `gemini-3-pro-image`(海報最高畫質)
-  - ⚠️ 影片旁白/解題目前仍 `gemini-2.5-flash`(`slide_ingest.py` / `solve.py` / `config.py`),
-    遷 3.x = **C-3 GATE**(需開額度 A/B 驗品質),見 PRODUCT_READINESS。
+  - ✅ C-3 已收:影片旁白(2026-06-15)與解題 `solve.py`(2026-08-30)都走 M 軸
+    `text.fast` 角色解析,不再硬編 model id;換代改登錄表/設定頁一處。
 - **edge-tts / F5-TTS / Google TTS** 三條 TTS 線(F5 聲音複製,自動退回 edge/google)。
 - **FFmpeg** 影片合成 · **PyMuPDF** PDF→PNG · **matplotlib** LaTeX 公式 · **python-pptx** PPTX 匯出 ·
   **faster-whisper** STT · **BeautifulSoup4** URL adapter · **Google YouTube Data API v3** 上傳。

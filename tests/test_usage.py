@@ -19,7 +19,8 @@ class TestCostCalc:
     def test_image_cost_by_model(self):
         assert _image_cost(IMAGE_MODELS["flash"]["id"]) == 0.003
         assert _image_cost(IMAGE_MODELS["pro"]["id"]) == 0.04
-        assert _image_cost("unknown-model") == 0.0
+        # 2026-08-30: 未知 model 走 "default"(中等階價), 不再記 $0 造成假便宜
+        assert _image_cost("unknown-model") == 0.003
 
 
 class TestUsageStore:

@@ -186,7 +186,7 @@ def get_settings_path() -> str:
 
 
 # ---------- LLM 模型 ----------
-GEMINI_MODEL = "gemini-3.6-flash"
+GEMINI_MODEL = "gemini-3.7-flash"  # 2026-08-30 劉老師拍板遷最新主力(live 驗證見 tools/check_models.py)
 
 
 def get_gemini_model() -> str:

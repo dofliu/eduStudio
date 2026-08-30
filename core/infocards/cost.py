@@ -12,10 +12,15 @@ def estimate_cost(
     output_char_count: int,
     image_count: int,
     image_model: str,
+    text_model: str = "",
 ) -> dict:
-    """估算一次 API 呼叫費用（USD），回 AICost 形狀（camelCase 鍵）。"""
-    input_cost = (input_char_count / 1000) * MODEL_PRICING["text"]["input_per_1k_chars"]
-    output_cost = (output_char_count / 1000) * MODEL_PRICING["text"]["output_per_1k_chars"]
+    """估算一次 API 呼叫費用（USD），回 AICost 形狀（camelCase 鍵）。
+
+    2026-08-30 起文字費率分 model：``text_model`` 未給/未知走 "default"。
+    """
+    text_rate = MODEL_PRICING["text"].get(text_model) or MODEL_PRICING["text"]["default"]
+    input_cost = (input_char_count / 1000) * text_rate["input_per_1k_chars"]
+    output_cost = (output_char_count / 1000) * text_rate["output_per_1k_chars"]
     # 未知模型 fallback 到 flash 定價（對齊 TS 的 || 預設）。
     image_unit_cost = MODEL_PRICING["image"].get(
         image_model, MODEL_PRICING["image"][DEFAULT_IMAGE_MODEL]

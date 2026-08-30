@@ -17,20 +17,23 @@ from contextlib import closing
 from core import config
 from core.infocards.models import MODEL_PRICING
 
-_TEXT_IN = MODEL_PRICING["text"]["input_per_1k_chars"] / 1000.0
-_TEXT_OUT = MODEL_PRICING["text"]["output_per_1k_chars"] / 1000.0
-_IMG = MODEL_PRICING["image"]
+_TEXT = MODEL_PRICING["text"]     # 2026-08-30 起分 model: {model_id|"default": {input/output per_1k_chars}}
+_IMG = MODEL_PRICING["image"]     # {model_id|"default": 每張價}
 
 # 站別顯示標籤。
 _STATION_LABEL = {"visual": "視覺", "language": "在地化", "video": "影片", "material": "解析"}
 
 
-def _text_cost(input_chars: int, output_chars: int) -> float:
-    return input_chars * _TEXT_IN + output_chars * _TEXT_OUT
+def _text_cost(input_chars: int, output_chars: int, model: str = "") -> float:
+    """文字成本: 依 model 查費率, 未知/未填 model 走 "default"（不再單一費率）。"""
+    rate = _TEXT.get(model) or _TEXT["default"]
+    return (input_chars * rate["input_per_1k_chars"]
+            + output_chars * rate["output_per_1k_chars"]) / 1000.0
 
 
 def _image_cost(model: str) -> float:
-    return float(_IMG.get(model, 0.0))
+    # 未知 model 走 "default"（記中等階價），不再靜默記 $0 造成假便宜
+    return float(_IMG.get(model, _IMG["default"]))
 
 
 class UsageStore:
@@ -63,8 +66,8 @@ class UsageStore:
 
     def record_text(self, station: str, input_chars: int, output_chars: int,
                     *, model: str = "", label: str = "", ts: str = "") -> float:
-        """記一筆文字呼叫；回該筆成本（USD）。"""
-        cost = _text_cost(max(0, input_chars), max(0, output_chars))
+        """記一筆文字呼叫；回該筆成本（USD，依 model 費率）。"""
+        cost = _text_cost(max(0, input_chars), max(0, output_chars), model)
         self._insert(ts, station, "text", model, input_chars, output_chars, cost, label)
         return cost
 

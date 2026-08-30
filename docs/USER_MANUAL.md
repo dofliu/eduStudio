@@ -164,7 +164,7 @@ server 啟動時會印一輪**自檢**:ffmpeg / 字型 / API key 在不在,缺�
 
 | 階 | id | 用途 |
 |---|---|---|
-| ⚡ 主力 | `gemini-3.5-flash` | 一般生成(大綱/旁白/翻譯/解題),速度品質平衡(**預設**) |
+| ⚡ 主力 | `gemini-3.7-flash` | 一般生成(大綱/旁白/翻譯/解題),最新主力(**預設**,2026-08-30 遷) |
 | 🪶 最省 | `gemini-3.1-flash-lite` | 最低成本,簡單任務 |
 | 🚀 深度推理 | `gemini-3.1-pro-preview` | 最強推理,複雜內容 / 長文 |
 
@@ -527,7 +527,7 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000   # → http://127.0.0.1:80
 **Configuration** — only `GEMINI_API_KEY` is required. Set `EDUSTUDIO_API_TOKEN` before
 exposing beyond localhost (otherwise **no auth**). Full table: [Appendix A](#附錄-a--環境變數完整表).
 
-**Model tiers** — text: `gemini-3.5-flash` (default) / `gemini-3.1-flash-lite` /
+**Model tiers** — text: `gemini-3.7-flash` (default) / `gemini-3.1-flash-lite` /
 `gemini-3.1-pro-preview`; image: **Nano Banana 2 Lite / 2 / Pro** =
 `gemini-3.1-flash-lite-image` / `gemini-3.1-flash-image` / `gemini-3-pro-image`.
 Verify any new id live before shipping.

@@ -69,17 +69,20 @@ def generate_segment_image(
     (個別 safety filter / rate limit 不牽連其他 segment)。
     """
     try:
-        from google import genai
         from google.genai import types
     except ImportError:
         return (False, "google-genai SDK 未安裝")
 
-    api_key = api_key or os.environ.get("GEMINI_API_KEY")
+    from core import config
+    from core.gemini_client import make_client
+
+    # 金鑰: 傳入 > 設定頁 > 環境變數(修掉 os.environ 直讀繞過設定頁)
+    api_key = api_key or config.get_gemini_api_key()
     if not api_key:
         return (False, "缺 GEMINI_API_KEY")
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = make_client(api_key)  # 統一工廠(T3-2): 一律帶 timeout
         resp = client.models.generate_content(
             model=IMAGE_MODEL,
             contents=[prompt],
@@ -91,6 +94,10 @@ def generate_segment_image(
     image_bytes = _extract_image_bytes(resp)
     if image_bytes is None:
         return (False, "Gemini 回應無 image bytes (可能 safety filter)")
+
+    # 記帳(2026-08-30 補漏): song MV 逐段生圖跟著影片軸走 video 站
+    from core import usage
+    usage.record_image("video", IMAGE_MODEL, label="song-image")
 
     try:
         out_path.parent.mkdir(parents=True, exist_ok=True)

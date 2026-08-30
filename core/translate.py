@@ -80,19 +80,26 @@ def translate_with_gemini(
     if not key:
         raise TranslateError("缺少 GEMINI_API_KEY 環境變數(或傳 api_key)")
 
-    from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=key)
+    from core.gemini_client import make_client
+
+    client = make_client(key)
+    model = get_gemini_model()
+    prompt = _build_prompt(text, target_lang)
     try:
         resp = client.models.generate_content(
-            model=get_gemini_model(),
-            contents=[_build_prompt(text, target_lang)],
+            model=model,
+            contents=[prompt],
             config=types.GenerateContentConfig(temperature=0.1),
         )
     except Exception as e:  # SDK 各種 API 錯統一包成 TranslateError(不洩 key)
         raise TranslateError(f"Gemini 翻譯失敗: {e}") from e
-    return (resp.text or "").strip()
+    out = (resp.text or "").strip()
+    # 記帳(2026-08-30 補漏): 雲端翻譯直呼路徑之前完全沒入帳
+    from core import usage
+    usage.record_text_now("language", model, prompt, out, label="translate")
+    return out
 
 
 def _call_ollama(

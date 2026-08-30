@@ -914,17 +914,15 @@ async def _run_render_song(
         rec.id, "ken burns" if all_have_images else "純色",
     )
     try:
-        result = await asyncio.to_thread(
-            subprocess.run, cmd,
-            cwd=str(job_dir), capture_output=True, text=True,
+        # 共用 runner(T3-3): timeout + returncode 檢查; step 字串保持
+        # 「ffmpeg render」讓錯誤訊息 = 「ffmpeg render 失敗 (code N): ...」
+        from core.ffmpeg import run_media_cmd
+        await asyncio.to_thread(
+            run_media_cmd, cmd,
+            step="ffmpeg render", cwd=str(job_dir),
         )
     except FileNotFoundError as e:
         raise FileNotFoundError("ffmpeg 找不到, 請確認已安裝並在 PATH") from e
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"ffmpeg render 失敗 (code {result.returncode}): "
-            f"{(result.stderr or '')[:500]}"
-        )
     logger.info("SONG render 完成: %s → %s.mp4", rec.id, out_stem)
 
 

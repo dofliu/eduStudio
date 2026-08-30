@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
+from core.ffmpeg import run_media_cmd
 from pathlib import Path
 from typing import NamedTuple
 
@@ -45,7 +45,7 @@ def probe_audio_spec(video_path: Path) -> AudioSpec:
         "-show_streams", "-select_streams", "a",
         str(video_path),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    proc = run_media_cmd(cmd, step="ffprobe audio spec", timeout=120)
     streams = json.loads(proc.stdout).get("streams", [])
     if not streams:
         raise ValueError(f"{video_path} 沒有 audio stream")
@@ -94,7 +94,7 @@ def normalize_intro_audio(
         # -shortest 不加: intro 通常 audio/video 長度差幾 ms, 留原樣
         str(cached),
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    run_media_cmd(cmd, step="ffmpeg intro audio normalize")
     return cached
 
 
@@ -129,7 +129,7 @@ def concat_videos(
             "-c", "copy",
             str(output),
         ]
-        subprocess.run(cmd, check=True, capture_output=True)
+        run_media_cmd(cmd, step="ffmpeg concat")
     finally:
         # 清掉 concat list 暫存檔
         try:
@@ -146,7 +146,7 @@ def get_video_duration(video_path: Path) -> float:
         "-of", "default=noprint_wrappers=1:nokey=1",
         str(video_path),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    proc = run_media_cmd(cmd, step="ffprobe duration", timeout=120)
     return float(proc.stdout.strip())
 
 

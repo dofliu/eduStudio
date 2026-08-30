@@ -144,9 +144,9 @@ def _execute(icons: list[tuple[str, dict]], out_dir: Path) -> int:
         )
         return 2
 
-    from google import genai  # 延遲 import — dry-run / 測試不需要此套件
+    from core.gemini_client import make_client  # 延遲 import — dry-run / 測試不需要
 
-    client = genai.Client(api_key=api_key)
+    client = make_client(api_key)  # 統一工廠(T3-2): 一律帶 timeout
     ok, fail = [], []
     for name, entry in icons:
         target = out_dir / entry["icon"]

@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import subprocess
+from core.ffmpeg import run_media_cmd
 import tempfile
 from pathlib import Path
 from typing import Callable
@@ -164,7 +164,7 @@ def _render_mock(out_path: Path, *, duration: float, fps: int, width: int, heigh
         "-c:v", "libx264",
         str(out_path),
     ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    run_media_cmd(cmd, step="ffmpeg mock render")
     logger.info("html_video mock render → %s (%.1fs)", out_path.name, duration)
     return out_path
 
@@ -277,12 +277,8 @@ def render_html_to_mp4(
             "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
             str(out_path),
         ]
-        result = subprocess.run(cmd, capture_output=True)
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"ffmpeg 合成失敗 (code {result.returncode}): "
-                f"{result.stderr.decode('utf-8', 'replace')[:500]}"
-            )
+        # 共用 runner(T3-3): timeout + returncode 檢查; 訊息維持「ffmpeg 合成失敗」
+        run_media_cmd(cmd, step="ffmpeg 合成", text=False)
 
     if on_progress:
         on_progress(100)

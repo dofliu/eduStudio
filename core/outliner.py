@@ -155,13 +155,11 @@ def _call_outline_gemini(prompt: str) -> dict:
     provider_name, _ = resolve(TEXT_FAST)
     client = types = None
     if provider_name == PROVIDER_GEMINI:
-        api_key = get_gemini_api_key()
-        if not api_key:
-            raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-        from google import genai
         from google.genai import types as genai_types
 
-        client = genai.Client(api_key=api_key)
+        from core.gemini_client import make_client
+
+        client = make_client()
         types = genai_types
 
     raw_text = ""

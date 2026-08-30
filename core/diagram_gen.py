@@ -155,16 +155,11 @@ def _propose_matplotlib_code(spec: DiagramSpec) -> str:
     錯誤: raise (caller 在 generate_diagram 接住回 None)
     """
     # lazy import — google-genai 是核心 dep 但 import 慢
-    from google import genai
     from google.genai import types
 
-    from core.config import get_gemini_api_key
+    from core.gemini_client import make_client
     from core.models import TEXT_FAST, resolve_id
     from core.prompts_loader import load_prompt
-
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise RuntimeError("缺 GEMINI_API_KEY")
 
     prompt = load_prompt("diagram_matplotlib").format(
         kind=spec.get("kind") or DiagramKind.GENERIC.value,
@@ -175,9 +170,10 @@ def _propose_matplotlib_code(spec: DiagramSpec) -> str:
         out_path=spec["out_path"],   # caller 必填, generate_diagram 已驗
     )
 
-    client = genai.Client(api_key=api_key)
+    client = make_client()  # 統一工廠(T3-2): 設定頁金鑰 + timeout
+    model = resolve_id(TEXT_FAST)
     resp = client.models.generate_content(
-        model=resolve_id(TEXT_FAST),
+        model=model,
         contents=[prompt],
         config=types.GenerateContentConfig(
             temperature=0.3,           # 偏保守, 別亂編幾何
@@ -185,6 +181,9 @@ def _propose_matplotlib_code(spec: DiagramSpec) -> str:
         ),
     )
     raw = (resp.text or "").strip()
+    # 記帳(2026-08-30 補漏): 圖表 code 生成走 video 站(隨影片 pipeline 觸發)
+    from core import usage
+    usage.record_text_now("video", model, prompt, raw, label="diagram")
     return _strip_code_fence(raw)
 
 

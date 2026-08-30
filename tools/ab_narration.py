@@ -114,10 +114,8 @@ def _build_client(timeout_ms: int = 120_000):
         raise SystemExit(
             "缺少 GEMINI_API_KEY 環境變數 —— C-3 A/B 需在你本機開額度跑。\n"
             "  export GEMINI_API_KEY=...（別貼進任何會 commit 的檔案）")
-    from google import genai
-    from google.genai import types
-    return genai.Client(api_key=api_key,
-                        http_options=types.HttpOptions(timeout=timeout_ms))
+    from core.gemini_client import make_client
+    return make_client(api_key, timeout_ms=timeout_ms)
 
 
 def main(argv: list[str] | None = None) -> int:

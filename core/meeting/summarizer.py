@@ -102,11 +102,10 @@ class MeetingSummarizer:
             "ffmpeg", "-y", "-i", video_path, "-vn",
             "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path,
         ]
-        try:
-            subprocess.run(cmd, check=True, capture_output=True)
-            return audio_path
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(f"Audio extraction failed: {exc.stderr.decode(errors='ignore')}")
+        # 共用 runner(T3-3): timeout + returncode 檢查, 失敗訊息含 stderr
+        from core.ffmpeg import run_media_cmd
+        run_media_cmd(cmd, step="Audio extraction")
+        return audio_path
 
     def transcribe(self, audio_path: str, language: str = "auto",
                    progress_callback=None) -> tuple[list[TranscriptSegment], str]:

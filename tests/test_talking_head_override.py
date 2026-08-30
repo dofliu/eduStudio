@@ -130,9 +130,21 @@ class TestBuildClipDynamicAvatar:
         pl.WORK_DIR.mkdir(parents=True, exist_ok=True)
         avatar_png.write_bytes(b"fake_png_for_test")
 
-        # 攔截 ffmpeg subprocess + _build_avatar_concat (不真跑)
+        # 攔截 ffmpeg subprocess + _build_avatar_concat (不真跑)。
+        # build_clip 走共用 runner core.ffmpeg (T3-3), patch 到那層的 subprocess。
+        import core.ffmpeg as core_ffmpeg
         captured_cmd = []
-        monkeypatch.setattr(pl.subprocess, "run", lambda cmd, **kw: captured_cmd.append(cmd))
+
+        class _OkProc:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        def _fake_run(cmd, **kw):
+            captured_cmd.append(cmd)
+            return _OkProc()
+
+        monkeypatch.setattr(core_ffmpeg.subprocess, "run", _fake_run)
         monkeypatch.setattr(pl, "_build_avatar_concat", lambda *a, **kw: None)
 
         f_p = tmp_path / "frame.png"

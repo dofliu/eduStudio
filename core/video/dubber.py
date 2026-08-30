@@ -62,7 +62,9 @@ class VideoDubber:
         return job_dir
 
     def _run_cmd_checked(self, cmd: List[str], step: str) -> None:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        # 委派共用 runner(T3-3): 補上 timeout; 訊息格式維持「{step} failed:」
+        from core.ffmpeg import run_media_cmd
+        result = run_media_cmd(cmd, step=step, check=False)
         if result.returncode != 0:
             stderr = (result.stderr or "").strip()
             raise RuntimeError(f"{step} failed: {stderr or 'unknown error'}")
@@ -93,10 +95,11 @@ class VideoDubber:
         audio_path = os.path.join(output_dir, "audio.wav")
         if progress_callback:
             progress_callback("正在提取音訊...")
-        subprocess.run([
+        # 原本完全不檢查 returncode: 抽音失敗會靜默留下缺檔, 下游才莫名其妙炸
+        self._run_cmd_checked([
             'ffmpeg', '-y', '-i', video_path,
             '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', audio_path,
-        ], capture_output=True)
+        ], "extract audio")
         return video_path, audio_path
 
     def generate_subtitles(self, audio_path: str, source_lang: str = "auto",
@@ -160,15 +163,16 @@ class VideoDubber:
         return segments
 
     def get_audio_duration(self, audio_path: str) -> float:
-        # ffprobe 不存在(FileNotFoundError/OSError)、壞路徑、或輸出無法解析 → 一律回 0（優雅降級，
-        # 不讓缺 ffprobe 的環境炸掉；CI 無 ffmpeg 時這條才不會 FileNotFoundError）。
+        # ffprobe 不存在(FileNotFoundError/OSError)、壞路徑、輸出無法解析、或逾時 → 一律回 0
+        # （優雅降級，不讓缺 ffprobe 的環境炸掉；CI 無 ffmpeg 時這條才不會 FileNotFoundError）。
         try:
             result = subprocess.run([
                 'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
                 '-of', 'default=noprint_wrappers=1:nokey=1', audio_path,
-            ], capture_output=True, text=True)
+            ], capture_output=True, text=True, timeout=60)
             return float(result.stdout.strip())
-        except (ValueError, TypeError, FileNotFoundError, OSError):
+        except (ValueError, TypeError, FileNotFoundError, OSError,
+                subprocess.TimeoutExpired):
             return 0.0
 
     def adjust_audio_speed(self, audio_path: str, target_duration: float) -> str:
@@ -184,16 +188,24 @@ class VideoDubber:
         output_path = audio_path.replace('.mp3', '_adjusted.mp3')
         if original_speed < 0.85 or original_speed > 1.25:
             log.warning("Speech rate clamped: requested %.2fx, using %.2fx", original_speed, speed_factor)
-        subprocess.run([
+        # 變速/截斷失敗走降級(回原檔照用), 不讓整段配音死在調速上;
+        # 但走共用 runner 補 timeout, 且輸出缺檔時明確 fallback 而非把壞路徑往下傳
+        from core.ffmpeg import run_media_cmd
+        run_media_cmd([
             'ffmpeg', '-y', '-i', audio_path, '-filter:a', f'atempo={speed_factor}', output_path,
-        ], capture_output=True)
+        ], step="atempo adjust", timeout=300, check=False)
+        if not os.path.exists(output_path):
+            log.warning("atempo adjust failed, using original audio: %s", audio_path)
+            return audio_path
         adjusted_duration = self.get_audio_duration(output_path)
         if adjusted_duration > target_duration * 1.05:
             truncated_path = output_path.replace('.mp3', '_truncated.mp3')
-            subprocess.run([
+            run_media_cmd([
                 'ffmpeg', '-y', '-i', output_path, '-t', str(target_duration), truncated_path,
-            ], capture_output=True)
-            return truncated_path
+            ], step="audio truncate", timeout=300, check=False)
+            if os.path.exists(truncated_path):
+                return truncated_path
+            log.warning("audio truncate failed, using adjusted audio: %s", output_path)
         return output_path
 
     def merge_dubbed_audio(self, segments: List[Segment], total_duration: float,

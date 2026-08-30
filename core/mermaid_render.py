@@ -220,13 +220,13 @@ def generate_mermaid_syntax_for_section(
     - mermaid 結構穩定可預測 (LLM 不會「畫」歪)
     - 但風格只有一種 (普通流程圖), 沒 image gen 的視覺多樣性
     """
-    import os
-    api_key = api_key or os.environ.get("GEMINI_API_KEY")
+    from core import config
+    # 金鑰: 傳入 > 設定頁 > 環境變數(修掉 os.environ 直讀繞過設定頁)
+    api_key = api_key or config.get_gemini_api_key()
     if not api_key:
         return None
 
     try:
-        from google import genai
         from google.genai import types
     except ImportError:
         return None
@@ -245,7 +245,8 @@ def generate_mermaid_syntax_for_section(
     )
 
     try:
-        client = genai.Client(api_key=api_key)
+        from core.gemini_client import make_client
+        client = make_client(api_key)  # 統一工廠(T3-2): 一律帶 timeout
         resp = client.models.generate_content(
             model=MERMAID_GEN_MODEL,
             contents=[prompt],
@@ -259,6 +260,9 @@ def generate_mermaid_syntax_for_section(
         return None
 
     raw = (resp.text or "").strip()
+    # 記帳(2026-08-30 補漏): mermaid 架構圖文字生成跟著影片 pipeline 走 video 站
+    from core import usage
+    usage.record_text_now("video", MERMAID_GEN_MODEL, prompt, raw, label="mermaid")
     # 防 LLM 還是包了 ```mermaid``` fence, 抓出 syntax 主體
     if raw.startswith("```"):
         m = re.search(r"```(?:mermaid)?\s*\n(.*?)\n```", raw, re.DOTALL)

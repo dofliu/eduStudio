@@ -48,11 +48,9 @@ def _image_mime(raw: bytes) -> str:
 
 
 def _client(api_key: str | None):
-    key = api_key or config.get_gemini_api_key()
-    if not key:
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-    from google import genai
-    return genai.Client(api_key=key)
+    # 統一走 core.gemini_client 工廠(T3-2):金鑰解析 + timeout 一處管
+    from core.gemini_client import make_client
+    return make_client(api_key)
 
 
 def _record_text(station: str, model: str, prompt: str, text: str) -> None:

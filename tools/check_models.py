@@ -122,8 +122,8 @@ def fetch_available_model_ids(client=None) -> set[str]:
         key = config.get_gemini_api_key()
         if not key:
             raise RuntimeError("缺少 GEMINI_API_KEY（設定頁或環境變數）")
-        from google import genai
-        client = genai.Client(api_key=key)
+        from core.gemini_client import make_client
+        client = make_client(key)
 
     ids: set[str] = set()
     for m in client.models.list():

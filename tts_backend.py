@@ -387,20 +387,24 @@ class F5TTS(TTSBackend):
                 )
                 wav_path = tmp_dir / f".{out_path.stem}.f5merged.wav"
                 tmp_files.append(wav_path)
-                subprocess.run(
+                # 共用 runner(T3-3): timeout + returncode + stderr 進錯誤訊息
+                # (原本 check=True 但 stderr 直噴 console, 失敗只看得到 code)
+                from core.ffmpeg import run_media_cmd
+                run_media_cmd(
                     ["ffmpeg", "-y", "-loglevel", "error",
                      "-f", "concat", "-safe", "0",
                      "-i", str(manifest), "-c", "copy", str(wav_path)],
-                    check=True,
+                    step="F5 concat", timeout=300,
                 )
 
             # 下游 pipeline 吃 mp3;順便砍掉前 lead_trim_sec 秒的 ref 洩漏
             # (預切後 lead_trim 仍套在最終 concat 結果首段, 跟舊版邏輯一致)
+            from core.ffmpeg import run_media_cmd as _run_media_cmd
             ff = ["ffmpeg", "-y", "-loglevel", "error"]
             if self.lead_trim_sec > 0:
                 ff += ["-ss", f"{self.lead_trim_sec:.3f}"]
             ff += ["-i", str(wav_path), "-b:a", "128k", str(out_path)]
-            subprocess.run(ff, check=True)
+            _run_media_cmd(ff, step="F5 wav→mp3", timeout=300)
             return True
         except Exception as e:
             print(f"[F5-TTS] failed: {e}")

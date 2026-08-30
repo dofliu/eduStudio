@@ -309,17 +309,13 @@ def _call_gemini_detect(
     model_name: str,
 ) -> str:
     """組 prompt + 前 2 頁圖, 呼叫 Gemini, 回 raw text。失敗 raise (caller 接住)。"""
-    from google import genai
     from google.genai import types
 
+    from core.gemini_client import make_client
     from core.prompts_loader import load_prompt
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("缺 GEMINI_API_KEY")
-
     prompt = load_prompt("ideate_detect_type")
-    client = genai.Client(api_key=api_key)
+    client = make_client()  # 統一工廠(T3-2): 設定頁金鑰 + timeout
     parts = [types.Part.from_bytes(data=b, mime_type="image/png") for b in thumbs]
     resp = client.models.generate_content(
         model=model_name,
@@ -329,7 +325,10 @@ def _call_gemini_detect(
             max_output_tokens=512,     # 回應很短不必開大
         ),
     )
-    return (resp.text or "").strip()
+    text = (resp.text or "").strip()
+    from core import usage
+    usage.record_text_now("visual", model_name, prompt, text, label="ideate:classify")
+    return text
 
 
 def _parse_detect_response(raw: str) -> str | None:
@@ -402,14 +401,10 @@ def _call_gemini_vision(
     這函式失敗會 raise (caller 在 try/except 接住)。
     """
     # lazy import — google-genai 是核心 dep 但 import 慢
-    from google import genai
     from google.genai import types
 
+    from core.gemini_client import make_client
     from core.prompts_loader import load_prompt
-
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("缺 GEMINI_API_KEY")
 
     prompt = load_prompt("ideate_propose").format(
         filename=filename,
@@ -417,7 +412,7 @@ def _call_gemini_vision(
         max_proposals_per_file=max_proposals,
     )
 
-    client = genai.Client(api_key=api_key)
+    client = make_client()  # 統一工廠(T3-2): 設定頁金鑰 + timeout
     parts = [types.Part.from_bytes(data=b, mime_type="image/png") for b in thumbs]
     resp = client.models.generate_content(
         model=model_name,
@@ -427,7 +422,10 @@ def _call_gemini_vision(
             max_output_tokens=4096,
         ),
     )
-    return (resp.text or "").strip()
+    text = (resp.text or "").strip()
+    from core import usage
+    usage.record_text_now("visual", model_name, prompt, text, label="ideate:propose")
+    return text
 
 
 def _parse_proposals_response(

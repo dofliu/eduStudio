@@ -79,19 +79,22 @@ def generate_section_diagram_image(
     - 個別 call 失敗 (rate limit / safety filter) 不該牽連其他 section
     """
     try:
-        from google import genai
         from google.genai import types
     except ImportError:
         return (False, "google-genai SDK 未安裝")
 
-    api_key = api_key or os.environ.get("GEMINI_API_KEY")
+    from core import config
+    from core.gemini_client import make_client
+
+    # 金鑰: 傳入 > 設定頁 > 環境變數(修掉 os.environ 直讀繞過設定頁)
+    api_key = api_key or config.get_gemini_api_key()
     if not api_key:
         return (False, "缺 GEMINI_API_KEY")
 
     prompt = _build_diagram_prompt(section, deck_title=deck_title)
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = make_client(api_key)  # 統一工廠(T3-2): 一律帶 timeout
         resp = client.models.generate_content(
             model=IMAGE_MODEL,
             contents=[prompt],
@@ -106,6 +109,10 @@ def generate_section_diagram_image(
     image_bytes = _extract_image_bytes(resp)
     if image_bytes is None:
         return (False, "Gemini 回應無 image bytes (可能 safety filter)")
+
+    # 記帳(2026-08-30 補漏): 架構圖生圖跟著影片 pipeline 走 video 站
+    from core import usage
+    usage.record_image("video", IMAGE_MODEL, label="diagram-image")
 
     try:
         out_path.parent.mkdir(parents=True, exist_ok=True)

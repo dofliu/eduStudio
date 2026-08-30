@@ -55,7 +55,9 @@ def fake_run(monkeypatch: pytest.MonkeyPatch) -> list:
         calls.append({"cmd": cmd, "cwd": kwargs.get("cwd")})
         return _FakeProc(returncode=0)
 
-    monkeypatch.setattr(runner_mod.subprocess, "run", _run)
+    # song render 走共用 runner core.ffmpeg (T3-3), patch 到那層的 subprocess
+    import core.ffmpeg as core_ffmpeg
+    monkeypatch.setattr(core_ffmpeg.subprocess, "run", _run)
     return calls
 
 
@@ -207,7 +209,8 @@ class TestErrorPaths:
     ):
         def _run(cmd, **kwargs):
             return _FakeProc(returncode=1, stderr="boom")
-        monkeypatch.setattr(runner_mod.subprocess, "run", _run)
+        import core.ffmpeg as core_ffmpeg
+        monkeypatch.setattr(core_ffmpeg.subprocess, "run", _run)
         rec, _ = _setup_job(store, _song_deck(with_images=False))
         with pytest.raises(RuntimeError, match="ffmpeg render 失敗"):
             asyncio.run(_run_render_song(store, rec, _read_deck(store, rec)))
@@ -217,7 +220,8 @@ class TestErrorPaths:
     ):
         def _run(cmd, **kwargs):
             raise FileNotFoundError("ffmpeg")
-        monkeypatch.setattr(runner_mod.subprocess, "run", _run)
+        import core.ffmpeg as core_ffmpeg
+        monkeypatch.setattr(core_ffmpeg.subprocess, "run", _run)
         rec, _ = _setup_job(store, _song_deck(with_images=False))
         with pytest.raises(FileNotFoundError, match="ffmpeg"):
             asyncio.run(_run_render_song(store, rec, _read_deck(store, rec)))

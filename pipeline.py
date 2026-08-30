@@ -8,6 +8,7 @@ import json
 import os
 import re
 import subprocess
+from core.ffmpeg import run_media_cmd
 import sys
 import wave
 import struct
@@ -150,7 +151,7 @@ def _prepare_dynamic_avatar(cfg):
 
 def _build_avatar_concat(audio_p, out_txt, dur, cfg, q_work):
     wav_p = out_txt.with_suffix(".wav")
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(audio_p), "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", str(wav_p)], check=True)
+    run_media_cmd(["ffmpeg", "-y", "-loglevel", "error", "-i", str(audio_p), "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", str(wav_p)], step="ffmpeg avatar wav")
     p_closed = (WORK_DIR / "avatar_closed.png").absolute().as_posix().replace('\\', '/')
     threshold = cfg.get("volume_threshold", 500)
     talking = []
@@ -538,7 +539,7 @@ def build_clip(f_p, a_p, dur, out_p, q_work):
         "-c:v", "libx264", "-tune", "stillimage", "-c:a", "aac", "-pix_fmt", "yuv420p",
         "-t", f"{total:.3f}", "-r", "30", str(out_p)
     ]
-    subprocess.run(cmd, check=True)
+    run_media_cmd(cmd, step="ffmpeg build clip")
 
 def _hex_to_ass_bgr(hex_str: str | None) -> str | None:
     """iter 80 (D2): hex (#RRGGBB / RRGGBB) → ASS subtitle 用 &H00BBGGRR&.
@@ -613,8 +614,11 @@ def burn_subtitles(
         font_size=font_size, primary_color=primary_color, outline_color=outline_color,
     )
     try:
-        subprocess.run(cmd, cwd=OUTPUT_DIR, check=True)
-    except subprocess.CalledProcessError as e:
+        # 降級語意保留: 燒字幕失敗不 raise, 保留原 mp4 (共用 runner 補 timeout;
+        # CalledProcessError 由測試 fake 直接 raise, RuntimeError 由 runner 檢查 returncode)
+        run_media_cmd(cmd, step="ffmpeg 燒字幕", cwd=OUTPUT_DIR)
+    except (subprocess.CalledProcessError, RuntimeError,
+            subprocess.TimeoutExpired) as e:
         print(f"⚠ 燒字幕失敗 (保留原版 mp4): {e}")
         # 清掉可能殘留的部分輸出
         (OUTPUT_DIR / f"{out_name}.hardsub.mp4").unlink(missing_ok=True)
@@ -652,7 +656,7 @@ async def main(json_path, out_name, start_step=None):
     posix_clips = [p.absolute().as_posix().replace("\\", "/") for p in clips]
     list_f = q_work / "concat.txt"
     list_f.write_text("\n".join(f"file '{path}'" for path in posix_clips), encoding="utf-8")
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_f), "-c", "copy", str(OUTPUT_DIR / f"{out_name}.mp4")], check=True)
+    run_media_cmd(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_f), "-c", "copy", str(OUTPUT_DIR / f"{out_name}.mp4")], step="ffmpeg clip concat")
 
     # iter 37: SRT 生成邏輯抽到 core.srt, 純函式好測 (10 行 dense → import 一條)
     from core.srt import build_srt

@@ -27,8 +27,16 @@ from core.text_utils import strip_latex, clean_json_escapes
 
 import fitz  # pymupdf
 
-MODEL = "gemini-2.5-flash"  # 使用用戶指定的最新預覽模型
-MAX_TOKENS = 32768  # Gemini 2.5 Flash 支援到 65536 output, 這裡設 32K 給複雜 3D 題充足空間
+# T0-4（2026-08-30 劉老師拍板遷 3.x）：解題模型走 M 軸角色登錄表 text.fast
+# （預設見 core/models.py），不再寫死 gemini-2.5-flash（將淘汰）。
+# 換模型＝改登錄表/設定頁 text.fast 一個值；呼叫時解析，設定頁覆寫即時生效。
+def solver_model() -> str:
+    """解題用的模型 id（M 軸 text.fast 角色，呼叫時解析）。"""
+    from core.models import TEXT_FAST, resolve_id
+    return resolve_id(TEXT_FAST)
+
+
+MAX_TOKENS = 32768  # flash 系列支援到 65536 output, 這裡設 32K 給複雜 3D 題充足空間
                      # (thinking tokens 也會吃同一份額度, 故拉高避免截斷)
 
 # 第一階段：辨識題目清單 (不變)
@@ -162,28 +170,27 @@ def pdf_to_images_b64(pdf_path: Path, dpi: int = 150) -> list[str]:
 
 def solve_with_gemini(pdf_path: Path) -> dict:
     """呼叫 Gemini API, 分兩階段處理以避免 token 截斷"""
-    from google import genai
     from google.genai import types
-    
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        # raise 不 sys.exit: server runner 要能用 except Exception 接住,
-        # 不該污染上層 task 的 exit semantics
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數。")
 
-    client = genai.Client(api_key=api_key)
+    from core.gemini_client import make_client
+
+    # 統一工廠(T3-2): 金鑰設定頁優先(修掉 os.environ 直讀繞過設定頁),
+    # 一律帶 timeout。缺 key 時 make_client raise 不 sys.exit:
+    # server runner 要能用 except Exception 接住。
+    client = make_client()
+    MODEL = solver_model()
     images_b64 = pdf_to_images_b64(pdf_path)
-    print(f"[solve] PDF 有 {len(images_b64)} 頁, 第一階段：辨識題目...")
+    print(f"[solve] PDF 有 {len(images_b64)} 頁, 第一階段：辨識題目 (model={MODEL})...")
 
     parts = [types.Part.from_bytes(data=base64.b64decode(b), mime_type="image/png") for b in images_b64]
-    
+
     # Pass 1: Identity
     resp1 = client.models.generate_content(
         model=MODEL,
         contents=parts + [IDENTIFY_PROMPT],
         config=types.GenerateContentConfig(temperature=0.1)
     )
-    
+
     raw_text1 = resp1.text.strip()
     from core import usage
     usage.record_text_now("material", MODEL, IDENTIFY_PROMPT, raw_text1, label="identify")

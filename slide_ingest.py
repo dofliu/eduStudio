@@ -177,14 +177,12 @@ def render_thumbs(pdf_path: Path) -> list[bytes]:
 
 def detect_chapters_with_gemini(thumbs: list[bytes], total_pages: int) -> list[dict]:
     """Gemini 看縮圖切章節, 回傳 [{title, start_page, end_page}]。"""
-    from google import genai
     from google.genai import types
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-    client = genai.Client(api_key=api_key,
-                          http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS))
+    from core.gemini_client import make_client
+
+    # 統一工廠: 金鑰走設定頁優先(修掉 os.environ 直讀), timeout 沿用逐頁 90s
+    client = make_client(timeout_ms=GEMINI_TIMEOUT_MS)
 
     model = narration_model()
     parts = [types.Part.from_bytes(data=t, mime_type="image/png") for t in thumbs]
@@ -469,13 +467,10 @@ def ingest(pdf_path: Path, out_json: Path, *,
         for i in range(total):
             narrations[i] = f"(投影片 {i+1} 佔位旁白, 請至 Web UI 編輯)"
     else:
-        from google import genai
         from google.genai import types
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-        client = genai.Client(api_key=api_key,
-                              http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS))
+
+        from core.gemini_client import make_client
+        client = make_client(timeout_ms=GEMINI_TIMEOUT_MS)
 
         for ch in chapters:
             s, e = ch["start_page"], ch["end_page"]

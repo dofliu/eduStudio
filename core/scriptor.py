@@ -416,13 +416,11 @@ def _provider_client():
     provider_name, _ = resolve(TEXT_FAST)
     if provider_name != PROVIDER_GEMINI:
         return None, None
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise RuntimeError("缺少 GEMINI_API_KEY 環境變數")
-    from google import genai
     from google.genai import types
 
-    return genai.Client(api_key=api_key), types
+    from core.gemini_client import make_client
+
+    return make_client(), types
 
 def _call_with_retry(client, types, prompt: str, section_id: str, sec_outline: dict) -> dict:
     """單一 section 的 Gemini call, 兩次 retry, 失敗回佔位 slide。

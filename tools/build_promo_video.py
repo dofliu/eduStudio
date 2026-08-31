@@ -114,7 +114,7 @@ def _sfx(tmp: Path, name: str, cmd_tail: list[str]) -> Path:
 
 def build_audio(tmp: Path, total: float, cut_offsets: list[float], *,
                 music: Path | None = None, music_gain_db: float = 0.0,
-                no_sfx: bool = False) -> Path:
+                no_sfx: bool = False, loudness: float | None = None) -> Path:
     """配樂音軌。預設為「安靜版」本地合成:暖 pad + 稀疏心跳 + 極輕 whoosh/impact。
 
     v2(2026-08-31 依劉老師回饋「太吵」重調):
@@ -131,12 +131,40 @@ def build_audio(tmp: Path, total: float, cut_offsets: list[float], *,
     starts, _ = scene_offsets()
 
     if music is not None:
-        base = _sfx(tmp, "music.wav", [
-            "-stream_loop", "-1", "-i", str(music),
-            "-af", (f"volume={music_gain_db}dB,afade=t=in:d=1.2,"
-                    f"afade=t=out:st={total-3:.3f}:d=3"),
-            "-t", d, "-ar", "48000", "-ac", "2",
-        ])
+        # 不足片長時用 1.5s 交叉淡接循環補滿(stream_loop 硬接會有聽得到的接縫)
+        probe = run_media_cmd(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(music)],
+            step="ffprobe music", timeout=60)
+        mdur = float(probe.stdout.strip())
+        cf = 1.5
+        copies = 1
+        while copies * mdur - (copies - 1) * cf < total + 0.5:
+            copies += 1
+        if copies == 1:
+            base = _sfx(tmp, "music.wav", [
+                "-i", str(music),
+                "-af", (f"volume={music_gain_db}dB,afade=t=in:d=1.0,"
+                        f"afade=t=out:st={total-3:.3f}:d=3"),
+                "-t", d, "-ar", "48000", "-ac", "2",
+            ])
+        else:
+            m_inputs: list[str] = []
+            for _ in range(copies):
+                m_inputs += ["-i", str(music)]
+            mfg, prev = [], "[0:a]"
+            for i in range(1, copies):
+                outt = f"[m{i}]"
+                mfg.append(f"{prev}[{i}:a]acrossfade=d={cf}:c1=tri:c2=tri{outt}")
+                prev = outt
+            mfg.append(f"{prev}volume={music_gain_db}dB,afade=t=in:d=1.0,"
+                       f"afade=t=out:st={total-3:.3f}:d=3[mout]")
+            base = tmp / "music.wav"
+            run_media_cmd([
+                "ffmpeg", "-y", "-loglevel", "error", *m_inputs,
+                "-filter_complex", ";".join(mfg), "-map", "[mout]",
+                "-t", d, "-ar", "48000", "-ac", "2", str(base),
+            ], step="ffmpeg music loop", timeout=300)
         base_tags = ["[0:a]"]
         inputs = ["-i", str(base)]
         idx = 1
@@ -186,9 +214,9 @@ def build_audio(tmp: Path, total: float, cut_offsets: list[float], *,
             fg.append(f"[{idx}:a]adelay={int(at*1000)}|{int(at*1000)}[b{idx}]")
             mix_tags.append(f"[b{idx}]")
             idx += 1
-    # 響度目標:合成 bed 走 -23(純陪襯);真實音樂主導時走 -16(YouTube 音樂內容慣例,
-    # 太小聲上傳後會顯得虛)。
-    target_i = -16 if music is not None else -23
+    # 響度目標:合成 bed 走 -23(純陪襯);真實音樂主導預設 -16(YouTube 音樂內容慣例)。
+    # ``loudness`` 可覆寫 —— 要「背景音樂感」壓 -20 上下。
+    target_i = loudness if loudness is not None else (-16 if music is not None else -23)
     fg.append("".join(mix_tags) +
               f"amix=inputs={len(mix_tags)}:duration=first:normalize=0,"
               f"loudnorm=I={target_i}:TP=-1.5:LRA=11[aout]")
@@ -257,6 +285,8 @@ def main() -> int:
     ap.add_argument("--music", type=Path, default=None,
                     help="用這個音樂檔取代合成配樂(自動裁長度+淡入淡出;建議免版稅曲)")
     ap.add_argument("--music-gain", type=float, default=0.0, help="音樂音量微調 dB(例 -6)")
+    ap.add_argument("--loudness", type=float, default=None,
+                    help="成品響度目標 LUFS(預設:音樂 -16 / 合成 bed -23;背景感用 -20)")
     ap.add_argument("--no-sfx", action="store_true", help="不疊轉場 whoosh / impact")
     ap.add_argument("--no-audio", action="store_true", help="出無聲版(自行後製配樂)")
     a = ap.parse_args()
@@ -276,7 +306,8 @@ def main() -> int:
                       step="ffmpeg copy silent", timeout=300)
     else:
         bed = build_audio(tmp, total, cut_offsets,
-                          music=a.music, music_gain_db=a.music_gain, no_sfx=a.no_sfx)
+                          music=a.music, music_gain_db=a.music_gain,
+                          no_sfx=a.no_sfx, loudness=a.loudness)
         narr = synth_narration(tmp, a.voice) if a.narrate else None
         mux(video, bed, narr, out, total)
     print(f"[done] {out} ({out.stat().st_size/1e6:.1f} MB)")

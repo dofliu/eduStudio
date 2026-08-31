@@ -28,6 +28,20 @@
     "保留 storyboard.json 與 ≥5 個場景 HTML(可單景重修)",
     "有 check_*.png 抽查格(排版自查證據)"
    ]
+  },
+  {
+   "id": 2,
+   "prompt": "幫 eduStudio 這個 repo(工作目錄 /home/user/eduStudio)做一支接近 3 分鐘的完整介紹影片,把四個工作站(影片/圖像/漫畫/在地化)和人工審查關卡都講到,繁體中文。不要配樂,我之後會自己後製加背景音樂。",
+   "expected_output": "約 170±20 秒的 1920x1080 無聲 MP4,15 景上下、分章推進,每景 ≤10 秒,戲劇景與 fadeblack 全片各只一次,場景 HTML 與分鏡表保留",
+   "files": [],
+   "assertions": [
+    "產出 intro.mp4 且 ffprobe 可解析",
+    "時長 150~180s(使用者指定接近 3 分鐘)",
+    "解析度 1920x1080 且 30fps",
+    "無音軌(使用者指定無聲後製)",
+    "storyboard.json 有 ≥13 景且每景 duration ≤10s(長版靠景數不靠拉長單景)",
+    "保留所有場景 HTML 與 check_*.png 抽查格"
+   ]
   }
  ]
 }

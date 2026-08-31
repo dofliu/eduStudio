@@ -49,6 +49,10 @@ body{font-family:"Noto Sans CJK TC","Noto Sans TC","PingFang TC","Microsoft Jhen
 @keyframes pop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
 .glow{animation:glow 2.6s ease-in-out infinite}
 @keyframes glow{0%,100%{filter:drop-shadow(0 0 18px rgba(45,212,191,.25))}50%{filter:drop-shadow(0 0 42px rgba(45,212,191,.55))}}
+/* ⚠️ 同一元素掛兩個動畫類,後面的 animation 簡寫會蓋掉前面的(元素卡在 opacity:0)。
+   常見組合已在下面合併保底;自創組合請用逗號合成單一 animation,或發光掛外層 div。 */
+.in.glow{animation:rise 1s cubic-bezier(.16,1,.3,1) var(--d,0s) both,glow 2.6s ease-in-out infinite}
+.pop.glow{animation:pop .8s cubic-bezier(.2,1.4,.35,1) var(--d,0s) both,glow 2.6s ease-in-out infinite}
 /* ▼▼ 本景專屬 CSS 寫在這 ▼▼ */
 
 /* ▲▲ 本景專屬 CSS 到此 ▲▲ */

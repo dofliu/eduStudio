@@ -1,0 +1,33 @@
+{
+ "skill_name": "repo-intro-video",
+ "evals": [
+  {
+   "id": 0,
+   "prompt": "幫 eduStudio 這個 repo(工作目錄 /home/user/eduStudio)做一支 30 秒左右的介紹影片,重點放「考卷變影片」「人工審查關卡」「一鍵上 YouTube」三個功能就好,中文的。先不用配樂,無聲就可以。",
+   "expected_output": "約 30 秒(±15%)的 1920x1080 無聲 MP4,含開場/三個功能景/結尾,場景 HTML 與分鏡表保留",
+   "files": [],
+   "assertions": [
+    "產出 intro.mp4 且 ffprobe 可解析",
+    "時長 30s ±15%(25.5~34.5s)",
+    "解析度 1920x1080 且 30fps",
+    "無音軌(使用者指定無聲)",
+    "保留 storyboard.json 與 ≥4 個場景 HTML(可單景重修)",
+    "有 check_*.png 抽查格(排版自查證據)"
+   ]
+  },
+  {
+   "id": 1,
+   "prompt": "我在 /tmp/claude-0/-home-user-eduStudio/7605e915-884a-5eeb-9092-448c981272cc/scratchpad/windwatch 有個小專案 WindWatch,幫它做一支大約 45 秒的繁體中文介紹影片,展示主要功能,要有點動畫張力。我手邊沒有音樂檔,你幫我配個安靜一點的背景氛圍就好。",
+   "expected_output": "約 45 秒(±15%)的 1920x1080 MP4 含安靜背景音軌,內容對應 WindWatch 的功能(SCADA 匯入/異常偵測/日報/LINE 告警)",
+   "files": [],
+   "assertions": [
+    "產出 intro.mp4 且 ffprobe 可解析",
+    "時長 45s ±15%(38.25~51.75s)",
+    "解析度 1920x1080 且 30fps",
+    "有音軌且整體響度 ≤ -19 LUFS(「安靜背景氛圍」)",
+    "保留 storyboard.json 與 ≥5 個場景 HTML(可單景重修)",
+    "有 check_*.png 抽查格(排版自查證據)"
+   ]
+  }
+ ]
+}

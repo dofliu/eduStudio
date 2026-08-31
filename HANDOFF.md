@@ -90,8 +90,13 @@ eduStudio/
   PPTX round-trip、`/api/generate` validation、Actions Node 24、Whisper `large-v3` 三流程、
   token 部署驗證、四站 click-through）→ **P3 技術債收斂**（FastAPI lifespan、asyncio loop
   scope、office gate CI 邊界、Whisper cache 可攜 `HF_HOME`）。backend `2845 passed`。
-- **唯一 BLOCKER**：Google Photos 帳號 OAuth consent 未完成（需劉老師一次性授權,
-  `/google-photos/status` 回 `authorized=false`）。
+- ~~唯一 BLOCKER：Google Photos OAuth consent~~ ✅ 2026-08-30 劉老師完成授權
+  （token 存 `photos_token.json`），相片簡報軸 live 全通。
+- **2026-08-30 工程收斂輪**：Sprint 1 三小修 / 統一 Gemini client（`core/gemini_client`）/
+  共用 ffmpeg runner（`core/ffmpeg`）/ 文字主力遷 `gemini-3.7-flash`（⚠️ 待 live 實測）/
+  計費分 model + 補漏帳 / **U-5 legacy `/ui` 退場**（Dockerfile 改建 frontend/）/
+  漫畫正式化啟動（checklist 見 `docs/COMIC_PRODUCTION_SYSTEM.md`）。
+  全套 `2854 passed`。詳見 `docs/CHANGELOG.md` 頂部兩段。
 - 驗收證據：`docs/P1_P2_COMPLETION_PLAN_2026-08-28.md`、`docs/P3_COMPLETION_PLAN_2026-08-28.md`、
   `reports/eduStudio_P1_P2_Function_Verification_Report_2026-08-28_v1.0.docx`。
 - 下一步候選清單見 `TODO.md` 🌟 段（2026-08-30 盤點）。
@@ -112,13 +117,18 @@ eduStudio/
 
 ## 還沒做 / 待加強（接手可挑,完整清單見 TODO.md 🌟 段）
 
-1. **Google Photos OAuth consent**（唯一 BLOCKER）：需劉老師帳號一次性授權（`tools/photos_auth.py`）。
-2. **計費準確化**（優先級高）：目前只算視覺/在地化 Gemini 呼叫，**沒算影片 render pipeline**(最大宗)，且單價是估算。要把 pipeline 的 Gemini 呼叫接進 `core/usage` 計帳 + 對齊真實單價。
-3. ~~影片旁白模型遷 3.x~~ ✅ 已收（旁白 2026-06-15 / 解題 2026-08-30 都走 `text.fast` 角色，主力現為 `gemini-3.7-flash`）。剩：跑一次 `python tools/check_models.py` live 確認 3.7 id 存在。
-4. **2026-07 程式碼審查殘項**：T1-1 dubber filtergraph、T2-2 compose 綁 127.0.0.1、T2-3 editor
-   `j.error` escape、T1-2 timeout、T3-2 統一 Gemini client 等（`TODO.md` 🔍 段,T0-1/T0-2 已修）。
+1. **`gemini-3.7-flash` live 確認**：本機跑 `python tools/check_models.py`，404 就把設定頁
+   text 模型退 `gemini-3.6-flash`（目錄 `flash_36`）。
+2. **漫畫正式化 GATE**：真實生成 QA 一輪（開額度）+ 匯出實機檢查 + 手冊案例，
+   checklist 見 `docs/COMIC_PRODUCTION_SYSTEM.md`。
+3. **計費尾巴**：多模態「圖片輸入」token 未計；各 model 費率為估算，官方價出來後在
+   `core/infocards/models.py` MODEL_PRICING 校正。
+4. **2026-07 程式碼審查殘項**（大宗已收）：剩 T1-3/4/5（job 並行上限 / state.json 原子寫 /
+   dubber 暫存清理）、T2-1 SSRF、T3-1 core 依賴反轉、T3-4 刪 app.py、T3-5 拆 god 檔、
+   T3-6 測試鏡射（`TODO.md` 🔍 段）。
 5. **素材庫 lightbox**：點圖目前開新分頁(已修 data:→blob)，可做頁內彈大圖更順；簡報縮圖點擊只開第一頁圖，可做完整 deck 檢視。
 6. **舊專案功能細項**：infoCard/translateGemma 可能有沒轉過來的細節，用到再回原 repo 撈。
+7. **README/手冊 4 張截圖**（`docs/screenshots/`，需實機瀏覽器）。
 
 ## 詳細記憶（選讀）
 

@@ -25,18 +25,27 @@
 > 見 [docs/P1_P2_COMPLETION_PLAN_2026-08-28.md](docs/P1_P2_COMPLETION_PLAN_2026-08-28.md) /
 > [docs/P3_COMPLETION_PLAN_2026-08-28.md](docs/P3_COMPLETION_PLAN_2026-08-28.md)。以下為候選,優先序待劉老師拍板:
 
-- [ ] 🔴 **Google Photos OAuth consent**(P2-2 唯一 BLOCKER,需劉老師帳號一次性授權,
-  `tools/photos_auth.py`)— 完成後相片簡報軸才算 live 全通。
-- [ ] 🔴 **Sprint 1 收尾三小修**(見下方 🔍 段):T1-1 dubber filtergraph、T2-2 compose 綁
-  127.0.0.1、T2-3 editor `j.error` escape — 都是小改,直接止血。
-- [ ] 🟡 **Sprint 2 穩定性根源**:T1-2 外部呼叫補 timeout、T3-2 統一 Gemini client(13+ 檔)、
-  T3-3 `core/ffmpeg.py` 共用 runner、T0-4 解題走 `resolve_id`。
-- [ ] 🟡 **C-3 GATE:影片旁白/解題遷 gemini-3.x**(`slide_ingest.py`/`solve.py` 仍 2.5-flash,
-  需開額度 A/B 驗品質;Ollama 接線已通,亦可評估本機旁白)。
-- [ ] 🟡 **計費準確化**:影片 render pipeline 的 Gemini 呼叫入帳(目前最大宗未計)+ 對齊真實單價。
-- [ ] 🟢 **漫畫工作站正式化**:內部 MVP → 對外(需正式 QA 流程實測一輪 + 手冊補漫畫教學案例)。
+- [x] 🔴 **Google Photos OAuth consent** — ✅ 2026-08-30 劉老師完成授權(token 存
+  `photos_token.json`),相片簡報軸 live 全通。
+- [x] 🔴 **Sprint 1 收尾三小修** — ✅ 2026-08-30:T1-1 dubber filtergraph 連續索引、
+  T2-2 compose 綁 127.0.0.1、T2-3 editor `j.error` escape,各補測試。
+- [x] 🟡 **Sprint 2 穩定性根源** — ✅ 2026-08-30:`core/gemini_client.py` 統一 client
+  (13 檔遷移,金鑰單一來源+一律 timeout)、`core/ffmpeg.py` 共用 runner(render 主路徑
+  全遷,一律 timeout+returncode)、T0-4 解題走 `resolve_id`。
+- [x] 🟡 **C-3:文字主力遷 gemini-3.7-flash** — ✅ 2026-08-30 劉老師拍板;旁白/解題/vision
+  隨目錄 `flash` 鍵生效。⚠️ 剩:本機跑 `python tools/check_models.py` live 確認 3.7 id,
+  404 就把設定頁 text 模型退 `gemini-3.6-flash`。
+- [x] 🟡 **計費準確化** — ✅ 2026-08-30:補 6 個漏帳點(translate 直呼/diagram/mermaid/
+  ideate×2 文字 + diagram_image/song_images 生圖);文字費率分 model(default 退路),
+  未知圖片 model 不再記 $0。⚠️ 各檔費率仍為估算,官方價公布後在
+  `core/infocards/models.py` MODEL_PRICING 校正。
+- [~] 🟢 **漫畫工作站正式化** — 進行中:2026-08-30 offline 稽核完成(25 測綠/reader 全
+  escape/token 保護/fail-closed 驗證),checklist 見
+  [docs/COMIC_PRODUCTION_SYSTEM.md](docs/COMIC_PRODUCTION_SYSTEM.md);剩 🔴 GATE 真實
+  生成 QA 一輪(開額度)+ 匯出實機檢查 + 手冊案例。
 - [ ] 🟢 **README / 手冊補 4 張截圖**(`docs/screenshots/`,需實機瀏覽器)。
-- [ ] 🟢 **legacy `/studio` `/ui` 退場驗收**(T3-4 前置:確認 `/app` 對等後移除 build 產物)。
+- [x] 🟢 **legacy `/studio` `/ui` 退場**(U-5)— ✅ 2026-08-30:web/ 原始碼移除、兩路徑
+  307 轉址 `/app/`、Dockerfile 改建 frontend/(順修 image 缺 /app 的問題)、CI 收斂。
 
 ---
 
@@ -61,24 +70,30 @@
   經 2026-08-30 查證:只保留 JSON 真實合法 escape、b/f/n/r/t 延展成 LaTeX 命令時補逃逸)。
 - [x] 🔴 **T0-2 exam review gate 不可被關**(`server/jobs.py`)— ✅ 已修(2026-08,經 2026-08-30
   查證:`_resolve_default_review` 對 `EXAM_PDF`/`SONG` 一律 True、忽略 caller 傳入值)。
-- [ ] 🔴 **T1-1 dubber filtergraph 索引修復**(`core/video/dubber.py:214`)— 缺音檔即 ffmpeg 崩;
-  對保留段用連續計數器 `j` 編號(2026-08-30 查證仍未修:`[{i}:a]` 用 enumerate 索引,skip 會留洞)。
-- [ ] 🟡 **T2-2 / T2-3 兩個一行修**:base compose 綁 `127.0.0.1`(`docker-compose.yml:29`)、
-  `server/routes/editor.py:234` 的 `j.error` 加 `_html_escape`(2026-08-30 查證兩者皆未修)。
+- [x] 🔴 **T1-1 dubber filtergraph 索引修復** — ✅ 2026-08-30 修復:保留段連續計數器 `j`,
+  缺音檔 skip 不再留洞;補回歸測試。
+- [x] 🟡 **T2-2 / T2-3 兩個一行修** — ✅ 2026-08-30:base compose 綁 `127.0.0.1`、
+  editor `j.error` 加 `_html_escape`(補 XSS 測試)。
 
 ### Sprint 2 — 穩定性根源(統一抽象順帶解 timeout / model)
-- [ ] 🔴 **T1-2 外部呼叫補 timeout**(23 個 subprocess 僅 2 個帶 / 所有 `generate_content` 皆無)。
-- [ ] 🟡 **T3-2 統一 Gemini client** → `core/providers`(13+ 檔各自 `genai.Client(...)`,順帶落地
-  model 一致 + 一半的 timeout)。
-- [ ] 🟡 **T3-3 建 `core/ffmpeg.py` 共用 runner**(14+ 檔手刻,順帶另一半 timeout + returncode 檢查)。
-- [ ] 🟡 **T0-4 解題走 `resolve_id` + 設定頁金鑰**(`solve.py:30/168`:寫死舊模型 + 直讀 os.environ 繞過設定頁)。
+- [x] 🔴 **T1-2 外部呼叫補 timeout** — ✅ 2026-08-30:Gemini 走統一 client 一律帶
+  `GEMINI_TIMEOUT_MS`;ffmpeg/ffprobe/轉檔走共用 runner 一律帶 `EDUSTUDIO_FFMPEG_TIMEOUT`
+  (render 主路徑全遷;Track A `app.py`/CLI tools 除外,見 T3-4)。
+- [x] 🟡 **T3-2 統一 Gemini client** — ✅ 2026-08-30:`core/gemini_client.make_client`
+  單一入口(金鑰設定頁>環境變數,修掉 7 處 os.environ 直讀),13 檔遷移,零殘留直呼。
+- [x] 🟡 **T3-3 `core/ffmpeg.py` 共用 runner** — ✅ 2026-08-30:`run_media_cmd`(timeout+
+  returncode+stderr 進錯誤訊息),pipeline/video_concat/html_video/dubber/summarizer/
+  tts_backend/server runner(song) 全遷。
+- [x] 🟡 **T0-4 解題走 `resolve_id` + 設定頁金鑰** — ✅ 2026-08-30(`solver_model()` 呼叫時
+  解析 text.fast;金鑰走統一 client)。
 - [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、dubber 暫存清理。
 
 ### Sprint 3 — 安全縱深 + 輸入界限
 - [ ] 🟡 **T2-1 SSRF 位址過濾**(`core/adapters/url.py`,擋內網 / metadata IP + 關 redirect)。
 - [ ] 🟢 **T2-4 schema 輸入界限**(`server/schemas.py` 加 `ge/le/max_length/max_items`)。
 - [ ] 🟢 **T0-3 review_assist 覆蓋率提示**(三角 / 開根號步驟目前靜默零檢查,別讓「無 flag」被當「已驗證」)。
-- [ ] 🟢 **T3-7 成本記帳分 model**(圖片輸入未計 / 費率不分 model / 未知 model 記 $0)。
+- [~] 🟢 **T3-7 成本記帳分 model** — 2026-08-30 大半完成:文字費率分 model(default 退路)、
+  未知 model 不再記 $0、6 個漏帳點補齊。剩:多模態「圖片輸入」token 未計入、費率待官方價校正。
 
 ### Sprint 4+ — 架構償債(長期,最高槓桿但工程最大)
 - [ ] 🔴 **T3-1 反轉 core 依賴**:把邏輯搬進 `core/`、根腳本變薄 CLI(現 `core/` 是頂層腳本的空殼再匯出層)。

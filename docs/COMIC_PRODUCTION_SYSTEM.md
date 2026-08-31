@@ -1,6 +1,29 @@
 # eduStudio Comic Production System
 
-狀態：Internal MVP implemented（2026-08-20）
+狀態：Internal MVP implemented（2026-08-20）→ **正式化進行中**（2026-08-30 劉老師拍板投入）
+
+## 正式化 Checklist（2026-08-30 起）
+
+**已完成（offline 稽核，2026-08-30）**
+- [x] 測試護網：`test_comics.py` / `test_comics_route.py` / `test_infocards_comic.py` 共 25 測全綠。
+- [x] Reader XSS 防護：`build_reader_html` 對 title / summary / 對白 / alt text / speaker /
+  asset id 全面 `html.escape`。
+- [x] 存取控制：全部路由掛在 `/projects/{pid}/comics/*`，受全域 `EDUSTUDIO_API_TOKEN`
+  middleware 保護（含 Internal Reader）。
+- [x] Fail-closed 驗證：mock 圖 / 缺 evidence / 缺 scene / 缺 alt text / 缺 QA / 未人工核准
+  → 不可發布；`CURRENT` immutable、改稿必 fork。
+- [x] CI 依賴：`python-docx`（DOCX fallback export）與 PPTX 契約測試已入 CI。
+
+**待做（依序）**
+- [ ] 🔴 **GATE：一輪真實生成 QA**（開額度）— 用實際課程素材（例：齒輪箱講義）走完
+  script → storyboard → Evidence Pack → 逐頁生圖 → 六道 QA gate → 發布，驗證角色
+  visual lock 跨頁一致性與 negative space 排版實效。結果寫回本檔。
+- [ ] 🟡 匯出實機檢查：DOCX（Windows Word 開啟、對白 bubble 可編輯）/ PDF / HTML /
+  source ZIP 各一輪。
+- [ ] 🟡 手冊補教學案例：USER_MANUAL §7 已有流程，真實案例（含截圖）待上一項完成後補。
+- [ ] 🟢 對外開放決策：Internal Reader 是否對學生開放（需分享連結/權限機制，另議）。
+- [ ] 🟢 成本記帳：漫畫生圖走 `core.infocards.gemini.generate_image_b64` 已入帳（visual 站）;
+  正式化後評估是否獨立 station 標籤以便分帳。
 
 本模組把漫畫納入 eduStudio 的「目標導向首頁」，但以獨立 Comic Core 管理連載、版本、evidence 與發布規則。影片、簡報、圖卡既有工作站不受影響。原型需求參考《離岸風電教學漫畫製作系統_跨Session開發交接手冊_v1.0》，附件與既有 episode package 均保持唯讀。
 

@@ -7,6 +7,24 @@
 
 ---
 
+## 工程收斂輪 — Sprint 1/2 + 模型遷移 + 計費 + U-5 退場（2026-08-30）
+
+> 劉老師拍板的一輪工程收斂（同日於文件整理之後）。全套測試
+> `2854 passed, 1 skipped(mcp), 1 deselected(office_live)`。
+
+| 項 | 內容 |
+|---|---|
+| SPRINT1 | T1-1 dubber filtergraph 連續索引(缺音檔不再崩)、T2-2 base compose 綁 `127.0.0.1`、T2-3 editor `j.error` escape — 各補測試。 |
+| T3-2 | **統一 Gemini client** `core/gemini_client.make_client`:金鑰單一來源(設定頁>環境變數,修掉 7 處 `os.environ` 直讀)、一律帶 timeout(`GEMINI_TIMEOUT_MS`);13 檔遷移,零殘留 `genai.Client` 直呼。 |
+| T3-3 | **共用媒體 runner** `core/ffmpeg.run_media_cmd`:一律 timeout(`EDUSTUDIO_FFMPEG_TIMEOUT`)+ returncode 檢查 + stderr 進錯誤訊息;pipeline / video_concat / html_video / dubber / summarizer / tts_backend / server runner(song) 全遷(T1-2 一併收)。 |
+| C-3 | **文字主力遷 `gemini-3.7-flash`**(劉老師拍板):目錄 `flash` 鍵換新,3.6 降退回選項;solve.py 改走 `resolve_id(text.fast)`(T0-4)。⚠️ 3.7 id 待 `tools/check_models.py` live 確認,404 退 3.6。 |
+| BILLING | 計費準確化:文字費率**分 model**(default 退路)、未知圖片 model 記 default 價不再 $0;補 6 個漏帳點(translate 直呼 / diagram / mermaid / ideate×2 / diagram_image 生圖 / song_images 生圖)。費率仍估算,待官方價校正。 |
+| U-5 | **legacy `/ui` 正式退場**:web/ 原始碼專案移除(考古走 git 歷史),`/ui` `/studio` 一律 307 轉址 `/app/`;**Dockerfile 改建 `frontend/` → web/eduapp**(順修 image 只有 /ui 沒有 /app 的缺口);CI 刪 legacy typecheck job、frontend-app-build 補跑 npm test;library.publish_url / landing / TRACK_B_URL / skills 指引同步。 |
+| COMIC | 漫畫工作站**正式化啟動**:offline 稽核完成(25 測綠 / reader 全 `html.escape` / token 保護 / fail-closed 驗證),checklist 入 [`COMIC_PRODUCTION_SYSTEM.md`](COMIC_PRODUCTION_SYSTEM.md);剩 GATE 真實生成 QA 輪。 |
+| OAUTH | Google Photos 帳號 consent ✅ 劉老師完成(`photos_token.json`),P2-2 BLOCKER 解除,相片簡報軸 live 全通。 |
+
+---
+
 ## 文件整理 + 分支收斂（2026-08-30）
 
 > 全部工作已收斂到 `main` 單一分支（PR #100 前的 feature branch 均已合併刪除）。

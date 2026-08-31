@@ -186,9 +186,12 @@ def build_audio(tmp: Path, total: float, cut_offsets: list[float], *,
             fg.append(f"[{idx}:a]adelay={int(at*1000)}|{int(at*1000)}[b{idx}]")
             mix_tags.append(f"[b{idx}]")
             idx += 1
+    # 響度目標:合成 bed 走 -23(純陪襯);真實音樂主導時走 -16(YouTube 音樂內容慣例,
+    # 太小聲上傳後會顯得虛)。
+    target_i = -16 if music is not None else -23
     fg.append("".join(mix_tags) +
               f"amix=inputs={len(mix_tags)}:duration=first:normalize=0,"
-              "loudnorm=I=-23:TP=-2:LRA=9[aout]")
+              f"loudnorm=I={target_i}:TP=-1.5:LRA=11[aout]")
     dst = tmp / "bed.m4a"
     run_media_cmd([
         "ffmpeg", "-y", "-loglevel", "error", *inputs,

@@ -22,6 +22,7 @@
 | U-5 | **legacy `/ui` 正式退場**:web/ 原始碼專案移除(考古走 git 歷史),`/ui` `/studio` 一律 307 轉址 `/app/`;**Dockerfile 改建 `frontend/` → web/eduapp**(順修 image 只有 /ui 沒有 /app 的缺口);CI 刪 legacy typecheck job、frontend-app-build 補跑 npm test;library.publish_url / landing / TRACK_B_URL / skills 指引同步。 |
 | COMIC | 漫畫工作站**正式化啟動**:offline 稽核完成(25 測綠 / reader 全 `html.escape` / token 保護 / fail-closed 驗證),checklist 入 [`COMIC_PRODUCTION_SYSTEM.md`](COMIC_PRODUCTION_SYSTEM.md);剩 GATE 真實生成 QA 輪。 |
 | OAUTH | Google Photos 帳號 consent ✅ 劉老師完成(`photos_token.json`),P2-2 BLOCKER 解除,相片簡報軸 live 全通。 |
+| PROMO | **官方介紹影片**(60s/1080p30):9 個 HTML 動畫場景(`docs/promo/`)用自家 `core/html_video` 虛擬時鐘引擎渲染,`tools/build_promo_video.py` xfade 轉場串接 + 全本地合成配樂音效;`--narrate` 於本機可加 edge-tts 旁白。吃自己的狗糧。 |
 
 ---
 

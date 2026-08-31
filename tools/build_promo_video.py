@@ -112,60 +112,83 @@ def _sfx(tmp: Path, name: str, cmd_tail: list[str]) -> Path:
     return p
 
 
-def build_audio(tmp: Path, total: float, cut_offsets: list[float]) -> Path:
-    """全本地合成配樂:氛圍 pad(和弦互溶)+ 低音脈衝 + 轉場 whoosh + impact。"""
-    d = f"{total:.3f}"
-    # 氛圍 pad:兩組和弦以 8 秒週期互溶(Am ↔ Fmaj 色彩),微顫音,壓低通留空間
-    padexpr = (
-        "0.16*((0.5+0.5*cos(PI*t/4))*(sin(2*PI*110*t)+sin(2*PI*164.81*t)+0.8*sin(2*PI*261.63*t))"
-        "+(0.5-0.5*cos(PI*t/4))*(sin(2*PI*87.31*t)+sin(2*PI*130.81*t)+0.8*sin(2*PI*220*t)))"
-        "*(0.9+0.1*sin(2*PI*0.25*t))"
-    )
-    pad = _sfx(tmp, "pad.wav", [
-        "-f", "lavfi", "-i", f"aevalsrc={padexpr}:s=48000:d={d}",
-        "-af", "lowpass=f=1500,aecho=0.7:0.45:110:0.22,afade=t=in:d=2,afade=t=out:st=%.3f:d=3" % (total - 3),
-    ])
-    # 低音脈衝:每 0.5 秒一顆帶 pitch-drop 的軟 kick,S3 進場、尾景前退場
-    kick = _sfx(tmp, "kick.wav", [
-        "-f", "lavfi", "-i",
-        f"aevalsrc=sin(2*PI*(48+85*exp(-28*mod(t\\,0.5)))*mod(t\\,0.5))*exp(-11*mod(t\\,0.5))*0.85:s=48000:d={d}",
-        "-af", ("lowpass=f=180,afade=t=in:st=%.3f:d=1.2,afade=t=out:st=%.3f:d=1.8"
-                % (cut_offsets[1], total - 8.6)),
-    ])
-    # 高頻微光:極輕的粉紅噪聲抖動,給畫面「空氣感」
-    air = _sfx(tmp, "air.wav", [
-        "-f", "lavfi", "-i", f"anoisesrc=color=pink:sample_rate=48000:duration={d}",
-        "-af", "highpass=f=7000,tremolo=f=0.5:d=0.7,volume=0.035,afade=t=in:d=2,afade=t=out:st=%.3f:d=3" % (total - 3),
-    ])
-    # 轉場 whoosh(單顆)與重點 impact(單顆)
-    whoosh = _sfx(tmp, "whoosh.wav", [
-        "-f", "lavfi", "-i", "anoisesrc=color=white:sample_rate=48000:duration=0.9",
-        "-af", "lowpass=f=2400,highpass=f=250,afade=t=in:d=0.42,afade=t=out:st=0.45:d=0.45,volume=0.5",
-    ])
-    boom = _sfx(tmp, "boom.wav", [
-        "-f", "lavfi", "-i",
-        "aevalsrc=sin(2*PI*(38+70*exp(-6*t))*t)*exp(-3.4*t)*0.95:s=48000:d=1.5",
-        "-af", "lowpass=f=240,volume=0.9",
-    ])
+def build_audio(tmp: Path, total: float, cut_offsets: list[float], *,
+                music: Path | None = None, music_gain_db: float = 0.0,
+                no_sfx: bool = False) -> Path:
+    """配樂音軌。預設為「安靜版」本地合成:暖 pad + 稀疏心跳 + 極輕 whoosh/impact。
 
+    v2(2026-08-31 依劉老師回饋「太吵」重調):
+    - 移除粉紅噪聲「空氣感」層 —— 60 秒持續嘶聲是吵感最大來源
+    - 心跳低音 0.5s→2s 一顆、更軟、只在 S3~S6 出現(S7 戲劇段留給 pad 呼吸)
+    - whoosh 音量 0.5→0.18、更暗更短;impact 0.9→0.5
+    - 響度目標 -17→-23 LUFS(背景配樂等級,不再把整體推大聲)
+    - pad 換暖聲底:每和弦兩音+極低第三音、低通 900、顫音更淺
+
+    ``music`` 給真實音樂檔時,直接取代合成 pad+心跳(自動裁長度+淡入淡出,
+    ``music_gain_db`` 微調音量);whoosh/impact 仍疊(除非 ``no_sfx``)。
+    """
+    d = f"{total:.3f}"
     starts, _ = scene_offsets()
-    inputs = ["-i", str(pad), "-i", str(kick), "-i", str(air)]
-    fg, mix_tags = [], ["[0:a]", "[1:a]", "[2:a]"]
-    idx = 3
-    for off in cut_offsets:  # whoosh 提前 0.35s 進刀口
-        inputs += ["-i", str(whoosh)]
-        at = max(0.0, off - 0.35)
-        fg.append(f"[{idx}:a]adelay={int(at*1000)}|{int(at*1000)}[w{idx}]")
-        mix_tags.append(f"[w{idx}]")
-        idx += 1
-    for at in (1.05, starts[6] + 0.75, starts[8] + 0.75):  # S1 logo / S7 標語 / S9 logo
-        inputs += ["-i", str(boom)]
-        fg.append(f"[{idx}:a]adelay={int(at*1000)}|{int(at*1000)}[b{idx}]")
-        mix_tags.append(f"[b{idx}]")
-        idx += 1
+
+    if music is not None:
+        base = _sfx(tmp, "music.wav", [
+            "-stream_loop", "-1", "-i", str(music),
+            "-af", (f"volume={music_gain_db}dB,afade=t=in:d=1.2,"
+                    f"afade=t=out:st={total-3:.3f}:d=3"),
+            "-t", d, "-ar", "48000", "-ac", "2",
+        ])
+        base_tags = ["[0:a]"]
+        inputs = ["-i", str(base)]
+        idx = 1
+    else:
+        # 暖 pad:Am(110+164.81) ↔ F(87.31+130.81) 8 秒互溶,第三音只留一點點光澤
+        padexpr = (
+            "0.15*((0.5+0.5*cos(PI*t/4))*(sin(2*PI*110*t)+0.9*sin(2*PI*164.81*t)+0.25*sin(2*PI*220*t))"
+            "+(0.5-0.5*cos(PI*t/4))*(sin(2*PI*87.31*t)+0.9*sin(2*PI*130.81*t)+0.25*sin(2*PI*174.61*t)))"
+            "*(0.96+0.04*sin(2*PI*0.18*t))"
+        )
+        pad = _sfx(tmp, "pad.wav", [
+            "-f", "lavfi", "-i", f"aevalsrc={padexpr}:s=48000:d={d}",
+            "-af", ("lowpass=f=900,aecho=0.6:0.35:140:0.18,"
+                    "afade=t=in:d=2.5,afade=t=out:st=%.3f:d=3.5" % (total - 3.5)),
+        ])
+        # 心跳低音:每 2 秒一顆、圓潤緩衰減;S3 進、S7 前退乾淨
+        kick = _sfx(tmp, "kick.wav", [
+            "-f", "lavfi", "-i",
+            f"aevalsrc=sin(2*PI*(42+50*exp(-16*mod(t\\,2)))*mod(t\\,2))*exp(-6*mod(t\\,2))*0.6:s=48000:d={d}",
+            "-af", ("lowpass=f=140,afade=t=in:st=%.3f:d=2,afade=t=out:st=%.3f:d=2"
+                    % (cut_offsets[1], starts[6] - 2.0)),
+        ])
+        base_tags = ["[0:a]", "[1:a]"]
+        inputs = ["-i", str(pad), "-i", str(kick)]
+        idx = 2
+
+    fg, mix_tags = [], list(base_tags)
+    if not no_sfx:
+        # 極輕轉場氣音:短、暗、幾乎貼著畫面走
+        whoosh = _sfx(tmp, "whoosh.wav", [
+            "-f", "lavfi", "-i", "anoisesrc=color=pink:sample_rate=48000:duration=0.8",
+            "-af", "lowpass=f=1600,highpass=f=200,afade=t=in:d=0.38,afade=t=out:st=0.4:d=0.4,volume=0.18",
+        ])
+        boom = _sfx(tmp, "boom.wav", [
+            "-f", "lavfi", "-i",
+            "aevalsrc=sin(2*PI*(36+60*exp(-6*t))*t)*exp(-3.6*t)*0.9:s=48000:d=1.4",
+            "-af", "lowpass=f=200,volume=0.5",
+        ])
+        for off in cut_offsets:  # whoosh 提前 0.35s 進刀口
+            inputs += ["-i", str(whoosh)]
+            at = max(0.0, off - 0.35)
+            fg.append(f"[{idx}:a]adelay={int(at*1000)}|{int(at*1000)}[w{idx}]")
+            mix_tags.append(f"[w{idx}]")
+            idx += 1
+        for at in (1.05, starts[6] + 0.75, starts[8] + 0.75):  # S1 logo / S7 標語 / S9 logo
+            inputs += ["-i", str(boom)]
+            fg.append(f"[{idx}:a]adelay={int(at*1000)}|{int(at*1000)}[b{idx}]")
+            mix_tags.append(f"[b{idx}]")
+            idx += 1
     fg.append("".join(mix_tags) +
               f"amix=inputs={len(mix_tags)}:duration=first:normalize=0,"
-              "loudnorm=I=-17:TP=-1.5:LRA=11[aout]")
+              "loudnorm=I=-23:TP=-2:LRA=9[aout]")
     dst = tmp / "bed.m4a"
     run_media_cmd([
         "ffmpeg", "-y", "-loglevel", "error", *inputs,
@@ -228,6 +251,11 @@ def main() -> int:
     ap.add_argument("--skip-render", action="store_true", help="重用 tmp 內已渲好的場景 mp4")
     ap.add_argument("--narrate", action="store_true", help="edge-tts 旁白(需可連外)")
     ap.add_argument("--voice", default="zh-TW-HsiaoChenNeural")
+    ap.add_argument("--music", type=Path, default=None,
+                    help="用這個音樂檔取代合成配樂(自動裁長度+淡入淡出;建議免版稅曲)")
+    ap.add_argument("--music-gain", type=float, default=0.0, help="音樂音量微調 dB(例 -6)")
+    ap.add_argument("--no-sfx", action="store_true", help="不疊轉場 whoosh / impact")
+    ap.add_argument("--no-audio", action="store_true", help="出無聲版(自行後製配樂)")
     a = ap.parse_args()
 
     tmp = Path(a.tmp); tmp.mkdir(parents=True, exist_ok=True)
@@ -239,9 +267,15 @@ def main() -> int:
 
     clips = render_scenes(tmp, a.skip_render)
     video = build_video(clips, tmp)
-    bed = build_audio(tmp, total, cut_offsets)
-    narr = synth_narration(tmp, a.voice) if a.narrate else None
-    mux(video, bed, narr, out, total)
+    if a.no_audio:
+        run_media_cmd(["ffmpeg", "-y", "-loglevel", "error", "-i", str(video),
+                       "-c", "copy", "-movflags", "+faststart", str(out)],
+                      step="ffmpeg copy silent", timeout=300)
+    else:
+        bed = build_audio(tmp, total, cut_offsets,
+                          music=a.music, music_gain_db=a.music_gain, no_sfx=a.no_sfx)
+        narr = synth_narration(tmp, a.voice) if a.narrate else None
+        mux(video, bed, narr, out, total)
     print(f"[done] {out} ({out.stat().st_size/1e6:.1f} MB)")
     return 0
 

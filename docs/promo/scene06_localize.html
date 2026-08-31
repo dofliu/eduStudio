@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>S6 在地化</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#070d17}
+body{font-family:"Noto Sans CJK TC","Noto Sans TC",sans-serif;color:#e8eef7;position:relative}
+/* ── 背景:深海底 + 極光暈 + 暗角 ── */
+.bg{position:absolute;inset:0;background:
+ radial-gradient(1200px 800px at 24% 18%,rgba(45,212,191,.14),transparent 62%),
+ radial-gradient(1100px 760px at 78% 82%,rgba(139,92,246,.15),transparent 60%),
+ radial-gradient(900px 620px at 82% 12%,rgba(251,191,36,.06),transparent 60%),
+ linear-gradient(160deg,#0d1b2e 0%,#070d17 58%,#05070d 100%)}
+.aur{position:absolute;width:1500px;height:1500px;border-radius:50%;filter:blur(90px);opacity:.5;mix-blend-mode:screen}
+.aur.a{background:radial-gradient(circle,rgba(45,212,191,.32),transparent 62%);left:-460px;top:-560px;animation:drift1 22s ease-in-out infinite alternate}
+.aur.b{background:radial-gradient(circle,rgba(139,92,246,.30),transparent 62%);right:-520px;bottom:-620px;animation:drift2 26s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(150px,90px) scale(1.12)}}
+@keyframes drift2{to{transform:translate(-130px,-80px) scale(1.08)}}
+.vig{position:absolute;inset:0;background:radial-gradient(1600px 1000px at 50% 46%,transparent 58%,rgba(0,0,0,.5) 100%);pointer-events:none}
+.grid{position:absolute;inset:0;opacity:.05;background-image:linear-gradient(rgba(232,238,247,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(232,238,247,.5) 1px,transparent 1px);background-size:64px 64px}
+/* ── 攝影機慢推 ── */
+.stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;animation:cam var(--dur,7s) ease-in-out both}
+@keyframes cam{from{transform:scale(1)}to{transform:scale(1.055)}}
+/* ── 字體系統 ── */
+.kicker{font-size:30px;font-weight:700;letter-spacing:.55em;text-indent:.55em;color:#2dd4bf;text-transform:uppercase}
+.h1{font-size:112px;font-weight:900;line-height:1.14;text-align:center;letter-spacing:.01em;
+ background:linear-gradient(100deg,#f4f8ff 20%,#9be8db 50%,#c4b5fd 80%);-webkit-background-clip:text;background-clip:text;color:transparent;
+ filter:drop-shadow(0 8px 40px rgba(45,212,191,.18))}
+.sub{font-size:40px;font-weight:400;color:rgba(232,238,247,.78);text-align:center;line-height:1.6}
+.accent{color:#2dd4bf;font-weight:700}
+/* ── 元件 ── */
+.chip{display:inline-flex;align-items:center;gap:16px;padding:20px 38px;border-radius:999px;font-size:36px;font-weight:700;
+ background:rgba(20,32,52,.82);border:1.5px solid rgba(150,200,255,.22);box-shadow:0 14px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07)}
+.card{background:linear-gradient(165deg,rgba(24,38,62,.92),rgba(12,20,36,.94));border:1.5px solid rgba(150,200,255,.20);
+ border-radius:26px;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08)}
+.badge{display:inline-block;padding:12px 26px;border-radius:12px;font-size:28px;font-weight:700;
+ background:rgba(45,212,191,.14);border:1.5px solid rgba(45,212,191,.45);color:#7ff0df}
+/* ── 進場動畫 ── */
+.in{opacity:0;animation:rise 1s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(56px)}to{opacity:1;transform:none}}
+.pop{opacity:0;animation:pop .8s cubic-bezier(.2,1.4,.35,1) both;animation-delay:var(--d,0s)}
+@keyframes pop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
+.glow{animation:glow 2.6s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 18px rgba(45,212,191,.25))}50%{filter:drop-shadow(0 0 42px rgba(45,212,191,.55))}}
+
+.stage{--dur:7s}
+
+.head{position:absolute;top:96px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:24px}
+.h1{font-size:92px;background:linear-gradient(100deg,#fff 20%,#93c5fd 55%,#5eead4 85%);-webkit-background-clip:text;background-clip:text}
+.hub{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%)}
+.player{width:640px;height:360px;border-radius:22px;position:relative;background:linear-gradient(160deg,#14263f,#0b1526);
+ border:1.5px solid rgba(150,200,255,.3);box-shadow:0 34px 90px rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;gap:10px;padding-bottom:66px}
+.bar{width:26px;border-radius:8px 8px 0 0;background:linear-gradient(180deg,#5eead4,#0ea5e9);animation:eq 1.1s ease-in-out infinite alternate;animation-delay:var(--p)}
+@keyframes eq{from{height:26px}to{height:var(--h)}}
+.pl-sub{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:86%;text-align:center;
+ background:rgba(0,0,0,.55);border-radius:10px;font-size:26px;padding:10px 0;color:#fff}
+.pl-sub b{color:#5eead4}
+.lang{position:absolute;left:50%;top:50%;padding:16px 30px;border-radius:999px;font-size:30px;font-weight:700;white-space:nowrap;
+ background:rgba(20,32,52,.9);border:1.5px solid rgba(94,234,212,.4);color:#c9f7ee;box-shadow:0 14px 36px rgba(0,0,0,.5);
+ opacity:0;animation:orb 1s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d);
+ transform:translate(-50%,-50%) rotate(var(--a)) translateX(520px) rotate(calc(-1*var(--a)))}
+@keyframes orb{from{opacity:0;transform:translate(-50%,-50%) rotate(var(--a)) translateX(210px) rotate(calc(-1*var(--a))) scale(.5)}
+ to{opacity:1;transform:translate(-50%,-50%) rotate(var(--a)) translateX(520px) rotate(calc(-1*var(--a))) scale(1)}}
+.caption{position:absolute;bottom:46px;left:0;right:0;text-align:center;font-size:32px;color:rgba(232,238,247,.7)}
+</style></head>
+<body>
+<div class="bg"></div><div class="aur a"></div><div class="aur b"></div><div class="grid"></div>
+
+<div class="stage" style="z-index:2">
+
+<div class="head">
+ <div class="kicker in" style="--d:.1s;color:#7dd3fc">在地化工作站</div>
+ <div class="h1 in" style="--d:.3s">一鍵帶到每一種語言</div>
+</div>
+<div class="hub in" style="--d:.7s">
+ <div class="player">
+   <div class="bar" style="--h:150px;--p:0s"></div><div class="bar" style="--h:220px;--p:-.2s"></div>
+   <div class="bar" style="--h:120px;--p:-.4s"></div><div class="bar" style="--h:190px;--p:-.6s"></div>
+   <div class="bar" style="--h:240px;--p:-.8s"></div><div class="bar" style="--h:140px;--p:-.3s"></div>
+   <div class="bar" style="--h:200px;--p:-.5s"></div>
+   <div class="pl-sub">彎曲應力發生在樑的最外緣 <b>· Bending stress peaks at the outer fiber</b></div>
+ </div>
+</div>
+<div class="lang" style="--a:0deg;--d:1.30s">EN</div>
+<div class="lang" style="--a:45deg;--d:1.48s">日本語</div>
+<div class="lang" style="--a:90deg;--d:1.66s">한국어</div>
+<div class="lang" style="--a:135deg;--d:1.84s">Tiếng Việt</div>
+<div class="lang" style="--a:180deg;--d:2.02s">Español</div>
+<div class="lang" style="--a:225deg;--d:2.20s">Deutsch</div>
+<div class="lang" style="--a:270deg;--d:2.38s">Français</div>
+<div class="lang" style="--a:315deg;--d:2.56s">Bahasa</div>
+<div class="caption in" style="--d:3.4s">影片翻譯 · 重新配音 · 會議摘要 · <span class="accent">雙語字幕軌</span> · 單字卡 SM-2</div>
+
+</div>
+<div class="vig" style="z-index:3"></div>
+
+</body></html>

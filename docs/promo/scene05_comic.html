@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>S5 漫畫站</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#070d17}
+body{font-family:"Noto Sans CJK TC","Noto Sans TC",sans-serif;color:#e8eef7;position:relative}
+/* ── 背景:深海底 + 極光暈 + 暗角 ── */
+.bg{position:absolute;inset:0;background:
+ radial-gradient(1200px 800px at 24% 18%,rgba(45,212,191,.14),transparent 62%),
+ radial-gradient(1100px 760px at 78% 82%,rgba(139,92,246,.15),transparent 60%),
+ radial-gradient(900px 620px at 82% 12%,rgba(251,191,36,.06),transparent 60%),
+ linear-gradient(160deg,#0d1b2e 0%,#070d17 58%,#05070d 100%)}
+.aur{position:absolute;width:1500px;height:1500px;border-radius:50%;filter:blur(90px);opacity:.5;mix-blend-mode:screen}
+.aur.a{background:radial-gradient(circle,rgba(45,212,191,.32),transparent 62%);left:-460px;top:-560px;animation:drift1 22s ease-in-out infinite alternate}
+.aur.b{background:radial-gradient(circle,rgba(139,92,246,.30),transparent 62%);right:-520px;bottom:-620px;animation:drift2 26s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(150px,90px) scale(1.12)}}
+@keyframes drift2{to{transform:translate(-130px,-80px) scale(1.08)}}
+.vig{position:absolute;inset:0;background:radial-gradient(1600px 1000px at 50% 46%,transparent 58%,rgba(0,0,0,.5) 100%);pointer-events:none}
+.grid{position:absolute;inset:0;opacity:.05;background-image:linear-gradient(rgba(232,238,247,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(232,238,247,.5) 1px,transparent 1px);background-size:64px 64px}
+/* ── 攝影機慢推 ── */
+.stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;animation:cam var(--dur,7s) ease-in-out both}
+@keyframes cam{from{transform:scale(1)}to{transform:scale(1.055)}}
+/* ── 字體系統 ── */
+.kicker{font-size:30px;font-weight:700;letter-spacing:.55em;text-indent:.55em;color:#2dd4bf;text-transform:uppercase}
+.h1{font-size:112px;font-weight:900;line-height:1.14;text-align:center;letter-spacing:.01em;
+ background:linear-gradient(100deg,#f4f8ff 20%,#9be8db 50%,#c4b5fd 80%);-webkit-background-clip:text;background-clip:text;color:transparent;
+ filter:drop-shadow(0 8px 40px rgba(45,212,191,.18))}
+.sub{font-size:40px;font-weight:400;color:rgba(232,238,247,.78);text-align:center;line-height:1.6}
+.accent{color:#2dd4bf;font-weight:700}
+/* ── 元件 ── */
+.chip{display:inline-flex;align-items:center;gap:16px;padding:20px 38px;border-radius:999px;font-size:36px;font-weight:700;
+ background:rgba(20,32,52,.82);border:1.5px solid rgba(150,200,255,.22);box-shadow:0 14px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07)}
+.card{background:linear-gradient(165deg,rgba(24,38,62,.92),rgba(12,20,36,.94));border:1.5px solid rgba(150,200,255,.20);
+ border-radius:26px;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08)}
+.badge{display:inline-block;padding:12px 26px;border-radius:12px;font-size:28px;font-weight:700;
+ background:rgba(45,212,191,.14);border:1.5px solid rgba(45,212,191,.45);color:#7ff0df}
+/* ── 進場動畫 ── */
+.in{opacity:0;animation:rise 1s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(56px)}to{opacity:1;transform:none}}
+.pop{opacity:0;animation:pop .8s cubic-bezier(.2,1.4,.35,1) both;animation-delay:var(--d,0s)}
+@keyframes pop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
+.glow{animation:glow 2.6s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 18px rgba(45,212,191,.25))}50%{filter:drop-shadow(0 0 42px rgba(45,212,191,.55))}}
+
+.stage{--dur:7s}
+
+.head{position:absolute;top:92px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:24px}
+.h1{font-size:92px;background:linear-gradient(100deg,#fff 20%,#fbcfe8 55%,#c4b5fd 85%);-webkit-background-clip:text;background-clip:text}
+.panels{position:absolute;left:50%;top:55%;transform:translate(-50%,-50%);display:grid;grid-template-columns:430px 430px;grid-template-rows:230px 230px;gap:22px}
+.panel{border-radius:16px;border:4px solid #e8eef7;background:linear-gradient(150deg,#1d2c47,#101b30);position:relative;overflow:hidden;
+ opacity:0;animation:sketch .6s ease-out both;animation-delay:var(--d);box-shadow:0 22px 60px rgba(0,0,0,.55)}
+@keyframes sketch{from{opacity:0;transform:scale(.8) rotate(-2deg)}to{opacity:1;transform:none}}
+.panel .sun{position:absolute;right:26px;top:22px;width:70px;height:70px;border-radius:50%;background:#fbbf24;box-shadow:0 0 40px rgba(251,191,36,.7)}
+.panel .turbine{position:absolute;left:60px;bottom:-8px;width:14px;height:150px;background:#cbd5e1;border-radius:6px}
+.panel .blades{position:absolute;left:67px;bottom:128px;width:12px;height:12px}
+.panel .blades i{position:absolute;left:50%;top:50%;width:10px;height:86px;background:#e2e8f0;border-radius:6px;transform-origin:50% 0;}
+.panel .blades{animation:rot 4s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+.gear{position:absolute;font-size:96px;left:40px;top:46px;animation:rot 7s linear infinite}
+.bubble{position:absolute;right:24px;bottom:26px;background:#fff;color:#0b1526;font-weight:900;font-size:30px;
+ padding:16px 24px;border-radius:20px;opacity:0;animation:pop .55s both;animation-delay:var(--d)}
+.bubble::after{content:"";position:absolute;left:34px;bottom:-16px;border:10px solid transparent;border-top-color:#fff;border-right-color:#fff}
+.gates{position:absolute;bottom:112px;left:50%;transform:translateX(-50%);display:flex;gap:18px}
+.gate{padding:14px 26px;border-radius:999px;font-size:28px;font-weight:700;color:#9fb4d0;
+ background:rgba(20,32,52,.85);border:1.5px solid rgba(150,200,255,.22);opacity:0;animation:gateon .5s both;animation-delay:var(--d)}
+@keyframes gateon{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.gate.ok{color:#7ff0df;border-color:rgba(45,212,191,.6);background:rgba(45,212,191,.12);box-shadow:0 0 26px rgba(45,212,191,.25)}
+.caption{position:absolute;bottom:46px;left:0;right:0;text-align:center;font-size:32px;color:rgba(232,238,247,.7)}
+</style></head>
+<body>
+<div class="bg"></div><div class="aur a"></div><div class="aur b"></div><div class="grid"></div>
+
+<div class="stage" style="z-index:2">
+
+<div class="head">
+ <div class="kicker in" style="--d:.1s;color:#f0abfc">漫畫工作站</div>
+ <div class="h1 in" style="--d:.3s">連載式教學漫畫</div>
+</div>
+<div class="panels">
+ <div class="panel" style="--d:1.0s"><div class="sun"></div><div class="turbine"></div>
+   <div class="blades"><i style="transform:rotate(0deg)"></i><i style="transform:rotate(120deg)"></i><i style="transform:rotate(240deg)"></i></div></div>
+ <div class="panel" style="--d:1.25s"><div class="gear">⚙️</div><div class="bubble" style="--d:2.1s">轉矩是怎麼<br>傳到齒輪箱的?</div></div>
+ <div class="panel" style="--d:1.5s"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:86px">🧑‍🏫</div></div>
+ <div class="panel" style="--d:1.75s"><div class="bubble" style="--d:2.5s;right:auto;left:24px">跟著風把手<br>一起看下去!</div></div>
+</div>
+<div class="gates">
+ <span class="gate ok" style="--d:3.4s">✓ 構圖</span><span class="gate ok" style="--d:3.6s">✓ 技術</span>
+ <span class="gate ok" style="--d:3.8s">✓ 文字</span><span class="gate ok" style="--d:4.0s">✓ 安全</span>
+ <span class="gate ok" style="--d:4.2s">✓ 渲染</span><span class="gate ok" style="--d:4.45s">✓ 人工核准</span>
+</div>
+<div class="caption in" style="--d:4.9s">Series Bible 角色鎖定 · 證據鎖定生成 · <span class="accent">六道品質關卡</span> · 版本化發布 + 內部閱讀器</div>
+
+</div>
+<div class="vig" style="z-index:3"></div>
+
+</body></html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>S3 影片站</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#070d17}
+body{font-family:"Noto Sans CJK TC","Noto Sans TC",sans-serif;color:#e8eef7;position:relative}
+/* ── 背景:深海底 + 極光暈 + 暗角 ── */
+.bg{position:absolute;inset:0;background:
+ radial-gradient(1200px 800px at 24% 18%,rgba(45,212,191,.14),transparent 62%),
+ radial-gradient(1100px 760px at 78% 82%,rgba(139,92,246,.15),transparent 60%),
+ radial-gradient(900px 620px at 82% 12%,rgba(251,191,36,.06),transparent 60%),
+ linear-gradient(160deg,#0d1b2e 0%,#070d17 58%,#05070d 100%)}
+.aur{position:absolute;width:1500px;height:1500px;border-radius:50%;filter:blur(90px);opacity:.5;mix-blend-mode:screen}
+.aur.a{background:radial-gradient(circle,rgba(45,212,191,.32),transparent 62%);left:-460px;top:-560px;animation:drift1 22s ease-in-out infinite alternate}
+.aur.b{background:radial-gradient(circle,rgba(139,92,246,.30),transparent 62%);right:-520px;bottom:-620px;animation:drift2 26s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(150px,90px) scale(1.12)}}
+@keyframes drift2{to{transform:translate(-130px,-80px) scale(1.08)}}
+.vig{position:absolute;inset:0;background:radial-gradient(1600px 1000px at 50% 46%,transparent 58%,rgba(0,0,0,.5) 100%);pointer-events:none}
+.grid{position:absolute;inset:0;opacity:.05;background-image:linear-gradient(rgba(232,238,247,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(232,238,247,.5) 1px,transparent 1px);background-size:64px 64px}
+/* ── 攝影機慢推 ── */
+.stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;animation:cam var(--dur,7s) ease-in-out both}
+@keyframes cam{from{transform:scale(1)}to{transform:scale(1.055)}}
+/* ── 字體系統 ── */
+.kicker{font-size:30px;font-weight:700;letter-spacing:.55em;text-indent:.55em;color:#2dd4bf;text-transform:uppercase}
+.h1{font-size:112px;font-weight:900;line-height:1.14;text-align:center;letter-spacing:.01em;
+ background:linear-gradient(100deg,#f4f8ff 20%,#9be8db 50%,#c4b5fd 80%);-webkit-background-clip:text;background-clip:text;color:transparent;
+ filter:drop-shadow(0 8px 40px rgba(45,212,191,.18))}
+.sub{font-size:40px;font-weight:400;color:rgba(232,238,247,.78);text-align:center;line-height:1.6}
+.accent{color:#2dd4bf;font-weight:700}
+/* ── 元件 ── */
+.chip{display:inline-flex;align-items:center;gap:16px;padding:20px 38px;border-radius:999px;font-size:36px;font-weight:700;
+ background:rgba(20,32,52,.82);border:1.5px solid rgba(150,200,255,.22);box-shadow:0 14px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07)}
+.card{background:linear-gradient(165deg,rgba(24,38,62,.92),rgba(12,20,36,.94));border:1.5px solid rgba(150,200,255,.20);
+ border-radius:26px;box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08)}
+.badge{display:inline-block;padding:12px 26px;border-radius:12px;font-size:28px;font-weight:700;
+ background:rgba(45,212,191,.14);border:1.5px solid rgba(45,212,191,.45);color:#7ff0df}
+/* ── 進場動畫 ── */
+.in{opacity:0;animation:rise 1s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(56px)}to{opacity:1;transform:none}}
+.pop{opacity:0;animation:pop .8s cubic-bezier(.2,1.4,.35,1) both;animation-delay:var(--d,0s)}
+@keyframes pop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
+.glow{animation:glow 2.6s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 18px rgba(45,212,191,.25))}50%{filter:drop-shadow(0 0 42px rgba(45,212,191,.55))}}
+
+.stage{--dur:8s}
+
+body{background:#12241c}
+.bg{background:radial-gradient(1300px 900px at 30% 20%,rgba(64,120,96,.35),transparent 60%),
+ linear-gradient(160deg,#1b3529 0%,#122419 62%,#0b1810 100%)}
+.aur.a{background:radial-gradient(circle,rgba(160,220,140,.16),transparent 62%)}
+.aur.b{background:radial-gradient(circle,rgba(255,217,107,.12),transparent 62%)}
+.board{width:1460px;height:640px;border-radius:22px;position:relative;overflow:hidden;
+ background:linear-gradient(170deg,#20402f 0%,#1b3628 55%,#152b1f 100%);
+ border:16px solid #6b4f35;box-shadow:0 40px 100px rgba(0,0,0,.6),inset 0 0 90px rgba(0,0,0,.45)}
+.chalkline{position:absolute;left:70px;font-family:"Noto Sans CJK TC";color:#e8e6d8;font-size:44px;font-weight:700;
+ opacity:0;animation:chalk .7s steps(8) both;animation-delay:var(--d);text-shadow:0 0 8px rgba(232,230,216,.25)}
+@keyframes chalk{from{opacity:0;clip-path:inset(0 100% 0 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+.chalkline .y{color:#ffd96b}.chalkline .o{color:#ffc88c}
+.formula{position:absolute;right:130px;top:300px;font-size:84px;font-weight:900;color:#ffd96b;
+ text-shadow:0 0 22px rgba(255,217,107,.35);opacity:0;animation:chalk 1s steps(10) 2.4s both}
+svg.underline{position:absolute;right:115px;top:412px}
+svg.underline path{stroke:#e8e6d8;stroke-width:5;fill:none;stroke-linecap:round;stroke-dasharray:420;stroke-dashoffset:420;
+ animation:draw 1s ease-out 3.2s both}
+@keyframes draw{to{stroke-dashoffset:0}}
+.subbar{position:absolute;left:60px;right:60px;bottom:30px;padding:18px 0;text-align:center;
+ background:rgba(0,0,0,.55);border-radius:14px;font-size:34px;color:#fff;opacity:0;animation:rise .8s 4.2s both}
+.playrow{position:absolute;left:70px;right:70px;bottom:120px;display:flex;align-items:center;gap:26px;opacity:0;animation:rise .8s 3.8s both}
+.playbtn{width:64px;height:64px;border-radius:50%;background:#2dd4bf;display:flex;align-items:center;justify-content:center;
+ box-shadow:0 0 34px rgba(45,212,191,.6)}
+.playbtn::after{content:"";border-left:24px solid #06281f;border-top:14px solid transparent;border-bottom:14px solid transparent;margin-left:6px}
+.track{flex:1;height:10px;border-radius:5px;background:rgba(255,255,255,.18);overflow:hidden}
+.track i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2dd4bf,#ffd96b);animation:prog 3.4s ease-in-out 4s both}
+@keyframes prog{to{width:78%}}
+.head{position:absolute;top:86px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:22px}
+.h1{font-size:88px;background:linear-gradient(100deg,#f8fff4 25%,#cfe8b8 55%,#ffd96b 85%);-webkit-background-clip:text;background-clip:text}
+.badges{position:absolute;bottom:64px;left:0;right:0;display:flex;justify-content:center;gap:26px}
+.badge{border-color:rgba(255,217,107,.5);background:rgba(255,217,107,.1);color:#ffe4a0}
+</style></head>
+<body>
+<div class="bg"></div><div class="aur a"></div><div class="aur b"></div><div class="grid"></div>
+
+<div class="stage" style="z-index:2">
+
+<div class="head">
+ <div class="kicker in" style="--d:.1s;color:#a6e3c8">影片工作站</div>
+ <div class="h1 in" style="--d:.3s">考卷 PDF → 黑板逐題解答影片</div>
+</div>
+<div class="board in" style="--d:.6s;margin-top:150px">
+ <div class="chalkline" style="top:60px;--d:1.2s">第 3 題<span class="o">(20 分)</span> — 樑的最大彎曲應力</div>
+ <div class="chalkline" style="top:150px;--d:1.7s"><span class="y">①</span> 題目解讀 <span class="y">②</span> 觀念切入 <span class="y">③</span> 公式導入 <span class="y">④</span> 代入計算</div>
+ <div class="chalkline" style="top:250px;--d:2.9s;max-width:880px">M = 12 kN·m, c = 75 mm<br>I = 1.15×10⁷ mm⁴</div>
+ <div class="formula">σ = M·c / I</div>
+ <svg class="underline" width="440" height="26"><path d="M6 16 C 120 4, 320 26, 434 10"/></svg>
+ <div class="playrow"><div class="playbtn"></div><div class="track"><i></i></div></div>
+ <div class="subbar">「接著把彎矩 M 代入,單位先化成 N·mm……」</div>
+</div>
+<div class="badges">
+ <span class="badge in" style="--d:4.6s">AI 逐步旁白</span>
+ <span class="badge in" style="--d:4.85s">字幕 SRT</span>
+ <span class="badge in" style="--d:5.1s">YouTube 自動章節</span>
+ <span class="badge in" style="--d:5.35s">你的聲音 F5-TTS</span>
+</div>
+
+</div>
+<div class="vig" style="z-index:3"></div>
+
+</body></html>

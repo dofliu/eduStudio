@@ -17,7 +17,59 @@
 
 ---
 
-## 🌟 下一步候選 (2026-08-30 文件盤點)
+## 🌟 下一步候選 (2026-09-04 文件同步輪盤點)
+
+> 2026-08-31:官方介紹影片收尾(配樂三輪 + `--loudness`)+ 新 skill `repo-intro-video`。
+> 2026-09-04:純文件同步輪(零 code 變更),對照程式碼查核各文件說法。
+> 環境驗證 `2842 passed / 13 skipped / 1 deselected(office_live)`(此容器沒 ffmpeg,
+> 故 skip 較多;母數 2855 與本機宣稱的 2854 passed + 1 skipped 一致)、
+> frontend `npm test` 7 綠 + `vite build` 產物正確指向 `/app/assets/...`。
+
+**分支現況**:所有 2026-08-30 / 08-31 的工作在 `claude/project-status-sync-9z5v6p`
+(領先 `origin/main` 10 個 commit),`main` 仍停在 `f13e473`(2026-08-28 P3 驗證)。
+合回 main 前 main 上看不到工程收斂輪與 promo。
+
+### 🔴 先做(阻擋別人 / 一壞全壞)
+
+- [ ] 🔴 **`gemini-3.7-flash` live 確認** — 本機 `python tools/check_models.py`。整條文字線
+  (旁白/大綱/翻譯/解題/視覺)現在都吃這個 id,404 就一起壞;退路是設定頁 text 模型退
+  `gemini-3.6-flash`(目錄鍵 `flash_36`)。**目前唯一未驗證的全域單點**。
+- [ ] 🔴 **漫畫正式化 GATE**:真實生成 QA 一輪(開額度)+ 匯出實機檢查 + 手冊案例,
+  checklist 見 [docs/COMIC_PRODUCTION_SYSTEM.md](docs/COMIC_PRODUCTION_SYSTEM.md)。
+
+### 🟡 routine 可自主(offline,不需額度/實機)
+
+> 全部來自 2026-07 全庫審查,細節見下方 🔍 段。
+
+- [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、
+  dubber 暫存清理。
+- [ ] 🟡 **T2-1 SSRF 位址過濾**(`core/adapters/url.py`)— 開源自架必修。
+- [ ] 🟢 **T2-4 schema 輸入界限** / **T0-3 review_assist 覆蓋率提示**。
+- [ ] 🟡 **M-2 尾巴(需拍板)**:`scriptor`/`outliner`/`translate` 走 legacy
+  `get_gemini_model()`,**吃不到逐角色 `model_roles`**(視覺站與 `solve` 吃得到)。
+  模型值已對齊 3.7、無 2.5 殘留 → 剩的是解析路徑不一致,見 PRODUCT_READINESS「待拍板」#7。
+
+### 🟢 收尾 / 人工
+
+- [ ] 🟢 **介紹影片落地(DOC-5)**:製作鏈已就緒(`docs/promo/` 9 景 +
+  `tools/build_promo_video.py`),剩本機跑一次 + 決定放法(YouTube 連結／repo 內檔案)。
+- [ ] 🟢 **README / 手冊補 4 張截圖**(`docs/screenshots/`,需實機瀏覽器)。
+- [ ] 🟢 **計費尾巴**:多模態「圖片輸入」token 未計;費率待官方價校正
+  (`core/infocards/models.py` MODEL_PRICING)。
+
+### 本輪修掉的文件漂移(2026-09-04)
+
+- [x] `docs/PRODUCT_READINESS.md` 兩個 **U-5** 撞號 → 既有「發布站多語上傳驅動」改 **U-7**
+  (repo 其他 U-5 引用一律指 `/ui` 退場)。
+- [x] M-2 剩餘項描述過期(寫「仍預設 2.5」,實為已遷 3.7、差在不吃 `model_roles`)。
+- [x] PRODUCT_READINESS「2026-06-16 routine 無事可做」快照 → 被 7 月審查殘項推翻,已改寫。
+- [x] `docs/skills.md` 標題仍叫 autoSolverVideo、缺 `repo-intro-video` → 補齊。
+- [x] `claude.md` 模型換接段落與實況對齊。
+- [x] ROADMAP 補 v4.7、技術債清單勾稽;HANDOFF / STATUS / CHANGELOG 補 08-31 與本輪。
+
+---
+
+## 🌟 上一輪候選 (2026-08-30 文件盤點)
 
 > 2026-08-20 ~ 08-28 完成:漫畫工作站 MVP、目標導向首頁、P0 live E2E 稽核、P1/P2 驗證
 > (Ollama 接線 / PPTX round-trip / request validation / CI Node 24 / Whisper 三流程 /

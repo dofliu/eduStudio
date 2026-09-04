@@ -376,7 +376,7 @@
 - [ ] _render_matplotlib_diagram + AST 檢查 (iter 19)
 - [ ] _propose_matplotlib_code (Gemini) (iter 20)
 - [ ] pipeline.py step image 欄位整合 (iter 21)
-- 設計細節見 [docs/engineering-diagram-design.md](../docs/engineering-diagram-design.md)
+- 設計細節見 [docs/engineering-diagram-design.md](docs/engineering-diagram-design.md)
 - 價值: 材料力學 / 自動控制影片價值跳一階
 - 風險: 產 code 品質起伏大, 要 sandbox + review 機制
 
@@ -453,12 +453,38 @@
 - **Ollama provider production 接線**(文字角色巢狀 provider 覆寫,live 通,不打 Gemini)。
 - PPTX live round-trip、`/api/generate` validation(422)、Actions v6 + Node 24、
   Whisper `large-v3` 三流程 live、token 部署驗證、四站 click-through + 手機 smoke。
-- ⛔ 唯一 BLOCKER:Google Photos 帳號 OAuth consent 未完成(需一次性授權)。
+- ~~⛔ 唯一 BLOCKER:Google Photos 帳號 OAuth consent 未完成~~ → ✅ 2026-08-30 劉老師完成授權
+  (token 存 `photos_token.json`),相片簡報軸 live 全通。
 
 ### P3 技術債收斂 ✅ (2026-08-28)
 - FastAPI lifespan 遷移、pytest-asyncio loop scope 固定、office gate CI 邊界
   (`office_live` 明確排除 + collect-only 防刪)、Whisper cache 可攜(`HF_HOME` 動態解析、
   partial fail-closed、`/health` 回 `cache_source`)。backend **2845 passed**。
+
+---
+
+## v4.7 — 工程收斂 + 官方介紹影片(2026-08-30 ~ 08-31 完成)
+
+> 直接 commit 到分支 `claude/project-status-sync-9z5v6p`(尚未合回 main)。
+> 詳見 docs/CHANGELOG.md 對應三段。
+
+### 工程收斂輪 ✅ (2026-08-30,劉老師逐項拍板)
+- **統一抽象**:`core/gemini_client.make_client`(金鑰單一來源、一律帶 timeout,13 檔遷移)
+  + `core/ffmpeg.run_media_cmd`(timeout + returncode + stderr 進錯誤訊息,render 主路徑全遷)
+  = 2026-07 審查的 T3-2 / T3-3 / T1-2 一次收。
+- **模型主力遷 `gemini-3.7-flash`**(C-3 收尾 / T0-4 解題走 `resolve_id`)。⚠️ id 待 live 實測。
+- **計費準確化**:文字費率分 model、未知圖片 model 不再記 $0、補 6 個漏帳點。
+- **U-5 legacy `/ui` 正式退場**:`/ui` `/studio` 一律 307 → `/app/`,web/ 原始碼移除,
+  **Dockerfile 改建 `frontend/`**(順修 image 只有 /ui 沒有 /app 的缺口),CI 收斂。
+- Sprint 1 三小修(dubber filtergraph 連續索引 / compose 綁 `127.0.0.1` / editor 錯誤訊息 escape)。
+- 漫畫正式化啟動:offline 稽核完成,剩 GATE 真實生成 QA 一輪。全套 **2854 passed**。
+
+### 官方介紹影片 + repo-intro-video skill ✅ (2026-08-31)
+- **吃自己的狗糧**:`docs/promo/` 9 個 standalone HTML 動畫場景,用專案自家的
+  `core/html_video.py` 虛擬時鐘引擎渲染,`tools/build_promo_video.py` 以 ffmpeg xfade
+  串接 + 全本地合成配樂(交叉淡接循環 + `--loudness` 響度檔位)。
+- **`repo-intro-video` skill**:把同一套做法一般化成「對任何 repo 都能跑」——
+  長度可指定(30s / 60-75s / 3min)、音樂三選(提供檔案 / 合成氛圍 / 無聲)。
 
 ---
 
@@ -513,11 +539,19 @@ review gate 不可被關**(2026-08 修,2026-08-30 查證,見 TODO.md 🔍 段勾
 
 ## 技術債 / 重構候選
 
-- `pipeline.py` 800+ 行,可拆 `render.py` / `compose.py` / `tts.py`
-- `app.py` Flask template 全寫字串,Track A 棄用前不重構
+> 2026-09-04 勾稽:本清單有兩項已被後續工作解掉,劃掉保留紀錄。最新、有 file:line 的完整
+> 版本在 [docs/CODE_REVIEW_2026-07.md](docs/CODE_REVIEW_2026-07.md),認領清單在
+> [TODO.md](TODO.md) 🔍 段(T3-1 core 依賴反轉 / T3-4 刪 `app.py` / T3-5 拆 god 檔 /
+> T3-6 測試鏡射 = 這裡幾項的正式版)。
+
+- `pipeline.py` 800+ 行,可拆 `render.py` / `compose.py` / `tts.py`(現 1000+ 行,見 T3-5)
+- `app.py` Flask template 全寫字串 — Track A 已只剩 redirect,**整支刪掉**是 T3-4
 - 同名工具字串 helper 分散(sanitize / wrap / normalize 在不同檔)
-- `requirements.txt` 沒區分必要 / 選用,新人裝不確定
+- ~~`requirements.txt` 沒區分必要 / 選用~~ → ✅ 已拆成
+  `requirements.txt` / `-optional` / `-song` / `-dev`,README 有對照表
 - `core/scriptor.py` 555 行,prompt template 占大半,可抽到 `prompts/` 資料夾
+- **新增(2026-08-30 後)**:`core/config.get_gemini_model()` 與 `core/models.resolve()` 兩套
+  模型解析並存 → `scriptor`/`outliner`/`translate` 吃不到逐角色 `model_roles`(M-2 尾巴,GATE)
 
 ---
 

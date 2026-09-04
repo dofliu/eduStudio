@@ -7,6 +7,34 @@
 
 ---
 
+## 文件同步輪 — 現況盤點 + 漂移勾稽（2026-09-04）
+
+> 純文件輪:對照程式碼實況查核各文件說法,修掉漂移。**零 production code 變更**。
+> 環境驗證:`2842 passed, 13 skipped(mcp + 缺 ffmpeg 的用例), 1 deselected(office_live)`
+> (Linux 容器 · Python 3.11 · CI 依賴清單 + Noto CJK;與本機宣稱的 2854 passed / 1 skipped
+> 同一個 2855 collected 母數,差在此容器沒裝 ffmpeg)。frontend `npm test` 7 綠 + `vite build`
+> 產物正確引用 `/app/assets/...`。
+
+| 項 | 內容 |
+|---|---|
+| MODEL | 勾稽模型現況:`core/config.py` 的 `GEMINI_MODEL` 已是 `gemini-3.7-flash`,故 `scriptor`(考卷旁白)/ `outliner`(大綱)/ `translate`(翻譯)**實際上早已不是 2.5**;`solve.py` 走 `resolve_id(text.fast)`。但這三者仍走 legacy `get_gemini_model()`,**只認設定頁 `text_model`、不認逐角色 `model_roles`** → M-2 剩的是「接上角色登錄表」而非「換掉 2.5」,PRODUCT_READINESS / claude.md 對應段落改寫。 |
+| ID 衝突 | `docs/PRODUCT_READINESS.md` 有兩個 **U-5**(2026-08-30 新增的「`/ui` 正式退場」撞到既有的「發布站多語上傳驅動」)。既有那項改編號 **U-7**(全 repo 其他 U-5 引用皆指 `/ui` 退場,維持不動)。 |
+| SKILLS | `docs/skills.md` 補 `repo-intro-video`(2026-08-31 新 skill)+ 標題從 autoSolverVideo 正名 eduStudio + 補 `/advance` slash command 與 `docs/promo/` 的關係說明。 |
+| DOC-5 | demo 影片項目更新:組裝工具鏈(`docs/promo/` 9 景 + `tools/build_promo_video.py`)已就緒,剩「本機跑一次 + 放檔/連結進 README」。 |
+| 快照 | PRODUCT_READINESS 的「2026-06-16 routine 快照(offline 已清空)」已被 7/8 月的審查殘項推翻,改寫成 2026-09-04 現況。 |
+| 對帳 | HANDOFF / STATUS.yaml / TODO / ROADMAP 補上 2026-08-31 的 promo + skill 一輪,並記錄分支現況(工作在 `claude/project-status-sync-9z5v6p`,`main` 停在 `f13e473`)。 |
+
+---
+
+## 官方介紹影片收尾 + repo-intro-video skill（2026-08-31）
+
+| 項 | 內容 |
+|---|---|
+| PROMO | 介紹影片配樂三輪迭代:安靜版 v2(移除嘶聲層 / 心跳放疏 / 響度降到 -23 LUFS)→ 音樂主導模式 -16 LUFS(合成 bed 維持 -23)→ 音樂**交叉淡接循環** + `--loudness` 響度檔位。順修漫畫景 QA gate 膠囊 `white-space:nowrap`(防直排換行)。 |
+| SKILL | 新 skill **`repo-intro-video`**(`.claude/skills/repo-intro-video/`):把**任何** repo 做成介紹影片 — 讀 repo 萃取賣點 → 分鏡表給人過目 → 產 HTML 場景 → playwright 逐格渲染 → ffmpeg xfade + 配樂。迭代 2 加上「長度可指定(30s / 60-75s / 3min)+ 音樂三選(提供檔案 / 合成氛圍 / 無聲)」與雙動畫類拆彈,附 `evals/evals.json`。與 `docs/promo/`(本專案自己那支)腳本各自獨立,skill 要能在沒有本 repo 的機器上跑。 |
+
+---
+
 ## 工程收斂輪 — Sprint 1/2 + 模型遷移 + 計費 + U-5 退場（2026-08-30）
 
 > 劉老師拍板的一輪工程收斂（同日於文件整理之後）。全套測試

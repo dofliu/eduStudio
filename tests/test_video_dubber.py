@@ -5,7 +5,10 @@ translator）、merge 空段、lazy 單例。download/whisper/ffmpeg 合成需�
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
+import pytest
 
 import core.video.dubber as dub_mod
 from core.video.dubber import Segment, VideoDubber
@@ -99,3 +102,117 @@ def test_get_audio_duration_bad_path_returns_zero(tmp_path):
     # ffprobe 對不存在檔回非數字 → get_audio_duration 回 0.0（不崩）
     d = _dubber(tmp_path)
     assert d.get_audio_duration(str(tmp_path / "nope.wav")) == 0.0
+
+
+# ---------- T1-5: 中間檔清理 ----------
+
+class TestPurgeIntermediates:
+    """`process_video` 結束(成功或失敗)都要清掉暫存, 但成品一個都不能少。"""
+
+    def _make_files(self, job_dir: Path, names):
+        for n in names:
+            (job_dir / n).write_text("x", encoding="utf-8")
+
+    def test_removes_known_intermediates_only(self, tmp_path):
+        d = _dubber(tmp_path)
+        job = tmp_path / "job_x"
+        job.mkdir()
+        self._make_files(job, [
+            "audio.wav", "dubbed_audio.wav",
+            "tts_0000.mp3", "tts_0001.mp3",
+            "tts_0001_adjusted.mp3", "tts_0001_adjusted_truncated.mp3",
+            # 成品 + 不認識的檔 → 都不能碰
+            "dubbed_video.mp4", "original.srt", "translated.srt",
+            "video.mp4", "使用者自己放的.txt",
+        ])
+        removed = d._purge_intermediates(str(job), keep=set())
+        assert removed == 6
+        left = sorted(p.name for p in job.iterdir())
+        assert left == sorted([
+            "dubbed_video.mp4", "original.srt", "translated.srt",
+            "video.mp4", "使用者自己放的.txt",
+        ])
+
+    def test_keep_set_wins_over_pattern(self, tmp_path):
+        d = _dubber(tmp_path)
+        job = tmp_path / "job_y"
+        job.mkdir()
+        self._make_files(job, ["audio.wav", "tts_0000.mp3"])
+        keep = {str((job / "tts_0000.mp3").resolve())}
+        d._purge_intermediates(str(job), keep=keep)
+        assert not (job / "audio.wav").exists()
+        assert (job / "tts_0000.mp3").exists(), "在 keep 裡的成品不可刪"
+
+    def test_missing_dir_is_noop(self, tmp_path):
+        d = _dubber(tmp_path)
+        assert d._purge_intermediates(str(tmp_path / "nope"), keep=set()) == 0
+
+    def test_process_video_purges_on_success(self, tmp_path, monkeypatch):
+        d = _dubber(tmp_path)
+        job = tmp_path / "job_ok"
+        job.mkdir()
+
+        def fake_inner(*args, **kwargs):
+            jd = Path(kwargs["job_dir"])
+            self._make_files(jd, ["audio.wav", "tts_0000.mp3", "dubbed_video.mp4"])
+            kwargs["results"]["dubbed_video"] = str(jd / "dubbed_video.mp4")
+            return kwargs["results"]
+
+        monkeypatch.setattr(d, "_process_video_inner", fake_inner)
+        out = d.process_video("/local.mp4", "auto", "zh_TW", job_dir=str(job))
+        assert out["dubbed_video"].endswith("dubbed_video.mp4")
+        assert (job / "dubbed_video.mp4").exists()
+        assert not (job / "audio.wav").exists()
+        assert not (job / "tts_0000.mp3").exists()
+
+    def test_process_video_purges_on_failure(self, tmp_path, monkeypatch):
+        """失敗時中間檔更沒有留著的理由 —— 但例外要照樣往外丟。"""
+        d = _dubber(tmp_path)
+        job = tmp_path / "job_bad"
+        job.mkdir()
+
+        def boom(*args, **kwargs):
+            self._make_files(Path(kwargs["job_dir"]), ["audio.wav", "tts_0000.mp3"])
+            raise RuntimeError("配音炸了")
+
+        monkeypatch.setattr(d, "_process_video_inner", boom)
+        with pytest.raises(RuntimeError, match="配音炸了"):
+            d.process_video("/local.mp4", "auto", "zh_TW", job_dir=str(job))
+        assert not (job / "audio.wav").exists()
+        assert not (job / "tts_0000.mp3").exists()
+
+    def test_purge_failure_does_not_break_result(self, tmp_path, monkeypatch):
+        """清不掉暫存不該讓一支已經配好音的影片變成失敗。"""
+        d = _dubber(tmp_path)
+        job = tmp_path / "job_z"
+        job.mkdir()
+        self._make_files(job, ["audio.wav"])
+
+        def fake_inner(*args, **kwargs):
+            return {"dubbed_video": "/somewhere/out.mp4"}
+
+        monkeypatch.setattr(d, "_process_video_inner", fake_inner)
+        monkeypatch.setattr(
+            dub_mod.os, "remove",
+            lambda p: (_ for _ in ()).throw(OSError("permission denied")),
+        )
+        out = d.process_video("/local.mp4", "auto", "zh_TW", job_dir=str(job))
+        assert out["dubbed_video"] == "/somewhere/out.mp4"
+
+    def test_batch_keep_paths_collects_all_languages(self, tmp_path):
+        d = _dubber(tmp_path)
+        keep = d._batch_keep_paths({
+            "original_video": "/a/video.mp4",
+            "original_srt": "/a/original.srt",
+            "languages": {
+                "en": {"translated_srt": "/a/en/t.srt", "dubbed_video": "/a/en/d.mp4"},
+                "ja": {"translated_srt": "/a/ja/t.srt"},
+            },
+        })
+        assert keep == {
+            os.path.abspath("/a/video.mp4"),
+            os.path.abspath("/a/original.srt"),
+            os.path.abspath("/a/en/t.srt"),
+            os.path.abspath("/a/en/d.mp4"),
+            os.path.abspath("/a/ja/t.srt"),
+        }

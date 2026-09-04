@@ -61,6 +61,37 @@ class VideoDubber:
         os.makedirs(job_dir, exist_ok=True)
         return job_dir
 
+    # T1-5: 每支影片的中間檔(抽出的 wav / 逐段 tts mp3 / 變速與截斷副本 /
+    # 合併後的配音音軌)以前留在 /tmp 從不清理, 長駐 server 會被塞爆。
+    # 這些檔名都是本類自己產的固定樣式, 只刪這些 → 不會誤刪使用者的來源檔,
+    # 也不會動到要回傳給呼叫端的成品(dubbed_video.mp4 / *.srt / 下載的 video.mp4)。
+    _INTERMEDIATE_PATTERNS = ("audio.wav", "dubbed_audio.wav", "tts_*.mp3")
+
+    def _purge_intermediates(self, job_dir: str, keep: set[str]) -> int:
+        """刪掉 `job_dir` 底下的中間檔,回傳刪了幾個。
+
+        `keep` 是「要回傳給呼叫端、絕對不能刪」的絕對路徑集合 —— 即使某個成品
+        剛好長得像中間檔(例如 burn_subtitles=False 時直接沿用某個音檔),
+        也會因為在 keep 裡而留下。
+
+        失敗一律吞掉只記 log:清不掉暫存不該讓一支已經配好音的影片變成失敗。
+        """
+        import glob
+
+        removed = 0
+        for pattern in self._INTERMEDIATE_PATTERNS:
+            for path in glob.glob(os.path.join(job_dir, pattern)):
+                if os.path.abspath(path) in keep:
+                    continue
+                try:
+                    os.remove(path)
+                    removed += 1
+                except OSError as e:
+                    log.warning("清理中間檔失敗 (不影響結果): %s (%s)", path, e)
+        if removed:
+            log.info("已清理 %d 個配音中間檔: %s", removed, job_dir)
+        return removed
+
     def _run_cmd_checked(self, cmd: List[str], step: str) -> None:
         # 委派共用 runner(T3-3): 補上 timeout; 訊息格式維持「{step} failed:」
         from core.ffmpeg import run_media_cmd
@@ -296,6 +327,24 @@ class VideoDubber:
         """完整處理流程。"""
         job_dir = job_dir or self._create_job_dir()
         results = {}
+        try:
+            return self._process_video_inner(
+                video_source, source_lang, target_lang,
+                burn_subtitles=burn_subtitles,
+                progress_callback=progress_callback,
+                job_dir=job_dir,
+                results=results,
+            )
+        finally:
+            # T1-5: 成功或失敗都清中間檔(失敗時中間檔更沒有留著的理由)
+            self._purge_intermediates(job_dir, keep={
+                os.path.abspath(v) for v in results.values() if isinstance(v, str) and v
+            })
+
+    def _process_video_inner(self, video_source: str, source_lang: str, target_lang: str,
+                             *, burn_subtitles: bool, progress_callback, job_dir: str,
+                             results: dict) -> dict:
+        """`process_video` 的實際流程;拆出來讓清理走 try/finally 而不必縮排整段。"""
         if video_source.startswith('http'):
             video_path, audio_path = self.download_youtube(video_source, job_dir, progress_callback)
         else:
@@ -328,10 +377,47 @@ class VideoDubber:
     def process_video_batch(self, video_source: str, source_lang: str, target_langs: list,
                             burn_subtitles: bool = False, progress_callback=None) -> dict:
         """批次處理多語言翻譯（下載/STT 只做一次）。"""
-        import copy
-
         job_dir = self._create_job_dir(prefix="batch_job")
         batch_results = {}
+        try:
+            return self._process_video_batch_inner(
+                video_source, source_lang, target_langs,
+                burn_subtitles=burn_subtitles,
+                progress_callback=progress_callback,
+                job_dir=job_dir,
+                batch_results=batch_results,
+            )
+        finally:
+            # T1-5: 逐語言子目錄各有自己的中間檔, 連同 job_dir 一起清
+            keep = self._batch_keep_paths(batch_results)
+            for d in [job_dir] + [
+                os.path.join(job_dir, lang) for lang in target_langs
+            ]:
+                if os.path.isdir(d):
+                    self._purge_intermediates(d, keep)
+
+    @staticmethod
+    def _batch_keep_paths(batch_results: dict) -> set[str]:
+        """批次結果裡所有「要回傳的成品」絕對路徑(頂層 + 各語言)。"""
+        keep: set[str] = set()
+        for key, value in batch_results.items():
+            if key == "languages":
+                for lang_result in (value or {}).values():
+                    keep.update(
+                        os.path.abspath(v) for v in (lang_result or {}).values()
+                        if isinstance(v, str) and v
+                    )
+            elif isinstance(value, str) and value:
+                keep.add(os.path.abspath(value))
+        return keep
+
+    def _process_video_batch_inner(self, video_source: str, source_lang: str,
+                                   target_langs: list, *, burn_subtitles: bool,
+                                   progress_callback, job_dir: str,
+                                   batch_results: dict) -> dict:
+        """`process_video_batch` 的實際流程;拆出來讓清理走 try/finally。"""
+        import copy
+
         total_langs = len(target_langs)
         if video_source.startswith('http'):
             video_path, audio_path = self.download_youtube(video_source, job_dir, progress_callback)

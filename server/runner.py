@@ -33,6 +33,7 @@ from core.logging_setup import (
     detach_job_log,
 )
 
+from .background import spawn
 from .jobs import JobStore
 from .schemas import JobRecord, JobState, SourceType, StageInfo, utc_now
 
@@ -1464,12 +1465,12 @@ def schedule_job(store: JobStore, job_id: str) -> asyncio.Task:
 
     Routes 層 call 這個 fn 後立刻回 HTTP response, runner 在背景跑完整 pipeline。
     """
-    return asyncio.create_task(run_job(store, job_id))
+    return spawn(run_job(store, job_id), name=f"job:{job_id}")
 
 
 def schedule_render(store: JobStore, job_id: str) -> asyncio.Task:
     """/approve 端點用: 從 awaiting_review 接著跑 render。"""
-    return asyncio.create_task(_run_render_phase(store, job_id))
+    return spawn(_run_render_phase(store, job_id), name=f"render:{job_id}")
 
 
 def schedule_section_render(
@@ -1480,4 +1481,7 @@ def schedule_section_render(
     呼叫端 (POST /jobs/{id}/sections/{sid}/render) 已驗證 state ∈ {DONE, FAILED}
     且 section_id 在 deck 內存在, 所以這裡不再檢查。
     """
-    return asyncio.create_task(_run_render_phase(store, job_id, section_id=section_id))
+    return spawn(
+        _run_render_phase(store, job_id, section_id=section_id),
+        name=f"render:{job_id}:{section_id}",
+    )

@@ -138,7 +138,17 @@ Dockerfile 改建 / promo / `repo-intro-video` skill 都已在 main 上。
   tts_backend/server runner(song) 全遷。
 - [x] 🟡 **T0-4 解題走 `resolve_id` + 設定頁金鑰** — ✅ 2026-08-30(`solver_model()` 呼叫時
   解析 text.fast;金鑰走統一 client)。
-- [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、dubber 暫存清理。
+- [x] 🟡 **T1-3/4/5** — ✅ 2026-09-04:
+  - **T1-3** 新增 `server/background.spawn`:module 級 `asyncio.Semaphore` 限並行
+    (`EDUSTUDIO_MAX_CONCURRENT_JOBS`,預設 2,超過**排隊**不是拒絕)+ task 存進
+    module 級 `set` 保強參照(原本 `create_task` 回傳值全丟掉,asyncio 只持 weak ref)
+    + 完成移除 + 背景例外進 log。5 處裸 `create_task` 全遷;YouTube 上傳與 ideate
+    掃描走 `limit=False`(純等待,不佔 render 名額)。
+  - **T1-4** `JobStore._persist` 改「寫 .tmp → fsync → `os.replace`」原子換檔,
+    寫一半被 kill 不再讓 job 從唯一真實來源消失。
+  - **T1-5** dubber 中間檔(`audio.wav` / `dubbed_audio.wav` / `tts_*.mp3`)在
+    `process_video` / `process_video_batch` 的 try/finally 清掉,成品(mp4/srt)
+    以 keep set 保護;清理失敗只記 log 不影響結果。
 
 ### Sprint 3 — 安全縱深 + 輸入界限
 - [x] 🟡 **T2-1 SSRF 位址過濾** — ✅ 2026-09-04:新增 `core/net_safety.assert_public_url`

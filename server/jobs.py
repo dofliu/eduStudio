@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import threading
 import uuid
@@ -320,13 +321,29 @@ class JobStore:
     # ---- Disk I/O ----
 
     def _persist(self, rec: JobRecord) -> None:
+        """把 job 狀態寫進 `jobs/<id>/state.json` — **原子換檔** (T1-4)。
+
+        state.json 是 job 的唯一真實來源。原本直接 `write_text`,程序若在寫入
+        期間被 kill,檔案會留在截斷狀態 → 下次啟動 `_load_existing` 解析失敗、
+        該 job 被跳過 → **整個 job 從系統裡消失,連 retry 都做不到**。
+
+        改成「寫 .tmp → fsync → `os.replace`」:`os.replace` 在 POSIX 與 Windows
+        都是原子的,讀者永遠只會看到「舊的完整檔」或「新的完整檔」,不會看到寫一半。
+        fsync 讓內容先真的落地再換名,避免斷電後換到一個內容還沒寫完的檔。
+
+        呼叫端都在 `self._lock` 內,故固定用 `state.json.tmp` 不會互相踩到。
+        """
         # iter 39 fix: 用 self.root 不再 fall through 到 module-level _state_path
         path = self.root / rec.id / "state.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            rec.model_dump_json(indent=2),
-            encoding="utf-8",
-        )
+        tmp = path.with_name(path.name + ".tmp")
+
+        payload = rec.model_dump_json(indent=2)
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
 
     # ---- Path helpers ----
     # iter 39 fix: 改 instance methods 用 self.root, 不再 fall through 到模組級

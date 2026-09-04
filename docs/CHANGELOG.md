@@ -22,7 +22,7 @@
 | SKILLS | `docs/skills.md` 補 `repo-intro-video`(2026-08-31 新 skill)+ 標題從 autoSolverVideo 正名 eduStudio + 補 `/advance` slash command 與 `docs/promo/` 的關係說明。 |
 | DOC-5 | demo 影片項目更新:組裝工具鏈(`docs/promo/` 9 景 + `tools/build_promo_video.py`)已就緒,剩「本機跑一次 + 放檔/連結進 README」。 |
 | 快照 | PRODUCT_READINESS 的「2026-06-16 routine 快照(offline 已清空)」已被 7/8 月的審查殘項推翻,改寫成 2026-09-04 現況。 |
-| 對帳 | HANDOFF / STATUS.yaml / TODO / ROADMAP 補上 2026-08-31 的 promo + skill 一輪,並記錄分支現況(工作在 `claude/project-status-sync-9z5v6p`,`main` 停在 `f13e473`)。 |
+| 對帳 | HANDOFF / STATUS.yaml / TODO / ROADMAP 補上 2026-08-31 的 promo + skill 一輪。分支現況:`main` 於本輪進行中推進到 `ac07ab4`(2026-08-31),工程收斂輪與 promo 皆已在 main;文件同步輪本身走 PR #101。 |
 
 ---
 

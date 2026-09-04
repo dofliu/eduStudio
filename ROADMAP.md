@@ -465,8 +465,7 @@
 
 ## v4.7 — 工程收斂 + 官方介紹影片(2026-08-30 ~ 08-31 完成)
 
-> 直接 commit 到分支 `claude/project-status-sync-9z5v6p`(尚未合回 main)。
-> 詳見 docs/CHANGELOG.md 對應三段。
+> 已在 `main`(`ac07ab4`,2026-08-31)。詳見 docs/CHANGELOG.md 對應三段。
 
 ### 工程收斂輪 ✅ (2026-08-30,劉老師逐項拍板)
 - **統一抽象**:`core/gemini_client.make_client`(金鑰單一來源、一律帶 timeout,13 檔遷移)

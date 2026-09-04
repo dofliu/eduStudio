@@ -19,8 +19,8 @@ eduStudio = 單一可自架的 **Python FastAPI server**，把老師的素材變
 
 - **本 repo（唯一工作目錄）**：clone 到任一本機目錄即可（下面指令一律以 repo 根目錄為基準，
   不依賴特定絕對路徑）。
-- **GitHub**：`https://github.com/dofliu/eduStudio`（public）。⚠️ 2026-09-04 現況：最新工作在
-  `claude/project-status-sync-9z5v6p`，`main` 落後 10 個 commit（見下方「最近狀態」）。
+- **GitHub**：`https://github.com/dofliu/eduStudio`（public）。2026-09-04 現況：`main` 已含
+  2026-08-30 工程收斂輪與 08-31 promo／skill（`ac07ab4`）；文件同步輪走 PR #101。
 - **Python**：3.12（建議用 venv；若本機 pip resolver 有問題可改用 `uv pip install`）。
 - **Gemini 金鑰**：讀環境變數 `GEMINI_API_KEY`；設定頁(settings.json)若填了會優先。settings.json 含金鑰，**已 gitignore**。
 - **字型（CJK）**：跨平台走 `CLAUDE_FONT_PATH` 環境變數指向任一 CJK `.ttf/.ttc`（硬規則：字型路徑不寫死）。
@@ -86,10 +86,9 @@ eduStudio/
 
 ## 最近狀態（2026-09-04 快照）
 
-- **⚠️ 分支**：2026-08-30 / 08-31 的工作在 **`claude/project-status-sync-9z5v6p`**（領先
-  `origin/main` 10 個 commit）；**`main` 仍停在 `f13e473`（2026-08-28 P3 驗證）**。
-  也就是說：工程收斂輪、`/ui` 退場、Dockerfile 改建 frontend/、promo 影片、新 skill
-  **在 main 上都還看不到**。接手第一件事是確認要不要合回 main。
+- **分支**：`main` 已推進到 **`ac07ab4`**（2026-08-31），含 2026-08-30 工程收斂輪、`/ui` 退場、
+  Dockerfile 改建 frontend/、promo 影片與 `repo-intro-video` skill。2026-09-04 的文件同步輪
+  在 `claude/project-status-sync-9z5v6p` 上走 PR #101（純文件，1 個 commit）。
   （更早的歷史：feature branch 均已合併刪除，PR 到 #100。）
 - **2026-08-20 ~ 08-26**：`/app` 改版**目標導向首頁** + 新增**漫畫工作站**(內部 MVP,獨立
   Comic Core)；視覺模式 UI alias 收斂、視覺審查修復。

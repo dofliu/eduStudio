@@ -25,9 +25,9 @@
 > 故 skip 較多;母數 2855 與本機宣稱的 2854 passed + 1 skipped 一致)、
 > frontend `npm test` 7 綠 + `vite build` 產物正確指向 `/app/assets/...`。
 
-**分支現況**:所有 2026-08-30 / 08-31 的工作在 `claude/project-status-sync-9z5v6p`
-(領先 `origin/main` 10 個 commit),`main` 仍停在 `f13e473`(2026-08-28 P3 驗證)。
-合回 main 前 main 上看不到工程收斂輪與 promo。
+**分支現況**:`main` 已推進到 `ac07ab4`(2026-08-31),工程收斂輪 / `/ui` 退場 /
+Dockerfile 改建 / promo / `repo-intro-video` skill 都已在 main 上。
+2026-09-04 文件同步輪走 PR #101(純文件 1 個 commit)。
 
 ### 🔴 先做(阻擋別人 / 一壞全壞)
 

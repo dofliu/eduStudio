@@ -502,3 +502,166 @@ def check_deck(deck: dict, *, rel_tol: float = DEFAULT_REL_TOL) -> list[ReviewFl
         except Exception:  # noqa: BLE001 — fail-open
             pass
     return flags
+
+
+# ---------- 校驗覆蓋率(T0-3) ----------
+#
+# 為什麼需要這個
+# ==============
+# 上面全部的檢查都是**高精度、低召回**:算不出確定性結論的段一律跳過(不亂猜)。
+# 對材力 / 動力學這種「幾乎每步都有 sin/cos/tan/√」的答案,結果是**那些步驟一律不
+# 產 flag**。reviewer 看到「沒有 ⚠」很容易解讀成「已經驗過了」——但最容易按錯計算機的
+# 步驟恰恰是完全沒被檢查的那些。
+#
+# 高精度的代價本身沒錯,錯在**沒有對 reviewer 揭露**。所以這裡不放寬檢查(那會犧牲
+# 精度、變成狼來了),而是誠實回報:「這題 8 步裡有 5 步無法自動驗證,原因是含三角函式」。
+# 讓「無 flag」不再被誤讀成「已驗證」。
+
+#: 無法自動驗證的原因代碼(前端據此決定文案;新增要同步 `_COVERAGE_REASON_LABELS`)。
+COVERAGE_REASONS = (
+    "empty",            # display 空白, 沒東西可驗
+    "function",         # 含三角 / 開根號 / log 等函式 —— 最需要人工複核的一類
+    "symbolic",         # 純符號公式(σ = P / A), 沒有可比對的數值
+    "single_value",     # 只有一個數值, 沒有等號兩側可對照
+)
+
+_COVERAGE_REASON_LABELS = {
+    "empty": "步驟沒有算式",
+    "function": "含三角/開根號等函式,無法自動計算",
+    "symbolic": "純符號公式,沒有可比對的數值",
+    "single_value": "只有一個數值,沒有等號兩側可對照",
+}
+
+# 會讓 `_safe_eval` 放棄的數學函式 / 符號。命中即歸類為 "function" ——
+# 這是 T0-3 點名的那一類(材力/動力學每步都有), 值得跟「純符號」分開統計。
+#
+# **符號與函式名分兩條 regex**:符號那條**不可** IGNORECASE —— `Σ`(大寫 sigma)
+# 忽略大小寫會吃掉 `σ`(小寫 sigma),而 σ 是材力最常見的應力符號,
+# 會讓每條 `σ = P / A` 都被誤判成「含函式」而不是「純符號」。
+_FUNCTION_SYMBOL_RE = re.compile(r"[√∛∫Σ∑]")
+_FUNCTION_NAME_RE = re.compile(
+    r"\b(?:sin|cos|tan|cot|sec|csc|a?sinh?|a?cosh?|a?tanh?|"
+    r"log|ln|exp|sqrt|abs|arc(?:sin|cos|tan))\b",
+    re.IGNORECASE,
+)
+
+
+def _has_function(text: str) -> bool:
+    """含三角 / 開根號 / log / 求和等 `_safe_eval` 算不動的數學函式。"""
+    return bool(_FUNCTION_SYMBOL_RE.search(text) or _FUNCTION_NAME_RE.search(text))
+
+
+class StepCoverage(BaseModel):
+    """單一 step 有沒有被確定性校驗真的驗到。"""
+
+    problem_id: str
+    step_index: int
+    verified: bool          # True = 至少有兩段數值被實際比對過
+    reason: str = ""        # verified=False 時的原因代碼(COVERAGE_REASONS 之一)
+
+    @field_validator("reason")
+    @classmethod
+    def _known_reason(cls, v: str) -> str:
+        if v and v not in COVERAGE_REASONS:
+            raise ValueError(f"未知 coverage reason: {v!r}")
+        return v
+
+
+class CoverageReport(BaseModel):
+    """整份 deck 的自動校驗覆蓋率 —— 給 review UI 誠實揭露「哪些沒驗到」。"""
+
+    total_steps: int = 0
+    verified_steps: int = 0
+    unverified_steps: int = 0
+    by_reason: dict[str, int] = {}
+    steps: list[StepCoverage] = []
+
+    @property
+    def ratio(self) -> float:
+        """已驗證比例(0.0 ~ 1.0);沒有 step 時回 0.0。"""
+        return self.verified_steps / self.total_steps if self.total_steps else 0.0
+
+    def summary(self) -> str:
+        """給 reviewer 看的一句話。**刻意不說「已驗證」**——只說機器算過幾步。"""
+        if self.total_steps == 0:
+            return "沒有可檢查的步驟。"
+        if self.unverified_steps == 0:
+            return f"{self.total_steps} 個步驟都經過自動算式比對(仍請人工複核)。"
+        parts = [
+            f"{_COVERAGE_REASON_LABELS.get(r, r)} {n} 步"
+            for r, n in sorted(self.by_reason.items(), key=lambda kv: -kv[1])
+        ]
+        return (
+            f"{self.total_steps} 個步驟中有 {self.unverified_steps} 步**無法自動驗證**"
+            f"({'、'.join(parts)}),這些步驟沒有 ⚠ 不代表算對了,請逐一人工複核。"
+        )
+
+
+def _step_coverage(problem_id: str, step_index: int, display: str) -> StepCoverage:
+    """判斷這一步有沒有被「等號兩側數值比對」真的驗到,沒有的話歸類原因。"""
+    def _no(reason: str) -> StepCoverage:
+        return StepCoverage(
+            problem_id=problem_id, step_index=step_index, verified=False, reason=reason,
+        )
+
+    if not display.strip():
+        return _no("empty")
+
+    evaluable = [
+        seg for seg in display.split("=") if _segment_value(seg) is not None
+    ]
+    if len(evaluable) >= 2:
+        return StepCoverage(
+            problem_id=problem_id, step_index=step_index, verified=True,
+        )
+
+    # 沒驗到 —— 分類原因,函式優先(T0-3 點名的那一類)
+    if _has_function(display):
+        return _no("function")
+    if len(evaluable) == 1:
+        return _no("single_value")
+    return _no("symbolic")
+
+
+def analyze_coverage(deck: dict) -> CoverageReport:
+    """掃 exam deck,回「哪些步驟其實沒被自動驗到」的覆蓋率報告(T0-3)。
+
+    跟 `check_deck` 走同一套判斷(`_segment_value` / 等號切段),所以報告說「驗到了」
+    的步驟,就是 `_check_arithmetic` 真的比對過的步驟 —— 兩者不會各說各話。
+
+    跟 `check_deck` 一樣 **fail-open**:算不出來就當作「這步沒驗到」,不丟例外卡 review。
+    非 dict / 沒 problems → 回空報告。
+    """
+    report = CoverageReport()
+    if not isinstance(deck, dict):
+        return report
+    problems = deck.get("problems") or []
+    if not isinstance(problems, list):
+        return report
+
+    for p_idx, prob in enumerate(problems):
+        if not isinstance(prob, dict):
+            continue
+        pid = str(prob.get("id") or f"q{p_idx + 1}")
+        steps = prob.get("steps") or []
+        if not isinstance(steps, list):
+            continue
+        for s_idx, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            display = str(step.get("display") or "")
+            try:
+                cov = _step_coverage(pid, s_idx, display)
+            except Exception:  # noqa: BLE001 — fail-open，算不出來就當沒驗到
+                cov = StepCoverage(
+                    problem_id=pid, step_index=s_idx, verified=False, reason="symbolic",
+                )
+            report.steps.append(cov)
+            report.total_steps += 1
+            if cov.verified:
+                report.verified_steps += 1
+            else:
+                report.unverified_steps += 1
+                report.by_reason[cov.reason] = report.by_reason.get(cov.reason, 0) + 1
+
+    return report

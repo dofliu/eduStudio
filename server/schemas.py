@@ -76,10 +76,12 @@ class JobOptions(BaseModel):
     )
     tts_provider: str | None = Field(
         default=None,
+        max_length=32,
         description="TTS 後端 (edge | f5)。覆寫 tts_config.json 的設定,等同設 TTS_PROVIDER 環境變數。",
     )
     output_name: str | None = Field(
         default=None,
+        max_length=200,
         description="輸出檔名前綴 (預設用 source 檔案 stem)。",
     )
     mock: bool = Field(
@@ -90,10 +92,12 @@ class JobOptions(BaseModel):
     )
     max_files: int | None = Field(
         default=None,
+        ge=1, le=2000,
         description="repo source 限制掃幾個檔 (預設 50)。其他 source_type 忽略此欄位。",
     )
     theme: str | None = Field(
         default=None,
+        max_length=64,
         description="pptx renderer 主題 (PR-5a): forest (預設, 教學) / navy (科技). "
                     "只影響 repo / document / url 三種 (走 PptxStyleRenderer);"
                     "exam_pdf / slides_pdf 不適用 (黑板 / 投影片底圖固定色)。",
@@ -112,6 +116,7 @@ class JobOptions(BaseModel):
     )
     length_mode: str | None = Field(
         default=None,
+        max_length=32,
         description="影片長度模式 (iter 43): quick = 8~15 分鐘 YT 快速講解 (預設, "
                     "保現有行為), lecture = 60~180 分鐘授課影片 (10~15 章 / "
                     "每章 6~12 張投影片 / narration 180~280 字). 只影響 "
@@ -149,6 +154,7 @@ class JobOptions(BaseModel):
     )
     augment_layout: str = Field(
         default="auto",
+        max_length=32,
         description="補圖合成版面 (core.slide_image_gen.LAYOUTS): auto (偵測原頁空白區"
                     "就地置入, 原頁不縮小, 預設) / side_by_side (左原頁右配圖) / "
                     "image_left (左配圖右原頁) / overlay (配圖浮貼右下角) / image_only "
@@ -164,22 +170,26 @@ class JobOptions(BaseModel):
     )
     cover_speaker: str | None = Field(
         default=None,
+        max_length=200,
         description="iter 62b: per-job 封面講者覆寫. None / 空字串 → 用 "
                     "core.config.get_cover_speaker() (env 或預設). 只 prepend_cover=True "
                     "時有意義.",
     )
     cover_org: str | None = Field(
         default=None,
+        max_length=200,
         description="iter 62b: per-job 封面單位覆寫. 同上 fallback 規則.",
     )
     cover_date: str | None = Field(
         default=None,
+        max_length=100,
         description="iter 62b: per-job 封面日期 (字串, 建議 YYYY-MM-DD). "
                     "None / 空字串 → 用今天日期. 不檢查格式 — 給用戶自由 "
                     "(可以寫「2026 春季」等).",
     )
     cover_narration: str | None = Field(
         default=None,
+        max_length=5000,
         description="iter 65: per-job 封面開場口白覆寫. None / 空字串 → 用 "
                     "core.cover_gen._COVER_NARRATION_TEMPLATE 套 speaker / "
                     "title / org. 非空 → 直接拿用戶字串當 narration 餵 TTS, "
@@ -196,15 +206,18 @@ class JobOptions(BaseModel):
     )
     outro_thanks: str | None = Field(
         default=None,
+        max_length=200,
         description="iter 63: per-job 結尾大字 (預設「謝謝聆聽」). 空 → 預設.",
     )
     outro_url: str | None = Field(
         default=None,
+        max_length=2048,
         description="iter 63: per-job 結尾頁聯絡 URL (預設 doflab.cc). 不檢查 "
                     "格式 — 可放 GitHub / email / 任何字串.",
     )
     outro_narration: str | None = Field(
         default=None,
+        max_length=5000,
         description="iter 63: per-job 結尾口白覆寫. None / 空 → 用模板 "
                     "「今天的內容到此告一段落, 感謝各位的時間…」.",
     )
@@ -224,6 +237,7 @@ class JobOptions(BaseModel):
     )
     outro_youtube_url: str | None = Field(
         default=None,
+        max_length=2048,
         description="iter 67: 結尾頁 YouTube 頻道 URL (給 QR code 用). "
                     "None / 空 → fallback 到 CLAUDE_OUTRO_YOUTUBE_URL env / "
                     "預設 https://www.youtube.com/@dofliu.",
@@ -233,39 +247,47 @@ class JobOptions(BaseModel):
     # code_border / file_header) 仍跟主題基底 — 簡化用戶選擇.
     palette_bg: str | None = Field(
         default=None,
+        max_length=32,
         description="iter 76: 自訂背景色 hex (例 '#1e3a2e' 或 '1e3a2e'). "
                     "None → 用主題預設.",
     )
     palette_primary: str | None = Field(
         default=None,
+        max_length=32,
         description="iter 76: 自訂主色 (標題 / bullet 文字), hex.",
     )
     palette_highlight: str | None = Field(
         default=None,
+        max_length=32,
         description="iter 76: 自訂強調色 (底線 / marker / banner 字), hex.",
     )
     # iter 80 (D2): 字幕樣式 — 只在 hardsub=True 時有效
     subtitle_font_size: int | None = Field(
         default=None,
+        ge=8, le=200,
         description="iter 80: 燒字幕字級 (預設 22, 對 1920x1080 視訊適中). "
                     "建議 16-32 範圍. None → 用預設.",
     )
     subtitle_primary_color: str | None = Field(
         default=None,
+        max_length=32,
         description="iter 80: 字幕字色 hex (#RRGGBB / RRGGBB). None → 白 #FFFFFF.",
     )
     subtitle_outline_color: str | None = Field(
         default=None,
+        max_length=32,
         description="iter 80: 字幕描邊色 hex. None → 黑 #000000.",
     )
     # iter 83 (B1+B2): 影片長寬比 + 解析度
     aspect_ratio: str | None = Field(
         default=None,
+        max_length=16,
         description="iter 83: 影片長寬比, '16:9' (橫向, 預設) 或 '9:16' "
                     "(縱向, 給 Shorts/TikTok/Reels). None → '16:9'.",
     )
     resolution: str | None = Field(
         default=None,
+        max_length=16,
         description="iter 83: 影片解析度, '1080p' (預設) / '1440p' / '4K'. "
                     "None → '1080p'. 1440p 跟 4K 渲染時間明顯較長 (2-3x).",
     )
@@ -277,6 +299,7 @@ class JobOptions(BaseModel):
     )
     talking_head: str | None = Field(
         default=None,
+        max_length=32,
         description="iter 92: 右下角講者頭像顯示策略. "
                     "'always' = 永遠畫, 'long_form_only' = 預設 (短影片/9:16/"
                     "ultra_quick/short_video_layout 自動 skip, 其他都畫), "
@@ -285,6 +308,7 @@ class JobOptions(BaseModel):
     )
     narration_style: str | None = Field(
         default=None,
+        max_length=64,
         description="iter 92 (L2): scriptor 教學風格 preset. "
                     "'academic' / 'storyteller' (預設) / 'wuxia' / 'dialogue' / "
                     "'comedy'. None → storyteller (跟 iter 82 行為一致). "
@@ -292,16 +316,19 @@ class JobOptions(BaseModel):
     )
     persona: str | None = Field(
         default=None,
+        max_length=64,
         description="iter 92 (L3): scriptor 個人風格 persona. 對應 "
                     "prompts/persona/<name>.txt — 'default' 或 None / 空 = "
                     "不注入個人風格. 等用戶提供樣本後啟用 (現階段 hook 留空).",
     )
     photo_title_hint: str | None = Field(
         default=None,
+        max_length=500,
         description="google_photos: 相片簡報的主題脈絡 (餵給 vision 取標題/配文)。",
     )
     photo_max_select: int | None = Field(
         default=None,
+        ge=1, le=500,
         description="google_photos: vision 依 score 全域最多保留幾張 (None = 全留)。",
     )
 
@@ -316,15 +343,18 @@ class JobSource(BaseModel):
     """
     path: str | None = Field(
         default=None,
+        max_length=4096,
         description="server 本機可讀的絕對路徑。source_type=exam_pdf / slides_pdf / "
                     "document 為檔案; source_type=repo 為資料夾; source_type=url 不用。",
     )
     url: str | None = Field(
         default=None,
+        max_length=2048,
         description="網址, 僅 source_type=url 使用 (必須 http:// 或 https://)。",
     )
     session_id: str | None = Field(
         default=None,
+        max_length=200,
         description="Google Photos Picker session id, 僅 source_type=google_photos 使用。",
     )
 

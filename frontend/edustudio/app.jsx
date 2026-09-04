@@ -1715,6 +1715,7 @@ function SegmentNav({ segs, active, onPick }) {
 
 function ReviewGate({ task, onClose, onComplete }) {
   const [segs, setSegs] = useState([]);
+  const [coverage, setCoverage] = useState(null);   // T0-3: 自動校驗覆蓋率
   const [active, setActive] = useState(0);
   const [editing, setEditing] = useState(false);
   const [regening, setRegening] = useState(false);
@@ -1734,7 +1735,12 @@ function ReviewGate({ task, onClose, onComplete }) {
       // F9-1d: 取確定性 review 校驗可疑點，配位到分段顯示 ⚠（輔助提醒、不阻擋）。
       // fail-open：抓不到（舊 job / 端點錯）就不顯示，絕不卡審查。
       fetch("/jobs/" + task.id + "/review-flags").then(r => r.ok ? r.json() : { flags: [] })
-        .then(d => { const fl = (d && d.flags) || []; if (alive && fl.length) setSegs(cur => esAttachReviewFlags(cur, fl)); })
+        .then(d => {
+          const fl = (d && d.flags) || [];
+          if (alive && fl.length) setSegs(cur => esAttachReviewFlags(cur, fl));
+          // T0-3: 覆蓋率提示 — 沒有 ⚠ 不等於已驗證，把「幾步沒驗到」誠實講出來。
+          if (alive && d && d.coverage) setCoverage(d.coverage);
+        })
         .catch(() => {});
     } else { setSegs([]); setLoading(false); }
     return () => { alive = false; };
@@ -1838,6 +1844,22 @@ function ReviewGate({ task, onClose, onComplete }) {
           </Button>
         </div>
       </header>
+
+      {/* T0-3: 自動校驗覆蓋率 — 確定性校驗是「高精度低召回」，含三角／開根號的步驟
+          一律跳過不亂猜。不講出來的話，reviewer 會把「沒有 ⚠」讀成「已驗證」，
+          而那些最容易按錯計算機的步驟恰好全在沒驗到的那一堆裡。 */}
+      {coverage && coverage.unverified_steps > 0 && (
+        <div className="es-cov-note" data-screen-label="review-coverage">
+          <Icon name="shield-alert" size={15} className="es-cov-icon" />
+          <span className="es-cov-msg">
+            <b>{coverage.unverified_steps}</b> / {coverage.total_steps} 個步驟
+            <b> 無法自動驗證</b>
+            {coverage.by_reason && coverage.by_reason.function > 0 &&
+              <>（其中 {coverage.by_reason.function} 步含三角／開根號等函式）</>}
+            — 這些步驟沒有 ⚠ <b>不代表算對了</b>，請逐一人工複核。
+          </span>
+        </div>
+      )}
 
       <div className="es-gate-body">
         <SegmentNav segs={segs} active={active} onPick={(i) => { setActive(i); setEditing(false); }} />

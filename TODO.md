@@ -43,8 +43,9 @@ Dockerfile 改建 / promo / `repo-intro-video` skill 都已在 main 上。
 
 - [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、
   dubber 暫存清理。
-- [ ] 🟡 **T2-1 SSRF 位址過濾**(`core/adapters/url.py`)— 開源自架必修。
-- [ ] 🟢 **T2-4 schema 輸入界限** / **T0-3 review_assist 覆蓋率提示**。
+- [x] 🟡 **T2-1 SSRF 位址過濾** — ✅ 2026-09-04 完成(詳見下方 🔍 段)。
+- [x] 🟢 **T2-4 schema 輸入界限** / **T0-3 review_assist 覆蓋率提示** — ✅ 2026-09-04 完成
+  (詳見下方 🔍 段)。
 - [ ] 🟡 **M-2 尾巴(需拍板)**:`scriptor`/`outliner`/`translate` 走 legacy
   `get_gemini_model()`,**吃不到逐角色 `model_roles`**(視覺站與 `solve` 吃得到)。
   模型值已對齊 3.7、無 2.5 殘留 → 剩的是解析路徑不一致,見 PRODUCT_READINESS「待拍板」#7。
@@ -138,12 +139,34 @@ Dockerfile 改建 / promo / `repo-intro-video` skill 都已在 main 上。
   tts_backend/server runner(song) 全遷。
 - [x] 🟡 **T0-4 解題走 `resolve_id` + 設定頁金鑰** — ✅ 2026-08-30(`solver_model()` 呼叫時
   解析 text.fast;金鑰走統一 client)。
-- [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、dubber 暫存清理。
+- [x] 🟡 **T1-3/4/5** — ✅ 2026-09-04:
+  - **T1-3** 新增 `server/background.spawn`:module 級 `asyncio.Semaphore` 限並行
+    (`EDUSTUDIO_MAX_CONCURRENT_JOBS`,預設 2,超過**排隊**不是拒絕)+ task 存進
+    module 級 `set` 保強參照(原本 `create_task` 回傳值全丟掉,asyncio 只持 weak ref)
+    + 完成移除 + 背景例外進 log。5 處裸 `create_task` 全遷;YouTube 上傳與 ideate
+    掃描走 `limit=False`(純等待,不佔 render 名額)。
+  - **T1-4** `JobStore._persist` 改「寫 .tmp → fsync → `os.replace`」原子換檔,
+    寫一半被 kill 不再讓 job 從唯一真實來源消失。
+  - **T1-5** dubber 中間檔(`audio.wav` / `dubbed_audio.wav` / `tts_*.mp3`)在
+    `process_video` / `process_video_batch` 的 try/finally 清掉,成品(mp4/srt)
+    以 keep set 保護;清理失敗只記 log 不影響結果。
 
 ### Sprint 3 — 安全縱深 + 輸入界限
-- [ ] 🟡 **T2-1 SSRF 位址過濾**(`core/adapters/url.py`,擋內網 / metadata IP + 關 redirect)。
-- [ ] 🟢 **T2-4 schema 輸入界限**(`server/schemas.py` 加 `ge/le/max_length/max_items`)。
-- [ ] 🟢 **T0-3 review_assist 覆蓋率提示**(三角 / 開根號步驟目前靜默零檢查,別讓「無 flag」被當「已驗證」)。
+- [x] 🟡 **T2-1 SSRF 位址過濾** — ✅ 2026-09-04:新增 `core/net_safety.assert_public_url`
+  (scheme 白名單 / port 只允許 80·443 / 解析後拒 loopback·RFC1918·link-local·ULA·
+  multicast·unspecified,IPv4-mapped IPv6 先還原);`core/adapters/url.py` 關掉自動
+  redirect 改自己跟、**每一跳重驗**;逃生門 `EDUSTUDIO_ALLOW_PRIVATE_URLS=1`
+  只放行位址那道。+49 測(全 mock DNS/requests)。已知邊界:DNS rebinding 未擋。
+- [x] 🟢 **T2-4 schema 輸入界限** — ✅ 2026-09-04:`server/schemas.py` 的 `JobOptions`
+  與 `JobSource` 共 30 個欄位補上界限(數值 `ge/le`、字串 `max_length`);另補
+  `/api/generate` 的 `slideCount`/`panels` 與相簿 `max_select`(這三個直接決定
+  「跑幾次生成」= 燒多少額度)。加漂移守衛測試:之後新增沒界限的 str/int 欄位就會紅。
+- [x] 🟢 **T0-3 review_assist 覆蓋率提示** — ✅ 2026-09-04:新增
+  `core.review_assist.analyze_coverage` → 逐步分類「有沒有被自動驗到」,沒驗到的給原因
+  (`function` 三角/開根號 · `symbolic` 純符號 · `single_value` · `empty`);
+  `write_review_flags` 一併落 `review_coverage.json`(**分檔**存,不動 flags 既有的裸 list
+  格式 = 零 migration),`GET /jobs/{id}/review-flags` 加回 `coverage`,審查頁最上方顯示
+  「N / M 步無法自動驗證,沒有 ⚠ 不代表算對了」。摘要文字刻意不出現「已驗證」。
 - [~] 🟢 **T3-7 成本記帳分 model** — 2026-08-30 大半完成:文字費率分 model(default 退路)、
   未知 model 不再記 $0、6 個漏帳點補齊。剩:多模態「圖片輸入」token 未計入、費率待官方價校正。
 

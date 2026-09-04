@@ -146,15 +146,26 @@ async def get_review_flags(
 
     沒算過 (舊 job / ingest 未完) 或乾淨無可疑點 → 回空 list (非 404), 比照 versions
     端點。
+
+    T0-3: 另回 `coverage` —— 「這份 deck 有幾步其實**沒被**自動驗到、為什麼」。
+    確定性校驗是高精度低召回 (含三角 / 開根號的步驟一律跳過不亂猜), 不揭露的話
+    reviewer 會把「沒有 ⚠」讀成「已驗證」, 而那些最容易按錯計算機的步驟恰好全在
+    沒驗到的那堆裡。舊 job 沒算過 → `coverage` 為 null, 前端不顯示該區塊。
     """
     rec = store.get(job_id)
     if rec is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"job {job_id} 不存在")
     flags_path = store.review_flags_path(job_id)
-    if not flags_path.exists():
-        return JSONResponse(content={"flags": []})
-    flags = json.loads(flags_path.read_text(encoding="utf-8"))
-    return JSONResponse(content={"flags": flags})
+    flags = (
+        json.loads(flags_path.read_text(encoding="utf-8"))
+        if flags_path.exists() else []
+    )
+    coverage_path = store.review_coverage_path(job_id)
+    coverage = (
+        json.loads(coverage_path.read_text(encoding="utf-8"))
+        if coverage_path.exists() else None
+    )
+    return JSONResponse(content={"flags": flags, "coverage": coverage})
 
 
 # ---------- Outline (D1 v1, iter 81) ----------

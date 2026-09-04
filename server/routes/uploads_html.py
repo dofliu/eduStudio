@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
+from ..background import spawn
 from ..jobs import JobStore, get_default_store
 from ..ratelimit import rate_limit
 from ..schemas import (
@@ -215,11 +216,14 @@ async def upload_html_animation(
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {project_id}") from e
 
     mp4_path = store.artifacts_dir(rec.id) / f"{stem}.mp4"
-    asyncio.create_task(_render_html_job(
-        store, rec.id,
-        source=source_value, mp4_path=mp4_path,
-        duration=duration, fps=fps, width=width, height=height,
-        mock=bool(options.mock),
-    ))
+    spawn(
+        _render_html_job(
+            store, rec.id,
+            source=source_value, mp4_path=mp4_path,
+            duration=duration, fps=fps, width=width, height=height,
+            mock=bool(options.mock),
+        ),
+        name=f"render-html:{rec.id}",
+    )
 
     return CreateJobResponse(job_id=rec.id, state=rec.state, status_url=f"/jobs/{rec.id}")

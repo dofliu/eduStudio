@@ -26,6 +26,7 @@ from typing import Any
 from core.config import PROPOSALS_PATH
 from core.ideate import IdeateConfig, run_ideate
 
+from .background import spawn
 from .jobs import JobStore, get_default_store
 
 
@@ -221,7 +222,7 @@ def start_async_scan(
             logger.exception("async scan task failed")
             _finish_scan_state(scan_id, state="failed", error=str(e))
 
-    asyncio.create_task(_task())
+    spawn(_task(), name=f"ideate-scan:{scan_id}", limit=False)
     return scan_id
 
 

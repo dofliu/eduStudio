@@ -40,8 +40,10 @@ class GenerateRequest(BaseModel):
     text: str = ""
     style: InfographicStyle = "professional"
     customStylePrompt: str = ""
-    slideCount: int = 10
-    panels: int = 4
+    # T2-4: slideCount / panels 直接決定「跑幾次生成」→ 無上限等於讓任何呼叫者
+    # 一發請求燒掉整月 Gemini 額度。上限取遠高於實務用量的值, 不影響正常操作。
+    slideCount: int = Field(default=10, ge=1, le=100)
+    panels: int = Field(default=4, ge=1, le=50)
     typography: TypographyType | None = None
     density: DensityType = "balanced"
     aspectRatio: InfographicAspectRatio = "vertical"

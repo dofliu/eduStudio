@@ -20,6 +20,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..background import spawn
 from ..jobs import JobStore, get_default_store
 from ..schemas import JobRecord, YoutubeUpload, YoutubeUploadState, utc_now
 
@@ -200,8 +201,13 @@ async def publish(
     )
     store.set_youtube_upload(job_id, name, upload)
 
-    # 背景跑, 不 await
-    asyncio.create_task(_do_publish(store, job_id, name, req, video_path))
+    # 背景跑, 不 await。上傳是純網路等待, 不佔 render 名額(limit=False),
+    # 但仍要走 spawn 保強參照, 免得 task 被 GC 掉導致上傳靜默中斷。
+    spawn(
+        _do_publish(store, job_id, name, req, video_path),
+        name=f"youtube:{job_id}:{name}",
+        limit=False,
+    )
 
     return upload
 

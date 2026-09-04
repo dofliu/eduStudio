@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
+from ..background import spawn
 from ..jobs import JobStore, get_default_store
 from ..ratelimit import rate_limit
 from ..schemas import (
@@ -114,9 +115,12 @@ async def upload_pptx(
 
     stem = Path(_sanitize_filename(file.filename)).stem or "deck"
     out_pptx = store.artifacts_dir(rec.id) / f"{stem}_augmented.pptx"
-    asyncio.create_task(_render_pptx_job(
-        store, rec.id, src_pptx=src_pptx, out_pptx=out_pptx,
-        only_missing=only_missing, mock=bool(options.mock),
-    ))
+    spawn(
+        _render_pptx_job(
+            store, rec.id, src_pptx=src_pptx, out_pptx=out_pptx,
+            only_missing=only_missing, mock=bool(options.mock),
+        ),
+        name=f"render-pptx:{rec.id}",
+    )
 
     return CreateJobResponse(job_id=rec.id, state=rec.state, status_url=f"/jobs/{rec.id}")

@@ -7,6 +7,21 @@
 
 ---
 
+## 2026-07 審查 offline 殘項收尾 — Sprint 2/3（2026-09-04）
+
+> 劉老師指定「先 A 驗模型、B routine 認領 offline 批」的 B,含後續追加的 T2-4 / T0-3。全套 `2975 passed`。
+
+| 項 | 內容 |
+|---|---|
+| T2-1 | **SSRF 位址過濾**:新增 `core/net_safety.assert_public_url` — scheme 白名單 http/https、port 只允許 80/443、主機名解析後**每個** IP 都必須是 public(擋 loopback / RFC1918 / link-local 含雲端 metadata `169.254.169.254` / ULA / 保留 / multicast;IPv4-mapped IPv6 先還原)。`core/adapters/url.py` 關掉 requests 自動 redirect 改自己跟、**每一跳送出前重驗**(只擋第一跳等於沒擋)。自架逃生門 `EDUSTUDIO_ALLOW_PRIVATE_URLS=1` 只放行位址那道。⚠️ DNS rebinding 未擋(已寫進 docstring)。 |
+| T1-3 | **背景 job 並行上限 + task 強參照**:新增 `server/background.spawn` 取代 5 處裸 `asyncio.create_task`。`asyncio.Semaphore` 限並行(`EDUSTUDIO_MAX_CONCURRENT_JOBS`,預設 2,超過**排隊**不是拒絕);task 存 module 級 set 保強參照(asyncio 只持 weak ref,原本回傳值全丟掉);背景例外進 log。YouTube 上傳與 ideate 掃描 `limit=False` 不佔 render 名額。 |
+| T1-4 | **`state.json` 原子寫**:`JobStore._persist` 改「寫 .tmp → fsync → `os.replace`」。原本 `write_text` 寫一半被 kill → 截斷檔 → 下次啟動解析失敗被跳過 → 整個 job 從唯一真實來源消失。 |
+| T2-4 | **schema 輸入界限**:`JobOptions` / `JobSource` 共 30 個欄位補 `ge/le` 與 `max_length`(過去 50 個 `Field()` 裡 0 個有界限)。`subtitle_font_size` 直達 ffmpeg `force_style`、`max_files` / `photo_max_select` 直達迴圈次數,負值或極大值都會出事。另補 `/api/generate` 的 `slideCount`(≤100)/ `panels`(≤50)與相簿 `max_select`(≤500)—— 這三個直接決定跑幾次生成 = 燒多少額度。加漂移守衛測試。 |
+| T0-3 | **review 覆蓋率揭露**:確定性校驗是高精度低召回,含三角 / 開根號的步驟一律跳過不產 flag —— reviewer 看到「沒有 ⚠」會誤讀成「已驗證」,而材力/動力學最容易按錯的步驟恰好全在沒驗到的那堆。新增 `analyze_coverage` 逐步分類(`function` / `symbolic` / `single_value` / `empty`),落 `review_coverage.json`(**分檔**存,不動 flags 既有裸 list 格式 = 零 migration),端點加回 `coverage`,審查頁頂端顯示「N / M 步無法自動驗證,沒有 ⚠ 不代表算對了」。修法**不是放寬檢查**(那會犧牲精度變狼來了),而是誠實揭露。 |
+| T1-5 | **dubber 暫存清理**:中間檔(`audio.wav` / `dubbed_audio.wav` / `tts_*.mp3`)在 try/finally 清掉。**沒有**照審查建議 rmtree 整個 job_dir —— 那會把要回傳給呼叫端的成品一起刪;改成只刪自己產的固定樣式 + keep set 保護 results 路徑。⚠️ 成品仍不會過期,保留期限是產品決策待拍板。 |
+
+---
+
 ## 文件同步輪 — 現況盤點 + 漂移勾稽（2026-09-04）
 
 > 純文件輪:對照程式碼實況查核各文件說法,修掉漂移。**零 production code 變更**。

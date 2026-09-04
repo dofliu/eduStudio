@@ -358,3 +358,64 @@ class TestReloadFromDisk:
         # 印警告 (不擋啟動)
         captured = capsys.readouterr()
         assert "broken_id" in captured.out
+
+
+class TestAtomicPersist:
+    """T1-4:state.json 必須原子換檔,寫一半被 kill 不能讓 job 消失。"""
+
+    def test_no_tmp_file_left_behind(self, store, basic_request):
+        rec = store.create(basic_request)
+        store.update(rec.id, state=JobState.RENDERING)
+        job_dir = store.root / rec.id
+        assert (job_dir / "state.json").exists()
+        assert list(job_dir.glob("*.tmp")) == [], "換檔後不該留下 .tmp"
+
+    def test_crash_mid_write_keeps_previous_state(
+        self, store, basic_request, monkeypatch,
+    ):
+        """寫到一半炸掉 → 舊的完整 state.json 還在, job 不會消失。
+
+        模擬「內容寫進 .tmp 之後、os.replace 之前被 kill」。原本直接
+        write_text 的寫法在這個時點會留下截斷檔, 下次啟動解析失敗 → job 蒸發。
+        """
+        rec = store.create(basic_request)
+        state_file = store.root / rec.id / "state.json"
+        before = state_file.read_text(encoding="utf-8")
+
+        def boom(src, dst):
+            raise OSError("模擬換檔前斷電")
+
+        monkeypatch.setattr(jobs_mod.os, "replace", boom)
+        with pytest.raises(OSError):
+            store.update(rec.id, state=JobState.RENDERING)
+
+        # 舊檔完好無損
+        assert state_file.read_text(encoding="utf-8") == before
+        # 重建 store 仍讀得回這個 job(= 沒有從唯一真實來源消失)
+        reloaded = JobStore(root=store.root)
+        assert reloaded.get(rec.id) is not None
+        assert reloaded.get(rec.id).state == JobState.PENDING
+
+    def test_reader_never_sees_partial_file(self, store, basic_request, monkeypatch):
+        """換檔的瞬間,讀到的一定是完整 JSON(舊的或新的),不會是半個。"""
+        rec = store.create(basic_request)
+        state_file = store.root / rec.id / "state.json"
+        seen: list[str] = []
+
+        real_replace = jobs_mod.os.replace
+
+        def spy(src, dst):
+            # replace 之前先讀一次:此時 .tmp 已寫完但還沒換, 讀到的必須是舊的完整檔
+            seen.append(state_file.read_text(encoding="utf-8"))
+            return real_replace(src, dst)
+
+        monkeypatch.setattr(jobs_mod.os, "replace", spy)
+        store.update(rec.id, state=JobState.RENDERING)
+
+        assert len(seen) == 1
+        import json as _json
+        parsed = _json.loads(seen[0])          # 換檔前讀到的仍是合法 JSON
+        assert parsed["state"] == JobState.PENDING.value
+        # 換檔後才是新狀態
+        after = _json.loads(state_file.read_text(encoding="utf-8"))
+        assert after["state"] == JobState.RENDERING.value

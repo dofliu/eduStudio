@@ -81,7 +81,10 @@ async def poll_pick_session(session_id: str) -> dict:
 class GenerateRequest(BaseModel):
     session_id: str
     title_hint: str = ""
-    max_select: int | None = Field(default=None, description="最多保留幾張 (None=全留)")
+    # T2-4: 與 JobOptions.photo_max_select 同界限(同一個功能兩個入口, 不能只擋一邊)
+    max_select: int | None = Field(
+        default=None, ge=1, le=500, description="最多保留幾張 (None=全留)",
+    )
     require_review: bool = Field(default=False, description="產 deck 後停下讓你編輯 caption 再渲染")
     mock: bool = False
 

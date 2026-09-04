@@ -33,6 +33,7 @@ from core.logging_setup import (
     detach_job_log,
 )
 
+from .background import spawn
 from .jobs import JobStore
 from .schemas import JobRecord, JobState, SourceType, StageInfo, utc_now
 
@@ -1076,17 +1077,31 @@ def write_review_flags(store: JobStore, job_id: str) -> int:
     state。沒 deck.json (ingest 未完) → 回 0 不寫檔。caller 以 try/except 包成
     fail-open (校驗器壞掉不可卡 review, 設計目標 #4)。回傳 flag 數。
     """
-    from core.review_assist import check_deck
+    from core.review_assist import analyze_coverage, check_deck
 
     deck_path = store.deck_path(job_id)
     if not deck_path.exists():
         return 0
     deck = json.loads(deck_path.read_text(encoding="utf-8"))
     flags = check_deck(deck)
+    # T0-3: 同時算「哪些步驟其實沒被自動驗到」。高精度低召回的代價要對 reviewer 揭露,
+    # 否則「沒有 ⚠」會被誤讀成「已驗證」——而三角/開根號那些最容易按錯的步驟恰好全在
+    # 沒驗到的那一堆裡。fail-open: 算不出來就當沒有覆蓋率資訊, 不擋 review。
     store.review_flags_path(job_id).write_text(
         json.dumps([f.model_dump() for f in flags], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    try:
+        coverage = analyze_coverage(deck)
+        store.review_coverage_path(job_id).write_text(
+            json.dumps(
+                {**coverage.model_dump(), "summary": coverage.summary()},
+                ensure_ascii=False, indent=2,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:  # noqa: BLE001 — fail-open，覆蓋率算不出來不可卡 review
+        pass
     return len(flags)
 
 
@@ -1464,12 +1479,12 @@ def schedule_job(store: JobStore, job_id: str) -> asyncio.Task:
 
     Routes 層 call 這個 fn 後立刻回 HTTP response, runner 在背景跑完整 pipeline。
     """
-    return asyncio.create_task(run_job(store, job_id))
+    return spawn(run_job(store, job_id), name=f"job:{job_id}")
 
 
 def schedule_render(store: JobStore, job_id: str) -> asyncio.Task:
     """/approve 端點用: 從 awaiting_review 接著跑 render。"""
-    return asyncio.create_task(_run_render_phase(store, job_id))
+    return spawn(_run_render_phase(store, job_id), name=f"render:{job_id}")
 
 
 def schedule_section_render(
@@ -1480,4 +1495,7 @@ def schedule_section_render(
     呼叫端 (POST /jobs/{id}/sections/{sid}/render) 已驗證 state ∈ {DONE, FAILED}
     且 section_id 在 deck 內存在, 所以這裡不再檢查。
     """
-    return asyncio.create_task(_run_render_phase(store, job_id, section_id=section_id))
+    return spawn(
+        _run_render_phase(store, job_id, section_id=section_id),
+        name=f"render:{job_id}:{section_id}",
+    )

@@ -112,6 +112,12 @@ eduStudio/
   （U-5 撞號 → U-7、M-2 剩餘項描述、routine 快照、skills 索引）。實跑驗證：
   backend `2842 passed / 13 skipped / 1 deselected`（此容器沒 ffmpeg 故 skip 較多）、
   frontend `npm test` 7 綠 + `vite build` 產物正確指向 `/app/assets/...`。
+- **2026-09-04（同日第二輪）**：2026-07 審查的 offline 殘項收尾 —— T2-1 SSRF 位址過濾
+  （新 `core/net_safety.py`，url 來源擋內網/metadata + 轉址每跳重驗）、T1-3 背景 job
+  並行上限 + task 強參照（新 `server/background.py`）、T1-4 `state.json` 原子寫、
+  T1-5 dubber 中間檔清理。測試 +74，全套 `2916 passed`。
+  新增兩個環境變數：`EDUSTUDIO_MAX_CONCURRENT_JOBS`（預設 2）、
+  `EDUSTUDIO_ALLOW_PRIVATE_URLS`（預設關）。
 - 下一步候選清單見 `TODO.md` 🌟 段（2026-09-04 盤點）。
 
 ## 更早的 session（2026-06-07）做了什麼
@@ -137,9 +143,10 @@ eduStudio/
    checklist 見 `docs/COMIC_PRODUCTION_SYSTEM.md`。
 3. **計費尾巴**：多模態「圖片輸入」token 未計；各 model 費率為估算，官方價出來後在
    `core/infocards/models.py` MODEL_PRICING 校正。
-4. **2026-07 程式碼審查殘項**（大宗已收，**這批是 offline、不需額度，最適合下一輪認領**）：
-   剩 T1-3/4/5（job 並行上限 / state.json 原子寫 / dubber 暫存清理）、T2-1 SSRF、
-   T3-1 core 依賴反轉、T3-4 刪 app.py、T3-5 拆 god 檔、T3-6 測試鏡射（`TODO.md` 🔍 段）。
+4. **2026-07 程式碼審查殘項**（2026-09-04 又收一批：T2-1 SSRF、T1-3 並行上限 + task 強參照、
+   T1-4 state.json 原子寫、T1-5 dubber 暫存清理）：**剩** T2-4 schema 輸入界限、
+   T0-3 review_assist 覆蓋率提示、T3-1 core 依賴反轉、T3-4 刪 app.py、T3-5 拆 god 檔、
+   T3-6 測試鏡射（`TODO.md` 🔍 段，全部 offline 不需額度）。
 5. **M-2 尾巴（GATE，待拍板）**：`scriptor`（考卷旁白）/ `outliner`（大綱）/ `translate`（翻譯）
    走 legacy `core/config.get_gemini_model()`，**吃不到設定頁逐角色 `model_roles`**（視覺站與
    `solve` 吃得到）。模型值已隨 `GEMINI_MODEL` 對齊 3.7、無 2.5 殘留 —— 剩的是「兩套解析路徑」

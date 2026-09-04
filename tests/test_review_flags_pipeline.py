@@ -185,14 +185,17 @@ def test_get_review_flags_returns_flags(client):
 
 
 def test_get_review_flags_empty_when_uncomputed(client):
-    """沒算過 (沒 review_flags.json) → 空 list 非 404 (比照 versions 端點)。"""
+    """沒算過 (沒 review_flags.json) → 空 list 非 404 (比照 versions 端點)。
+
+    T0-3 起同時回 `coverage`;舊 job 沒算過 → null (前端據此不顯示覆蓋率區塊)。
+    """
     c, store = client
     jid = _mk_job(store, _CLEAN_DECK)
 
     r = c.get(f"/jobs/{jid}/review-flags")
 
     assert r.status_code == 200
-    assert r.json() == {"flags": []}
+    assert r.json() == {"flags": [], "coverage": None}
 
 
 def test_get_review_flags_unknown_job_404(client):

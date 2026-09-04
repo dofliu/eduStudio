@@ -118,6 +118,9 @@ eduStudio/
   T1-5 dubber 中間檔清理。測試 +74，全套 `2916 passed`。
   新增兩個環境變數：`EDUSTUDIO_MAX_CONCURRENT_JOBS`（預設 2）、
   `EDUSTUDIO_ALLOW_PRIVATE_URLS`（預設關）。
+  同日再收 **T2-4**（schema 輸入界限，30 欄 + `/api/generate` 生成次數上限）與
+  **T0-3**（review 覆蓋率揭露：`review_coverage.json` + 審查頁「N 步無法自動驗證」橫幅）。
+  測試 +133，全套 `2975 passed`。
 - 下一步候選清單見 `TODO.md` 🌟 段（2026-09-04 盤點）。
 
 ## 更早的 session（2026-06-07）做了什麼
@@ -143,10 +146,11 @@ eduStudio/
    checklist 見 `docs/COMIC_PRODUCTION_SYSTEM.md`。
 3. **計費尾巴**：多模態「圖片輸入」token 未計；各 model 費率為估算，官方價出來後在
    `core/infocards/models.py` MODEL_PRICING 校正。
-4. **2026-07 程式碼審查殘項**（2026-09-04 又收一批：T2-1 SSRF、T1-3 並行上限 + task 強參照、
-   T1-4 state.json 原子寫、T1-5 dubber 暫存清理）：**剩** T2-4 schema 輸入界限、
-   T0-3 review_assist 覆蓋率提示、T3-1 core 依賴反轉、T3-4 刪 app.py、T3-5 拆 god 檔、
-   T3-6 測試鏡射（`TODO.md` 🔍 段，全部 offline 不需額度）。
+4. **2026-07 程式碼審查殘項**（2026-09-04 收完 Tier 0~2 的 offline 批：T2-1 SSRF、
+   T1-3 並行上限 + task 強參照、T1-4 state.json 原子寫、T1-5 dubber 暫存清理、
+   T2-4 schema 輸入界限、T0-3 review 覆蓋率揭露）：**剩 Sprint 4+ 架構償債** —
+   T3-1 core 依賴反轉、T3-4 刪 app.py、T3-5 拆 god 檔、T3-6 測試鏡射
+   （`TODO.md` 🔍 段，offline 但工程量大得多）。
 5. **M-2 尾巴（GATE，待拍板）**：`scriptor`（考卷旁白）/ `outliner`（大綱）/ `translate`（翻譯）
    走 legacy `core/config.get_gemini_model()`，**吃不到設定頁逐角色 `model_roles`**（視覺站與
    `solve` 吃得到）。模型值已隨 `GEMINI_MODEL` 對齊 3.7、無 2.5 殘留 —— 剩的是「兩套解析路徑」

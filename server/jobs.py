@@ -365,6 +365,16 @@ class JobStore:
         """
         return self.root / job_id / "review_flags.json"
 
+    def review_coverage_path(self, job_id: str) -> Path:
+        """T0-3: 自動校驗覆蓋率 (review_coverage.json)。
+
+        **刻意跟 review_flags.json 分檔**而不是併進去: flags 的檔案格式(裸 list)
+        已有既有 job 與端點在讀, 併欄位等於改 on-disk schema、要寫 migration
+        (硬規則 #7)。覆蓋率是新增的獨立資訊, 分檔即可零遷移 —— 舊 job 沒這個檔,
+        端點回 null, 前端就不顯示覆蓋率提示。
+        """
+        return self.root / job_id / "review_coverage.json"
+
     def outline_path(self, job_id: str) -> Path:
         """iter 81 (D1 v1): outline.json (scriptor 前的中間產物). 不存在時
         表示尚未 ingest 完 (或 source_type=exam_pdf 直接吐 deck 沒 outline)."""

@@ -43,7 +43,7 @@ Dockerfile 改建 / promo / `repo-intro-video` skill 都已在 main 上。
 
 - [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、
   dubber 暫存清理。
-- [ ] 🟡 **T2-1 SSRF 位址過濾**(`core/adapters/url.py`)— 開源自架必修。
+- [x] 🟡 **T2-1 SSRF 位址過濾** — ✅ 2026-09-04 完成(詳見下方 🔍 段)。
 - [ ] 🟢 **T2-4 schema 輸入界限** / **T0-3 review_assist 覆蓋率提示**。
 - [ ] 🟡 **M-2 尾巴(需拍板)**:`scriptor`/`outliner`/`translate` 走 legacy
   `get_gemini_model()`,**吃不到逐角色 `model_roles`**(視覺站與 `solve` 吃得到)。
@@ -141,7 +141,11 @@ Dockerfile 改建 / promo / `repo-intro-video` skill 都已在 main 上。
 - [ ] 🟡 **T1-3/4/5**:背景 job 並行上限(Semaphore)、`state.json` 原子寫(`os.replace`)、dubber 暫存清理。
 
 ### Sprint 3 — 安全縱深 + 輸入界限
-- [ ] 🟡 **T2-1 SSRF 位址過濾**(`core/adapters/url.py`,擋內網 / metadata IP + 關 redirect)。
+- [x] 🟡 **T2-1 SSRF 位址過濾** — ✅ 2026-09-04:新增 `core/net_safety.assert_public_url`
+  (scheme 白名單 / port 只允許 80·443 / 解析後拒 loopback·RFC1918·link-local·ULA·
+  multicast·unspecified,IPv4-mapped IPv6 先還原);`core/adapters/url.py` 關掉自動
+  redirect 改自己跟、**每一跳重驗**;逃生門 `EDUSTUDIO_ALLOW_PRIVATE_URLS=1`
+  只放行位址那道。+49 測(全 mock DNS/requests)。已知邊界:DNS rebinding 未擋。
 - [ ] 🟢 **T2-4 schema 輸入界限**(`server/schemas.py` 加 `ge/le/max_length/max_items`)。
 - [ ] 🟢 **T0-3 review_assist 覆蓋率提示**(三角 / 開根號步驟目前靜默零檢查,別讓「無 flag」被當「已驗證」)。
 - [~] 🟢 **T3-7 成本記帳分 model** — 2026-08-30 大半完成:文字費率分 model(default 退路)、

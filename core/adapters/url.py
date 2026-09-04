@@ -24,10 +24,14 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from urllib.parse import urljoin
+
+from core.net_safety import UnsafeUrlError, assert_public_url
 
 
 DEFAULT_MAX_CHARS = 80_000
 DEFAULT_TIMEOUT = 15  # 秒
+DEFAULT_MAX_REDIRECTS = 5
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AutoSolverVideo/0.3 "
     "(+https://github.com/dofliu/examReviewVideo)"
@@ -38,30 +42,67 @@ _NOISY_TAGS = ("script", "style", "noscript", "nav", "header", "footer",
                "aside", "form", "iframe", "svg")
 
 
+def _fetch_with_guarded_redirects(
+    url: str,
+    *,
+    timeout: float,
+    user_agent: str,
+    max_redirects: int,
+):
+    """抓 URL,**每一跳都重跑一次 SSRF 檢查**後才發請求 (T2-1)。
+
+    requests 的自動 redirect 只有第一跳會經過我們的檢查 —— 攻擊者拿一個
+    public 網址 302 到 `169.254.169.254` 就繞過了。故關掉 `allow_redirects`
+    自己跟,每跳先 `assert_public_url` 再送出。
+    """
+    import requests
+
+    current = url
+    for _ in range(max_redirects + 1):
+        assert_public_url(current)
+        resp = requests.get(
+            current,
+            timeout=timeout,
+            headers={"User-Agent": user_agent},
+            allow_redirects=False,
+        )
+        if resp.is_redirect or resp.is_permanent_redirect:
+            location = resp.headers.get("Location")
+            if not location:
+                raise ValueError(f"{resp.status_code} 轉址但沒有 Location: {current}")
+            # 相對路徑轉址要接回目前的 URL 才驗得到真正的目標主機
+            current = urljoin(current, location)
+            continue
+        resp.raise_for_status()
+        return resp, current
+
+    raise UnsafeUrlError(f"轉址超過 {max_redirects} 次, 放棄: {url}")
+
+
 def scan_url(
     url: str,
     *,
     max_chars: int = DEFAULT_MAX_CHARS,
     timeout: float = DEFAULT_TIMEOUT,
     user_agent: str = DEFAULT_USER_AGENT,
+    max_redirects: int = DEFAULT_MAX_REDIRECTS,
 ) -> dict:
     """抓 URL 主文回傳 raw_content。
 
     碰到付費牆 / robots.txt / 大站反爬會直接 raise — 由 caller 決定怎麼處理。
     PR-3b 不做自動 fallback。
+
+    T2-1:網址(含每一跳轉址)都要過 `core.net_safety.assert_public_url`,
+    指向內網 / metadata 位址會 raise `UnsafeUrlError`(`ValueError` 子類)。
     """
-    import requests
     from bs4 import BeautifulSoup
 
-    if not (url.startswith("http://") or url.startswith("https://")):
-        raise ValueError(f"URL 必須以 http:// 或 https:// 開頭, 得到: {url}")
-
-    resp = requests.get(
+    resp, final_url = _fetch_with_guarded_redirects(
         url,
         timeout=timeout,
-        headers={"User-Agent": user_agent},
+        user_agent=user_agent,
+        max_redirects=max_redirects,
     )
-    resp.raise_for_status()
     html = resp.text
 
     soup = BeautifulSoup(html, "html.parser")
@@ -109,6 +150,8 @@ def scan_url(
             "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "truncated": truncated,
             "status_code": resp.status_code,
+            # 轉址後的實際來源 (沒轉址時 == url), 讓 review 的人看得到真正抓了誰
+            "final_url": final_url,
         },
     }
 

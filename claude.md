@@ -77,7 +77,11 @@
   production 接線**(2026-08-28 P1-1,文字角色可經設定頁 `model_roles` 巢狀寫法
   `{"provider": "ollama", "model": "..."}` 指向本機,選 Ollama 不呼叫 Gemini,live 驗證過)。
   再加新 provider(claude/f5…)只要實作協定 + `register_provider`,呼叫端零改動。
-- 視覺/infocards 世界已全面換接 `resolve()`;影片/解析文字 pipeline 的硬編 id 換接綁 C-3 GATE。
+- **換接現況(2026-09-04 查證)**:視覺/infocards 全面走 `resolve()`;`solve.py`(解題)2026-08-30
+  起走 `resolve_id(text.fast)`。**尚未接角色表**的是 `scriptor`(考卷旁白)/ `outliner`(大綱)/
+  `translate`(翻譯)—— 它們走 legacy `core/config.get_gemini_model()`(設定頁 `text_model` →
+  常數 `GEMINI_MODEL`,現值 `gemini-3.7-flash`)。**模型值已對齊、無 2.5 殘留**,但這三條
+  **吃不到逐角色 `model_roles`**(含指到本機 Ollama),接角色表 = M-2 剩項,GATE 待拍板。
 - `tools/check_models.py` — 模型 id 自我健檢(比對哪些 id 在這把 key 下已不存在,防 preview id 404)。
 
 ## 硬規則(不可妥協)

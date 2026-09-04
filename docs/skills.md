@@ -1,4 +1,4 @@
-# Claude Code Skills — autoSolverVideo
+# Claude Code Skills — eduStudio
 
 這份是「Claude Code skill」在本 repo 的索引與使用筆記。Skill = 在 Claude
 Code 對話裡用一句自然語言就觸發的封裝流程。本專案的 skill 不在使用者個人
@@ -17,7 +17,11 @@ Code 對話裡用一句自然語言就觸發的封裝流程。本專案的 skill
 | Skill | 狀態 | 觸發詞範例 | 對應 CLI |
 |---|---|---|---|
 | `pdf-to-video` | ✅ 已實作 (文字指引) | 「把這份 PDF 變影片」 / 「pdf-to-video <path>」 | `scripts/submit_job.py` |
+| `repo-intro-video` | ✅ 已實作 (2026-08-31, 自帶腳本) | 「幫這個 repo 做介紹影片」 / 「做一支專案宣傳片」 | skill 內 `scripts/render_scenes.py` + `assemble_video.py` |
 | `video-to-youtube` | ⛔ 未實作 (需先決議 OAuth 安全模型) | 「把這支影片傳上 YouTube」 | `core/publish.py` |
+
+另有 slash command `/advance`(`.claude/commands/advance.md`)— 非 skill,是給
+routine 用的「挑下一個小任務 → 做 → 測 → commit」推進指令。
 
 實作位置:`.claude/skills/<name>/SKILL.md`。Claude Code 啟動時會掃這個
 目錄,把 SKILL.md frontmatter 的 `description` 拿去比對使用者自然語言。
@@ -82,6 +86,40 @@ document` 或 `url`。Git repo 也是 `submit_job.py repo`。
 
 ---
 
+## repo-intro-video
+
+把**任何** repo/專案做成一支有動畫張力的介紹影片(1080p30 MP4)。與 `pdf-to-video`
+不同:**不經過 Track B server**,skill 自帶腳本,靠 playwright 無頭瀏覽器逐格擷取
+HTML 場景 + ffmpeg xfade 串接。
+
+- **可指定長度**:30 秒短版(4-5 景)/ 60-75 秒標準(6-9 景)/ 最長 3 分鐘(15-18 景)。
+- **可指定音樂**:使用者提供的音樂檔 / 安靜合成氛圍 / **無聲**(留給使用者後製,預設)。
+- **場景是 standalone HTML**:事後只重渲改動的那一景,不必重做整支。
+
+```
+[讀 repo(README/主要模組/docs)萃取賣點]
+  ↓
+[規格兩問(長度/音樂)+ 分鏡表 → 給使用者過目]   ← 改分鏡便宜、改成品貴
+  ↓
+[產生 HTML 場景 → render_scenes.py 逐格渲染]
+  ↓
+[assemble_video.py xfade 轉場串接 + 配樂 → MP4]
+```
+
+前置:`python3` + `playwright`(pip;**不要**跑 `playwright install`,用系統既有
+Chromium,版本不合時 `export CHROMIUM_PATH=...`)+ `ffmpeg` + 系統 CJK 字型。
+
+完整內容見 [.claude/skills/repo-intro-video/SKILL.md](../.claude/skills/repo-intro-video/SKILL.md);
+敘事公式與長度伸縮表見同資料夾 `references/scene_design.md`。
+
+> **與 `docs/promo/` 的關係**:`docs/promo/` 是 eduStudio **自己那支**官方介紹影片的
+> 9 個場景 + [`tools/build_promo_video.py`](../tools/build_promo_video.py) 組裝工具
+> (走專案自家的 `core/html_video.py` 虛擬時鐘引擎)。`repo-intro-video` 是把同一套做法
+> 一般化成「對任何 repo 都能跑」的 skill,兩者腳本各自獨立(skill 要能在沒有本 repo
+> 的機器上跑)。
+
+---
+
 ## video-to-youtube (規劃中, 未實作)
 
 把 `output/<exam>/qN.mp4` 一系列影片透過 `core/publish.py` 上 YouTube。
@@ -133,6 +171,8 @@ approve review)。Skill 是「自動化常見指令鏈」,不是「自動化整�
 ## 相關文件
 
 - [.claude/skills/pdf-to-video/SKILL.md](../.claude/skills/pdf-to-video/SKILL.md) — 完整 skill 內容
+- [.claude/skills/repo-intro-video/SKILL.md](../.claude/skills/repo-intro-video/SKILL.md) — repo 介紹影片 skill
+- [docs/promo/README.md](promo/README.md) — eduStudio 官方介紹影片的場景與重建指令
 - [scripts/submit_job.py](../scripts/submit_job.py) — skill 底層的 CLI wrapper
 - [claude.md](../claude.md) — 專案硬規則 (skill 不可繞)
 - [docs/ROUTINE_ADVANCE_PROMPT.md](ROUTINE_ADVANCE_PROMPT.md) — 自動 routine 流程 (跟 skill 不同, routine 是非互動)

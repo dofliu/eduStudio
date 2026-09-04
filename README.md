@@ -167,6 +167,7 @@ The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 | 🚀 [`docs/onboarding.md`](docs/onboarding.md) | Getting started 0→1 (exam → video → YouTube) |
 | 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production deploy (token · CORS · reverse proxy · TLS) |
 | 📚 [`docs/COMIC_PRODUCTION_SYSTEM.md`](docs/COMIC_PRODUCTION_SYSTEM.md) | Comic Production System (internal MVP) |
+| 🎬 [`docs/promo/README.md`](docs/promo/README.md) · [`docs/skills.md`](docs/skills.md) | Official intro-video scenes (built with the project's own HTML→MP4 engine) · Claude Code skills shipped in this repo |
 | 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | Contributing + non-negotiable hard rules |
 | 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Roadmap · backlog · changelog |
 | 🚦 [`docs/PRODUCT_READINESS.md`](docs/PRODUCT_READINESS.md) | Productization audit main line (Phase 0–9) |
@@ -300,6 +301,7 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 | 🚀 [`docs/onboarding.md`](docs/onboarding.md) | 從 0 到 1 上手(考卷 → 影片 → YouTube) |
 | 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | 正式上線部署(token · CORS · 反向代理 · TLS) |
 | 📚 [`docs/COMIC_PRODUCTION_SYSTEM.md`](docs/COMIC_PRODUCTION_SYSTEM.md) | 漫畫製作系統(內部 MVP) |
+| 🎬 [`docs/promo/README.md`](docs/promo/README.md) · [`docs/skills.md`](docs/skills.md) | 官方介紹影片場景(用專案自家的 HTML→MP4 引擎產) · 隨 repo 走的 Claude Code skills |
 | 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | 貢獻指南 + 不可妥協的硬規則 |
 | 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | 路線圖 · 待辦 · 變更紀錄 |
 | 🚦 [`docs/PRODUCT_READINESS.md`](docs/PRODUCT_READINESS.md) | 產品化推出主線(Phase 0~9 稽核清單) |

@@ -1,6 +1,6 @@
 # eduStudio — 交接筆記 (Handoff)
 
-> 給接手的人 / 下一個 Claude Code session 用。最後更新：2026-08-30。
+> 給接手的人 / 下一個 Claude Code session 用。最後更新：2026-09-04。
 > 這份是「快速接手」摘要；完整逐項歷史見 `STATUS.yaml`、階段摘要見 `docs/CHANGELOG.md`。
 
 ## 這是什麼
@@ -19,7 +19,8 @@ eduStudio = 單一可自架的 **Python FastAPI server**，把老師的素材變
 
 - **本 repo（唯一工作目錄）**：clone 到任一本機目錄即可（下面指令一律以 repo 根目錄為基準，
   不依賴特定絕對路徑）。
-- **GitHub**：`https://github.com/dofliu/eduStudio`（public，本地 main 與遠端同步）
+- **GitHub**：`https://github.com/dofliu/eduStudio`（public）。2026-09-04 現況：`main` 已含
+  2026-08-30 工程收斂輪與 08-31 promo／skill（`ac07ab4`）；文件同步輪走 PR #101。
 - **Python**：3.12（建議用 venv；若本機 pip resolver 有問題可改用 `uv pip install`）。
 - **Gemini 金鑰**：讀環境變數 `GEMINI_API_KEY`；設定頁(settings.json)若填了會優先。settings.json 含金鑰，**已 gitignore**。
 - **字型（CJK）**：跨平台走 `CLAUDE_FONT_PATH` 環境變數指向任一 CJK `.ttf/.ttc`（硬規則：字型路徑不寫死）。
@@ -37,11 +38,12 @@ python -m uvicorn server.main:app --host 127.0.0.1 --port 8000
 # 前端（改了 frontend/edustudio/*.jsx|css 後要重 build）
 cd frontend
 npm install        # 第一次
-npx vite build --base=/app/        # ⚠️ --base=/app/ 一定要帶，漏了 /app 整頁空白 404
+npm run build                      # base 已寫死在 vite.config.ts（U-6），不必再帶 --base
 
 # 測試
-python -m pytest tests/ -q          # 2845 passed (2026-08-28)；CI 6 jobs 全綠（office_live 為
-                                    # Windows 本機 release gate，CI 明確排除）
+python -m pytest tests/ -q          # 2855 collected (2026-09-04 於 Linux 容器實跑：2842 passed /
+                                    # 13 skipped(mcp + 缺 ffmpeg) / 1 deselected)；CI 全綠
+                                    # （office_live 為 Windows 本機 release gate，CI 明確排除）
 ```
 
 ## 介面
@@ -67,23 +69,27 @@ eduStudio/
 ├── server/        FastAPI routes (jobs/uploads/projects/infocards/comics/settings/localization…)
 ├── frontend/      統一 /app 前端原始碼 (React 19 + Vite；app.jsx + comic-studio.jsx)
 ├── web/           build 產物 (僅 /app=eduapp;legacy /ui /studio 已退場)
-├── tests/         2845 pytest
+├── tests/         2855 pytest（office_live 1 個是 Windows 本機 gate）
 ├── STATUS.yaml    完整逐項歷史
 └── HANDOFF.md     本檔
 ```
 
 ## 重要 gotchas（踩過的雷）
 
-1. **build 一定帶 `--base=/app/`**，否則 /app 空白 404。
+1. ~~build 一定帶 `--base=/app/`~~ → U-6 起 `base: '/app/'` 已寫死進 `frontend/vite.config.ts`，
+   `npm run build` 即可（歷史雷：漏了 base 會整頁空白 404）。
 2. **Gemini 2.5-flash 預設開 thinking** → 吃掉 max_output_tokens 致回空+慢 5x。逐頁/批次呼叫一律 `thinking_config=types.ThinkingConfig(thinking_budget=0)`（見 `slide_ingest.py`）。
 3. **Gemini 3 模型 id 要 live 實測**（這 repo 有 preview id 非 GA 前科）。目前設定頁用：文字 `gemini-3.7-flash`（2026-08-30 遷主力 · **尚待 live 實測**，404 就退 `gemini-3.6-flash`）/ `gemini-3.6-flash` / `gemini-3.5-flash` / `gemini-3.1-flash-lite` / `gemini-3.1-pro-preview`；圖片三階 `gemini-3.1-flash-lite-image`（Nano Banana 2 Lite · 2026-07 新入門階 PR #98 · **尚待 live 實測**）/ `gemini-3.1-flash-image` / `gemini-3-pro-image`。劉老師口述的 `gemini-3.1-pro` / `gemini-3.1-pro-image` 實測 **404**（API 沒有），用 `client.models.list()` 查該 key 真正可用的。圖片模型 id 的單一目錄在 `core/infocards/models.py`，`core.models` 的 image 角色引用它（改一處即同步）。
 4. **CI 裝套件是寫死清單**（`.github/workflows/test.yml`），不是 `requirements.txt`。新增「非 importorskip 直接 import」的依賴要手動加進去（已加 google-genai；缺 ffmpeg 的測試要優雅降級）。
 5. **bash 工具在 Windows 是 cp950**，curl 傳含中文的 JSON 會亂碼 → 用 Python urllib/requests（UTF-8）打 API。
 6. **改前端後**：build 即生效（server 直接 serve `web/eduapp`），硬重新整理 /app；**改後端後**：要重啟 uvicorn。
 
-## 最近狀態（2026-08-30 快照）
+## 最近狀態（2026-09-04 快照）
 
-- **分支**：全部工作已收斂到 `main` 單一分支（feature branch 均已合併刪除,PR 到 #100）。
+- **分支**：`main` 已推進到 **`ac07ab4`**（2026-08-31），含 2026-08-30 工程收斂輪、`/ui` 退場、
+  Dockerfile 改建 frontend/、promo 影片與 `repo-intro-video` skill。2026-09-04 的文件同步輪
+  在 `claude/project-status-sync-9z5v6p` 上走 PR #101（純文件，1 個 commit）。
+  （更早的歷史：feature branch 均已合併刪除，PR 到 #100。）
 - **2026-08-20 ~ 08-26**：`/app` 改版**目標導向首頁** + 新增**漫畫工作站**(內部 MVP,獨立
   Comic Core)；視覺模式 UI alias 收斂、視覺審查修復。
 - **2026-08-27 ~ 08-28**：P0 live E2E 稽核 → **P1/P2 驗證完成**（Ollama provider 接線 live 通、
@@ -99,7 +105,14 @@ eduStudio/
   全套 `2854 passed`。詳見 `docs/CHANGELOG.md` 頂部兩段。
 - 驗收證據：`docs/P1_P2_COMPLETION_PLAN_2026-08-28.md`、`docs/P3_COMPLETION_PLAN_2026-08-28.md`、
   `reports/eduStudio_P1_P2_Function_Verification_Report_2026-08-28_v1.0.docx`。
-- 下一步候選清單見 `TODO.md` 🌟 段（2026-08-30 盤點）。
+- **2026-08-31**：官方介紹影片收尾（配樂安靜版 v2 → 音樂主導 -16 LUFS → 交叉淡接循環 +
+  `--loudness` 檔位）+ 新 skill **`repo-intro-video`**（把任意 repo 做成介紹影片，長度/音樂
+  可指定）。見 `docs/promo/README.md`、`.claude/skills/repo-intro-video/`。
+- **2026-09-04**：純文件同步輪（零 code 變更）— 對照程式碼查核各文件說法，修掉漂移
+  （U-5 撞號 → U-7、M-2 剩餘項描述、routine 快照、skills 索引）。實跑驗證：
+  backend `2842 passed / 13 skipped / 1 deselected`（此容器沒 ffmpeg 故 skip 較多）、
+  frontend `npm test` 7 綠 + `vite build` 產物正確指向 `/app/assets/...`。
+- 下一步候選清單見 `TODO.md` 🌟 段（2026-09-04 盤點）。
 
 ## 更早的 session（2026-06-07）做了什麼
 
@@ -117,18 +130,23 @@ eduStudio/
 
 ## 還沒做 / 待加強（接手可挑,完整清單見 TODO.md 🌟 段）
 
-1. **`gemini-3.7-flash` live 確認**：本機跑 `python tools/check_models.py`，404 就把設定頁
-   text 模型退 `gemini-3.6-flash`（目錄 `flash_36`）。
+1. **`gemini-3.7-flash` live 確認**（🔴 目前唯一的全域單點）：本機跑
+   `python tools/check_models.py`，404 就把設定頁 text 模型退 `gemini-3.6-flash`
+   （目錄 `flash_36`）。旁白／大綱／翻譯／解題／視覺**現在全吃這個 id**，壞就一起壞。
 2. **漫畫正式化 GATE**：真實生成 QA 一輪（開額度）+ 匯出實機檢查 + 手冊案例，
    checklist 見 `docs/COMIC_PRODUCTION_SYSTEM.md`。
 3. **計費尾巴**：多模態「圖片輸入」token 未計；各 model 費率為估算，官方價出來後在
    `core/infocards/models.py` MODEL_PRICING 校正。
-4. **2026-07 程式碼審查殘項**（大宗已收）：剩 T1-3/4/5（job 並行上限 / state.json 原子寫 /
-   dubber 暫存清理）、T2-1 SSRF、T3-1 core 依賴反轉、T3-4 刪 app.py、T3-5 拆 god 檔、
-   T3-6 測試鏡射（`TODO.md` 🔍 段）。
-5. **素材庫 lightbox**：點圖目前開新分頁(已修 data:→blob)，可做頁內彈大圖更順；簡報縮圖點擊只開第一頁圖，可做完整 deck 檢視。
-6. **舊專案功能細項**：infoCard/translateGemma 可能有沒轉過來的細節，用到再回原 repo 撈。
-7. **README/手冊 4 張截圖**（`docs/screenshots/`，需實機瀏覽器）。
+4. **2026-07 程式碼審查殘項**（大宗已收，**這批是 offline、不需額度，最適合下一輪認領**）：
+   剩 T1-3/4/5（job 並行上限 / state.json 原子寫 / dubber 暫存清理）、T2-1 SSRF、
+   T3-1 core 依賴反轉、T3-4 刪 app.py、T3-5 拆 god 檔、T3-6 測試鏡射（`TODO.md` 🔍 段）。
+5. **M-2 尾巴（GATE，待拍板）**：`scriptor`（考卷旁白）/ `outliner`（大綱）/ `translate`（翻譯）
+   走 legacy `core/config.get_gemini_model()`，**吃不到設定頁逐角色 `model_roles`**（視覺站與
+   `solve` 吃得到）。模型值已隨 `GEMINI_MODEL` 對齊 3.7、無 2.5 殘留 —— 剩的是「兩套解析路徑」
+   不一致，改設定頁把 `text.fast` 指到本機 Ollama 時這三條不會跟著改。
+6. **素材庫 lightbox**：點圖目前開新分頁(已修 data:→blob)，可做頁內彈大圖更順；簡報縮圖點擊只開第一頁圖，可做完整 deck 檢視。
+7. **舊專案功能細項**：infoCard/translateGemma 可能有沒轉過來的細節，用到再回原 repo 撈。
+8. **README/手冊 4 張截圖**（`docs/screenshots/`，需實機瀏覽器）。
 
 ## 詳細記憶（選讀）
 

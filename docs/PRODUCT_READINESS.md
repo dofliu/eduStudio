@@ -245,8 +245,10 @@
   讀後端真實資料；**沒有任何呼叫紀錄時顯示空狀態**（「目前還沒有任何 Gemini 呼叫紀錄…」），不再有
   示意假數字。成本仍標「依用量估算（以 Google 官方定價為準）」——**單價精準化＝C-2（GATE，需官方
   定價）**，與本項「接真實用量」正交、不互卡。`tests/test_usage.py` 覆蓋端點。純文件對帳，無 code 變更。
-- [ ] 🟢 **U-5 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰
+- [ ] 🟢 **U-7 發布站多語上傳驅動**（GATE）— 現況多語版本選擇只是視覺。要驅動真多語上傳碰
   YouTube OAuth + 多語 metadata（方案 A 多語字幕軌後端已有），補前端驅動。
+  （2026-09-04 改編號:原本也叫 U-5,與 2026-08-30 新增的「U-5 `/ui` 正式退場」撞號;
+  repo 其他文件的 U-5 引用一律指 `/ui` 退場,故改本項為 U-7。）
 - [x] 🟢 **U-6 前端建置流程文件化**（offline）— ✅ 2026-06-07 完成。直接**把 `base:'/app/'` 寫死
   進 `frontend/vite.config.ts`**（最徹底消除 footgun：連 `vite build` 都對，不必記 CLI flag）+ 加
   `npm run build:app` 語意別名 + CONTRIBUTING 補「前端建置須知」（/app 唯一正式前端、base 已寫死、
@@ -348,17 +350,23 @@
     3.x）已於 2026-06-15 拍板完成：`slide_ingest.py` 的寫死 `MODEL` 換成 `narration_model()＝
     resolve_id(text.fast)`（旁白 + 章節切分一起遷），劉老師本機 A/B 驗過品質後切到 `gemini-3.5-flash`。
     這把 M-2 在「投影片旁白」這條線收口＝走角色登錄表。
-  - ⏸️ **剩餘文字 pipeline chokepoint 換接 = 需劉老師「模型遷移」拍板（GATE，非單純機械重構）。**
-    目前仍寫死/預設 `gemini-2.5-flash` 的有：`scriptor.py:449`（**考卷 pipeline 逐 section 旁白**，
-    走 `get_gemini_model()`）、`outliner.py:182`（影片大綱）、`translate.py:89` 與 `translation/service.py`
-    （雙語字幕翻譯，Gemini 為預設後端）、`solve.py:30`（**解題**，寫死 `MODEL`），共同預設來源
-    `core/config.py:189 GEMINI_MODEL = "gemini-2.5-flash"`。登錄表 `text.fast` 預設是 `gemini-3.5-flash`
-    → 把這些 chokepoint 改成 `resolve("text.fast")` **會把考卷旁白／大綱／翻譯／解題默默從 2.5 遷到 3.5**。
-    **C-3 的 A/B 只驗過「投影片旁白」**，未涵蓋這四條；且 C-3 明文把 `solve.py`（解題，正確性更敏感）
-    列為「**另議**」。依硬規則 #3（模型遷移＝GATE）＋「多種合理解法間做架構抉擇」，routine **不自主換**。
-    **待劉老師拍板**（見文末「待拍板」M-2 條）：①考卷旁白 `scriptor` 是否比照 C-3 直接遷 `text.fast`
-    （內容同為旁白、A/B 結論可能可轉移，但 pipeline 不同）②`outliner`／`translate` 是否一併遷或各自評
-    ③`solve` 解題另開 A/B 後再定。拍板後機械工很小＝各 call site 改走 `resolve()`／登錄表一個值。
+  - ✅ 2026-08-30 **`solve.py`（解題）換接完成**（T0-4）：`solver_model()` **呼叫時**解析
+    `resolve_id(text.fast)`，不再寫死 `MODEL`。
+  - ⏸️ **剩餘 = 「接上角色登錄表」，不再是「換掉 2.5」（2026-09-04 查證改寫）。**
+    先前這裡寫「`scriptor`／`outliner`／`translate` 仍預設 `gemini-2.5-flash`」——**已不成立**：
+    `core/config.py:189` 的 `GEMINI_MODEL` 在 2026-08-30 隨 C-3 改成 `gemini-3.7-flash`，這三條
+    走 `get_gemini_model()` 的 chokepoint（`core/scriptor.py:451` 考卷逐 section 旁白 /
+    `core/outliner.py:185` 影片大綱 / `core/translate.py:88` 翻譯，`translation/service.py` 同源）
+    **實際上早就跟著遷到 3.7 了**，值已對齊、無 2.5 殘留。
+    **真正剩下的是「解析路徑」不一致**：`get_gemini_model()` 只認設定頁 legacy 單值欄位
+    `text_model` → 常數 `GEMINI_MODEL`，**不認 M-3 的逐角色 `model_roles`**。後果是使用者在設定頁
+    把 `text.fast` 指到別的模型（含 F9-3 的本機 Ollama）時，**視覺站與解題會跟著改、考卷旁白／
+    大綱／翻譯不會**——同一個「文字」角色兩套解析，靜默不一致。
+    修法很小（各 call site 改走 `resolve_id(TEXT_FAST)`，或直接讓 `get_gemini_model()` 委派
+    `resolve_id`），但**仍屬 GATE**：這三條的品質從沒各自 A/B 過，改完等於把它們的模型
+    控制權交給角色表，值也會隨設定頁浮動。**待劉老師拍板**（見文末「待拍板」M-2 條）：
+    ①三條一起接角色表，還是只接 `scriptor`（同為旁白、C-3 結論較可轉移）
+    ②要不要幫「翻譯」另開一個角色（`text.translate`）而不是共用 `text.fast`。
     `mermaid_render.py`/`ideate`/`diagram_*` 等 GATE 半成品（F-5）同理留待各自項目。
 - [x] 🟡 **M-3 設定頁模型管理升級（offline）**— ✅ 2026-06-08 完成。設定頁從「文字/圖片各一個下拉」
   升級成 **逐角色可配**：新增設定欄位 `model_roles`（dict，逐角色 model id 覆寫），`resolve()` 早已
@@ -484,8 +492,15 @@
   type guard）⑤ 前端建置（`/app` 唯一、`/ui`·`/studio` legacy 退場）⑥「想動哪裡先看哪裡」入口檔 +
   必跑測試對照表，含硬規則提醒（review gate 不可繞 / C-3 旁白模型 GATE 別自換 / 動 server·core 跑
   pytest）。純文件，無 code 變更（未動 server/core/schemas/runner，故不需跑 pytest）。
-- [ ] 🟢 **DOC-5 demo 影片 / 截圖**（GATE，需劉老師錄）— README 放一支 60 秒 demo（用自己的
+- [~] 🟢 **DOC-5 demo 影片 / 截圖**（GATE，剩本機跑一次）— README 放一支 60 秒 demo（用自己的
   系統產，吃自己狗糧）。
+  - ✅ 2026-08-31 **製作鏈已就緒**：`docs/promo/` 9 個 standalone HTML 動畫場景（開場 / 八種來源 /
+    影片站黑板 / 視覺站 / 漫畫站 / 在地化 / **審查關卡** / 發布 / CTA，共 63 秒）+
+    [`tools/build_promo_video.py`](../tools/build_promo_video.py)（xfade 轉場串接 + 本地合成配樂 +
+    `--loudness` 響度檔位 + `--narrate` 可選 edge-tts 旁白）。渲染走專案自家的 `core/html_video.py`
+    虛擬時鐘引擎＝**真的吃自己狗糧**。
+  - ⏸️ **剩人工**：在有 Chromium + ffmpeg 的本機跑 `python tools/build_promo_video.py`，
+    確認成品，再決定放法（YouTube 連結／repo 內檔案），連同四張 `docs/screenshots/*.png` 一起補進 README。
 
 ---
 
@@ -905,27 +920,43 @@
 > 寫進各對應項。**剩餘需要你的只有「開額度 / 本機實機跑」這幾項**：
 
 1. **C-2 單價對齊**：以 Gemini/GCP 官方定價為準的數字，需要時給我查。
-2. **C-3 旁白模型遷 3.x**：開額度跑 A/B 驗品質後切（M 軸做完只改一個值）。
+   （2026-08-30 起 `MODEL_PRICING` 已分 model + 補 6 個漏帳點，但**費率仍是估算**；
+   `gemini-3.7-flash` 暫比照 flash 檔位計價。）
+2. ~~**C-3 旁白模型遷 3.x**~~ → ✅ 已解（2026-06-15 遷 3.5、2026-08-30 再遷 3.7）。
+   **接棒的是 `gemini-3.7-flash` 的 live 驗證**：本機跑 `python tools/check_models.py`，
+   404 就把設定頁 text 模型退 `gemini-3.6-flash`（目錄鍵 `flash_36`）。這是目前**唯一
+   會讓整條文字線一起壞掉**的未驗證項。
 3. **D-1 docker compose 跨平台實測 / D-4 F5 GPU passthrough**：需你本機（Win/含 GPU）實跑。
 4. **S-5 secret 靜態加密**：自架單機明文（已 gitignore）可接受 vs 要不要加 Fernet 加密 — 低優先，要不要做你定。
 5. **F-3 CARD 軸 / F-4 EBOOK 軸**：RFC 開放問題待拍板（這兩個非首發必要）。
-6. **DOC-5 demo 影片**：需你錄 60 秒 demo 放 README。
-7. **M-2 剩餘文字 pipeline 模型遷移**（C-3 已解，但暴露新決策）：C-3 只把「投影片旁白」遷到
-   `text.fast`（3.5）並 A/B 驗過。剩 `scriptor`（考卷旁白）／`outliner`（大綱）／`translate`（翻譯）／
-   `solve`（解題）仍預設 `gemini-2.5-flash`。把它們改走 `resolve("text.fast")` ＝默默遷 3.5，未經各自
-   A/B（`solve` C-3 明列「另議」）。**請拍板**：①`scriptor` 是否比照 C-3 直接遷（同為旁白）②`outliner`／
-   `translate` 一併遷或各自評 ③`solve` 另開 A/B 後定。拍板後機械工很小（改 call site 走 `resolve()`）。
+6. **DOC-5 demo 影片**：製作鏈已就緒（`docs/promo/` + `tools/build_promo_video.py`），
+   剩你在本機跑一次 + 決定放法（YouTube 連結／repo 內檔案）；截圖四張同批。
+7. **M-2 剩餘文字 pipeline 接角色登錄表**（2026-09-04 改寫，原描述已過期）：`scriptor`（考卷旁白）／
+   `outliner`（大綱）／`translate`（翻譯）**的模型值早已隨 `GEMINI_MODEL` 遷到 3.7，不是 2.5**；
+   剩的是它們走 legacy `get_gemini_model()`、**吃不到設定頁逐角色 `model_roles`**（視覺站與 `solve`
+   吃得到）＝同一個「文字」角色兩套解析。**請拍板**：①三條一起接角色表，還是只接 `scriptor`
+   ②「翻譯」要不要獨立成 `text.translate` 角色。拍板後機械工很小。
+8. **漫畫正式化 GATE**（2026-08-30 起）：用真實課程素材走完一輪生成 + 六道 QA gate + 匯出實機檢查，
+   需開生圖額度。checklist 見 [`COMIC_PRODUCTION_SYSTEM.md`](COMIC_PRODUCTION_SYSTEM.md)。
 
 > 劉老師 2026-06-07：「需要額度我會給你權限」→ 上述開額度項 routine 寫好 proposal 後可請你開。
 >
-> **2026-06-16 routine 快照**：offline 工作項已全數清空（Phase 0–9 的 offline slice 皆 `[x]`／已收口）；
-> 清單上剩餘未完成項全為 **GATE**（上列 1–7 + R-4/R-5/U-5/C-4/D-1/D-4/F-1~5/F9-1①/F9-2 自動建議術語/
-> F9-3f/T-3 發佈），均需劉老師決策、開額度或本機實機跑。routine 暫無可自主推進的項目。
+> ~~**2026-06-16 routine 快照**：offline 工作項已全數清空，剩餘全為 GATE，routine 暫無可自主推進的項目。~~
+>
+> **2026-09-04 快照（取代上一則）**：本清單（Phase 0–9）的 offline slice 仍全數收口，剩餘全為 **GATE**
+> （上列 1–8 + R-4/R-5/U-7/C-4/D-1/D-4/F-1~5/F9-1①/F9-2 自動建議術語/F9-3f/T-3 發佈）。
+> **但 routine 並非無事可做** — 2026-07 全庫審查（[`CODE_REVIEW_2026-07.md`](CODE_REVIEW_2026-07.md)，
+> 晚於上一則快照）開出的改善項還有一批是純 offline，見 [`TODO.md`](../TODO.md) 🔍 段：
+> Sprint 3 的 **T2-1 SSRF 位址過濾** / **T2-4 schema 輸入界限** / **T0-3 review_assist 覆蓋率提示**、
+> Sprint 2 尾巴的 **T1-3/4/5**（job 並行上限 · `state.json` 原子寫 · dubber 暫存清理）、
+> Sprint 4+ 的架構償債 **T3-1/4/5/6**。這些不需要額度也不需要實機，routine 可直接認領。
 
 ---
 
 ## 變更紀錄
 
+- 2026-09-04：文件同步輪 — U-5 撞號拆成 U-7（發布站多語上傳）/ M-2 剩餘項改寫（已非「還在 2.5」，
+  而是「吃不到 `model_roles`」）/ DOC-5 改 `[~]`（製作鏈就緒）/ 待拍板清單與 routine 快照更新。
 - 2026-06-07：建檔。基於整合後現況稽核（README/claude.md/HANDOFF/ROADMAP/TODO/UI_WIRING +
   server/core 結構 + CI/安全掃描），對齊「公開開源自架 + /app 單一 + 全面稽核」三項拍板。
 - 2026-06-07（同日 review session）：拍板落定 — P0-1 授權 **MIT** / S-1 驗證 **cookie+Bearer

@@ -110,6 +110,11 @@ YouTube 一鍵上傳直接接手。`exports/*.html` 可用瀏覽器直接開啟�
 `edge:zh-TW-HsiaoYuNeural` 女聲）、`google:<voice>`。典型配置：旁白留 default 用老師本人的聲音，角色各配一個 edge 聲線。
 前端影片卡有每個角色一格輸入。
 
+**設定稿去背工具**：`python tools/character_cutout.py photos/*.png --out assets/comic_characters`
+（`core.comic_assets`，純 Pillow）把「三視圖排一列 + 單色底 + 腳下淡陰影」的角色設定稿拆成
+`<名字>_front / _side / _three_quarter.png` 去背 RGBA。用途：疊到場景背景當角色圖層（不必每頁重新生圖也能
+維持角色一致）、當 character_anchor 參考圖、當旁白形象。劉老師的 7 位角色設定稿在 `photos/`。
+
 **旁白形象**：Series Bible 若有 `character_id = narrator` 的角色（例如老師本人的漫畫形象）且掛了
 `anchor_assets`，影片會把第一張 anchor（建議放去背 PNG）放在片頭 / 片尾卡右側，旁白字幕條左側也會出現小頭像。
 `render_comic_video(narrator_avatar=...)` 可直接指定。

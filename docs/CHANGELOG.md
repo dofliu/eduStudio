@@ -24,6 +24,7 @@
 - 迭代 2:`voices` 角色配音(speaker_id → default / edge:<voice>[@rate] / google:<voice>;旁白留 default 用老師本人聲音),
   前端影片卡每角色一格;`core.html_video.rasterize_svg` 細節 SVG → PNG(零 API 成本的場景圖路線)。
 - 迭代 3:旁白形象(series 的 narrator 角色 anchor → 片頭/片尾卡 + 字幕條頭像);劉老師 7 位角色設定稿(`photos/`)去背後疊進場景的示範。
+  `core/comic_assets.py` + `tools/character_cutout.py`:設定稿三視圖 → 去背 cutout(純 Pillow,3 測)。
 
 ---
 

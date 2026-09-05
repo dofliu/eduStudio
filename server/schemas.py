@@ -45,6 +45,7 @@ class SourceType(str, Enum):
     SONG = "song"                # 歌曲音檔 + 歌詞時間軸 -> AI 生圖 MV (M3, 第 4 track)
     HTML_ANIMATION = "html_animation"  # HTML 動畫網頁 -> 逐 frame 截圖 -> MP4 (core.html_video)
     PPTX = "pptx"                # PPTX 原檔 -> 缺圖頁就地補圖 (原文字可編輯) (core.pptx_augment)
+    COMIC_VIDEO = "comic_video"  # 漫畫 episode -> 動態漫畫影片 (core.comic_video; 逐句 TTS + 運鏡 + 泡泡)
     GOOGLE_PHOTOS = "google_photos"  # Google 相簿 (Picker) -> vision 選圖+配文 -> 相片簡報/影片
 
 

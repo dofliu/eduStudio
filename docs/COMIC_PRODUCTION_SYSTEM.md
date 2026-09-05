@@ -78,6 +78,46 @@ API prefix：`/projects/{project_id}/comics`
 - Reader：`GET /reader/{story_id}`、`GET /reader/series/{series_id}`
 - Legacy package：`POST /discover` 僅掃描，`POST /import` 複製 normalized package；來源永不改寫。
 
+## 動態漫畫影片（motion comic, 2026-09-05）
+
+同一份 episode manifest 可直接渲成**有旁白的教學影片**，不需要影片生成模型。設計前提：
+漫畫角色不做連續動作，所以不需要模型逐格生圖；動感全部來自運鏡、分格切換與對白泡泡
+跟旁白逐句浮現。**生圖成本只跟頁數成正比，跟影片秒數無關**；輸出仍是 30fps H.264，
+因為每一格是瀏覽器算出來的（沿用 `core.html_video` 的虛擬時鐘逐格截圖）。
+
+管線（`core/comic_video.py`）：
+
+1. 逐句 TTS（沿用 `tts_backend`：老師聲音 / edge / google；`tts_by_speaker` 可依角色配不同聲線）→ 每句音長就是時間軸。
+2. `build_timeline`：片頭卡（標題 + 學習目標）→ 每頁［進場 0.9s → 逐句泡泡（句間 0.45s）→ 收尾 0.8s］→ 片尾卡（teaching story boundary）。
+3. `build_motion_comic_html`：自含 HTML 播放器（場景圖內嵌 data URI）。角色句 → 白底泡泡 + 角色名 chip + 說話指示點；旁白 → 底部 caption 條。
+   泡泡座標直接用 `resolve_dialogue_layout` 的結果（AUTO 依圖片低細節區、MANUAL 保留），所以「對白不烙進圖、留 34–38% 留白」的設計在影片裡直接兌現。
+   運鏡依 `camera` 欄位決定推近幅度（close-up 較大、wide 較小），平移方向按頁序輪替。
+4. 音軌：每句 mp3 依 start 做 `adelay` 混音，與無聲影片 mux；另出 SRT（角色句帶「名字：」前綴）。
+
+Fail-closed 對齊：每頁必須已連結 scene asset 才能渲染；非 `CURRENT` 版本或含 `mock_placeholder`
+素材的影片一律烙「草稿預覽 / MOCK」水印，不會被誤當正式產出。
+
+API：`POST /projects/{pid}/comics/episodes/{story_id}/video`（body：`version` / `fps` / `width` /
+`height` / `tts_provider` / `mock`）→ 建背景 job（`source_type=comic_video`，不 require_review），
+回 `job_id` + `status_url`；完成後 `mp4` + `srt` 落在 episode `exports/`（file-first 真相，登進
+`manifest.exports.video / video_srt / video_html`），並複製到 job `artifacts/` 讓 `/library` 與
+YouTube 一鍵上傳直接接手。`exports/*.html` 可用瀏覽器直接開啟即時預覽（無聲），不用等渲染。
+
+前端：漫畫站「匯出與發布」分頁新增「動態漫畫影片」卡（渲染 MP4 / HTML 即時預覽 / 進度與下載）。
+
+**聲音**：沒指定時全部走 `tts_config.json` 設定的後端（老師的 F5 聲音 / edge / google），與其他影片站一致。
+`voices` 可依 speaker_id 配音：`default`（同上）、`edge:<voice>[@rate]`（例 `edge:zh-TW-YunJheNeural@-10%` 男聲、
+`edge:zh-TW-HsiaoYuNeural` 女聲）、`google:<voice>`。典型配置：旁白留 default 用老師本人的聲音，角色各配一個 edge 聲線。
+前端影片卡有每個角色一格輸入。
+
+**角色一致性 / 畫風貼近參考圖**：把角色三視圖（設定稿）上傳成 `character_anchor` asset（Series Bible 的
+`anchor_assets`），`generate/images` 會把 anchor 與 `equipment_reference` 當多模態參考圖一起送給 Gemini，
+prompt 同時帶 `visual_lock` 文字，讓每頁場景與設定稿同一個人、同一種上色風格；`visual_bible` 決定整體畫風
+（線稿 / 賽璐璐 / 配色）。完全離線時的替代路線：`core.html_video.rasterize_svg` 把細節 SVG 光柵化成 PNG 當 scene asset。
+
+尚未做（依需求排）：角色表情差分（每角色 2–3 張切換）、嘴型開合兩張圖照音量切換、
+CSS `steps()` 手繪三拍一格風格、真正連續動作段落改接影片模型局部生成後混搭。
+
 ## 輸出邊界
 
 - DOCX 在 Windows + Microsoft Word + pywin32 環境優先輸出 native Shapes：背景圖、每個對白框、每個尾巴皆可獨立移動與編輯。

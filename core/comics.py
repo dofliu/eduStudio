@@ -1193,6 +1193,10 @@ main{{width:min(1040px,calc(100% - 28px));margin:auto;padding:42px 0 70px}}h1{{f
         )
         return updated, out, mode
 
+    def record_exports(self, episode: EpisodeManifest, additions: dict[str, str]) -> EpisodeManifest:
+        """公開版: 讓 core.comic_video 等外部產出把 artifact 路徑登進 manifest.exports。"""
+        return self._record_exports(episode, additions)
+
     def _record_exports(self, episode: EpisodeManifest, additions: dict[str, str]) -> EpisodeManifest:
         """匯出不改故事內容；CURRENT 亦允許追加 artifact audit，不要求 fork。"""
         exports = {**episode.exports, **additions}

@@ -99,6 +99,11 @@ def _fmt_srt_time(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
+def fmt_srt_time(seconds: float) -> str:
+    """公開版 SRT timestamp 格式化 (HH:MM:SS,mmm); 給 core.comic_video 等自組 cue 的模組用."""
+    return _fmt_srt_time(seconds)
+
+
 def build_srt(
     steps: list[dict],
     durations: list[float],

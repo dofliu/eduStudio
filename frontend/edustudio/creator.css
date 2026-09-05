@@ -379,3 +379,14 @@
   .es-comic-toolbar .es-select { min-width: 140px; max-width: 190px; }
   .es-comic-toolbar .es-comic-mock { margin-left: 0; }
 }
+
+/* 漫畫站: 說話者定位 (點圖標記頭部 → 自動排版不蓋臉) */
+.es-comic-page-preview.is-placing { cursor: crosshair; outline: 2px dashed #42c7a5; outline-offset: -2px; }
+.es-comic-speaker-marker { position: absolute; z-index: 4; transform: translate(-50%, -50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.es-comic-speaker-marker i { width: 14px; height: 14px; border-radius: 50%; background: #42c7a5; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.35); }
+.es-comic-speaker-marker b { font-size: 11px; color: #fff; background: rgba(9,15,23,.8); padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+.es-comic-speaker-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0 10px; font-size: 12px; color: var(--es-text-muted, #6b7785); }
+.es-comic-speaker-tools .es-chip { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--es-divider); background: var(--es-bg); color: inherit; cursor: pointer; }
+.es-comic-speaker-tools .es-chip.is-set { border-color: #42c7a5; }
+.es-comic-speaker-tools .es-chip.is-active { background: #42c7a5; color: #06281f; border-color: #42c7a5; }
+.es-comic-speaker-tools small { flex-basis: 100%; }

@@ -25,6 +25,8 @@
   前端影片卡每角色一格;`core.html_video.rasterize_svg` 細節 SVG → PNG(零 API 成本的場景圖路線)。
 - 迭代 3:旁白形象(series 的 narrator 角色 anchor → 片頭/片尾卡 + 字幕條頭像);劉老師 7 位角色設定稿(`photos/`)去背後疊進場景的示範。
   `core/comic_assets.py` + `tools/character_cutout.py`:設定稿三視圖 → 去背 cutout(純 Pillow,3 測)。
+- 迭代 4(泡泡不蓋臉):`ComicPage.speaker_positions`(speaker → 頭部 [x,y]);自動排版加禁放區(已知頭部 + 偵測到的臉)、
+  說話者鄰近權重、尾巴直指頭部、置中候選欄;`POST .../locate-speakers`(Gemini 視覺定位 / mock 等距);編輯器點圖定位 + 標記。
 
 ---
 

@@ -243,6 +243,46 @@ def test_dialogue_layout_is_image_aware_and_manual_coordinates_are_preserved(tmp
     assert [item.dialogue_id for item in resolved_overflow] == ["d1", "d2", "d3", "d4"]
 
 
+def test_speaker_positions_keep_bubbles_off_faces_and_point_tail_at_head(tmp_path) -> None:
+    store = _store(tmp_path)
+    episode = _ready_episode(store)
+    # 杜夫站在左上區 (頭在 x=0.22, y=0.30); 沒有定位時舊演算法偏好左上候選點會壓到臉
+    head = (0.22, 0.30)
+    page = episode.pages[0].model_copy(update={
+        "speaker_positions": {"dofu": list(head)},
+        "dialogues": [Dialogue(dialogue_id="d1", speaker_id="dofu", text="泡泡不可以蓋到我的臉。")],
+    })
+    bubble = store.resolve_dialogue_layout(episode, page)[0]
+    face = (head[0] - 0.085, head[1] - 0.10, 0.17, 0.24)
+    assert store._rect_overlap((bubble.x, bubble.y, bubble.w, bubble.h), face) == 0
+    assert (bubble.tail_x, bubble.tail_y) == head          # 尾巴直指頭部
+    assert abs((bubble.x + bubble.w / 2) - head[0]) < 0.35  # 泡泡靠近說話者
+
+    # 兩個角色都有定位: 各自的泡泡都不能蓋到任何一張臉
+    two = episode.pages[0].model_copy(update={
+        "speaker_positions": {"dofu": [0.30, 0.55], "mei": [0.70, 0.50]},
+        "dialogues": [
+            Dialogue(dialogue_id="a", speaker_id="dofu", text="先保留證據。"),
+            Dialogue(dialogue_id="b", speaker_id="mei", text="油溫也在爬。"),
+        ],
+    })
+    laid = store.resolve_dialogue_layout(episode, two)
+    faces = [(0.30 - 0.085, 0.55 - 0.10, 0.17, 0.24), (0.70 - 0.085, 0.50 - 0.10, 0.17, 0.24)]
+    for item in laid:
+        for zone in faces:
+            assert store._rect_overlap((item.x, item.y, item.w, item.h), zone) == 0
+    assert store._rect_overlap((laid[0].x, laid[0].y, laid[0].w, laid[0].h), (laid[1].x, laid[1].y, laid[1].w, laid[1].h)) == 0
+
+
+def test_speaker_positions_schema_validation() -> None:
+    ComicPage(page_no=1, speaker_positions={"dofu": [0.2, 0.3]})
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        ComicPage(page_no=1, speaker_positions={"dofu": [1.2, 0.3]})
+    with _pytest.raises(ValueError):
+        ComicPage(page_no=1, speaker_positions={"dofu": [0.2]})
+
+
 def test_hold_needs_reason_and_current_gate_cannot_be_skipped(tmp_path) -> None:
     store = _store(tmp_path)
     episode = _episode(store)

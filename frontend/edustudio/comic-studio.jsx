@@ -138,6 +138,7 @@ export default function ComicStudio({ activeProject, launchContext }) {
   const [exports, setExports] = useState([]);
   const [videoJob, setVideoJob] = useState(null);
   const [voiceSpecs, setVoiceSpecs] = useState({});
+  const [placing, setPlacing] = useState({});   // page_no → speaker_id 正在點圖定位
   const [discovery, setDiscovery] = useState(null);
 
   const [newSeries, setNewSeries] = useState({
@@ -326,11 +327,34 @@ export default function ComicStudio({ activeProject, launchContext }) {
   }
 
   async function autoLayout() {
-    const saved = await run('依畫面配置泡泡', () => fetchJson(
-      `${base}/episodes/${encodeURIComponent(episode.story_id)}/auto-layout?version=${encodeURIComponent(episode.version)}`,
-      { method: 'POST' },
-    ));
+    const saved = await run('依畫面配置泡泡', async () => {
+      await saveEpisode({ pages: episode.pages });   // 先存 (含 speaker_positions), 再依存檔排版
+      return fetchJson(
+        `${base}/episodes/${encodeURIComponent(episode.story_id)}/auto-layout?version=${encodeURIComponent(episode.version)}`,
+        { method: 'POST' },
+      );
+    });
     setEpisode(saved);
+  }
+
+  async function locateSpeakers(pageNo) {
+    const saved = await run('AI 定位角色', async () => {
+      await saveEpisode({ pages: episode.pages });
+      return fetchJson(
+        `${base}/episodes/${encodeURIComponent(episode.story_id)}/locate-speakers?version=${encodeURIComponent(episode.version)}`,
+        { method: 'POST', body: JSON.stringify({ mock: offlineMock, page_numbers: pageNo ? [pageNo] : [] }) },
+      );
+    });
+    setEpisode(saved);
+  }
+
+  function placeSpeaker(page, event) {
+    const speaker = placing[page.page_no];
+    if (!speaker || !editable) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
+    updatePage(page.page_no, { speaker_positions: { ...(page.speaker_positions || {}), [speaker]: [Number(x.toFixed(4)), Number(y.toFixed(4))] } });
   }
 
   async function savePages() {
@@ -560,7 +584,8 @@ export default function ComicStudio({ activeProject, launchContext }) {
           <div className="es-comic-section-head"><div><h2>逐頁 Storyboard 與 Dialogue</h2><p>對白採「speaker ID | 文字」；泡泡會依場景留白自動配置，也可逐顆手動微調。</p></div><div className="es-comic-actions"><Btn onClick={autoLayout} disabled={!editable || !episode.pages.length} busy={busy === '依畫面配置泡泡'}>依畫面配置泡泡</Btn><Btn variant="primary" onClick={savePages} disabled={!editable || !episode.pages.length}>儲存全部頁面</Btn></div></div>
           {!episode.pages.length && <div className="es-card es-comic-placeholder">請先在「劇本與分鏡」產生或建立 storyboard。</div>}
           {episode.pages.map(page => <article key={page.page_no} className="es-card es-comic-page-card">
-            <div className="es-comic-page-preview">
+            <div className={`es-comic-page-preview${placing[page.page_no] ? ' is-placing' : ''}`} onClick={e => placeSpeaker(page, e)} title={placing[page.page_no] ? `點圖標記 ${placing[page.page_no]} 的頭部位置` : undefined}>
+              {Object.entries(page.speaker_positions || {}).map(([sid, [px, py]]) => <span key={sid} className="es-comic-speaker-marker" style={{ left: `${px * 100}%`, top: `${py * 100}%` }}><i /><b>{sid}</b></span>)}
               {page.image_asset_id ? <img src={`${base}/episodes/${encodeURIComponent(episode.story_id)}/${episode.version}/assets/${encodeURIComponent(page.image_asset_id)}`} alt={page.alt_text} /> : <div className="es-comic-no-image">P{String(page.page_no).padStart(2, '0')}<small>尚無場景圖</small></div>}
               {(page.dialogues || []).map((dialogue, index) => <React.Fragment key={dialogue.dialogue_id || index}>
                 <svg className="es-comic-bubble-tail" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points={`${((dialogue.tail_x ?? (dialogue.x + dialogue.w / 2)) - 0.018) * 100},${(dialogue.y + dialogue.h - 0.004) * 100} ${((dialogue.tail_x ?? (dialogue.x + dialogue.w / 2)) + 0.018) * 100},${(dialogue.y + dialogue.h - 0.004) * 100} ${(dialogue.tail_x ?? (dialogue.x + dialogue.w / 2)) * 100},${(dialogue.tail_y ?? (dialogue.y + dialogue.h + 0.1)) * 100}`} /></svg>
@@ -573,6 +598,12 @@ export default function ComicStudio({ activeProject, launchContext }) {
               <Field label="場景"><textarea className="es-textarea" disabled={!editable} value={page.scene_description} onChange={e => updatePage(page.page_no, { scene_description: e.target.value })} /></Field>
               <div className="es-comic-inline-fields"><Field label="Camera"><input className="es-input" disabled={!editable} value={page.camera} onChange={e => updatePage(page.page_no, { camera: e.target.value })} /></Field><Field label="Learning point"><input className="es-input" disabled={!editable} value={page.learning_point} onChange={e => updatePage(page.page_no, { learning_point: e.target.value })} /></Field></div>
               <Field label="對白（一行一顆泡泡）"><textarea className="es-textarea" disabled={!editable} value={dialogueText(page)} onChange={e => updatePage(page.page_no, { dialogues: parseDialogues(e.target.value, page.page_no, page.dialogues) })} /></Field>
+              {!!page.dialogues?.length && <div className="es-comic-speaker-tools">
+                <span>說話者位置</span>
+                {[...new Set(page.dialogues.map(d => d.speaker_id).filter(sid => sid && sid !== 'narrator'))].map(sid => <button key={sid} type="button" className={`es-chip${placing[page.page_no] === sid ? ' is-active' : ''}${page.speaker_positions?.[sid] ? ' is-set' : ''}`} disabled={!editable} onClick={() => setPlacing(current => ({ ...current, [page.page_no]: current[page.page_no] === sid ? null : sid }))}>{sid}{page.speaker_positions?.[sid] ? ' ✓' : ''}</button>)}
+                <Btn size="sm" onClick={() => locateSpeakers(page.page_no)} disabled={!editable || !page.image_asset_id} busy={busy === 'AI 定位角色'}>AI 定位角色</Btn>
+                {placing[page.page_no] && <small>點場景圖上 {placing[page.page_no]} 的頭部；之後按「依畫面配置泡泡」</small>}
+              </div>}
               {!!page.dialogues?.length && <details className="es-comic-bubble-controls"><summary>泡泡版面與指向設定</summary><div className="es-comic-bubble-list">{page.dialogues.map((dialogue, dialogueIndex) => <article key={dialogue.dialogue_id || dialogueIndex}>
                 <div><strong>{dialogue.speaker_id}</strong><select className="es-select" disabled={!editable} value={dialogue.layout_mode || 'AUTO'} onChange={e => updateDialogue(page.page_no, dialogueIndex, { layout_mode: e.target.value })}><option value="AUTO">AUTO</option><option value="MANUAL">MANUAL</option></select></div>
                 <div className="es-comic-coordinate-grid">{[

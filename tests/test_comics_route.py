@@ -102,3 +102,25 @@ def test_discovery_missing_path_is_reported(client) -> None:
         "package_path": "Z:/does-not-exist",
     })
     assert response.status_code == 400
+
+
+def test_locate_speakers_mock_writes_positions_and_relayouts(client) -> None:
+    c, _, comic_store = client
+    _bootstrap(c)
+    from core.comics import ComicPage, Dialogue
+    pages = [ComicPage(page_no=n, dialogues=[Dialogue(dialogue_id=f"p{n}d1", speaker_id="teacher", text="先看證據。")],
+                       image_prompt="p", alt_text="a") for n in (1, 2)]
+    comic_store.update_episode("p", "W01_C01", "v0.1", {"pages": pages, "state": "STORYBOARD"})
+    from core.comics import make_mock_scene, decode_data_url
+    for n in (1, 2):
+        raw, suffix = decode_data_url(make_mock_scene(n))
+        comic_store.attach_asset("p", "W01_C01", "v0.1", filename=f"s{n}{suffix}", data=raw, kind="scene",
+                                 provenance="mock_placeholder", asset_id=f"scene_{n}")
+        comic_store.set_page_asset("p", "W01_C01", "v0.1", n, f"scene_{n}")
+    r = c.post("/projects/p/comics/episodes/W01_C01/locate-speakers?version=v0.1", json={"mock": True, "page_numbers": [1]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["pages"][0]["speaker_positions"] == {"teacher": [0.5, 0.42]}
+    assert body["pages"][1]["speaker_positions"] == {}
+    d = body["pages"][0]["dialogues"][0]
+    assert (d["tail_x"], d["tail_y"]) == (0.5, 0.42)

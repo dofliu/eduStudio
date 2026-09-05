@@ -144,6 +144,17 @@ class ComicPage(BaseModel):
     image_prompt: str = ""
     image_asset_id: str | None = None
     alt_text: str = ""
+    # 說話者錨點: speaker_id → [x, y] (0~1, 頭部中心)。自動排版會把泡泡放到說話者附近、
+    # 尾巴指向頭部, 並把每個已知頭部當禁放區 (不蓋臉)。來源: 編輯器點圖 / AI 定位 / 合成時已知。
+    speaker_positions: dict[str, list[float]] = Field(default_factory=dict)
+
+    @field_validator("speaker_positions")
+    @classmethod
+    def validate_speaker_positions(cls, value: dict[str, list[float]]) -> dict[str, list[float]]:
+        for speaker, pos in value.items():
+            if len(pos) != 2 or not all(0 <= float(v) <= 1 for v in pos):
+                raise ValueError(f"speaker_positions[{speaker}] 必須是 [x, y] 且介於 0 與 1")
+        return {k: [float(v[0]), float(v[1])] for k, v in value.items()}
 
 
 class EvidenceSource(BaseModel):
@@ -792,6 +803,15 @@ class ComicStore:
         else:
             speaker_anchors = {}
         speaker_target_y = {character_id: 0.72 for character_id in character_ids}
+        # 禁放區 (x, y, w, h): 已知頭部 (speaker_positions) 與偵測到的人臉, 泡泡不得覆蓋。
+        keep_out: list[tuple[float, float, float, float]] = []
+        known_positions = {
+            speaker: (float(pos[0]), float(pos[1])) for speaker, pos in (page.speaker_positions or {}).items()
+        }
+        for speaker, (hx, hy) in known_positions.items():
+            speaker_anchors[speaker] = hx
+            speaker_target_y[speaker] = hy
+            keep_out.append((hx - 0.085, hy - 0.10, 0.17, 0.24))   # 頭 + 肩
 
         edge_map = None
         if page.image_asset_id:
@@ -837,16 +857,17 @@ class ComicStore:
                                 for prior in unique_faces
                             ):
                                 unique_faces.append(candidate)
-                        if len(unique_faces) >= len(character_ids):
+                        # 偵測到的臉不論能否對到角色, 一律當禁放區 (不蓋臉)
+                        for face_x, face_y, face_w, _ in unique_faces:
+                            keep_out.append((face_x - face_w * 0.9, face_y - face_w * 1.1, face_w * 1.8, face_w * 2.6))
+                        unmapped = [cid for cid in character_ids if cid not in known_positions]
+                        if unmapped and len(unique_faces) >= len(character_ids):
                             visible = sorted(unique_faces[:len(character_ids)], key=lambda item: item[0])
-                            speaker_anchors = {
-                                character_id: round(face[0], 4)
-                                for character_id, face in zip(character_ids, visible)
-                            }
-                            speaker_target_y = {
-                                character_id: round(min(0.84, face[1] + 0.12), 4)
-                                for character_id, face in zip(character_ids, visible)
-                            }
+                            for character_id, face in zip(character_ids, visible):
+                                if character_id in known_positions:
+                                    continue   # 編輯器 / AI 定位過的以定位為準
+                                speaker_anchors[character_id] = round(face[0], 4)
+                                speaker_target_y[character_id] = round(min(0.84, face[1] + 0.12), 4)
                 except (ImportError, OSError):
                     pass
 
@@ -856,6 +877,7 @@ class ComicStore:
             (0.05, 0.25), (0.55, 0.25),
             (0.05, 0.44), (0.55, 0.44),
             (0.10, 0.62), (0.52, 0.62),
+            (0.30, 0.06), (0.30, 0.25), (0.30, 0.44),   # 置中欄: 說話者站中間時用
         ]
         offset = (page.page_no * 3) % len(candidates)
         candidates = candidates[offset:] + candidates[:offset]
@@ -894,19 +916,32 @@ class ComicStore:
                         detail = sum(level * count for level, count in enumerate(histogram)) / (255 * pixel_count)
                     speaker_x = speaker_anchors.get(dialogue.speaker_id, 0.5)
                     proximity = abs((x0 + width / 2) - speaker_x)
-                    tail_gap = max(0.0, 0.72 - (y0 + height))
-                    tail_ergonomics = abs(tail_gap - 0.24)
-                    # overlap 是硬性高權重；order 只負責穩定打破平手。
-                    ranked.append((detail + proximity * 0.12 + tail_ergonomics * 0.18 + overlap * 80 + order * 0.0005, x0, y0))
+                    face_overlap = sum(self._rect_overlap(rect, zone) for zone in keep_out)
+                    if dialogue.speaker_id in known_positions:
+                        # 已知說話者位置: 泡泡要靠近他、盡量在頭頂上方 (尾巴短而自然)
+                        head_y = known_positions[dialogue.speaker_id][1]
+                        proximity_w = 0.6
+                        below_head = max(0.0, (y0 + height) - (head_y - 0.06))
+                        tail_ergonomics = below_head * 1.5 + max(0.0, (head_y - 0.06) - (y0 + height) - 0.30) * 0.3
+                    else:
+                        proximity_w = 0.12
+                        tail_gap = max(0.0, 0.72 - (y0 + height))
+                        tail_ergonomics = abs(tail_gap - 0.24)
+                    # overlap (泡泡互疊) 與 face_overlap (蓋臉) 是硬性高權重；order 只負責穩定打破平手。
+                    ranked.append((
+                        detail + proximity * proximity_w + tail_ergonomics * 0.18 + overlap * 80 + face_overlap * 60 + order * 0.0005,
+                        x0, y0,
+                    ))
                 _, x, y = min(ranked, key=lambda item: item[0])
 
             manual_tail = dialogue.layout_mode == "MANUAL"
             target_x = dialogue.tail_x if manual_tail and dialogue.tail_x is not None else speaker_anchors.get(dialogue.speaker_id, 0.5)
-            target_y = (
-                dialogue.tail_y
-                if manual_tail and dialogue.tail_y is not None
-                else max(speaker_target_y.get(dialogue.speaker_id, 0.72), y + height + 0.08)
-            )
+            if manual_tail and dialogue.tail_y is not None:
+                target_y = dialogue.tail_y
+            elif dialogue.speaker_id in known_positions:
+                target_y = known_positions[dialogue.speaker_id][1]   # 直接指向頭部
+            else:
+                target_y = max(speaker_target_y.get(dialogue.speaker_id, 0.72), y + height + 0.08)
             target_x = min(0.94, max(0.06, target_x))
             target_y = min(0.94, max(y + height + 0.045, target_y))
             occupied.append((x, y, width, height))

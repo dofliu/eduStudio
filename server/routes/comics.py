@@ -362,6 +362,81 @@ def fork_episode(
         raise _http_error(exc) from exc
 
 
+class LocateSpeakersRequest(GenerateRequest):
+    page_numbers: list[int] = Field(default_factory=list)
+
+
+class _SpeakerPos(BaseModel):
+    speakerId: str
+    x: float
+    y: float
+
+
+class _SpeakerLocateGen(BaseModel):
+    speakers: list[_SpeakerPos] = Field(default_factory=list)
+
+
+def _locate_prompt(episode: EpisodeManifest, page: ComicPage, names: dict[str, str]) -> str:
+    cast = ", ".join(f"{cid} ({names.get(cid, cid)})" for cid in episode.characters) or "(no named characters)"
+    return (
+        "You are locating characters in a comic panel image for speech-bubble layout.\n"
+        f"Scene description: {page.scene_description}\n"
+        f"Characters that may appear (speakerId (name)): {cast}\n"
+        "For each character visibly present, return the normalized center of their HEAD as x, y in [0, 1] "
+        "(x from left, y from top). Omit characters not visible. Return JSON: "
+        '{"speakers": [{"speakerId": "...", "x": 0.0, "y": 0.0}]}'
+    )
+
+
+@router.post("/episodes/{story_id}/locate-speakers", response_model=EpisodeManifest)
+def locate_speakers(
+    pid: str,
+    story_id: str,
+    req: LocateSpeakersRequest,
+    version: str = "v0.1",
+    project_store: ProjectStore = Depends(get_default_project_store),
+    comic_store: ComicStore = Depends(get_default_comic_store),
+) -> EpisodeManifest:
+    """用視覺模型找出每頁各角色頭部位置 → 寫進 page.speaker_positions → 重新自動排版。
+
+    mock=True 時不打 API: 依本集角色順序在畫面中段等距排開 (只驗流程)。
+    """
+    _ensure_project(pid, project_store)
+    try:
+        episode = comic_store.get_episode(pid, story_id, version)
+        try:
+            names = {c.character_id: c.name for c in comic_store.get_series(pid, episode.series_id).characters}
+        except ComicNotFoundError:
+            names = {}
+        wanted = set(req.page_numbers or [page.page_no for page in episode.pages])
+        pages: list[ComicPage] = []
+        for page in episode.pages:
+            if page.page_no not in wanted or not page.image_asset_id:
+                pages.append(page)
+                continue
+            present = [d.speaker_id for d in page.dialogues if d.speaker_id != "narrator"]
+            present = list(dict.fromkeys(present)) or list(episode.characters)
+            if req.mock:
+                n = max(1, len(present))
+                positions = {sid: [round(0.25 + 0.5 * i / max(1, n - 1), 4) if n > 1 else 0.5, 0.42] for i, sid in enumerate(present)}
+            else:
+                path = comic_store.resolve_asset(episode, page.image_asset_id)
+                image = {"mimeType": mimetypes.guess_type(path.name)[0] or "image/png",
+                         "data": base64.b64encode(path.read_bytes()).decode("ascii")}
+                data = generate_json(_locate_prompt(episode, page, names), model=req.model,
+                                     response_schema=_SpeakerLocateGen, station="comic-layout", files=[image])
+                parsed = _SpeakerLocateGen.model_validate(data)
+                positions = {
+                    item.speakerId: [min(1.0, max(0.0, item.x)), min(1.0, max(0.0, item.y))]
+                    for item in parsed.speakers if item.speakerId in set(episode.characters) | set(present)
+                }
+            pages.append(page.model_copy(update={"speaker_positions": {**page.speaker_positions, **positions}}))
+        comic_store.update_episode(pid, story_id, version, {"pages": pages})
+        return comic_store.auto_layout_episode(pid, story_id, version)
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
 @router.post("/episodes/{story_id}/auto-layout", response_model=EpisodeManifest)
 def auto_layout_episode(
     pid: str,

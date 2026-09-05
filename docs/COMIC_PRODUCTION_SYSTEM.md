@@ -35,6 +35,10 @@
 4. 產生或編輯 script、storyboard、camera、learning point、對白與 alt text。
 5. 建立 Evidence Pack；AI prompt 會攜帶角色與世界觀 lock，並禁止把 teaching story 寫成 field instruction。
 6. 逐頁生成或上傳 scene asset。對白不烙在圖片內，保留 34–38% negative space 供版面配置。
+   6b. **說話者位置**（`page.speaker_positions`：speaker_id → [x, y] 頭部中心）：在逐頁編輯器點角色 chip 後點場景圖標記，
+   或按「AI 定位角色」讓視覺模型找（`POST /episodes/{story_id}/locate-speakers`，mock 時等距排開）。自動排版會把泡泡放到
+   說話者附近、尾巴直指頭部，並把每個已知頭部（與 OpenCV 偵測到的臉）當禁放區，不再蓋臉。沒有定位的角色維持舊行為
+   （Series 順序錨點 + 低細節區）。
 7. 完成 anatomy、technical、text、safety、page_render、human_approval 六道 QA gate。
 8. 只有 validation PASS 的版本可進入 `CURRENT`，只有 `CURRENT` 可發布到 Internal Reader。
 9. 匯出 HTML、PDF、DOCX 或 source ZIP；發布後仍可撤回 release，修改內容則必須 fork 新版本。

@@ -291,6 +291,7 @@ chokepoint),依 `EDUSTUDIO_MONTHLY_BUDGET` 顯示花到預算的幾 %。
 4. 產生或編輯 script、storyboard、camera、learning point、對白與 alt text。
 5. 建立 **Evidence Pack**;AI prompt 會攜帶角色與世界觀 lock。
 6. 逐頁生成或上傳 scene asset(對白不烙進圖片,保留 34–38% negative space 排版)。
+   泡泡壓到角色的臉時:在逐頁編輯器點該角色的 chip,再點場景圖上他的頭,或按「AI 定位角色」;然後「依畫面配置泡泡」。
 7. 過 **六道 QA gate**:anatomy / technical / text / safety / page_render / human_approval。
 8. 只有 validation **PASS** 的版本能進 `CURRENT`,只有 `CURRENT` 能發布到內部閱讀器。
 9. 匯出 HTML / PDF / DOCX / source ZIP;發布後可撤回 release,改內容必須 fork 新版本。

@@ -7,6 +7,23 @@
 
 ---
 
+## 漫畫 → 動態漫畫影片（2026-09-05）
+
+> 劉老師提問「沒有影片模型能不能做有角色的影片」→ 結論:漫畫式呈現不是「降 fps」而是「降獨特畫格數」;
+> 生圖成本只跟頁數成正比。這輪把 Comic Core 的 episode 直接渲成有旁白的 MP4。
+
+- `core/comic_video.py`(新):逐句 TTS → 時間軸 → 自含 HTML 播放器(運鏡 / 泡泡逐句浮現 / 旁白 caption / 片頭片尾卡)
+  → `core.html_video` 虛擬時鐘逐格截圖 → adelay 混音 mux → MP4 + SRT。`tts_by_speaker` 支援角色配音。
+  非 CURRENT / 含 mock 素材烙水印(fail-closed)。
+- `POST /projects/{pid}/comics/episodes/{story_id}/video`:背景 job(`source_type=comic_video`),產物同時落 episode `exports/`
+  與 job `artifacts/`(接 `/library` + YouTube 上傳)。
+- 前端漫畫站「匯出與發布」新增「動態漫畫影片」卡(渲染 / 進度 / 下載 / HTML 即時預覽)。
+- `core/srt.py` 補公開 `fmt_srt_time`;`ComicStore.record_exports` 公開版。
+- 測試 `tests/test_comic_video.py` 13 測(時間軸 / SRT / HTML escape / 混音指令 / mock 端到端 / 路由)。
+- 文件:`COMIC_PRODUCTION_SYSTEM.md` 新段、`USER_MANUAL.md` §7 第 10 步。
+
+---
+
 ## 2026-07 審查 offline 殘項收尾 — Sprint 2/3（2026-09-04）
 
 > 劉老師指定「先 A 驗模型、B routine 認領 offline 批」的 B,含後續追加的 T2-4 / T0-3。全套 `2975 passed`。

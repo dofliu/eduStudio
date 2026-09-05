@@ -6,6 +6,10 @@ import mimetypes
 from pathlib import Path
 from typing import Any
 
+import asyncio
+import logging
+import shutil
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
@@ -28,9 +32,14 @@ from core.comics import (
 )
 from core.infocards.gemini import generate_image_b64, generate_json
 
+from ..background import spawn
+from ..jobs import JobStore, get_default_store
+from ..schemas import CreateJobRequest, JobOptions, JobSource, JobState, SourceType
 from .projects import get_default_project_store
 from core.project import ProjectNotFoundError, ProjectStore
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/{pid}/comics", tags=["comics"])
 _default_comic_store: ComicStore | None = None
@@ -797,6 +806,131 @@ def download_export(
         return FileResponse(path, filename=path.name)
     except Exception as exc:
         raise _http_error(exc) from exc
+
+
+class ComicVideoRequest(BaseModel):
+    """漫畫 episode → 動態漫畫影片 (core.comic_video)。"""
+    version: str = "v0.1"
+    fps: int = Field(30, ge=1, le=60)
+    width: int = Field(1920, ge=320, le=3840)
+    height: int = Field(1080, ge=180, le=3840)
+    tts_provider: str | None = Field(None, max_length=32, description="edge | f5 | google; 空＝tts_config.json")
+    mock: bool = Field(False, description="不跑 TTS / 不開瀏覽器, 只驗流程 (CI 用)")
+
+
+async def _render_comic_video_job(
+    job_store: JobStore,
+    comic_store: ComicStore,
+    job_id: str,
+    *,
+    pid: str,
+    story_id: str,
+    version: str,
+    stem: str,
+    fps: int,
+    width: int,
+    height: int,
+    mock: bool,
+    tts_provider: str | None,
+) -> None:
+    """背景 task: 漫畫 → MP4 + SRT。影片落在 episode exports/ (file-first 真相),
+    再複製到 job artifacts/ 讓 /library 與 YouTube 上傳接手。失敗一律標 FAILED。"""
+    from core.comic_video import render_comic_video
+    from ..runner import _tts_provider_override
+
+    job_store.update(job_id, state=JobState.RENDERING)
+    try:
+        exports_dir = comic_store.episode_dir(pid, story_id, version) / "exports"
+
+        def _run():
+            with _tts_provider_override(tts_provider):
+                return render_comic_video(
+                    comic_store, pid, story_id, version,
+                    out_dir=exports_dir, stem=stem,
+                    fps=fps, width=width, height=height, mock=mock,
+                    on_progress=lambda pct: job_store.update(job_id, progress=pct),
+                )
+
+        result = await asyncio.to_thread(_run)
+        art_dir = job_store.artifacts_dir(job_id)
+        art_dir.mkdir(parents=True, exist_ok=True)
+        for src in (result.mp4, result.srt):
+            shutil.copy2(src, art_dir / src.name)
+        episode = comic_store.get_episode(pid, story_id, version)
+        root = comic_store.episode_dir(pid, story_id, version)
+        comic_store.record_exports(episode, {
+            "video": result.mp4.relative_to(root).as_posix(),
+            "video_srt": result.srt.relative_to(root).as_posix(),
+            "video_html": result.html.relative_to(root).as_posix(),
+        })
+    except Exception as exc:  # noqa: BLE001 — 一律落 FAILED, 細節進 error 欄
+        logger.exception("comic_video render 失敗 (job=%s)", job_id)
+        job_store.update(job_id, state=JobState.FAILED, error=f"動態漫畫影片渲染失敗: {exc}")
+        return
+    job_store.refresh_artifacts(job_id)
+    job_store.update(job_id, state=JobState.DONE, progress=100)
+    logger.info("comic_video render 完成 (job=%s) → %s", job_id, result.mp4.name)
+
+
+@router.post("/episodes/{story_id}/video", status_code=status.HTTP_201_CREATED)
+async def render_episode_video(
+    pid: str,
+    story_id: str,
+    req: ComicVideoRequest,
+    project_store: ProjectStore = Depends(get_default_project_store),
+    comic_store: ComicStore = Depends(get_default_comic_store),
+    job_store: JobStore = Depends(get_default_store),
+) -> dict:
+    """把漫畫 episode 渲成動態漫畫影片 (背景 job)。
+
+    不需要影片生成模型: 每頁一張場景圖 + 運鏡 + 對白泡泡跟旁白逐句浮現。
+    每頁必須已連結 scene asset; 非 CURRENT 版本或含 mock 素材會烙「草稿預覽」水印
+    (fail-closed, 不會被誤當正式產出)。回傳 job_id, 前端輪詢 /jobs/{id};
+    完成後 mp4 + srt 出現在該 job 的 artifacts 與 episode exports/。
+    """
+    from core.comic_video import preview_label_for
+
+    _ensure_project(pid, project_store)
+    try:
+        episode = comic_store.get_episode(pid, story_id, req.version)
+    except Exception as exc:
+        raise _http_error(exc) from exc
+    missing = [page.page_no for page in episode.pages if not page.image_asset_id]
+    if not episode.pages or missing:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"以下頁面尚未連結 scene asset, 無法渲染影片: {missing or '尚無頁面'}",
+        )
+
+    stem = f"{episode.story_id}_{req.version}_motion_comic"
+    rec = job_store.create(CreateJobRequest(
+        source_type=SourceType.COMIC_VIDEO,
+        source=JobSource(path=str(comic_store.episode_dir(pid, story_id, req.version))),
+        options=JobOptions(mock=req.mock, require_review=False, tts_provider=req.tts_provider, output_name=stem),
+    ))
+    try:
+        project_store.add_job(pid, rec.id)
+    except ProjectNotFoundError as exc:
+        job_store.delete(rec.id)
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"project 不存在: {pid}") from exc
+
+    spawn(
+        _render_comic_video_job(
+            job_store, comic_store, rec.id,
+            pid=pid, story_id=story_id, version=req.version, stem=stem,
+            fps=req.fps, width=req.width, height=req.height,
+            mock=req.mock, tts_provider=req.tts_provider,
+        ),
+        name=f"comic-video:{rec.id}",
+    )
+    return {
+        "job_id": rec.id,
+        "state": rec.state,
+        "status_url": f"/jobs/{rec.id}",
+        "stem": stem,
+        "preview_label": preview_label_for(episode),
+        "download_url": f"/projects/{pid}/comics/episodes/{story_id}/{req.version}/exports/{stem}.mp4",
+    }
 
 
 @router.post("/episodes/{story_id}/publish", response_model=EpisodeManifest)

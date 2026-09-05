@@ -136,6 +136,7 @@ export default function ComicStudio({ activeProject, launchContext }) {
   const [offlineMock, setOfflineMock] = useState(false);
   const [validation, setValidation] = useState(null);
   const [exports, setExports] = useState([]);
+  const [videoJob, setVideoJob] = useState(null);
   const [discovery, setDiscovery] = useState(null);
 
   const [newSeries, setNewSeries] = useState({
@@ -401,6 +402,29 @@ export default function ComicStudio({ activeProject, launchContext }) {
     setEpisode(result.episode); setExports(current => [result, ...current.filter(item => item.kind !== kind)]);
   }
 
+  async function renderVideo() {
+    const started = await run('渲染動態漫畫影片', () => fetchJson(
+      `${base}/episodes/${encodeURIComponent(episode.story_id)}/video`,
+      { method: 'POST', body: JSON.stringify({ version: episode.version, mock: offlineMock }) },
+    ));
+    setVideoJob({ ...started, progress: 0 });
+    const poll = async () => {
+      try {
+        const rec = await fetchJson(started.status_url);
+        const mp4 = (rec.artifacts || []).find(item => item.kind === 'mp4');
+        setVideoJob(current => ({ ...(current || started), state: rec.state, progress: rec.progress ?? 0, error: rec.error, mp4 }));
+        if (rec.state !== 'done' && rec.state !== 'failed') setTimeout(poll, 2500);
+        else if (rec.state === 'done') {
+          const saved = await fetchJson(`${base}/episodes/${encodeURIComponent(episode.story_id)}?version=${encodeURIComponent(episode.version)}`);
+          setEpisode(saved);
+        }
+      } catch (err) {
+        setVideoJob(current => ({ ...(current || started), state: 'failed', error: err.message || String(err) }));
+      }
+    };
+    setTimeout(poll, 1500);
+  }
+
   async function publish() {
     const saved = await run('發布到內部 Reader', () => fetchJson(
       `${base}/episodes/${encodeURIComponent(episode.story_id)}/publish?version=${encodeURIComponent(episode.version)}`,
@@ -594,6 +618,12 @@ export default function ComicStudio({ activeProject, launchContext }) {
 
         {tab === 'release' && <section className="es-comic-two-col">
           <div className="es-card es-comic-panel"><h2>Exports</h2><p>PDF 是閱讀版；DOCX 優先使用 Word native Shapes，環境不支援時會明確標記 editable-table fallback。</p><div className="es-comic-actions">{['html', 'pdf', 'docx', 'source'].map(kind => <Btn key={kind} onClick={() => exportKind(kind)} disabled={(kind === 'pdf' || kind === 'docx') && !episode.pages.every(page => page.image_asset_id)}>{kind.toUpperCase()}</Btn>)}</div><div className="es-comic-export-list">{exports.map(item => <a key={item.kind} href={item.download_url} target="_blank" rel="noreferrer"><strong>{item.kind.toUpperCase()}</strong><span>{item.mode} · {(item.size_bytes / 1024).toFixed(1)} KB</span></a>)}</div></div>
+          <div className="es-card es-comic-panel"><h2>動態漫畫影片</h2><p>不用影片生成模型：每頁一張場景圖 + 運鏡 + 對白泡泡跟旁白逐句浮現，輸出 MP4 + SRT，完成後同時出現在影片庫可一鍵上傳 YouTube。非 CURRENT 版本會烙「草稿預覽」水印。</p>
+            <div className="es-comic-actions"><Btn onClick={renderVideo} busy={busy === '渲染動態漫畫影片'} disabled={!episode.pages.length || !episode.pages.every(page => page.image_asset_id) || (videoJob && !['done', 'failed'].includes(videoJob.state))}>渲染 MP4</Btn>
+              {episode.exports?.video_html && <a className="es-btn" href={`${base}/episodes/${encodeURIComponent(episode.story_id)}/${encodeURIComponent(episode.version)}/exports/${episode.exports.video_html.split('/').pop()}`} target="_blank" rel="noreferrer">HTML 即時預覽</a>}</div>
+            {videoJob && <p className="es-comic-video-status">{videoJob.state === 'done' ? '完成' : videoJob.state === 'failed' ? `失敗：${videoJob.error || ''}` : `渲染中 ${videoJob.progress || 0}%`}{videoJob.preview_label ? ` · ${videoJob.preview_label}` : ''}
+              {videoJob.state === 'done' && <> · <a href={videoJob.download_url} target="_blank" rel="noreferrer">下載 MP4</a> · <a href={videoJob.download_url.replace(/\.mp4$/, '.srt')} target="_blank" rel="noreferrer">SRT</a></>}</p>}
+          </div>
           <div className="es-card es-comic-panel"><h2>Serialized Reader</h2><p>只有 QA PASS 且 state=CURRENT 的版本可發布；stable URL 會指向目前有效 release。</p><div className="es-comic-actions"><Btn variant="success" onClick={publish} disabled={episode.state !== 'CURRENT'}>發布到內部 Reader</Btn><a className="es-btn es-btn-outline es-btn-md" href={`${base}/reader/series/${encodeURIComponent(seriesId)}`} target="_blank" rel="noreferrer">開啟 Series Archive ↗</a></div>{episode.releases.map(release => <article className="es-comic-release" key={release.release_id}><StatePill value={release.withdrawn_at ? 'HOLD' : 'PASS'} /><div><strong>{release.public_version}</strong><small>{release.published_at} · {release.published_by}</small></div><div className="es-comic-release-actions"><a href={release.url} target="_blank" rel="noreferrer">Reader ↗</a>{!release.withdrawn_at && <button onClick={() => withdraw(release)}>撤回</button>}</div></article>)}</div>
           <div className="es-card es-comic-panel"><h2>既有 Package Discovery / Import</h2><p>來源資料夾只讀；匯入時複製 normalized metadata 與 assets，不修改舊版。</p><Field label="Episode package 絕對路徑"><input className="es-input" value={importPath} onChange={e => setImportPath(e.target.value)} /></Field><div className="es-comic-actions"><Btn onClick={() => discoverPackage(false)} disabled={!importPath}>唯讀掃描</Btn><Btn variant="primary" onClick={() => discoverPackage(true)} disabled={!importPath || !!discovery?.missing_files?.length}>匯入副本</Btn></div>{discovery && <pre className="es-comic-discovery">{JSON.stringify(discovery, null, 2)}</pre>}</div>
           <div className="es-card es-comic-panel"><h2>Version Revision</h2><p>CURRENT 不可直接改稿；建立新版本後再重新 QA。</p><div className="es-comic-actions"><input className="es-input" value={forkVersion} onChange={e => setForkVersion(e.target.value)} /><Btn onClick={fork} disabled={episode.state !== 'CURRENT'}>Fork 新版本</Btn></div></div>

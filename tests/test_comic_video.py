@@ -175,6 +175,32 @@ def test_mux_cmd_uses_adelay_for_clips_and_silence_without(tmp_path, monkeypatch
     assert f"adelay={start_ms}|{start_ms}" in fc and "amix=inputs=1" in fc
 
 
+# ---------------- 旁白形象 (老師的漫畫角色) ----------------
+def test_narrator_avatar_appears_on_cards_and_caption(tmp_path):
+    tl = _timeline(tmp_path)
+    avatar = tmp_path / "teacher.png"; avatar.write_bytes(_PNG)
+    plain = cv.build_motion_comic_html(tl, width=640, height=360)
+    assert 'class="avatar"' not in plain and 'id="caption-text"' in plain
+    tl.narrator_avatar = str(avatar)
+    doc = cv.build_motion_comic_html(tl, width=640, height=360)
+    assert doc.count('class="avatar"') == 2          # 片頭 + 片尾
+    assert 'class="cap-avatar"' in doc and 'class="caption with-avatar"' in doc
+    assert 'class="card has-avatar"' in doc
+
+
+def test_default_narrator_avatar_from_series_anchor(tmp_path):
+    store = _store(tmp_path)
+    ep = _episode(store)
+    series = store.get_series("course", "wind")
+    assert cv._default_narrator_avatar(store, ep, series) is None
+    ep = store.attach_asset("course", "W01", "v0.1", filename="t.png", data=_PNG, kind="character_anchor",
+                            provenance="user_upload", asset_id="teacher_anchor")
+    series.characters.append(Character(character_id="narrator", name="老師", anchor_assets=["missing", "teacher_anchor"]))
+    store.save_series(series)
+    got = cv._default_narrator_avatar(store, ep, store.get_series("course", "wind"))
+    assert got is not None and got.name == "teacher_anchor.png"
+
+
 # ---------------- 角色配音規格 ----------------
 def test_build_tts_by_speaker_maps_specs_and_skips_default():
     m = cv.build_tts_by_speaker({"narrator": "default", "dofu": "edge:zh-TW-YunJheNeural@-10%", "mei": "edge:zh-TW-HsiaoYuNeural"})

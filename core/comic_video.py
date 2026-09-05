@@ -99,6 +99,7 @@ class ComicTimeline:
     outro_start: float
     total: float
     preview_label: str = ""
+    narrator_avatar: str = ""   # 旁白角色 (例: 老師本人的漫畫形象) 去背 PNG 路徑; 空=不顯示
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -135,6 +136,7 @@ def build_timeline(
     audio_paths: dict[str, Path] | None = None,
     layouts: dict[int, list] | None = None,
     preview_label: str = "",
+    narrator_avatar: Path | None = None,
 ) -> ComicTimeline:
     """把 episode 的頁與對白排成絕對時間軸。
 
@@ -205,6 +207,7 @@ def build_timeline(
         outro_start=round(outro_start, 3),
         total=round(total, 3),
         preview_label=preview_label,
+        narrator_avatar=str(narrator_avatar) if narrator_avatar else "",
     )
 
 
@@ -247,6 +250,7 @@ body{font-family:"Noto Sans TC","Noto Sans CJK TC","Microsoft JhengHei","PingFan
 .card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:0 %(pad)dpx;opacity:0;background:radial-gradient(120%% 90%% at 20%% 20%%,#16303f 0%%,#0b1016 70%%)}
 .card small{font-size:%(fs_small)dpx;letter-spacing:.18em;color:#42c7a5;text-transform:uppercase}
 .card h1{font-size:%(fs_h1)dpx;line-height:1.15;margin:.25em 0 .35em;font-weight:800;max-width:82%%}
+.card.has-avatar h1,.card.has-avatar ul,.card.has-avatar .boundary{max-width:60%%}
 .card ul{list-style:none;font-size:%(fs_body)dpx;color:#c4d3df;line-height:1.7}
 .card ul li::before{content:"▸ ";color:#f3a847}
 .card .boundary{border-left:6px solid #f3a847;background:rgba(243,168,71,.12);padding:.6em 1em;color:#ffdca7;font-size:%(fs_body)dpx;max-width:78%%;line-height:1.6}
@@ -263,6 +267,9 @@ body{font-family:"Noto Sans TC","Noto Sans CJK TC","Microsoft JhengHei","PingFan
 .bubble .tail.up{top:-26px;border-bottom-color:#fff;border-top:0}
 .bubble.dim{opacity:.72}
 .caption{position:absolute;left:%(pad)dpx;right:%(pad)dpx;bottom:%(pad_s)dpx;opacity:0;background:rgba(8,14,20,.82);border-left:6px solid #42c7a5;color:#eaf2f8;padding:.55em 1em;font-size:%(fs_cap)dpx;line-height:1.5;border-radius:8px;backdrop-filter:blur(6px);will-change:opacity,transform}
+.card .avatar{position:absolute;right:%(pad)dpx;bottom:0;height:88%%;width:auto;object-fit:contain;filter:drop-shadow(0 18px 24px rgba(0,0,0,.45))}
+.caption.with-avatar{padding-left:calc(%(fs_cap)dpx*2.9)}
+.caption .cap-avatar{position:absolute;left:.55em;bottom:.35em;height:calc(100%% + .9em);width:auto;max-width:calc(%(fs_cap)dpx*2.2);object-fit:contain;object-position:bottom;filter:drop-shadow(0 6px 8px rgba(0,0,0,.5))}
 .hud{position:absolute;top:%(pad_s)dpx;right:%(pad)dpx;font-size:%(fs_small)dpx;letter-spacing:.2em;color:rgba(233,241,247,.7);opacity:0}
 .hud b{color:#42c7a5}
 .watermark{position:absolute;left:%(pad)dpx;top:%(pad_s)dpx;font-size:%(fs_small)dpx;letter-spacing:.14em;color:#ffdca7;background:rgba(243,168,71,.18);border:1px solid rgba(243,168,71,.6);padding:.35em .9em;border-radius:6px;z-index:50}
@@ -277,6 +284,7 @@ _PLAYER_JS = r"""
   const hud = document.getElementById('hud');
   const hudPage = document.getElementById('hud-page');
   const caption = document.getElementById('caption');
+  const captionText = document.getElementById('caption-text');
   const pageEls = T.pages.map(p => document.getElementById('page-' + p.page_no));
   const imgEls = T.pages.map(p => document.querySelector('#page-' + p.page_no + ' img'));
   const cueEls = {};
@@ -334,7 +342,7 @@ _PLAYER_JS = r"""
     if (activeCaption) {
       if (caption.dataset.id !== activeCaption.dialogue_id) {
         caption.dataset.id = activeCaption.dialogue_id;
-        caption.textContent = activeCaption.text;
+        captionText.textContent = activeCaption.text;
       }
       const k = clamp((t - activeCaption.start) / 0.3, 0, 1);
       caption.style.opacity = k;
@@ -416,6 +424,12 @@ def build_motion_comic_html(
         )
 
     objectives = "".join(f"<li>{html.escape(o)}</li>" for o in timeline.objectives)
+    avatar_src = ""
+    if timeline.narrator_avatar and Path(timeline.narrator_avatar).is_file():
+        avatar_src = _image_data_uri(Path(timeline.narrator_avatar)) if embed_images else html.escape(Path(timeline.narrator_avatar).as_uri())
+    card_avatar = f'<img class="avatar" src="{avatar_src}" alt="">' if avatar_src else ""
+    cap_avatar = f'<img class="cap-avatar" src="{avatar_src}" alt="">' if avatar_src else ""
+    cap_class = "caption with-avatar" if avatar_src else "caption"
     watermark = (
         f'<div class="watermark">{html.escape(timeline.preview_label)}</div>' if timeline.preview_label else ""
     )
@@ -437,14 +451,14 @@ def build_motion_comic_html(
 <html lang="zh-TW"><head><meta charset="utf-8"><title>{html.escape(timeline.title)}</title>
 <style>{css}</style></head>
 <body><div id="stage">
-<div class="card" id="intro"><small>{html.escape(timeline.series_title)} · {html.escape(timeline.story_id)}</small>
-<h1>{html.escape(timeline.title)}</h1><ul>{objectives}</ul><div class="brand">eduStudio · 動態漫畫</div></div>
+<div class="card{' has-avatar' if avatar_src else ''}" id="intro"><small>{html.escape(timeline.series_title)} · {html.escape(timeline.story_id)}</small>
+<h1>{html.escape(timeline.title)}</h1><ul>{objectives}</ul>{card_avatar}<div class="brand">eduStudio · 動態漫畫</div></div>
 {''.join(pages_html)}
-<div class="card" id="outro" style="z-index:40"><small>Teaching story</small>
+<div class="card{' has-avatar' if avatar_src else ''}" id="outro" style="z-index:40"><small>Teaching story</small>
 <h1>學到什麼?</h1><ul>{objectives}</ul>
 <div class="boundary">本片為教學故事；技術與安全處置仍以 OEM、site procedure 與正式授權為準。</div>
-<div class="brand">eduStudio · {html.escape(timeline.version)}</div></div>
-<div class="caption" id="caption" style="z-index:45"></div>
+{card_avatar}<div class="brand">eduStudio · {html.escape(timeline.version)}</div></div>
+<div class="{cap_class}" id="caption" style="z-index:45">{cap_avatar}<span id="caption-text"></span></div>
 <div class="hud" id="hud" style="z-index:45">PAGE <b id="hud-page">01</b></div>
 {watermark}
 </div>
@@ -538,6 +552,21 @@ def preview_label_for(episode: EpisodeManifest) -> str:
     return ""
 
 
+def _default_narrator_avatar(store: ComicStore, episode: EpisodeManifest, series: Series | None) -> Path | None:
+    """series 裡 character_id == 'narrator' 的角色若掛了 anchor asset (在這集的 assets 裡), 拿第一張當旁白形象。"""
+    if not series:
+        return None
+    narrator = next((c for c in series.characters if c.character_id == "narrator"), None)
+    if not narrator:
+        return None
+    for asset_id in narrator.anchor_assets:
+        try:
+            return store.resolve_asset(episode, asset_id)
+        except Exception:  # noqa: BLE001 — 找不到就換下一張 / 不顯示
+            continue
+    return None
+
+
 def _default_tts() -> TTSFn:
     from tts_backend import load_tts_backend
 
@@ -586,6 +615,7 @@ def render_comic_video(
     stem: str | None = None,
     tts: TTSFn | None = None,
     tts_by_speaker: dict[str, TTSFn] | None = None,
+    narrator_avatar: Path | None = None,
     fps: int = 30,
     width: int = 1920,
     height: int = 1080,
@@ -597,6 +627,8 @@ def render_comic_video(
     Args:
         tts: (text, out_path) → bool 的 async 函式; None 時用 tts_backend.load_tts_backend()。
         tts_by_speaker: speaker_id → TTSFn, 角色配音 (沒對到的角色用 tts)。
+        narrator_avatar: 旁白角色的去背 PNG (例: 老師本人的漫畫形象); 顯示在片頭 / 片尾卡與旁白字幕條旁。
+            None 時自動找 series 裡 character_id 為 narrator 的角色的第一張 anchor asset。
         mock: True 時不跑 TTS、不開瀏覽器 (估算音長 + ffmpeg testsrc), 給 CI / 無瀏覽器環境。
         on_progress: 0~100; TTS 0~25, 截圖 25~85, 混音 85~100。
 
@@ -644,6 +676,7 @@ def render_comic_video(
         episode, series,
         image_paths=image_paths, durations=durations, audio_paths=audio_paths,
         layouts=layouts, preview_label=preview_label_for(episode),
+        narrator_avatar=narrator_avatar or _default_narrator_avatar(store, episode, series),
     )
 
     html_path = out_dir / f"{stem}.html"

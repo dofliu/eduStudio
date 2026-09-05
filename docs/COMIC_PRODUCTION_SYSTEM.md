@@ -110,6 +110,10 @@ YouTube 一鍵上傳直接接手。`exports/*.html` 可用瀏覽器直接開啟�
 `edge:zh-TW-HsiaoYuNeural` 女聲）、`google:<voice>`。典型配置：旁白留 default 用老師本人的聲音，角色各配一個 edge 聲線。
 前端影片卡有每個角色一格輸入。
 
+**旁白形象**：Series Bible 若有 `character_id = narrator` 的角色（例如老師本人的漫畫形象）且掛了
+`anchor_assets`，影片會把第一張 anchor（建議放去背 PNG）放在片頭 / 片尾卡右側，旁白字幕條左側也會出現小頭像。
+`render_comic_video(narrator_avatar=...)` 可直接指定。
+
 **角色一致性 / 畫風貼近參考圖**：把角色三視圖（設定稿）上傳成 `character_anchor` asset（Series Bible 的
 `anchor_assets`），`generate/images` 會把 anchor 與 `equipment_reference` 當多模態參考圖一起送給 Gemini，
 prompt 同時帶 `visual_lock` 文字，讓每頁場景與設定稿同一個人、同一種上色風格；`visual_bible` 決定整體畫風

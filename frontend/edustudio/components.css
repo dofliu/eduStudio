@@ -153,3 +153,9 @@
 .es-grow { flex: 1; } .es-spacer { flex: 1; }
 .es-mut { color: var(--es-fg-3); }
 .es-clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 漫畫站: 動態漫畫影片 — 角色配音規格輸入 */
+.es-comic-voices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 14px; margin: 8px 0 12px; }
+.es-comic-voices label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--es-text-muted, #6b7785); }
+.es-comic-voices input { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--es-border, #d4dae2); border-radius: 6px; background: var(--es-surface, #fff); color: inherit; }
+.es-comic-video-status { margin-top: 8px; font-size: 13px; }

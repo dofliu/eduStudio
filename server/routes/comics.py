@@ -816,6 +816,11 @@ class ComicVideoRequest(BaseModel):
     height: int = Field(1080, ge=180, le=3840)
     tts_provider: str | None = Field(None, max_length=32, description="edge | f5 | google; 空＝tts_config.json")
     mock: bool = Field(False, description="不跑 TTS / 不開瀏覽器, 只驗流程 (CI 用)")
+    voices: dict[str, str] = Field(
+        default_factory=dict,
+        description="角色配音: speaker_id → default | edge:<voice>[@rate] | google:<voice>; "
+                    "沒列的 speaker (含 narrator) 用 tts_config 設定的聲音 (例: 老師的 F5 聲音)",
+    )
 
 
 async def _render_comic_video_job(
@@ -832,21 +837,23 @@ async def _render_comic_video_job(
     height: int,
     mock: bool,
     tts_provider: str | None,
+    voices: dict[str, str] | None = None,
 ) -> None:
     """背景 task: 漫畫 → MP4 + SRT。影片落在 episode exports/ (file-first 真相),
     再複製到 job artifacts/ 讓 /library 與 YouTube 上傳接手。失敗一律標 FAILED。"""
-    from core.comic_video import render_comic_video
+    from core.comic_video import build_tts_by_speaker, render_comic_video
     from ..runner import _tts_provider_override
 
     job_store.update(job_id, state=JobState.RENDERING)
     try:
         exports_dir = comic_store.episode_dir(pid, story_id, version) / "exports"
+        tts_by_speaker = build_tts_by_speaker(voices)
 
         def _run():
             with _tts_provider_override(tts_provider):
                 return render_comic_video(
                     comic_store, pid, story_id, version,
-                    out_dir=exports_dir, stem=stem,
+                    out_dir=exports_dir, stem=stem, tts_by_speaker=tts_by_speaker,
                     fps=fps, width=width, height=height, mock=mock,
                     on_progress=lambda pct: job_store.update(job_id, progress=pct),
                 )
@@ -888,7 +895,7 @@ async def render_episode_video(
     (fail-closed, 不會被誤當正式產出)。回傳 job_id, 前端輪詢 /jobs/{id};
     完成後 mp4 + srt 出現在該 job 的 artifacts 與 episode exports/。
     """
-    from core.comic_video import preview_label_for
+    from core.comic_video import build_tts_by_speaker, preview_label_for
 
     _ensure_project(pid, project_store)
     try:
@@ -901,6 +908,11 @@ async def render_episode_video(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             f"以下頁面尚未連結 scene asset, 無法渲染影片: {missing or '尚無頁面'}",
         )
+
+    try:
+        build_tts_by_speaker(req.voices)  # 早驗: 規格錯直接 400, 不要建一個註定 FAILED 的 job
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
     stem = f"{episode.story_id}_{req.version}_motion_comic"
     rec = job_store.create(CreateJobRequest(
@@ -919,7 +931,7 @@ async def render_episode_video(
             job_store, comic_store, rec.id,
             pid=pid, story_id=story_id, version=req.version, stem=stem,
             fps=req.fps, width=req.width, height=req.height,
-            mock=req.mock, tts_provider=req.tts_provider,
+            mock=req.mock, tts_provider=req.tts_provider, voices=req.voices,
         ),
         name=f"comic-video:{rec.id}",
     )

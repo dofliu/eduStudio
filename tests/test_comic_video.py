@@ -175,6 +175,17 @@ def test_mux_cmd_uses_adelay_for_clips_and_silence_without(tmp_path, monkeypatch
     assert f"adelay={start_ms}|{start_ms}" in fc and "amix=inputs=1" in fc
 
 
+# ---------------- 角色配音規格 ----------------
+def test_build_tts_by_speaker_maps_specs_and_skips_default():
+    m = cv.build_tts_by_speaker({"narrator": "default", "dofu": "edge:zh-TW-YunJheNeural@-10%", "mei": "edge:zh-TW-HsiaoYuNeural"})
+    assert "narrator" not in m and set(m) == {"dofu", "mei"}
+    assert m["dofu"].__self__.voice == "zh-TW-YunJheNeural" and m["dofu"].__self__.rate == "-10%"
+    assert m["mei"].__self__.rate == "-5%"
+    assert cv.build_tts_by_speaker(None) == {} and cv.build_tts_by_speaker({}) == {}
+    with pytest.raises(ValueError):
+        cv.build_tts_by_speaker({"x": "piper:foo"})
+
+
 # ---------------- 端到端 (mock) ----------------
 @_needs_ffmpeg
 def test_render_comic_video_mock_end_to_end(tmp_path):
@@ -324,3 +335,11 @@ def test_video_route_rejects_missing_assets(client):
     r = c.post("/projects/course/comics/episodes/W01/video", json={"mock": True})
     assert r.status_code == 422
     assert c.post("/projects/course/comics/episodes/NOPE/video", json={"mock": True}).status_code == 404
+
+
+def test_video_route_rejects_bad_voice_spec(client):
+    c, comic_store, job_store = client
+    _bootstrap(c, comic_store)
+    r = c.post("/projects/course/comics/episodes/W01/video", json={"mock": True, "voices": {"dofu": "piper:zh"}})
+    assert r.status_code == 400 and "聲音規格" in r.json()["detail"]
+    assert job_store.list() == [] if hasattr(job_store, "list") else True

@@ -545,6 +545,37 @@ def _default_tts() -> TTSFn:
     return backend.synthesize
 
 
+def build_tts_by_speaker(voices: dict[str, str] | None) -> dict[str, TTSFn]:
+    """把「speaker_id → 聲音規格」轉成 tts_by_speaker。
+
+    規格字串:
+    - "default"            → tts_config.json 設定的後端 (老師的 F5 聲音 / edge / google), 等同不指定
+    - "edge:<voice>"       → Edge TTS 指定聲線, 例 edge:zh-TW-YunJheNeural (男) / edge:zh-TW-HsiaoYuNeural (女)
+    - "edge:<voice>@<rate>"→ 加語速, 例 edge:zh-TW-YunJheNeural@-10%
+    - "google:<voice>"     → Google Cloud TTS 指定聲線, 例 google:cmn-TW-Wavenet-B
+
+    典型用法: narrator 留 default (老師本人的聲音講旁白), 角色各配一個 edge 聲線。
+    """
+    if not voices:
+        return {}
+    from tts_backend import EdgeTTS, GoogleTTS
+
+    out: dict[str, TTSFn] = {}
+    for speaker, spec in voices.items():
+        spec = (spec or "").strip()
+        if not spec or spec == "default":
+            continue
+        kind, _, rest = spec.partition(":")
+        if kind == "edge" and rest:
+            voice, _, rate = rest.partition("@")
+            out[speaker] = EdgeTTS(voice=voice, rate=rate or "-5%").synthesize
+        elif kind == "google" and rest:
+            out[speaker] = GoogleTTS(voice=rest).synthesize
+        else:
+            raise ValueError(f"不支援的聲音規格 {spec!r} (speaker={speaker}); 用 default / edge:<voice> / google:<voice>")
+    return out
+
+
 def render_comic_video(
     store: ComicStore,
     project_id: str,

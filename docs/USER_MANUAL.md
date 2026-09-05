@@ -297,6 +297,9 @@ chokepoint),依 `EDUSTUDIO_MONTHLY_BUDGET` 顯示花到預算的幾 %。
 10. **動態漫畫影片**:同一集一鍵渲成有旁白的 MP4 + SRT(不需要影片生成模型:每頁一張
     場景圖 + 運鏡 + 對白泡泡跟旁白逐句浮現)。完成後同時出現在影片庫,可一鍵上傳 YouTube;
     非 `CURRENT` 版本會烙「草稿預覽」水印。也可先開 HTML 即時預覽看時間軸(無聲)。
+    聲音預設走你在設定頁選的 TTS(例如自己的 F5 聲音);想讓角色有不同聲線,在影片卡每個角色填
+    `edge:zh-TW-YunJheNeural` 這類規格,旁白留空就是你的聲音。要讓 AI 生圖長得像你的角色設定稿,先把
+    三視圖上傳成 `character_anchor`,生圖時會當參考圖一起送出。
 
 **Fail-closed 規則**:mock 圖、缺 evidence、缺 scene、缺 alt text、缺 QA 或未人工核准
 一律不可發布;已核准版本(`CURRENT`)不可就地改稿。

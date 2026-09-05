@@ -105,6 +105,16 @@ YouTube 一鍵上傳直接接手。`exports/*.html` 可用瀏覽器直接開啟�
 
 前端：漫畫站「匯出與發布」分頁新增「動態漫畫影片」卡（渲染 MP4 / HTML 即時預覽 / 進度與下載）。
 
+**聲音**：沒指定時全部走 `tts_config.json` 設定的後端（老師的 F5 聲音 / edge / google），與其他影片站一致。
+`voices` 可依 speaker_id 配音：`default`（同上）、`edge:<voice>[@rate]`（例 `edge:zh-TW-YunJheNeural@-10%` 男聲、
+`edge:zh-TW-HsiaoYuNeural` 女聲）、`google:<voice>`。典型配置：旁白留 default 用老師本人的聲音，角色各配一個 edge 聲線。
+前端影片卡有每個角色一格輸入。
+
+**角色一致性 / 畫風貼近參考圖**：把角色三視圖（設定稿）上傳成 `character_anchor` asset（Series Bible 的
+`anchor_assets`），`generate/images` 會把 anchor 與 `equipment_reference` 當多模態參考圖一起送給 Gemini，
+prompt 同時帶 `visual_lock` 文字，讓每頁場景與設定稿同一個人、同一種上色風格；`visual_bible` 決定整體畫風
+（線稿 / 賽璐璐 / 配色）。完全離線時的替代路線：`core.html_video.rasterize_svg` 把細節 SVG 光柵化成 PNG 當 scene asset。
+
 尚未做（依需求排）：角色表情差分（每角色 2–3 張切換）、嘴型開合兩張圖照音量切換、
 CSS `steps()` 手繪三拍一格風格、真正連續動作段落改接影片模型局部生成後混搭。
 

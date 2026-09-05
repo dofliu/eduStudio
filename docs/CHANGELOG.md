@@ -21,6 +21,8 @@
 - `core/srt.py` 補公開 `fmt_srt_time`;`ComicStore.record_exports` 公開版。
 - 測試 `tests/test_comic_video.py` 13 測(時間軸 / SRT / HTML escape / 混音指令 / mock 端到端 / 路由)。
 - 文件:`COMIC_PRODUCTION_SYSTEM.md` 新段、`USER_MANUAL.md` §7 第 10 步。
+- 迭代 2:`voices` 角色配音(speaker_id → default / edge:<voice>[@rate] / google:<voice>;旁白留 default 用老師本人聲音),
+  前端影片卡每角色一格;`core.html_video.rasterize_svg` 細節 SVG → PNG(零 API 成本的場景圖路線)。
 
 ---
 

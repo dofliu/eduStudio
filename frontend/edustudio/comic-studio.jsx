@@ -137,6 +137,7 @@ export default function ComicStudio({ activeProject, launchContext }) {
   const [validation, setValidation] = useState(null);
   const [exports, setExports] = useState([]);
   const [videoJob, setVideoJob] = useState(null);
+  const [voiceSpecs, setVoiceSpecs] = useState({});
   const [discovery, setDiscovery] = useState(null);
 
   const [newSeries, setNewSeries] = useState({
@@ -405,7 +406,7 @@ export default function ComicStudio({ activeProject, launchContext }) {
   async function renderVideo() {
     const started = await run('渲染動態漫畫影片', () => fetchJson(
       `${base}/episodes/${encodeURIComponent(episode.story_id)}/video`,
-      { method: 'POST', body: JSON.stringify({ version: episode.version, mock: offlineMock }) },
+      { method: 'POST', body: JSON.stringify({ version: episode.version, mock: offlineMock, voices: Object.fromEntries(Object.entries(voiceSpecs).filter(([, v]) => v && v.trim())) }) },
     ));
     setVideoJob({ ...started, progress: 0 });
     const poll = async () => {
@@ -619,6 +620,7 @@ export default function ComicStudio({ activeProject, launchContext }) {
         {tab === 'release' && <section className="es-comic-two-col">
           <div className="es-card es-comic-panel"><h2>Exports</h2><p>PDF 是閱讀版；DOCX 優先使用 Word native Shapes，環境不支援時會明確標記 editable-table fallback。</p><div className="es-comic-actions">{['html', 'pdf', 'docx', 'source'].map(kind => <Btn key={kind} onClick={() => exportKind(kind)} disabled={(kind === 'pdf' || kind === 'docx') && !episode.pages.every(page => page.image_asset_id)}>{kind.toUpperCase()}</Btn>)}</div><div className="es-comic-export-list">{exports.map(item => <a key={item.kind} href={item.download_url} target="_blank" rel="noreferrer"><strong>{item.kind.toUpperCase()}</strong><span>{item.mode} · {(item.size_bytes / 1024).toFixed(1)} KB</span></a>)}</div></div>
           <div className="es-card es-comic-panel"><h2>動態漫畫影片</h2><p>不用影片生成模型：每頁一張場景圖 + 運鏡 + 對白泡泡跟旁白逐句浮現，輸出 MP4 + SRT，完成後同時出現在影片庫可一鍵上傳 YouTube。非 CURRENT 版本會烙「草稿預覽」水印。</p>
+            <div className="es-comic-voices">{['narrator', ...(episode.characters || [])].map(id => <label key={id}><span>{id === 'narrator' ? '旁白' : id}</span><input value={voiceSpecs[id] || ''} placeholder={id === 'narrator' ? 'default（tts_config 設定的聲音，例：老師 F5）' : 'edge:zh-TW-YunJheNeural 或留空=default'} onChange={e => setVoiceSpecs(current => ({ ...current, [id]: e.target.value }))} /></label>)}</div>
             <div className="es-comic-actions"><Btn onClick={renderVideo} busy={busy === '渲染動態漫畫影片'} disabled={!episode.pages.length || !episode.pages.every(page => page.image_asset_id) || (videoJob && !['done', 'failed'].includes(videoJob.state))}>渲染 MP4</Btn>
               {episode.exports?.video_html && <a className="es-btn" href={`${base}/episodes/${encodeURIComponent(episode.story_id)}/${encodeURIComponent(episode.version)}/exports/${episode.exports.video_html.split('/').pop()}`} target="_blank" rel="noreferrer">HTML 即時預覽</a>}</div>
             {videoJob && <p className="es-comic-video-status">{videoJob.state === 'done' ? '完成' : videoJob.state === 'failed' ? `失敗：${videoJob.error || ''}` : `渲染中 ${videoJob.progress || 0}%`}{videoJob.preview_label ? ` · ${videoJob.preview_label}` : ''}

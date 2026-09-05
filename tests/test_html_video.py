@@ -197,3 +197,26 @@ class TestYoutubeMetaFallback:
         meta = resp.json()
         assert meta["title"] == "my-animation"
         assert meta["privacy"] == "unlisted"
+
+
+# ---------------- rasterize_svg (需瀏覽器; 無 playwright/Chromium 跳過) ----------------
+
+def _chromium_ok() -> bool:
+    try:
+        import playwright.sync_api  # noqa: F401
+    except ImportError:
+        return False
+    import os
+    return bool(os.environ.get("EDUSTUDIO_CHROMIUM_PATH")) or shutil.which("chromium") is not None
+
+
+@pytest.mark.skipif(not _chromium_ok(), reason="需要 playwright + Chromium")
+def test_rasterize_svg_writes_png_of_requested_size(tmp_path):
+    from core.html_video import rasterize_svg
+    from PIL import Image
+
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="#123456"/><circle cx="160" cy="100" r="60" fill="#f28c28"/></svg>'
+    out = rasterize_svg(svg, tmp_path / "s.png", width=320, height=200)
+    with Image.open(out) as im:
+        assert im.size == (320, 200)
+        assert im.convert("RGB").getpixel((160, 100)) == (0xf2, 0x8c, 0x28)

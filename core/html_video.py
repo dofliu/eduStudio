@@ -210,6 +210,46 @@ def _capture_frames(
             browser.close()
 
 
+def rasterize_svg(
+    svg: str,
+    out_path: str | Path,
+    *,
+    width: int,
+    height: int,
+    device_scale_factor: float = 1.0,
+) -> Path:
+    """把一段 SVG (或任意自含 HTML 片段) 用 Chromium 光柵化成 PNG。
+
+    給「零 API 成本」的場景圖路線用: LLM / 人手寫的細節 SVG → PNG → 當漫畫 scene asset
+    (Comic Core 的 asset 只收 PNG/JPG/WEBP)。字型 / 濾鏡 / 漸層由瀏覽器處理, 與 render_html_to_mp4
+    共用同一顆 Chromium (EDUSTUDIO_CHROMIUM_PATH 可覆寫)。
+    """
+    from playwright.sync_api import sync_playwright
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    launch_kwargs: dict = {"args": ["--no-sandbox", "--disable-gpu"]}
+    exe = os.environ.get(_CHROMIUM_PATH_ENV)
+    if exe:
+        launch_kwargs["executable_path"] = exe
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(**launch_kwargs)
+        try:
+            page = browser.new_page(
+                viewport={"width": width, "height": height},
+                device_scale_factor=device_scale_factor,
+            )
+            page.set_content(
+                f"<!doctype html><html><body style='margin:0;width:{width}px;height:{height}px;"
+                f"overflow:hidden;background:#000'>{svg}</body></html>",
+                wait_until="load",
+            )
+            page.screenshot(path=str(out_path))
+        finally:
+            browser.close()
+    return out_path
+
+
 def render_html_to_mp4(
     source: str | Path,
     out_path: str | Path,

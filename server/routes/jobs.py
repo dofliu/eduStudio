@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -49,6 +50,7 @@ from ..schemas import (
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+logger = logging.getLogger(__name__)
 
 
 
@@ -531,10 +533,23 @@ async def pptx_to_video(
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"pptx→pdf 轉檔失敗: {e}") from e
 
+    # 老師寫在原簡報「備忘稿」的講稿 → 逐頁旁白的權威大綱 (沒寫備註 / 沒裝 python-pptx 就是空)
+    notes_path = ""
+    try:
+        from core.pptx_augment import read_pptx_speaker_notes
+        notes = await asyncio.to_thread(read_pptx_speaker_notes, aug_path)
+        if any(n.strip() for n in notes):
+            nf = store.job_dir(job_id) / "video_src" / "speaker_notes.json"
+            nf.parent.mkdir(parents=True, exist_ok=True)
+            nf.write_text(json.dumps(notes, ensure_ascii=False), encoding="utf-8")
+            notes_path = str(nf.resolve())
+    except Exception as e:  # noqa: BLE001 — 備註是加分項, 抽不到照樣出片
+        logger.warning("擷取講者備註失敗 (%s), 改用純看圖生旁白", e)
+
     new = store.create(CreateJobRequest(
         source_type=SourceType.SLIDES_PDF,
         source=JobSource(path=str(Path(pdf).resolve())),
-        options=JobOptions(mock=bool(rec.options.mock)),
+        options=JobOptions(mock=bool(rec.options.mock), speaker_notes_path=notes_path),
     ))
     # 沿用同一 Project (若有)
     if rec.project_id:

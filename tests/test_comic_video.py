@@ -291,6 +291,215 @@ def test_player_js_shows_caption_for_narrator_and_bubble_for_character(tmp_path)
             browser.close()
 
 
+# ---------------- 表情 / 嘴型 / 手繪轉場 ----------------
+def _rgba_person(path: Path, w: int = 120, h: int = 360) -> Path:
+    """造一張「頭在上、肩膀變寬」的去背人形, 讓 estimate_mouth_box 有輪廓可分析。"""
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse([w * 0.34, h * 0.02, w * 0.66, h * 0.20], fill=(230, 200, 180, 255))   # 頭
+    d.rectangle([w * 0.44, h * 0.20, w * 0.56, h * 0.26], fill=(230, 200, 180, 255))  # 脖子
+    d.rectangle([w * 0.14, h * 0.26, w * 0.86, h * 0.98], fill=(60, 90, 140, 255))    # 身體
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path)
+    return path
+
+
+class TestExpressionInference:
+    @pytest.mark.parametrize("text,expected", [
+        ("先保留證據。", "neutral"),
+        ("太好了,沒問題!", "happy"),
+        ("什麼?! 溫度飆到八十度?", "surprised"),
+        ("為什麼會這樣?", "questioning"),
+        ("小心,那邊很危險", "worried"),
+        ("不行,別再往前", "angry"),
+        ("嗯…我想想", "thinking"),
+    ])
+    def test_infers_from_wording(self, text, expected):
+        assert cv.infer_expression(text) == expected
+
+    def test_falls_back_to_punctuation_and_neutral(self):
+        assert cv.infer_expression("這是什麼東西?") == "questioning"
+        assert cv.infer_expression("快跑!") == "angry"
+        assert cv.infer_expression("") == "neutral"
+        assert cv.infer_expression("這樣就好") == "neutral"
+        assert all(cv.infer_expression(t) in cv.EXPRESSIONS for t in ("a", "?!", "…", "好"))
+
+    def test_explicit_expression_wins_over_inference(self, tmp_path):
+        """Dialogue.expression 有填就照填的走, 不再猜。"""
+        store = _store(tmp_path)
+        ep = _episode(store)
+        pages = [p.model_copy(deep=True) for p in ep.pages]
+        pages[0].dialogues[1].text = "太好了!"
+        pages[0].dialogues[1].expression = "worried"
+        ep = store.update_episode("course", "W01", "v0.1", {"pages": pages})
+        tl = cv.build_timeline(ep, store.get_series("course", "wind"),
+                               image_paths={p.page_no: store.resolve_asset(ep, p.image_asset_id) for p in ep.pages},
+                               durations={})
+        assert tl.pages[0].cues[1].expression == "worried"
+
+
+class TestMouthEstimate:
+    def test_estimates_mouth_inside_head(self, tmp_path):
+        box = cv.estimate_mouth_box(_rgba_person(tmp_path / "p.png"))
+        assert len(box) == 4
+        cx, cy, w, h = box
+        assert 0.4 < cx < 0.6, cx           # 臉在畫面中央
+        assert 0.05 < cy < 0.22, cy         # 嘴巴落在頭部範圍 (頭佔上方兩成)
+        assert 0 < w < 0.35 and 0 < h < 0.1
+
+    def test_returns_empty_without_alpha_or_on_error(self, tmp_path):
+        from PIL import Image
+
+        opaque = tmp_path / "o.jpg"
+        Image.new("RGB", (60, 120), (200, 200, 200)).save(opaque)
+        assert cv.estimate_mouth_box(opaque) == []
+        assert cv.estimate_mouth_box(tmp_path / "missing.png") == []
+
+
+class TestPortraits:
+    def _series_with_portrait(self, store, ep, tmp_path, *, expressions=None, mouth=None):
+        img = _rgba_person(tmp_path / "dofu.png")
+        ep = store.attach_asset("course", "W01", "v0.1", filename="dofu.png", data=img.read_bytes(),
+                                kind="character_anchor", provenance="test", asset_id="dofu_front")
+        series = store.get_series("course", "wind")
+        dofu = next(c for c in series.characters if c.character_id == "dofu")
+        dofu.anchor_assets = ["dofu_front"]
+        if expressions:
+            dofu.expressions = expressions
+        if mouth:
+            dofu.mouth = mouth
+        store.save_series(series)
+        return ep, store.get_series("course", "wind")
+
+    def test_resolves_anchor_as_neutral_and_estimates_mouth(self, tmp_path):
+        store = _store(tmp_path)
+        ep, series = self._series_with_portrait(store, _episode(store), tmp_path)
+        ports = cv.resolve_portraits(store, ep, series)
+        assert [p.speaker_id for p in ports] == ["dofu"]
+        assert "neutral" in ports[0].expressions and len(ports[0].mouth) == 4
+
+    def test_explicit_mouth_wins_and_narrator_excluded(self, tmp_path):
+        store = _store(tmp_path)
+        ep, series = self._series_with_portrait(store, _episode(store), tmp_path, mouth=[0.4, 0.3, 0.1, 0.05])
+        ports = cv.resolve_portraits(store, ep, series)
+        assert ports[0].mouth == [0.4, 0.3, 0.1, 0.05]
+        assert all(p.speaker_id != "narrator" for p in ports)
+
+    def test_character_without_asset_gets_no_portrait(self, tmp_path):
+        store = _store(tmp_path)
+        ep = _episode(store)
+        assert cv.resolve_portraits(store, ep, store.get_series("course", "wind")) == []
+
+    def test_missing_expression_asset_falls_back_to_anchor(self, tmp_path):
+        store = _store(tmp_path)
+        ep, series = self._series_with_portrait(store, _episode(store), tmp_path,
+                                                expressions={"happy": "does_not_exist"})
+        ports = cv.resolve_portraits(store, ep, series)
+        assert "happy" not in ports[0].expressions and "neutral" in ports[0].expressions
+
+    def test_html_emits_portrait_layer_without_leaking_paths(self, tmp_path):
+        store = _store(tmp_path)
+        ep, series = self._series_with_portrait(store, _episode(store), tmp_path)
+        tl = cv.build_timeline(ep, series,
+                               image_paths={p.page_no: store.resolve_asset(ep, p.image_asset_id) for p in ep.pages},
+                               durations={}, portraits=cv.resolve_portraits(store, ep, series))
+        doc = cv.build_motion_comic_html(tl, width=640, height=360)
+        assert 'id="pt-dofu"' in doc and 'class="mouth"' in doc
+        assert 'data-exp="neutral"' in doc
+        assert str(tmp_path) not in doc          # 只內嵌圖片, 不外洩本機路徑
+
+
+class TestHandDrawnTransitions:
+    def test_pick_transition_by_beat_and_camera(self):
+        assert cv.pick_transition(0, beat="警報大響, 眾人衝出") == "speed"
+        assert cv.pick_transition(0, camera="close up") == "tear"
+        assert cv.pick_transition(1, camera="wide shot") == "ink"
+        assert {cv.pick_transition(i) for i in range(6)} == {"ink", "tear"}   # 隔頁交替, 不單調
+        assert all(cv.pick_transition(i) in cv.TRANSITIONS for i in range(12))
+
+    def test_timeline_assigns_transition_and_html_has_layers(self, tmp_path):
+        tl = _timeline(tmp_path)
+        assert all(p.transition in cv.TRANSITIONS for p in tl.pages)
+        doc = cv.build_motion_comic_html(tl, width=640, height=360)
+        assert 'class="speed"' in doc and 'class="rim"' in doc
+        assert "wipeClip" in doc and "wipeBand" in doc
+
+
+@pytest.mark.skipif(not _chromium_available(), reason="需要 playwright + Chromium")
+def test_player_runs_wipe_and_portrait_in_browser(tmp_path):
+    """真的在瀏覽器跑一遍: 進場中新頁被鋸齒 clip-path 揭開, 說話時立繪出現且嘴型會動。"""
+    import os
+    from playwright.sync_api import sync_playwright
+    from core.html_video import _VIRTUAL_CLOCK_JS
+
+    store = _store(tmp_path)
+    ep = _episode(store)
+    img = _rgba_person(tmp_path / "dofu.png")
+    ep = store.attach_asset("course", "W01", "v0.1", filename="dofu.png", data=img.read_bytes(),
+                            kind="character_anchor", provenance="test", asset_id="dofu_front")
+    series = store.get_series("course", "wind")
+    next(c for c in series.characters if c.character_id == "dofu").anchor_assets = ["dofu_front"]
+    store.save_series(series)
+    series = store.get_series("course", "wind")
+    tl = cv.build_timeline(ep, series,
+                           image_paths={p.page_no: store.resolve_asset(ep, p.image_asset_id) for p in ep.pages},
+                           durations={}, portraits=cv.resolve_portraits(store, ep, series))
+    html_path = tmp_path / "p.html"
+    html_path.write_text(cv.build_motion_comic_html(tl, width=640, height=360), encoding="utf-8")
+
+    page1 = tl.pages[0]
+    speech = next(c for c in page1.cues if not c.is_narrator)
+    kwargs = {"args": ["--no-sandbox", "--disable-gpu"]}
+    if os.environ.get("EDUSTUDIO_CHROMIUM_PATH"):
+        kwargs["executable_path"] = os.environ["EDUSTUDIO_CHROMIUM_PATH"]
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(**kwargs)
+        try:
+            pg = browser.new_page(viewport={"width": 640, "height": 360})
+            pg.add_init_script(_VIRTUAL_CLOCK_JS)
+            pg.goto(html_path.resolve().as_uri(), wait_until="load")
+            now = 0.0
+
+            def at(t: float) -> None:
+                nonlocal now
+                pg.evaluate("(d) => window.__advanceFrame(d)", (t - now) * 1000)
+                now = t
+
+            # 進場途中: 新頁有鋸齒 clip-path (polygon, 多個點)
+            at(page1.start - cv.TRANSITION_S * 0.5)
+            clip = pg.evaluate(f"() => document.getElementById('page-{page1.page_no}').style.clipPath")
+            assert clip.startswith("polygon") and clip.count("%,") > 5, clip
+            # 進場結束後不再裁切
+            at(page1.start + 0.3)
+            assert pg.evaluate(f"() => document.getElementById('page-{page1.page_no}').style.clipPath") == ""
+
+            # 角色說話時立繪現身
+            at(speech.start + 0.3)
+            state = pg.evaluate("""() => {
+              const el = document.getElementById('pt-dofu');
+              const m = el.querySelector('.mouth');
+              return {op: parseFloat(el.style.opacity), on: !!el.querySelector('img.on'),
+                      mouth: m.style.transform, pose: el.style.transform};
+            }""")
+            assert state["op"] > 0.9 and state["on"], state
+            assert "scaleY" in state["mouth"] and "translate" in state["pose"]
+
+            # 嘴型隨時間變 (量化開合, 不是靜止)
+            shapes = set()
+            for k in range(6):
+                at(speech.start + 0.35 + k * 0.07)
+                shapes.add(pg.evaluate("() => document.getElementById('pt-dofu').querySelector('.mouth').style.transform"))
+            assert len(shapes) > 1, shapes
+
+            # 沒人說話時立繪收起來
+            at(page1.end + 0.05)
+            assert pg.evaluate("() => parseFloat(document.getElementById('pt-dofu').style.opacity)") == 0
+        finally:
+            browser.close()
+
+
 # ---------------- 路由 ----------------
 pytest.importorskip("fastapi.testclient", reason="需要 fastapi")
 pytest.importorskip("multipart", reason="server.main upload routes 需要")

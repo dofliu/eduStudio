@@ -141,6 +141,14 @@ class JobOptions(BaseModel):
                     "不擋 ingest. 兩個 opt-in 都開時, scriptor 自動配圖優先 ai_*, "
                     "用戶可在 UI 手動換.",
     )
+    speaker_notes_path: str = Field(
+        default="",
+        max_length=1024,
+        description="逐頁講者備註 JSON (list[str]) 的路徑, 只對 slides_pdf 有效。"
+                    "PPTX 轉影片時由 /jobs/{id}/to-video 從原簡報的「備忘稿」抽出來寫檔, "
+                    "ingest 拿它當每頁旁白的權威大綱 (slide_ingest.narrate_page_with_gemini)。"
+                    "空 = 純看圖生旁白 (原行為)。",
+    )
     augment_slide_images: bool = Field(
         default=False,
         description="缺圖簡報補圖 (只對 slides_pdf): ingest 後為缺圖頁用 Gemini "

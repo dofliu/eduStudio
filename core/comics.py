@@ -74,6 +74,20 @@ class Character(BaseModel):
     visual_lock: str = ""
     voice: str = ""
     anchor_assets: list[str] = Field(default_factory=list)
+    # 表情變體: 表情名 (neutral / happy / surprised / questioning / worried / thinking / angry)
+    # → asset_id。沒給的表情在影片裡退回 neutral (或第一張 anchor), 只靠動態與情緒符號表現。
+    expressions: dict[str, str] = Field(default_factory=dict)
+    # 嘴巴在立繪上的位置 [cx, cy, w, h] (正規化 0~1); 留空 → 影片端用去背圖的 alpha 幾何自動推估
+    mouth: list[float] = Field(default_factory=list)
+
+    @field_validator("mouth")
+    @classmethod
+    def validate_mouth_box(cls, value: list[float]) -> list[float]:
+        if not value:
+            return []
+        if len(value) != 4 or not all(0 <= v <= 1 for v in value):
+            raise ValueError("mouth 必須是 [cx, cy, w, h] 四個 0~1 的數值")
+        return [float(v) for v in value]
 
 
 class GlossaryTerm(BaseModel):
@@ -113,6 +127,8 @@ class Dialogue(BaseModel):
     dialogue_id: str
     speaker_id: str = "narrator"
     text: str
+    # 說這句時的表情; 空字串 = 影片端依台詞語氣自動判斷 (core.comic_video.infer_expression)
+    expression: str = ""
     bubble_style: str = "rounded_callout"
     layout_mode: Literal["AUTO", "MANUAL"] = "AUTO"
     x: float = 0.08

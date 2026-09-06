@@ -7,6 +7,20 @@
 
 ---
 
+## edustudio_cli — MCP server（2026-09-06）
+
+> 接著 CLI 之後,讓 Claude Code / Claude Desktop 等 MCP client 直接用自然語言驅動 eduStudio。純新增,不動 server 路由與前端。
+
+- `edustudio_cli/mcp_server.py`:站在 `EduStudioClient` 上的 MCP server(stdio;相容 mcp 1.x FastMCP / 2.x MCPServer),
+  41 個 tool 分 jobs / 建 job / 審查關卡 / 發布·專案 / 漫畫 / `api_request`;每個 tool 回單一 JSON 物件,
+  API 錯誤以 `is_error` + HTTP 狀態碼 + detail 回給模型。`build_server(client=None, client_factory=None)` 可注入 client,
+  server 沒起來也能啟動、列 tool。review gate 寫進 instructions 與 `approve_job` 描述:人看過草稿才核准。
+- `python -m edustudio_cli mcp` 子命令;`requirements-optional.txt` / `requirements-dev.txt` 加 `mcp>=1.2`。
+- 測試 `tests/test_mcp_server.py` 6 測(in-memory MCP client ↔ TestClient 後端:註冊/描述、錯誤傳遞、HTML mock job、
+  exam review gate、漫畫到影片);手冊 §11.2、README。
+
+---
+
 ## edustudio_cli — Python client + CLI（2026-09-06）
 
 > 劉老師問「能不能不開介面直接用 API」→ 新增官方客戶端,純新增,不動 server 路由與前端。

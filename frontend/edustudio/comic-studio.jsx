@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+import {
+  EXPRESSIONS, anchorOptions, castStatus, charactersText, mouthFromClick,
+  parseCharacters, portraitAssetId, updateCharacter, withExpression, withMouthSize,
+} from './comic-cast.js';
+
 const TABS = [
   ['overview', '總覽'],
   ['bible', 'Series Bible'],
@@ -60,17 +65,6 @@ function StatePill({ value }) {
 
 function splitLines(value) {
   return String(value || '').split(/\r?\n/).map(item => item.trim()).filter(Boolean);
-}
-
-function parseCharacters(value) {
-  return splitLines(value).map((line, index) => {
-    const [character_id, name, role = '', visual_lock = '', voice = ''] = line.split('|').map(item => item.trim());
-    return { character_id: character_id || `character_${index + 1}`, name: name || character_id, role, visual_lock, voice, anchor_assets: [] };
-  });
-}
-
-function charactersText(series) {
-  return (series?.characters || []).map(item => [item.character_id, item.name, item.role, item.visual_lock, item.voice].join(' | ')).join('\n');
 }
 
 function glossaryText(series) {
@@ -139,6 +133,7 @@ export default function ComicStudio({ activeProject, launchContext }) {
   const [videoJob, setVideoJob] = useState(null);
   const [voiceSpecs, setVoiceSpecs] = useState({});
   const [placing, setPlacing] = useState({});   // page_no → speaker_id 正在點圖定位
+  const [mouthPicking, setMouthPicking] = useState('');   // character_id 正在點立繪標嘴巴
   const [discovery, setDiscovery] = useState(null);
 
   const [newSeries, setNewSeries] = useState({
@@ -250,7 +245,7 @@ export default function ComicStudio({ activeProject, launchContext }) {
         ...series,
         visual_bible: seriesDraft.visual_bible,
         world_lock: seriesDraft.world_lock,
-        characters: parseCharacters(seriesDraft.characters),
+        characters: parseCharacters(seriesDraft.characters, series?.characters),
         glossary: parseGlossary(seriesDraft.glossary),
       }),
     }));
@@ -355,6 +350,27 @@ export default function ComicStudio({ activeProject, launchContext }) {
     const x = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
     const y = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
     updatePage(page.page_no, { speaker_positions: { ...(page.speaker_positions || {}), [speaker]: [Number(x.toFixed(4)), Number(y.toFixed(4))] } });
+  }
+
+  // ---- 角色演出 (表情 / 立繪 / 嘴巴): 角色住在 series, 所以改完要存回 series ----
+  function updateCast(characterId, updates) {
+    setSeries(current => ({ ...current, characters: updateCharacter(current?.characters, characterId, updates) }));
+  }
+
+  function pickMouth(character, event) {
+    if (mouthPicking !== character.character_id || !editable) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    updateCast(character.character_id, {
+      mouth: mouthFromClick((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height, character.mouth),
+    });
+    setMouthPicking('');
+  }
+
+  async function saveCast() {
+    const saved = await run('儲存角色演出', () => fetchJson(`${base}/series/${encodeURIComponent(series.series_id)}`, {
+      method: 'PUT', body: JSON.stringify(series),
+    }));
+    setSeries(saved);
   }
 
   async function savePages() {
@@ -605,7 +621,8 @@ export default function ComicStudio({ activeProject, launchContext }) {
                 {placing[page.page_no] && <small>點場景圖上 {placing[page.page_no]} 的頭部；之後按「依畫面配置泡泡」</small>}
               </div>}
               {!!page.dialogues?.length && <details className="es-comic-bubble-controls"><summary>泡泡版面與指向設定</summary><div className="es-comic-bubble-list">{page.dialogues.map((dialogue, dialogueIndex) => <article key={dialogue.dialogue_id || dialogueIndex}>
-                <div><strong>{dialogue.speaker_id}</strong><select className="es-select" disabled={!editable} value={dialogue.layout_mode || 'AUTO'} onChange={e => updateDialogue(page.page_no, dialogueIndex, { layout_mode: e.target.value })}><option value="AUTO">AUTO</option><option value="MANUAL">MANUAL</option></select></div>
+                <div><strong>{dialogue.speaker_id}</strong><select className="es-select" disabled={!editable} value={dialogue.layout_mode || 'AUTO'} onChange={e => updateDialogue(page.page_no, dialogueIndex, { layout_mode: e.target.value })}><option value="AUTO">AUTO</option><option value="MANUAL">MANUAL</option></select>
+                  {dialogue.speaker_id !== 'narrator' && <select className="es-select" title="說這句時的表情" disabled={!editable} value={dialogue.expression || ''} onChange={e => updateDialogue(page.page_no, dialogueIndex, { expression: e.target.value })}><option value="">表情：依語氣自動</option>{EXPRESSIONS.map(([id, label]) => <option key={id} value={id}>表情：{label}</option>)}</select>}</div>
                 <div className="es-comic-coordinate-grid">{[
                   ['x', '左', dialogue.x], ['y', '上', dialogue.y], ['w', '寬', dialogue.w], ['h', '高', dialogue.h],
                   ['tail_x', '指向 X', dialogue.tail_x], ['tail_y', '指向 Y', dialogue.tail_y],
@@ -631,12 +648,64 @@ export default function ComicStudio({ activeProject, launchContext }) {
           </div><Btn variant="primary" onClick={addEvidence} disabled={!editable || !evidenceDraft.title}>儲存 Evidence</Btn></div>
         </section>}
 
-        {tab === 'assets' && <section className="es-comic-two-col">
+        {tab === 'assets' && <><section className="es-comic-two-col">
           <div className="es-card es-comic-panel"><h2>Asset Library</h2><div className="es-comic-asset-grid">{episode.assets.map(asset => <article key={asset.asset_id}><img src={`${base}/episodes/${encodeURIComponent(episode.story_id)}/${episode.version}/assets/${encodeURIComponent(asset.asset_id)}`} alt={asset.kind} /><strong>{asset.asset_id}</strong><span>{asset.kind} · {asset.status}</span><small>{asset.provenance}</small></article>)}</div>{!episode.assets.length && <p className="es-mut">尚無 anchor、equipment reference 或 scene assets。</p>}</div>
           <div className="es-card es-comic-panel"><h2>上傳 Reference</h2><Field label="Asset 類型"><select className="es-select" value={assetDraft.kind} onChange={e => setAssetDraft({ ...assetDraft, kind: e.target.value })}>{['character_anchor', 'equipment_reference', 'scene', 'draft', 'precise_edit'].map(value => <option key={value}>{value}</option>)}</select></Field><Field label="PNG / JPG / WEBP"><input className="es-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={e => setAssetDraft({ ...assetDraft, file: e.target.files?.[0] || null })} /></Field><Btn variant="primary" onClick={uploadAsset} disabled={!editable || !assetDraft.file}>上傳並記錄 provenance</Btn>
             <div className="es-comic-boundary">角色 anchor 與設備 reference 會送進 Gemini image API；scene 圖仍禁止生成可讀中文與 speech bubble。</div>
           </div>
-        </section>}
+        </section>
+
+        <section className="es-card es-comic-panel es-comic-cast">
+          <div className="es-comic-section-head">
+            <div><h2>角色演出（表情 · 嘴型）</h2><p>指定立繪後，角色說話時會在動態漫畫影片的畫框角落現身：依台詞語氣換表情、講話時嘴會開合。設定存在 Series，整個連載共用。</p></div>
+            <Btn variant="primary" onClick={saveCast} disabled={!editable || !series?.characters?.length} busy={busy === '儲存角色演出'}>儲存角色演出</Btn>
+          </div>
+          {!series?.characters?.length && <p className="es-mut">請先在 Series Bible 建立角色。</p>}
+          <div className="es-comic-cast-grid">{(series?.characters || []).map(character => {
+            const options = anchorOptions(episode.assets);
+            const status = castStatus(character, episode.assets);
+            const portrait = portraitAssetId(character);
+            const assetUrl = id => `${base}/episodes/${encodeURIComponent(episode.story_id)}/${episode.version}/assets/${encodeURIComponent(id)}`;
+            const picking = mouthPicking === character.character_id;
+            return <article key={character.character_id} className="es-comic-cast-card">
+              <header><strong>{character.name || character.character_id}</strong><small>{character.character_id}</small><span className={`es-badge es-badge-${status.active ? 'success' : 'info'}`}>{status.active ? '會演出' : '不演出'}</span></header>
+              <div className={`es-comic-cast-portrait${picking ? ' is-picking' : ''}`}>
+                {portrait && options.includes(portrait)
+                  ? <div className="es-comic-cast-figure" onClick={e => pickMouth(character, e)} title={picking ? '點立繪上這個角色的嘴巴' : undefined}>
+                    {/* 座標是相對「立繪本身」, 所以標記與點擊都掛在圖片盒上, 不是外框 (外框有留白) */}
+                    <img src={assetUrl(portrait)} alt={character.name} />
+                    {character.mouth?.length === 4 && <span className="es-comic-mouth-marker" style={{ left: `${character.mouth[0] * 100}%`, top: `${character.mouth[1] * 100}%`, width: `${character.mouth[2] * 100}%`, height: `${character.mouth[3] * 100}%` }} />}
+                  </div>
+                  : <div className="es-comic-no-image"><small>尚無立繪</small></div>}
+              </div>
+              <small className="es-mut">{status.reason}</small>
+              <Field label="立繪（character_anchor）">
+                <select className="es-select" disabled={!editable} value={character.anchor_assets?.[0] || ''} onChange={e => updateCast(character.character_id, { anchor_assets: e.target.value ? [e.target.value] : [] })}>
+                  <option value="">（不指定 → 不演出）</option>
+                  {options.map(id => <option key={id} value={id}>{id}</option>)}
+                </select>
+              </Field>
+              {!status.narratorAvatar && <div className="es-comic-cast-mouth">
+                <span>嘴巴位置</span>
+                <button type="button" className={`es-chip${picking ? ' is-active' : ''}${character.mouth?.length === 4 ? ' is-set' : ''}`} disabled={!editable || !portrait} onClick={() => setMouthPicking(picking ? '' : character.character_id)}>{picking ? '點立繪上的嘴巴…' : '點圖標記'}</button>
+                {character.mouth?.length === 4 && <>
+                  <button type="button" className="es-chip" disabled={!editable} onClick={() => updateCast(character.character_id, { mouth: [] })}>清除（改回自動）</button>
+                  {[['w', '寬', character.mouth[2]], ['h', '高', character.mouth[3]]].map(([key, label, value]) => <label key={key}>{label} %<input className="es-input" type="number" min="1" max="60" step="1" disabled={!editable} value={Math.round(value * 100)} onChange={e => updateCast(character.character_id, { mouth: withMouthSize(character.mouth, key, Number(e.target.value) / 100) })} /></label>)}
+                </>}
+              </div>}
+              {!status.narratorAvatar && <details className="es-comic-cast-expressions"><summary>表情變體（{Object.keys(character.expressions || {}).length} / {EXPRESSIONS.length}）</summary>
+                <div>{EXPRESSIONS.map(([id, label]) => <Field key={id} label={`${label}${id === 'neutral' ? '（預設立繪）' : ''}`}>
+                  <select className="es-select" disabled={!editable} value={character.expressions?.[id] || ''} onChange={e => updateCast(character.character_id, { expressions: withExpression(character, id, e.target.value) })}>
+                    <option value="">（沒有變體）</option>
+                    {options.map(assetId => <option key={assetId} value={assetId}>{assetId}</option>)}
+                  </select>
+                </Field>)}</div>
+                <div className="es-comic-boundary">沒準備變體的表情會用預設立繪，改以動態與情緒符號表現，不會沒反應。</div>
+              </details>}
+            </article>;
+          })}</div>
+          <div className="es-comic-boundary">立繪要<strong>去背 PNG</strong>：嘴巴沒手動標時，系統靠輪廓自動推估位置。表情不指定則依台詞語氣自動判斷，可在「頁面編輯 → 泡泡版面與指向設定」逐句覆寫。</div>
+        </section></>}
 
         {tab === 'qa' && <section className="es-comic-qa-layout">
           <div className="es-card es-comic-panel"><div className="es-comic-section-head"><div><h2>Validation Report</h2><p>系統檢查與人工 QA 分開記錄。</p></div><Btn onClick={refreshValidation}>重新驗證</Btn></div>{validation ? <div className="es-comic-validation"><div className="es-comic-validation-result"><StatePill value={validation.result} /><strong>{validation.publish_ready ? '可以進入 CURRENT' : '尚不可發布'}</strong></div>{validation.items.map(item => <div key={item.check}><StatePill value={item.result} /><span>{item.check}</span><small>{item.detail}</small></div>)}</div> : <p className="es-mut">按「重新驗證」取得最新 gate 狀態。</p>}</div>

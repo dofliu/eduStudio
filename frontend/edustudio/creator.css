@@ -390,3 +390,26 @@
 .es-comic-speaker-tools .es-chip.is-set { border-color: #42c7a5; }
 .es-comic-speaker-tools .es-chip.is-active { background: #42c7a5; color: #06281f; border-color: #42c7a5; }
 .es-comic-speaker-tools small { flex-basis: 100%; }
+
+/* 漫畫站: 角色演出 (立繪 / 表情變體 / 嘴巴定位) */
+.es-comic-cast { margin-top: 14px; }
+.es-comic-cast-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.es-comic-cast-card { min-width: 0; display: flex; flex-direction: column; gap: 7px; padding: 11px; border: 1px solid var(--es-border); border-radius: var(--es-radius-md); background: var(--es-bg); }
+.es-comic-cast-card header { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.es-comic-cast-card header small { color: var(--es-fg-3); font-size: 11px; }
+.es-comic-cast-card header .es-badge { margin-left: auto; }
+.es-comic-cast-portrait { position: relative; height: 210px; border-radius: 8px; overflow: hidden; background: var(--es-surface-3); display: flex; align-items: center; justify-content: center; }
+.es-comic-cast-figure { position: relative; height: 100%; max-width: 100%; }
+.es-comic-cast-figure img { height: 100%; width: auto; max-width: 100%; object-fit: contain; display: block; }
+.es-comic-cast-portrait.is-picking .es-comic-cast-figure { cursor: crosshair; }
+.es-comic-cast-portrait.is-picking { cursor: crosshair; outline: 2px dashed #42c7a5; outline-offset: -2px; }
+.es-comic-mouth-marker { position: absolute; transform: translate(-50%, -50%); border: 2px solid #f3a847; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .45); pointer-events: none; min-width: 6px; min-height: 4px; }
+.es-comic-cast-mouth { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 7px; font-size: 12px; color: var(--es-fg-3); }
+.es-comic-cast-mouth .es-chip { font: inherit; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--es-divider); background: var(--es-bg); color: var(--es-fg-2); cursor: pointer; }
+.es-comic-cast-mouth .es-chip.is-set { border-color: #f3a847; }
+.es-comic-cast-mouth .es-chip.is-active { background: #42c7a5; color: #06281f; border-color: #42c7a5; }
+.es-comic-cast-mouth label { display: inline-flex; align-items: center; gap: 4px; }
+.es-comic-cast-mouth input { width: 54px; padding: 3px 5px; }
+.es-comic-cast-expressions > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 7px 0; }
+@media (max-width: 1180px) { .es-comic-cast-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .es-comic-cast-grid { grid-template-columns: 1fr; } }

@@ -7,6 +7,30 @@
 
 ---
 
+## 講者備註旁白 · 角色表情嘴型 · 手繪轉場（2026-09-06）
+
+**PPTX 講者備註 → 旁白**
+- `core.pptx_augment.read_pptx_speaker_notes` 讀原簡報每頁的備忘稿；`slide_ingest` 把它當
+  **權威大綱**塞進旁白 prompt（涵蓋每個重點、照原順序、展開成口語，與畫面衝突以備註為準）。
+- `JobOptions.speaker_notes_path` + `/jobs/{id}/to-video` 抽備註寫檔 → `runner` 讀進 `ingest`。
+  沒備註 / 沒裝 python-pptx / 頁數對不上 → 完全維持原行為（不錯位套到別頁）。
+
+**角色表情與嘴型**
+- `Character.expressions`（表情 → asset_id）、`Character.mouth`、`Dialogue.expression`；
+  沒指定時 `infer_expression` 依台詞語氣判斷（怒 / 憂 / 驚 / 喜 / 疑問 / 沉吟）。
+- `estimate_mouth_box` 從去背立繪的 alpha 幾何自動推嘴巴位置（純 Pillow，不引入 OpenCV）。
+- 說話角色在畫框角落現身（自動站在泡泡另一側），依表情換圖、嘴型 8fps 量化開合
+  （閉嘴全透明 → 看到的是原畫）。沒立繪素材的角色維持原行為。
+
+**手繪風格轉場**
+- `pick_transition`：動作橋段速度線、特寫撕紙、其餘墨刷並隔頁交替。
+- 進場改用鋸齒 `clip-path` 把新頁刷出來（量化 14 格）並沿邊壓墨線；全部由既有 `render(t)`
+  驅動，與 `core.html_video` 的虛擬時鐘相容。
+
+測試 26 項（含瀏覽器實跑驗證進場裁切、立繪現身、嘴型逐格變化）。
+
+---
+
 ## edustudio_cli — 修掉不存在的 `/status` 端點（2026-09-06）
 
 - `EduStudioClient.status()` 打的 `GET /status` 在 server 上不存在（`openapi.json` 只有 `/google-photos/status` 等），

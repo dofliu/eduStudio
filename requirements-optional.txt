@@ -62,5 +62,6 @@ playwright>=1.40
 #     pip install mcp
 #     python -m edustudio_cli.mcp_server        # stdio, 讀 EDUSTUDIO_URL / EDUSTUDIO_API_TOKEN
 # 沒裝 → 只是 `python -m edustudio_cli mcp` 會提示安裝, server / 介面 / CLI 其他功能完全不受影響。
-# 相容 mcp 1.x (FastMCP) 與 2.x (MCPServer)。
-mcp>=1.2
+# edustudio_cli.mcp_server 相容 mcp 1.x (FastMCP) 與 2.x (MCPServer); 舊的 server/mcp_tools.py
+# (translateGemma 翻譯工具) 只支援 1.x, 兩個都要用就裝 <2。
+mcp>=1.2,<2

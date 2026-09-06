@@ -1,4 +1,5 @@
-"""edustudio_cli.mcp_server — MCP tools 包 EduStudioClient (in-memory MCP client ↔ TestClient-backed 後端, 不起 server、不碰前端)。"""
+"""edustudio_cli.mcp_server — MCP tools 包 EduStudioClient (in-memory MCP client ↔ TestClient-backed 後端, 不起 server、不碰前端)。
+mcp 1.x (FastMCP, CallToolResult.isError) 與 2.x (MCPServer, is_error) 都要能跑。"""
 from __future__ import annotations
 
 import json
@@ -11,9 +12,15 @@ pytest.importorskip("fastapi.testclient", reason="需要 fastapi")
 pytest.importorskip("multipart", reason="upload 路由需要 python-multipart")
 pytest.importorskip("mcp", reason="需要 MCP Python SDK (pip install mcp)")
 try:
-    from mcp.client import Client as MCPClient  # mcp >= 2: in-process client
-except ImportError:  # pragma: no cover
-    pytest.skip("in-memory MCP Client 需要 mcp >= 2", allow_module_level=True)
+    from mcp.client import Client as _Client  # mcp >= 2: in-process client
+
+    def MCPClient(server):
+        return _Client(server)
+except ImportError:  # mcp 1.x: FastMCP 直接接 in-memory session
+    from mcp.shared.memory import create_connected_server_and_client_session
+
+    def MCPClient(server):
+        return create_connected_server_and_client_session(server)
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -49,14 +56,20 @@ def env(tmp_path, monkeypatch):
         yield client, mcp_server.build_server(client)
 
 
+def _field(obj, snake, camel):
+    """mcp 2.x 用 snake_case 屬性, 1.x 用 camelCase。"""
+    return getattr(obj, snake, None) if hasattr(obj, snake) else getattr(obj, camel, None)
+
+
 async def _call(mc, name, **args):
     """呼叫 tool, 回 (is_error, 解析後的 JSON 或原文)。每個 tool 都回單一 dict (清單類 → {"count","items"})。"""
     r = await mc.call_tool(name, args)
     text = "".join(getattr(c, "text", "") for c in r.content)
-    if r.is_error:
+    if _field(r, "is_error", "isError"):
         return True, text
-    if r.structured_content is not None:
-        return False, r.structured_content
+    structured = _field(r, "structured_content", "structuredContent")
+    if structured is not None:
+        return False, structured
     try:
         return False, json.loads(text)
     except ValueError:
@@ -74,7 +87,7 @@ async def test_tools_registered_with_descriptions(env):
         assert name in tools, name
         assert tools[name].description and len(tools[name].description) > 10
     assert "核准" in tools["approve_job"].description          # review gate 說明要在 tool 描述裡
-    assert "job_id" in tools["get_job"].input_schema["required"]
+    assert "job_id" in _field(tools["get_job"], "input_schema", "inputSchema")["required"]
     ro = tools["get_job"].annotations
     assert ro is not None and (getattr(ro, "read_only_hint", None) or getattr(ro, "readOnlyHint", None))
     assert "awaiting_review" in mcp_server.INSTRUCTIONS

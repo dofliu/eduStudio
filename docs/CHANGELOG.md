@@ -15,7 +15,8 @@
   41 個 tool 分 jobs / 建 job / 審查關卡 / 發布·專案 / 漫畫 / `api_request`;每個 tool 回單一 JSON 物件,
   API 錯誤以 `is_error` + HTTP 狀態碼 + detail 回給模型。`build_server(client=None, client_factory=None)` 可注入 client,
   server 沒起來也能啟動、列 tool。review gate 寫進 instructions 與 `approve_job` 描述:人看過草稿才核准。
-- `python -m edustudio_cli mcp` 子命令;`requirements-optional.txt` / `requirements-dev.txt` 加 `mcp>=1.2`。
+- `python -m edustudio_cli mcp` 子命令;`requirements-optional.txt` / `requirements-dev.txt` 加 `mcp>=1.2,<2`
+  (既有的 `server/mcp_tools.py` 只支援 1.x FastMCP;新模組 1.x / 2.x 皆可,測試兩版都跑過)。
 - 測試 `tests/test_mcp_server.py` 6 測(in-memory MCP client ↔ TestClient 後端:註冊/描述、錯誤傳遞、HTML mock job、
   exam review gate、漫畫到影片);手冊 §11.2、README。
 

@@ -407,7 +407,7 @@ c.comics("wind101").render_video("W11_gearbox", voices={"narrator": "default"})
 
 `edustudio_cli/mcp_server.py` 把同一個 client 包成 **MCP(Model Context Protocol)server**,任何 MCP client
 (Claude Code、Claude Desktop、Cursor…)就能用自然語言驅動 eduStudio:「把這份 PPTX 轉成教學影片,旁白給我看過再渲染」。
-同樣只走 REST API,不動 server 與前端;需要 `pip install mcp`(1.x / 2.x 皆可)。
+同樣只走 REST API,不動 server 與前端;需要 `pip install mcp`(1.x / 2.x 皆可;若也要用舊的 `server/mcp_tools.py` 翻譯工具請裝 `"mcp<2"`)。
 
 ```bash
 pip install mcp

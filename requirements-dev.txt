@@ -2,4 +2,4 @@
 pytest>=7.4
 pytest-asyncio>=0.24  # 支援 asyncio_default_fixture_loop_scope，固定每個 fixture 使用 function loop
 httpx>=0.25            # FastAPI TestClient 底層 (跟 fastapi 版本對應)
-mcp>=1.2              # edustudio_cli.mcp_server 的 MCP SDK (tests/test_mcp_server.py; 沒裝會 skip)
+mcp>=1.2,<2           # MCP SDK: server/mcp_tools.py 只支援 1.x (FastMCP); edustudio_cli.mcp_server 1.x/2.x 皆可. 沒裝測試會 skip

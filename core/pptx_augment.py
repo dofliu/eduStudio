@@ -113,6 +113,44 @@ def extract_pptx_slide_texts(prs) -> list[tuple[str, str]]:
     return out
 
 
+def extract_pptx_speaker_notes(prs, *, max_chars: int = 1200) -> list[str]:
+    """每張投影片 → 講者備註純文字 (沒寫備註的頁回空字串)。
+
+    老師在 PowerPoint「備忘稿」寫的講稿是最貼近他本人要講什麼的材料, 拿來餵旁白
+    生成 (slide_ingest.narrate_page_with_gemini) 比讓 Gemini 純看圖猜準得多。
+    python-pptx 的 notes_slide 只在該頁真的有 notes 時才存在, 一律先問 has_notes_slide。
+    """
+    out: list[str] = []
+    for slide in prs.slides:
+        text = ""
+        try:
+            if slide.has_notes_slide:
+                frame = slide.notes_slide.notes_text_frame
+                if frame is not None:
+                    text = (frame.text or "").strip()
+        except Exception:  # noqa: BLE001 — 備註讀不到不該擋住整份簡報
+            text = ""
+        # PowerPoint 常把投影片編號也塞進 notes placeholder, 落單數字沒有資訊量
+        if text.isdigit():
+            text = ""
+        out.append(text[:max_chars])
+    return out
+
+
+def read_pptx_speaker_notes(src_pptx: str | Path, *, max_chars: int = 1200) -> list[str]:
+    """從 .pptx 檔讀講者備註; 沒裝 python-pptx 或讀檔失敗 → 回 []。"""
+    try:
+        from pptx import Presentation
+    except ImportError:
+        logger.info("未安裝 python-pptx, 略過講者備註擷取")
+        return []
+    try:
+        return extract_pptx_speaker_notes(Presentation(str(src_pptx)), max_chars=max_chars)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("讀取講者備註失敗 (%s), 略過", e)
+        return []
+
+
 def insert_images_into_pptx(
     src_pptx: str | Path,
     out_pptx: str | Path,

@@ -78,6 +78,25 @@ def _end_stage_fail(store: JobStore, job_id: str, err: str) -> None:
 
 # ---------- Source-type dispatch ----------
 
+def _load_speaker_notes(rec: JobRecord) -> list[str]:
+    """options.speaker_notes_path → 逐頁講者備註 (PPTX 備忘稿); 沒設 / 讀不到 → []。
+
+    PPTX 轉影片時由 /jobs/{id}/to-video 寫檔, 讓旁白照老師自己寫的講稿生成。
+    """
+    path = (rec.options.speaker_notes_path or "").strip()
+    if not path:
+        return []
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001 — 備註是加分項, 讀不到就退回純看圖
+        logger.warning("讀取講者備註失敗 (%s), 改用純看圖生旁白", e)
+        return []
+    if not isinstance(data, list):
+        logger.warning("講者備註格式不是 list, 忽略: %s", path)
+        return []
+    return [str(x or "") for x in data]
+
+
 async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
     """跑 ingest 階段 (PDF / repo / document / url → deck.json), 回傳 deck dict 並寫盤。
 
@@ -117,6 +136,7 @@ async def _run_ingest(store: JobStore, rec: JobRecord) -> dict:
         await asyncio.to_thread(
             ingest_slides, src_path, deck_path,
             mock=mock, single=False, brief=False, as_deck=True,
+            speaker_notes=_load_speaker_notes(rec),
         )
         return json.loads(deck_path.read_text(encoding="utf-8"))
 

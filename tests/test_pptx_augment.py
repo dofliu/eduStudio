@@ -138,3 +138,53 @@ class TestPptxConverterBoundary:
 
         with pytest.raises(RuntimeError, match="libreoffice-impress"):
             pa.render_pptx_to_pdf(src, tmp_path / "out")
+
+
+# ---------- 講者備註 → 旁白大綱 (PPTX 轉影片) ----------
+def _pptx_with_notes(path, notes):
+    """每頁寫 notes[i] 到「備忘稿」; notes[i] 為 None 代表該頁完全不建 notes_slide。"""
+    from pptx import Presentation
+    from pptx.util import Inches
+    prs = Presentation()
+    for i, note in enumerate(notes):
+        s = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = s.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(5), Inches(1))
+        tb.text_frame.text = f"第 {i + 1} 頁"
+        if note is not None:
+            s.notes_slide.notes_text_frame.text = note
+    prs.save(str(path))
+    return path
+
+
+class TestSpeakerNotes:
+    def test_extract_notes_and_blanks(self, tmp_path):
+        src = _pptx_with_notes(tmp_path / "n.pptx", ["先講風從哪來, 再帶到離岸為何較穩。", None, "   ", "7"])
+        notes = pa.read_pptx_speaker_notes(src)
+        assert len(notes) == 4
+        assert notes[0].startswith("先講風")
+        assert notes[1] == "" and notes[2].strip() == ""
+        assert notes[3] == ""          # PowerPoint 常把頁碼塞進 notes, 落單數字不是講稿
+
+    def test_truncates_long_note(self, tmp_path):
+        src = _pptx_with_notes(tmp_path / "long.pptx", ["很長" * 2000])
+        assert len(pa.read_pptx_speaker_notes(src, max_chars=50)[0]) == 50
+
+    def test_unreadable_file_returns_empty(self, tmp_path):
+        bad = tmp_path / "not.pptx"
+        bad.write_bytes(b"not a pptx")
+        assert pa.read_pptx_speaker_notes(bad) == []
+
+    def test_notes_block_enters_narration_prompt(self):
+        """有備註 → prompt 多出「權威來源」區塊並帶原文; 沒備註 → prompt 跟原本一模一樣。"""
+        from slide_ingest import NARRATION_PROMPT_BRIEF, NARRATION_PROMPT_DETAILED, _speaker_notes_block
+
+        note = "這頁重點是齒輪箱溫升, 要提到 80 度警戒值。"
+        assert _speaker_notes_block("") == "" and _speaker_notes_block("  \n ") == ""
+        block = _speaker_notes_block(note)
+        assert note in block and "權威來源" in block
+        for tpl in (NARRATION_PROMPT_DETAILED, NARRATION_PROMPT_BRIEF):
+            kw = dict(chapter_title="運維", chapter_pages=3, page_in_chapter=2, prev_narration="前一頁")
+            with_note = tpl.format(speaker_notes=block, **kw)
+            without = tpl.format(speaker_notes="", **kw)
+            assert note in with_note and note not in without
+            assert "權威來源" not in without

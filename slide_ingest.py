@@ -94,7 +94,7 @@ NARRATION_PROMPT_DETAILED = """你正在替一份簡報的單張投影片撰寫�
 
 ==== 本張投影片內容 ====
 請看圖。
-
+{speaker_notes}
 ==== 撰寫要求 ====
 **首要規則: 句子必須完整, 結尾使用句點「。」, 絕對不要在半句話停下。**
 
@@ -127,7 +127,7 @@ NARRATION_PROMPT_BRIEF = """你正在替一份簡報的單張投影片撰寫教�
 
 ==== 本張投影片內容 ====
 請看圖。
-
+{speaker_notes}
 ==== 撰寫要求 ====
 1. 50~120 字之間 (中文字數)
 2. 以「劉老師」第一人稱口吻, 自然口語
@@ -276,15 +276,35 @@ def _truncate_at_sentence(text: str, target: int = NARRATION_TARGET_CHARS,
     return cut + "。"
 
 
+# 有講者備註時插進 prompt 的區塊。老師自己寫的講稿 = 這頁「該講什麼」的權威來源,
+# 所以定位成大綱而非參考: 要展開成口語, 不可牴觸, 也不可只照唸。
+SPEAKER_NOTES_BLOCK = """
+==== 老師為這張投影片寫的講者備註 (權威來源) ====
+{notes}
+
+**這份備註是老師本人要講的內容, 請以它為主軸**: 涵蓋備註提到的每個重點, 按它的邏輯順序,
+用口語展開成完整旁白 (備註若很簡短就補上說明與例子; 若已很完整就潤成口語, 不要只照唸)。
+備註與投影片畫面若有出入, 以備註為準; 不要加入備註和畫面都沒有的主張。
+"""
+
+
+def _speaker_notes_block(note: str) -> str:
+    """有備註 → 權威來源區塊; 沒備註 → 空字串 (prompt 維持原樣)。"""
+    note = (note or "").strip()
+    return SPEAKER_NOTES_BLOCK.format(notes=note) if note else ""
+
+
 def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
                               chapter_pages: int, page_in_chapter: int,
                               prev_narration: str, *, brief: bool = False,
-                              model: str | None = None) -> str:
+                              model: str | None = None,
+                              speaker_note: str = "") -> str:
     """單頁 → narration 草稿。Gemini 偶爾會在中文句中提早 STOP 導致句子腰斬,
     結尾若不是句號類符號就 retry 一次, temperature 提高 + prompt 加強完整性要求。
 
     model: 覆寫旁白模型 id（預設走角色登錄表 text.fast＝narration_model()）。供 C-3 旁白模型
-    A/B 比對用（tools/ab_narration.py 對同一頁跑 2.5 vs 3.x 比品質）。"""
+    A/B 比對用（tools/ab_narration.py 對同一頁跑 2.5 vs 3.x 比品質）。
+    speaker_note: 這頁的 PPTX 講者備註 (老師自己寫的講稿); 非空時當權威大綱塞進 prompt。"""
     from google.genai import types
 
     model = model or narration_model()
@@ -295,6 +315,7 @@ def narrate_page_with_gemini(client, page_png: bytes, chapter_title: str,
         chapter_pages=chapter_pages,
         page_in_chapter=page_in_chapter,
         prev_narration=prev_narration or "(這是本章第一張投影片, 沒有前一張)",
+        speaker_notes=_speaker_notes_block(speaker_note),
     )
     parts = [types.Part.from_bytes(data=page_png, mime_type="image/png")]
 
@@ -426,13 +447,18 @@ def build_deck_sections(stem: str, chapters: list[dict], page_paths: list[Path],
 
 
 def ingest(pdf_path: Path, out_json: Path, *,
-           mock: bool, single: bool, brief: bool, as_deck: bool = False):
+           mock: bool, single: bool, brief: bool, as_deck: bool = False,
+           speaker_notes: list[str] | None = None):
     """簡報 PDF → JSON (預設 v1 exam schema, as_deck=True 改 deck schema)。
 
     PR-3h 加 as_deck 旗標:
     - False (預設, Track A CLI): 出 v1 exam (problems/steps), bg_image 在 step 上
     - True (Track B server runner): 出 deck (sections/slides), bg_image 在 slide 上
     兩條共用 PDF→PNG / 章節切分 / Gemini narration 三個慢階段, 只差最後組裝。
+
+    speaker_notes: 逐頁的 PPTX 講者備註 (index 0 = 第 1 頁), 由 PPTX 來源帶進來
+    (core.pptx_augment.read_pptx_speaker_notes)。有備註的頁會拿它當旁白的權威大綱,
+    沒有 / 長度對不上的頁自動退回純看圖生成。
     """
     _ensure_dirs()
     stem = pdf_path.stem
@@ -463,9 +489,22 @@ def ingest(pdf_path: Path, out_json: Path, *,
     logger.info(f"Pass 2: 逐頁產旁白（mock={mock}, 風格={style_label}）...")
     narrations: list[str] = [""] * total
 
+    notes = list(speaker_notes or [])
+    if notes and len(notes) != total:
+        # PPTX 頁數與 PDF 頁數對不上 (例: 補圖流程插頁) → 寧可不用, 也不要整份錯位
+        logger.warning("講者備註 %d 則 與 PDF %d 頁 對不上, 本次不使用備註", len(notes), total)
+        notes = []
+    used_notes = sum(1 for n in notes if n.strip())
+    if used_notes:
+        logger.info("採用 %d/%d 頁的講者備註作為旁白大綱", used_notes, total)
+
+    def note_for(page_no: int) -> str:
+        return notes[page_no - 1] if notes else ""
+
     if mock:
         for i in range(total):
-            narrations[i] = f"(投影片 {i+1} 佔位旁白, 請至 Web UI 編輯)"
+            tag = " (依講者備註)" if note_for(i + 1).strip() else ""
+            narrations[i] = f"(投影片 {i+1} 佔位旁白{tag}, 請至 Web UI 編輯)"
     else:
         from google.genai import types
 
@@ -481,7 +520,7 @@ def ingest(pdf_path: Path, out_json: Path, *,
                 png_bytes = page_paths[p - 1].read_bytes()
                 text = narrate_page_with_gemini(
                     client, png_bytes, ch["title"], chapter_pages, offset, prev,
-                    brief=brief,
+                    brief=brief, speaker_note=note_for(p),
                 )
                 narrations[p - 1] = text
                 prev = text

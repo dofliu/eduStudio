@@ -367,7 +367,41 @@ python publish.py --video output/<stem>/q1.mp4 --title "..."   # 上傳 YouTube
 python batch.py ...                                      # 整份批次(見 --help)
 ```
 
-> 考卷的 review gate **不能用 CLI 繞過**;審查與核准仍走 `/app`。
+### 11.1 `edustudio` CLI 與 Python client(不開介面)
+
+`edustudio_cli/` 是走 REST API 的官方客戶端,只需 `requests`,可裝在另一台機器遠端操作 server。
+連線用 `--server` / `EDUSTUDIO_URL`(預設 `http://127.0.0.1:8000`),token 用 `--token` / `EDUSTUDIO_API_TOKEN`。
+結果 JSON 印到 stdout,進度到 stderr;exit code:0 成功、1 API 錯、2 參數錯、3 超時。
+
+```bash
+python -m edustudio_cli health
+python -m edustudio_cli video deck.pptx --project wind101 --wait --download out/   # PPTX 補圖 → 轉影片
+python -m edustudio_cli video lecture.pdf --kind slides --wait --download out/     # 簡報 PDF
+python -m edustudio_cli video exam.pdf --kind exam --wait                          # 考卷:停在 awaiting_review
+python -m edustudio_cli draft get <job> -o deck.json                               # 取草稿改旁白
+python -m edustudio_cli draft put <job> deck.json
+python -m edustudio_cli jobs approve <job> --wait --download out/                  # 你看過草稿後核准
+python -m edustudio_cli publish <job> final.mp4 --title "..." --privacy unlisted   # 上傳 YouTube
+python -m edustudio_cli comics video wind101 W11_gearbox --voices aguang=edge:zh-TW-YunJheNeural --wait
+python -m edustudio_cli api GET /jobs                                              # 任意端點
+```
+
+Python:
+
+```python
+from edustudio_cli import EduStudioClient
+c = EduStudioClient("http://localhost:8000", token="...")
+job = c.upload("lecture.pdf", "slides_pdf", project_id="wind101")
+rec = c.wait(job["job_id"])                 # done / failed / awaiting_review
+if rec["state"] == "awaiting_review":
+    deck = c.get_draft(job["job_id"]); ...; c.put_draft(job["job_id"], deck); c.approve(job["job_id"])
+    rec = c.wait(job["job_id"], until=("done", "failed"))
+c.download_all(job["job_id"], "out/")
+c.comics("wind101").render_video("W11_gearbox", voices={"narrator": "default"})
+```
+
+> review gate 在 CLI 下**依然存在**:考卷等需審查的 job 會停在 `awaiting_review`,要你明確下
+> `jobs approve`(或 `video --approve`,代表你已看過草稿)才會渲染;`approve` 就是介面上的「核准」按鈕。
 
 ---
 

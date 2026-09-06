@@ -112,6 +112,9 @@ Then open **`http://127.0.0.1:8000/app/`**.
 > `uvicorn main:app` fails with *"Error loading ASGI app. Could not import module 'main'"*.
 > Equivalent: `python -m server.main`.
 
+🖥️ **Prefer the API?** `python -m edustudio_cli video deck.pptx --wait --download out/` drives the whole
+upload → review → render → download flow from the terminal (see [User Manual §11.1](docs/USER_MANUAL.md#111-edustudio-cli-與-python-client不開介面)).
+
 📖 **New here?** The full [**User Manual**](docs/USER_MANUAL.md) covers every station, the
 config reference, the REST API and troubleshooting. For the shortest path (exam → video →
 YouTube) see [onboarding](docs/onboarding.md).

@@ -7,6 +7,19 @@
 
 ---
 
+## edustudio_cli — Python client + CLI（2026-09-06）
+
+> 劉老師問「能不能不開介面直接用 API」→ 新增官方客戶端,純新增,不動 server 路由與前端。
+
+- `edustudio_cli/client.py`:`EduStudioClient`(jobs / draft / approve / wait / artifacts 下載 / upload PDF·HTML·PPTX /
+  pptx_to_video / YouTube publish / projects)+ `ComicsClient`(series / episodes / 生圖 / 排版 / 定位 / 動態漫畫影片 / 匯出 / 發布);
+  `session` 可注入 TestClient,測試不起 server。4xx/5xx → `EduStudioError(status, detail)`。
+- `python -m edustudio_cli`:`health` / `video` / `jobs` / `draft` / `publish` / `projects` / `comics` / `api`;
+  JSON 到 stdout、進度到 stderr、exit code 分級;review gate 不繞(`awaiting_review` 要明確 `jobs approve`)。
+- 測試 `tests/test_cli_client.py` 11 測;手冊 §11.1。
+
+---
+
 ## 漫畫 → 動態漫畫影片（2026-09-05）
 
 > 劉老師提問「沒有影片模型能不能做有角色的影片」→ 結論:漫畫式呈現不是「降 fps」而是「降獨特畫格數」;

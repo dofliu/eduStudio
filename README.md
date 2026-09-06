@@ -115,7 +115,7 @@ Then open **`http://127.0.0.1:8000/app/`**.
 🖥️ **Prefer the API?** `python -m edustudio_cli video deck.pptx --wait --download out/` drives the whole
 upload → review → render → download flow from the terminal (see [User Manual §11.1](docs/USER_MANUAL.md#111-edustudio-cli-與-python-client不開介面)).
 🤖 **Prefer talking to it?** `pip install mcp && python -m edustudio_cli.mcp_server` exposes the same flow as an
-**MCP server** (41 tools) for Claude Code / Claude Desktop — the review gate stays: `approve_job` is a separate,
+**MCP server** (40 tools) for Claude Code / Claude Desktop — the review gate stays: `approve_job` is a separate,
 explicit step (see [User Manual §11.2](docs/USER_MANUAL.md#112-mcp-server讓-claude-code--claude-desktop-直接操作)).
 
 📖 **New here?** The full [**User Manual**](docs/USER_MANUAL.md) covers every station, the

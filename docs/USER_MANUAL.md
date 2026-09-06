@@ -432,11 +432,11 @@ Claude Code:在專案目錄放 `.mcp.json`(或 `claude mcp add edustudio -e EDUS
 
 Claude Desktop 的 `claude_desktop_config.json` 用同一段 `mcpServers`。eduStudio server 要先跑著(§2.3);MCP server 本身沒連上也能啟動、列工具,第一次呼叫才連。
 
-提供 41 個工具,分五組:
+提供 40 個工具,分五組:
 
 | 組 | 工具 |
 |---|---|
-| server / jobs | `edustudio_health` `edustudio_status` `list_jobs` `get_job` `wait_job` `get_job_log` `list_artifacts` `download_artifacts` `delete_job` |
+| server / jobs | `edustudio_health`(健康檢查 + 字型 / key / TTS 設定齊不齊)· `list_jobs` `get_job` `wait_job` `get_job_log` `list_artifacts` `download_artifacts` `delete_job` |
 | 建 job | `upload_video_source`(exam / slides / document PDF)· `upload_pptx` → `pptx_to_video` · `upload_html_animation` |
 | 審查關卡 | `get_draft` `put_draft` `review_flags` **`approve_job`** `render_section` |
 | 發布 / 專案 | `publish_youtube` `youtube_status` · `list_projects` `get_project` `create_project` |
@@ -527,7 +527,7 @@ Claude Desktop 的 `claude_desktop_config.json` 用同一段 `mcpServers`。eduS
 | `/settings` | `GET/PUT` 設定(API key / 逐角色模型 / 預算) |
 | `/projects/{pid}/comics` | 漫畫:`POST /series` · `POST /episodes` · `POST /episodes/{id}/generate/{script,storyboard,images}` · `PUT …/evidence/{sid}` · `PUT …/qa/{gate}` · `GET …/validation` · `POST …/exports/{kind}` · `POST …/publish` · `GET /reader/{id}` |
 | `/themes` `/voices` `/slide_images` `/google-photos` `/library` | 主題預覽 · 語音清單+試聽 · 簡報配圖 · 相簿 Picker · 成品瀏覽 |
-| `/health` `/status` | 健康檢查 · 系統狀態 |
+| `/health` | 健康檢查 + 系統狀態(字型 / Gemini key / TTS 設定 / job 數);唯一免 token 的端點 |
 
 > 設了 `EDUSTUDIO_API_TOKEN` 時,除 `/auth` `/health` 外所有端點都需帶
 > `Authorization: Bearer <token>`(或瀏覽器 cookie)。

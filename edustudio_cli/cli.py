@@ -213,6 +213,17 @@ def cmd_api(c: EduStudioClient, args) -> int:
     return 0
 
 
+def cmd_mcp(c: EduStudioClient, args) -> int:
+    """以 MCP server 啟動 (stdio), 讓 Claude Code / Claude Desktop 直接操作 eduStudio。"""
+    try:
+        from . import mcp_server
+    except ImportError as e:
+        raise SystemExit(f"{e}") from None
+    _log(f"eduStudio MCP server ({args.transport}) → {c.base_url}")
+    mcp_server.build_server(client_factory=lambda: c).run(transport=args.transport)
+    return 0
+
+
 # ---------------------------------------------------------------- parser
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="edustudio", description="eduStudio API 命令列 (不需開 /app 介面)")
@@ -288,6 +299,10 @@ def build_parser() -> argparse.ArgumentParser:
     api = sub.add_parser("api", help="任意端點: api GET /jobs | api POST /path --json '{...}'")
     api.add_argument("method"); api.add_argument("path"); api.add_argument("--json", default=None)
     api.set_defaults(fn=cmd_api)
+
+    mcp = sub.add_parser("mcp", help="以 MCP server 啟動 (stdio), 給 Claude Code / Claude Desktop 用 (需 pip install mcp)")
+    mcp.add_argument("--transport", default="stdio", choices=("stdio", "streamable-http", "sse"))
+    mcp.set_defaults(fn=cmd_mcp)
     return ap
 
 

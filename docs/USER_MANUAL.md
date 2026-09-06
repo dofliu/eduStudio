@@ -28,7 +28,7 @@
 8. [🌐 在地化站](#8-在地化站)
 9. [📤 發布(YouTube)](#9-發布youtube)
 10. [🗂️ 素材庫 · Library · 專案](#10-素材庫--library--專案)
-11. [⌨️ CLI 與自動化](#11-cli-與自動化)
+11. [⌨️ CLI 與自動化](#11-cli-與自動化)(CLI · Python client · MCP server)
 12. [🧯 疑難排解](#12-疑難排解)
 13. [🔒 安全與上線](#13-安全與上線)
 14. [附錄 A — 環境變數完整表](#附錄-a--環境變數完整表)
@@ -402,6 +402,53 @@ c.comics("wind101").render_video("W11_gearbox", voices={"narrator": "default"})
 
 > review gate 在 CLI 下**依然存在**:考卷等需審查的 job 會停在 `awaiting_review`,要你明確下
 > `jobs approve`(或 `video --approve`,代表你已看過草稿)才會渲染;`approve` 就是介面上的「核准」按鈕。
+
+### 11.2 MCP server(讓 Claude Code / Claude Desktop 直接操作)
+
+`edustudio_cli/mcp_server.py` 把同一個 client 包成 **MCP(Model Context Protocol)server**,任何 MCP client
+(Claude Code、Claude Desktop、Cursor…)就能用自然語言驅動 eduStudio:「把這份 PPTX 轉成教學影片,旁白給我看過再渲染」。
+同樣只走 REST API,不動 server 與前端;需要 `pip install mcp`(1.x / 2.x 皆可;若也要用舊的 `server/mcp_tools.py` 翻譯工具請裝 `"mcp<2"`)。
+
+```bash
+pip install mcp
+python -m edustudio_cli.mcp_server            # stdio, 讀 EDUSTUDIO_URL / EDUSTUDIO_API_TOKEN
+python -m edustudio_cli mcp                   # 同上 (CLI 子命令; --server / --token 同 CLI)
+```
+
+Claude Code:在專案目錄放 `.mcp.json`(或 `claude mcp add edustudio -e EDUSTUDIO_URL=... -e EDUSTUDIO_API_TOKEN=... -- python -m edustudio_cli.mcp_server`):
+
+```json
+{
+  "mcpServers": {
+    "edustudio": {
+      "command": "python",
+      "args": ["-m", "edustudio_cli.mcp_server"],
+      "cwd": "/path/to/eduStudio",
+      "env": { "EDUSTUDIO_URL": "http://127.0.0.1:8000", "EDUSTUDIO_API_TOKEN": "你的 token" }
+    }
+  }
+}
+```
+
+Claude Desktop 的 `claude_desktop_config.json` 用同一段 `mcpServers`。eduStudio server 要先跑著(§2.3);MCP server 本身沒連上也能啟動、列工具,第一次呼叫才連。
+
+提供 41 個工具,分五組:
+
+| 組 | 工具 |
+|---|---|
+| server / jobs | `edustudio_health` `edustudio_status` `list_jobs` `get_job` `wait_job` `get_job_log` `list_artifacts` `download_artifacts` `delete_job` |
+| 建 job | `upload_video_source`(exam / slides / document PDF)· `upload_pptx` → `pptx_to_video` · `upload_html_animation` |
+| 審查關卡 | `get_draft` `put_draft` `review_flags` **`approve_job`** `render_section` |
+| 發布 / 專案 | `publish_youtube` `youtube_status` · `list_projects` `get_project` `create_project` |
+| 漫畫 | `comics_list_series` `comics_create_series` `comics_get_series` `comics_update_series` `comics_list_episodes` `comics_create_episode` `comics_get_episode` `comics_update_episode` `comics_generate` `comics_upload_asset` `comics_auto_layout` `comics_locate_speakers` `comics_validation` `comics_set_state` `comics_export` `comics_render_video` `comics_publish` |
+| 其他 | `api_request`(任意端點) |
+
+每個工具回單一 JSON 物件(清單類回 `{"count", "items"}`);API 錯誤以 `is_error` 回給模型並附 HTTP 狀態碼與 server 的 detail
+(例 `eduStudio API 404: job zzz 不存在`),不會靜默。檔案路徑(上傳來源、下載目錄)是**跑 MCP server 那台機器**上的路徑。
+
+> review gate 在 MCP 下**依然存在**,而且寫進了 server 的 instructions 與 `approve_job` 的描述:模型應在**你明確說已看過草稿**後才呼叫
+> `approve_job`,不會自動核准。想要「先審再渲」的流程就照舊:`wait_job` 停在 `awaiting_review` → `get_draft` 看旁白 →(改)`put_draft` →
+> 你點頭 → `approve_job` → `wait_job(until=["done","failed"])` → `download_artifacts`。
 
 ---
 

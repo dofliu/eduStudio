@@ -7,12 +7,22 @@
 
 ---
 
+## edustudio_cli — 修掉不存在的 `/status` 端點（2026-09-06）
+
+- `EduStudioClient.status()` 打的 `GET /status` 在 server 上不存在（`openapi.json` 只有 `/google-photos/status` 等），
+  真跑會回 404。移除該方法與對應的 `edustudio_status` MCP tool：`/health` 已經回服務狀態、字型 / Gemini key /
+  TTS 設定是否齊全、job 數,`edustudio_health` 一支就夠。手冊附錄 B 也跟著改（原本誤列 `/status`）。
+- 新增迴歸測試：對「不需參數的唯讀 tool」逐一呼叫，任何一支回 404 就 fail（就是這次抓到 bug 的那類）。
+- 以真正的 MCP client（stdio 子程序）對 uvicorn server 跑端到端：29/30 通過，唯一失敗就是這支 `/status`，已修。
+
+---
+
 ## edustudio_cli — MCP server（2026-09-06）
 
 > 接著 CLI 之後,讓 Claude Code / Claude Desktop 等 MCP client 直接用自然語言驅動 eduStudio。純新增,不動 server 路由與前端。
 
 - `edustudio_cli/mcp_server.py`:站在 `EduStudioClient` 上的 MCP server(stdio;相容 mcp 1.x FastMCP / 2.x MCPServer),
-  41 個 tool 分 jobs / 建 job / 審查關卡 / 發布·專案 / 漫畫 / `api_request`;每個 tool 回單一 JSON 物件,
+  40 個 tool 分 jobs / 建 job / 審查關卡 / 發布·專案 / 漫畫 / `api_request`;每個 tool 回單一 JSON 物件,
   API 錯誤以 `is_error` + HTTP 狀態碼 + detail 回給模型。`build_server(client=None, client_factory=None)` 可注入 client,
   server 沒起來也能啟動、列 tool。review gate 寫進 instructions 與 `approve_job` 描述:人看過草稿才核准。
 - `python -m edustudio_cli mcp` 子命令;`requirements-optional.txt` / `requirements-dev.txt` 加 `mcp>=1.2,<2`

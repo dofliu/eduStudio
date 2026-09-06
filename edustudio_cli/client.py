@@ -109,9 +109,6 @@ class EduStudioClient:
     def health(self) -> dict:
         return self.get("/health")
 
-    def status(self) -> dict:
-        return self.get("/status")
-
     # ------------------------------------------------------------------ jobs
     def create_job(self, source_type: str, source: dict, options: dict | None = None) -> dict:
         """POST /jobs — source 例: {"path": "..."} 或 {"url": "..."} (檔案要在 server 那台機器上)。"""

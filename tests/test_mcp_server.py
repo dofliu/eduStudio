@@ -93,7 +93,22 @@ async def test_tools_registered_with_descriptions(env):
     assert "awaiting_review" in mcp_server.INSTRUCTIONS
 
 
-async def test_server_builds_without_backend(monkeypatch):
+async def test_no_tool_points_at_a_missing_endpoint(env):
+    """不需參數的唯讀 tool 全部真的打一次: 任何一支回 404 代表它指到 server 上不存在的端點
+    (`EduStudioClient.status()` 的 `GET /status` 就是這樣被抓到的)。"""
+    _, server = env
+    async with MCPClient(server) as mc:
+        tools = (await mc.list_tools()).tools
+        schemas = {t.name: _field(t, "input_schema", "inputSchema") for t in tools}
+    no_arg = sorted(n for n, sc in schemas.items() if not (sc or {}).get("required"))
+    assert {"edustudio_health", "list_jobs", "list_projects"} <= set(no_arg)
+    async with MCPClient(server) as mc:
+        for name in no_arg:
+            err, payload = await _call(mc, name)
+            assert not (err and "404" in payload), f"{name} 指到不存在的端點: {payload}"
+
+
+def test_server_builds_without_backend(monkeypatch):
     """server 沒起來也能建 MCP、列 tool (client 是 lazy 的)。"""
     monkeypatch.setenv("EDUSTUDIO_URL", "http://127.0.0.1:1")
     server = mcp_server.build_server()

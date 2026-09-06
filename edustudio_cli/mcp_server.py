@@ -146,13 +146,8 @@ def build_server(client: EduStudioClient | None = None, *, name: str = SERVER_NA
     # ------------------------------------------------------------------ server / jobs
     @tool(**_READ)
     def edustudio_health() -> dict[str, Any]:
-        """eduStudio server 健康檢查 (GET /health, 不需 token)。連不上會直接報錯。"""
+        """eduStudio server 健康檢查與狀態總覽 (GET /health, 不需 token): 服務是否正常、字型 / Gemini key / TTS 設定是否齊全、目前 job 數。連不上會直接報錯。"""
         return c().health()
-
-    @tool(**_READ)
-    def edustudio_status() -> dict[str, Any]:
-        """server 狀態總覽 (GET /api/status): 版本、model 設定、TTS backend、jobs 統計等。"""
-        return c().status()
 
     @tool(**_READ)
     def list_jobs(brief: bool = True) -> dict[str, Any]:

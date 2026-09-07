@@ -341,6 +341,15 @@ class TestExpressionInference:
 
 
 class TestMouthEstimate:
+    def test_estimates_head_box_for_bust_crop(self, tmp_path):
+        """影片端要靠 head 裁胸上景 — 全身圖的臉太小, 嘴型再怎麼做都看不出來。"""
+        geo = cv.estimate_portrait_geometry(_rgba_person(tmp_path / "p.png"))
+        cx, top, bottom = geo["head"]
+        assert 0.4 < cx < 0.6
+        assert top < 0.06 and 0.14 < bottom < 0.30          # 頭在最上面約兩成
+        assert top < geo["mouth"][1] < bottom               # 嘴巴一定落在頭部範圍內
+        assert cv.estimate_portrait_geometry(tmp_path / "missing.png") == {}
+
     def test_estimates_mouth_inside_head(self, tmp_path):
         box = cv.estimate_mouth_box(_rgba_person(tmp_path / "p.png"))
         assert len(box) == 4
@@ -379,12 +388,14 @@ class TestPortraits:
         ports = cv.resolve_portraits(store, ep, series)
         assert [p.speaker_id for p in ports] == ["dofu"]
         assert "neutral" in ports[0].expressions and len(ports[0].mouth) == 4
+        assert len(ports[0].head) == 3          # 手動指定 mouth 也要有 head, 否則裁不了胸上景
 
     def test_explicit_mouth_wins_and_narrator_excluded(self, tmp_path):
         store = _store(tmp_path)
         ep, series = self._series_with_portrait(store, _episode(store), tmp_path, mouth=[0.4, 0.3, 0.1, 0.05])
         ports = cv.resolve_portraits(store, ep, series)
         assert ports[0].mouth == [0.4, 0.3, 0.1, 0.05]
+        assert len(ports[0].head) == 3
         assert all(p.speaker_id != "narrator" for p in ports)
 
     def test_character_without_asset_gets_no_portrait(self, tmp_path):
@@ -402,12 +413,17 @@ class TestPortraits:
     def test_html_emits_portrait_layer_without_leaking_paths(self, tmp_path):
         store = _store(tmp_path)
         ep, series = self._series_with_portrait(store, _episode(store), tmp_path)
+        ports = cv.resolve_portraits(store, ep, series)
         tl = cv.build_timeline(ep, series,
                                image_paths={p.page_no: store.resolve_asset(ep, p.image_asset_id) for p in ep.pages},
-                               durations={}, portraits=cv.resolve_portraits(store, ep, series))
+                               durations={}, portraits=ports)
         doc = cv.build_motion_comic_html(tl, width=640, height=360)
-        assert 'id="pt-dofu"' in doc and 'class="mouth"' in doc
-        assert 'data-exp="neutral"' in doc
+        assert 'id="pt-dofu"' in doc
+        assert 'class="lyr base"' in doc and 'class="lyr jaw"' in doc and 'class="maw"' in doc
+        assert "--exp-neutral:url(" in doc and "--cur:var(--exp-neutral)" in doc
+        # 同一張圖給 base / jaw 兩層共用 (走 CSS 變數), 立繪的 base64 只能嵌一次
+        portrait_uri = cv._image_data_uri(Path(ports[0].expressions["neutral"]))
+        assert doc.count(portrait_uri) == 1
         assert str(tmp_path) not in doc          # 只內嵌圖片, 不外洩本機路徑
 
 
@@ -479,19 +495,23 @@ def test_player_runs_wipe_and_portrait_in_browser(tmp_path):
             at(speech.start + 0.3)
             state = pg.evaluate("""() => {
               const el = document.getElementById('pt-dofu');
-              const m = el.querySelector('.mouth');
-              return {op: parseFloat(el.style.opacity), on: !!el.querySelector('img.on'),
-                      mouth: m.style.transform, pose: el.style.transform};
+              const jaw = el.querySelector('.lyr.jaw');
+              return {op: parseFloat(el.style.opacity), cur: el.style.getPropertyValue('--cur'),
+                      clip: jaw.style.clipPath, bust: el.querySelector('.bust').style.width,
+                      jaw: jaw.style.transform, pose: el.style.transform};
             }""")
-            assert state["op"] > 0.9 and state["on"], state
-            assert "scaleY" in state["mouth"] and "translate" in state["pose"]
+            assert state["op"] > 0.9, state
+            assert state["cur"] == "var(--exp-neutral)"
+            assert state["clip"].startswith("ellipse("), state      # 只有下顎那顆橢圓會動
+            assert state["bust"].endswith("px"), state              # 說話時裁成胸上景
+            assert "translateY" in state["jaw"] and "translate" in state["pose"]
 
-            # 嘴型隨時間變 (量化開合, 不是靜止)
-            shapes = set()
+            # 下巴開合隨時間變 (量化, 不是靜止)
+            drops = set()
             for k in range(6):
                 at(speech.start + 0.35 + k * 0.07)
-                shapes.add(pg.evaluate("() => document.getElementById('pt-dofu').querySelector('.mouth').style.transform"))
-            assert len(shapes) > 1, shapes
+                drops.add(pg.evaluate("() => document.getElementById('pt-dofu').querySelector('.lyr.jaw').style.transform"))
+            assert len(drops) > 1, drops
 
             # 沒人說話時立繪收起來
             at(page1.end + 0.05)

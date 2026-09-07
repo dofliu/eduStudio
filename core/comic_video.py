@@ -99,7 +99,8 @@ class Portrait:
     speaker_id: str
     name: str
     expressions: dict[str, str]      # 表情名 → 圖片路徑 (必含 neutral)
-    mouth: list[float] = field(default_factory=list)   # [cx, cy, w, h] 正規化; 空 = 不畫嘴型
+    mouth: list[float] = field(default_factory=list)   # [cx, cy, w, h] 正規化; 空 = 不做嘴型
+    head: list[float] = field(default_factory=list)    # [cx, top, bottom] 正規化; 空 = 不裁胸上景
 
 
 @dataclass
@@ -196,28 +197,34 @@ def infer_expression(text: str) -> str:
     return "neutral"
 
 
-def estimate_mouth_box(path: Path) -> list[float]:
-    """從去背立繪的 alpha 幾何推嘴巴位置 [cx, cy, w, h] (正規化); 推不出來回 []。
+def estimate_portrait_geometry(path: Path) -> dict[str, list[float]]:
+    """從去背立繪的 alpha 幾何量出頭部與嘴巴 (正規化座標); 量不出來回 {}。
 
     作法: 由上而下找頭頂 → 列寬連續放大處視為肩膀 (即頭部下緣, 並用全身高的
-    11%~25% 夾住, 免得被頭髮或舉高的工具誤判) → 嘴巴約在頭高 72% 處,
+    11%~25% 夾住, 免得被頭髮或舉高的工具誤判) → 嘴巴約在頭高 78% 處
+    (拿七張角色設定稿比對過: 72% 會落在鼻子, 78% 對寫實與動漫畫風都落在唇上;
+    寧可偏低一點 —— 切在下巴只是下巴多動一點, 切在鼻子就很明顯是錯的),
     橫向取頭部上半的中位中心 (比嘴巴那一列穩, 不會被手或工具帶偏)。
     沒有 alpha (不透明底圖) 就放棄, 因為分不出人物輪廓。
+
+    回 {"head": [cx, top, bottom], "mouth": [cx, cy, w, h]}:
+    head 給影片端裁胸上景 (全身圖的臉太小, 嘴型再怎麼做都看不出來),
+    mouth 給下巴開合的切線位置。
     """
     try:
         from PIL import Image
 
         with Image.open(path) as im:
             if "A" not in im.getbands():
-                return []
+                return {}
             im = im.convert("RGBA")
             w0, h0 = im.size
             if not w0 or not h0:
-                return []
+                return {}
             scale = 256 / max(w0, h0)
             alpha = im.resize((max(1, int(w0 * scale)), max(1, int(h0 * scale)))).getchannel("A")
-    except Exception:  # noqa: BLE001 — 推不出來就不畫嘴型, 不該擋住出片
-        return []
+    except Exception:  # noqa: BLE001 — 量不出來就不裁景也不做嘴型, 不該擋住出片
+        return {}
 
     width, height = alpha.size
     px = alpha.load()
@@ -227,11 +234,11 @@ def estimate_mouth_box(path: Path) -> list[float]:
         rows.append((xs[0], xs[-1], len(xs)) if xs else None)
     solid = [y for y, r in enumerate(rows) if r and r[2] > width * 0.012]
     if not solid:
-        return []
+        return {}
     top, foot = solid[0], solid[-1]
     figure_h = foot - top
     if figure_h < 8:
-        return []
+        return {}
 
     probe = [rows[y][2] for y in range(top, min(height, top + max(3, int(figure_h * 0.06)))) if rows[y]]
     head_w = sorted(probe)[len(probe) // 2] if probe else width * 0.1
@@ -248,11 +255,19 @@ def estimate_mouth_box(path: Path) -> list[float]:
 
     band = [rows[y] for y in range(top, min(height, top + max(2, int(head_h * 0.6)))) if rows[y]]
     center_x = sorted((r[0] + r[1]) / 2 for r in band)[len(band) // 2] if band else width / 2
-    mouth_y = top + head_h * 0.72
-    return [
-        round(center_x / width, 4), round(mouth_y / height, 4),
-        round(head_h * 0.17 / width, 4), round(head_h * 0.085 / height, 4),
-    ]
+    mouth_y = top + head_h * 0.78
+    return {
+        "head": [round(center_x / width, 4), round(top / height, 4), round((top + head_h) / height, 4)],
+        "mouth": [
+            round(center_x / width, 4), round(mouth_y / height, 4),
+            round(head_h * 0.17 / width, 4), round(head_h * 0.085 / height, 4),
+        ],
+    }
+
+
+def estimate_mouth_box(path: Path) -> list[float]:
+    """只要嘴巴座標 [cx, cy, w, h]; 量不出來回 []。"""
+    return estimate_portrait_geometry(path).get("mouth", [])
 
 
 def resolve_portraits(store: ComicStore, episode: EpisodeManifest, series: Series | None) -> list[Portrait]:
@@ -284,10 +299,12 @@ def resolve_portraits(store: ComicStore, episode: EpisodeManifest, series: Serie
                     continue
         if "neutral" not in variants:
             continue
-        mouth = list(character.mouth) or estimate_mouth_box(Path(variants["neutral"]))
+        geometry = estimate_portrait_geometry(Path(variants["neutral"]))
         out.append(Portrait(
             speaker_id=character.character_id, name=character.name,
-            expressions=variants, mouth=mouth,
+            expressions=variants,
+            mouth=list(character.mouth) or geometry.get("mouth", []),
+            head=geometry.get("head", []),
         ))
     return out
 
@@ -446,9 +463,18 @@ body{font-family:"Noto Sans TC","Noto Sans CJK TC","Microsoft JhengHei","PingFan
 .watermark{position:absolute;left:%(pad)dpx;top:%(pad_s)dpx;font-size:%(fs_small)dpx;letter-spacing:.14em;color:#ffdca7;background:rgba(243,168,71,.18);border:1px solid rgba(243,168,71,.6);padding:.35em .9em;border-radius:6px;z-index:50}
 /* 寬度交給圖片決定 (shrink-to-fit): 嘴巴與情緒符號的 %% 座標才會對到立繪本身而不是外框 */
 .portrait{position:absolute;bottom:0;height:%(portrait_h).1f%%;opacity:0;pointer-events:none;will-change:transform,opacity;transform-origin:50%% 100%%}
-.portrait img{position:relative;height:100%%;width:auto;display:none;filter:drop-shadow(0 14px 22px rgba(0,0,0,.5))}
+/* 胸上景: 全身圖的臉只有幾十像素, 嘴型再怎麼做都看不出來, 所以說話時裁到頭肩 */
+.portrait .bust{position:relative;height:100%%;overflow:hidden;filter:drop-shadow(0 14px 22px rgba(0,0,0,.5))}
+/* 兩層都是同一張原畫 (共用 --cur 這個 CSS 變數, 圖只嵌一份):
+   base 不動; jaw 只裁下顎那顆橢圓, 講話時往下掉 —— 動的是畫本身。
+   橢圓邊界落在臉與脖子內部, 那裡兩層像素一樣, 所以不會出現橫貫畫面的接縫。 */
+.portrait .lyr{position:absolute;inset:0;background-repeat:no-repeat;background-image:var(--cur)}
+.portrait .jaw{will-change:transform}
+/* 口腔暗部: 夾在 base 與 jaw 中間。刻意用軟邊 radial-gradient 而不是實心形狀 ——
+   實心的在小張臉上會變成「嘴邊有塊東西」(嘴線估得偏高時甚至像鬍子)。 */
+.portrait .maw{position:absolute;background:radial-gradient(closest-side,rgba(28,14,12,.95),rgba(40,20,17,.55) 62%%,rgba(40,20,17,0) 100%%);opacity:0}
+.portrait img{position:relative;height:100%%;width:auto;display:none}
 .portrait img.on{display:block}
-.portrait .mouth{position:absolute;border-radius:50%%;background:radial-gradient(60%% 70%% at 50%% 35%%,#5b2f28 0%%,#2c1512 100%%);transform-origin:center center;opacity:0}
 .page .speed{position:absolute;inset:0;opacity:0;pointer-events:none;background:repeating-linear-gradient(102deg,rgba(12,16,22,.72) 0 3px,rgba(12,16,22,0) 3px 26px)}
 .page .rim{position:absolute;inset:0;opacity:0;pointer-events:none;background:#14100c;will-change:clip-path,opacity}
 .portrait .emo{position:absolute;top:2%%;font-weight:900;font-style:normal;color:#ffdca7;text-shadow:0 3px 10px rgba(0,0,0,.6);opacity:0;line-height:1}
@@ -472,23 +498,67 @@ _PLAYER_JS = r"""
   document.querySelectorAll('.bubble').forEach(el => { cueEls[el.dataset.id] = el; });
   const TR = T.transition_s, LEAD = T.page_lead_s, GAP = T.bubble_gap_s;
   const FLAP = T.mouth_flap_fps || 8, PFPS = T.portrait_fps || 12;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const easeOut = x => 1 - Math.pow(1 - x, 3);
+  const easeBack = x => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+  const fadeIO = (t, s, e, f) => Math.min(clamp((t - s) / f, 0, 1), clamp((e - t) / f, 0, 1));
   // 立繪: speaker_id → {el, imgs, mouth 元素, 情緒符號, mouth 座標, 有哪些表情}
   const portraits = {};
   (T.portraits || []).forEach(p => {
     const el = document.getElementById('pt-' + p.speaker_id);
     if (!el) return;
-    const imgs = {};
-    el.querySelectorAll('img').forEach(im => { imgs[im.dataset.exp] = im; });
-    portraits[p.speaker_id] = {
-      el, imgs, mouth: el.querySelector('.mouth'), emo: el.querySelector('.emo'),
-      box: p.mouth || [], has: p.expressions || [],
+    const P = {
+      el, bust: el.querySelector('.bust'), base: el.querySelector('.lyr.base'),
+      jaw: el.querySelector('.lyr.jaw'), maw: el.querySelector('.maw'), emo: el.querySelector('.emo'),
+      box: p.mouth || [], head: p.head || [], has: p.expressions || [], sizes: p.sizes || {},
     };
+    layoutBust(P);
+    portraits[p.speaker_id] = P;
   });
+
+  /**
+   * 把立繪裁成胸上景, 並算出嘴線位置。
+   * 全身圖直接縮到畫框角落時, 臉大概只有幾十像素, 嘴巴更只有幾像素 —— 那個尺度下
+   * 任何嘴型都只會像「有東西在嘴邊動」。所以說話時裁到頭 + 肩胸, 臉才夠大。
+   * 量不到頭 (沒 alpha / 推估失敗) 就整張顯示, 不裁也不做下巴。
+   */
+  function layoutBust(P) {
+    const size = P.sizes[P.has.indexOf('neutral') >= 0 ? 'neutral' : P.has[0]] || null;
+    const H = P.el.getBoundingClientRect().height;
+    if (!size || P.head.length !== 3 || !H) { P.ok = false; P.el.style.display = 'none'; return; }
+    const [iw, ih] = size;
+    const headTop = P.head[1] * ih, headBot = P.head[2] * ih, headH = Math.max(1, headBot - headTop);
+    const cropTop = Math.max(0, headTop - headH * 0.42);
+    const cropH = Math.min(ih - cropTop, headH * 3.1);          // 頭 + 肩胸
+    const cropW = Math.min(iw, cropH * 0.82);
+    const cropLeft = clamp(P.head[0] * iw - cropW / 2, 0, iw - cropW);
+    const k = H / cropH;                                        // 影像 → 畫面的縮放
+    P.bust.style.width = (cropW * k).toFixed(1) + 'px';
+    [P.base, P.jaw].forEach(layer => {
+      layer.style.backgroundSize = `${(iw * k).toFixed(1)}px ${(ih * k).toFixed(1)}px`;
+      layer.style.backgroundPosition = `${(-cropLeft * k).toFixed(1)}px ${(-cropTop * k).toFixed(1)}px`;
+    });
+    // 嘴線: 沒量到嘴巴就用頭高 78% 處 (跟後端推估同一條規則)
+    const mouthY = (P.box.length === 4 ? P.box[1] * ih : headTop + headH * 0.78);
+    const mouthX = (P.box.length === 4 ? P.box[0] * iw : P.head[0] * iw);
+    const lineY = (mouthY - cropTop) * k, centerX = (mouthX - cropLeft) * k;
+    // 下顎橢圓: 上緣切在嘴線, 最寬處落在下巴; 只有這顆會跟著動
+    const chinGap = Math.max(headH * 0.12, headBot - mouthY);
+    const ry = chinGap * k * 0.95, rx = headH * 0.72 * 0.52 * k;
+    P.jaw.style.clipPath = `ellipse(${rx.toFixed(1)}px ${ry.toFixed(1)}px at ${centerX.toFixed(1)}px ${(lineY + ry).toFixed(1)}px)`;
+    P.drop = Math.max(2, headH * k * 0.05);                     // 下巴最多掉多少
+    // 口腔暗部: 比估到的嘴巴窄一點, 並往下偏半個嘴高 —— 嘴線就算估得偏高一點,
+    // 暗部也還是落在唇上而不是人中 (偏高時看起來會像鬍子)。
+    const mouthW = (P.box.length === 4 ? P.box[2] * iw : headH * 0.17) * k * 0.78;
+    const mouthH = (P.box.length === 4 ? P.box[3] * ih : headH * 0.085) * k;
+    const mawH = Math.max(P.drop * 1.15, mouthH * 0.9);
+    P.maw.style.width = mouthW.toFixed(1) + 'px';
+    P.maw.style.height = mawH.toFixed(1) + 'px';
+    P.maw.style.left = (centerX - mouthW / 2).toFixed(1) + 'px';
+    P.maw.style.top = (lineY + mouthH * 0.45 - mawH * 0.35).toFixed(1) + 'px';
+    P.ok = true;
+  }
   const EMO_MARK = { surprised: '!', questioning: '?', angry: '#', thinking: '…' };
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const easeOut = x => 1 - Math.pow(1 - x, 3);
-  const easeBack = x => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
-  const fadeIO = (t, s, e, f) => Math.min(clamp((t - s) / f, 0, 1), clamp((e - t) / f, 0, 1));
 
   // 運鏡: 依 camera 決定推近幅度; 依頁序決定平移方向, 避免每頁一樣
   function kenBurns(p, i, cam) {
@@ -571,7 +641,7 @@ _PLAYER_JS = r"""
     Object.keys(portraits).forEach(sid => {
       const P = portraits[sid];
       const on = cue && cue.speaker_id === sid;
-      if (!on) { P.el.style.opacity = 0; return; }
+      if (!on || !P.ok) { P.el.style.opacity = 0; return; }
       const held = t - cue.start;
       const outFrom = cue.end + GAP * 0.8;
       const fade = Math.min(Math.max(held / 0.22, 0), 1) * Math.min(Math.max((outFrom - t) / 0.3, 0), 1);
@@ -579,7 +649,7 @@ _PLAYER_JS = r"""
       const exp = cue.expression || 'neutral';
       // 有這個表情的圖就換圖, 沒有就用 neutral (動態與符號照樣演)
       const use = P.has.indexOf(exp) >= 0 ? exp : 'neutral';
-      Object.keys(P.imgs).forEach(name => P.imgs[name].classList.toggle('on', name === use));
+      P.el.style.setProperty('--cur', `var(--exp-${use})`);
       // 站左還是站右: 躲開這句泡泡所在的一側
       const right = (cue.x + cue.w / 2) < 0.5;
       P.el.style.left = right ? 'auto' : '1%';
@@ -587,18 +657,15 @@ _PLAYER_JS = r"""
       P.el.style.opacity = fade;
       P.el.style.transform = actPose(exp, held, held);
 
+      // 下巴開合: 把原畫沿嘴線切開, 下半往下掉, 縫隙露出口腔暗部 —— 動的是畫本身,
+      // 不是疊一塊形狀上去, 所以看起來是嘴在開合而不是嘴邊有東西在動。
       const talking = t <= cue.end;
-      if (P.box.length === 4) {
-        const [cx, cy, w, h] = P.box;
-        const open = talking ? flapOpen(held) : 0;
-        const st = P.mouth.style;
-        st.left = (cx * 100) + '%'; st.top = (cy * 100) + '%';
-        st.width = (w * 100) + '%'; st.height = (h * 100) + '%';
-        st.marginLeft = (-w * 50) + '%'; st.marginTop = (-h * 50) + '%';
-        // 閉嘴 (open≈0) 幾乎全透明 → 看到的是原畫的嘴; 張開才蓋上去, 才像在說話而不是貼一塊色塊
-        st.opacity = talking ? Math.max(0, open - 0.28) * 1.3 * fade : 0;
-        st.transform = `scaleY(${(0.25 + open * 1.15).toFixed(2)}) scaleX(${(0.82 + open * 0.22).toFixed(2)})`;
-      }
+      const open = talking ? flapOpen(held) : 0;
+      const drop = open * P.drop;
+      P.jaw.style.transform = `translateY(${drop.toFixed(2)}px) scaleY(${(1 + open * 0.012).toFixed(4)})`;
+      // 微張時只讓下巴動就好; 暗部要張到一定程度才浮出來, 免得小張臉上一直有塊陰影
+      const mawOn = Math.max(0, (open - 0.32) / 0.68);
+      P.maw.style.opacity = (mawOn > 0 ? Math.min(0.9, mawOn * 1.1) * fade : 0);
       const mark = EMO_MARK[exp];
       if (mark) {
         P.emo.textContent = mark;
@@ -757,28 +824,35 @@ def build_motion_comic_html(
         f'<div class="watermark">{html.escape(timeline.preview_label)}</div>' if timeline.preview_label else ""
     )
 
-    # 說話角色立繪: 每個表情一張 img (JS 切 .on), 嘴巴與情緒符號各一個空元素由 JS 定位
+    # 說話角色立繪: 每個表情的圖當成 CSS 變數掛在容器上 (--exp-<表情>), 上下兩層共用同一份,
+    # 不會因為切成兩層就把 base64 嵌兩次。JS 只要換 --cur 就換表情。
     portraits_html: list[str] = []
     portrait_meta: list[dict] = []
     for portrait in timeline.portraits:
-        imgs: list[str] = []
+        variables: list[str] = []
+        sizes: dict[str, list[int]] = {}
         for name, img_path in portrait.expressions.items():
             path = Path(img_path)
             if not path.is_file():
                 continue
-            src = _image_data_uri(path) if embed_images else html.escape(path.as_uri())
-            imgs.append(f'<img data-exp="{html.escape(name)}" src="{src}" alt="">')
-        if not imgs:
+            src = _image_data_uri(path) if embed_images else path.as_uri()
+            variables.append(f"--exp-{name}:url(&quot;{html.escape(src, quote=False)}&quot;)")
+            sizes[name] = list(_image_size(path))
+        if not variables:
             continue
         sid = html.escape(portrait.speaker_id)
+        style = "z-index:44;" + ";".join(variables) + ";--cur:var(--exp-neutral)"
         portraits_html.append(
-            f'<div class="portrait" id="pt-{sid}" style="z-index:44">{"".join(imgs)}'
-            f'<i class="mouth"></i><b class="emo"></b></div>'
+            f'<div class="portrait" id="pt-{sid}" style="{style}">'
+            f'<div class="bust"><i class="lyr base"></i><i class="maw"></i><i class="lyr jaw"></i></div>'
+            f'<b class="emo"></b></div>'
         )
         portrait_meta.append({
             "speaker_id": portrait.speaker_id,
-            "expressions": [n for n in portrait.expressions if Path(portrait.expressions[n]).is_file()],
+            "expressions": list(sizes),
+            "sizes": sizes,
             "mouth": list(portrait.mouth),
+            "head": list(portrait.head),
         })
 
     data = {

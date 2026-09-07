@@ -340,51 +340,57 @@ class TestExpressionInference:
         assert tl.pages[0].cues[1].expression == "worried"
 
 
-class TestMouthEstimate:
-    def test_estimates_mouth_inside_head(self, tmp_path):
-        box = cv.estimate_mouth_box(_rgba_person(tmp_path / "p.png"))
-        assert len(box) == 4
-        cx, cy, w, h = box
-        assert 0.4 < cx < 0.6, cx           # 臉在畫面中央
-        assert 0.05 < cy < 0.22, cy         # 嘴巴落在頭部範圍 (頭佔上方兩成)
-        assert 0 < w < 0.35 and 0 < h < 0.1
+class TestHeadBox:
+    def test_estimates_head_box(self, tmp_path):
+        """有嘴型圖時要靠 head 裁胸上景 —— 全身尺寸下換嘴型圖看不出差別。"""
+        cx, top, bottom = cv.estimate_head_box(_rgba_person(tmp_path / "p.png"))
+        assert 0.4 < cx < 0.6                       # 臉在畫面中央
+        assert top < 0.06 and 0.14 < bottom < 0.30  # 頭在最上面約兩成
 
     def test_returns_empty_without_alpha_or_on_error(self, tmp_path):
         from PIL import Image
 
         opaque = tmp_path / "o.jpg"
         Image.new("RGB", (60, 120), (200, 200, 200)).save(opaque)
-        assert cv.estimate_mouth_box(opaque) == []
-        assert cv.estimate_mouth_box(tmp_path / "missing.png") == []
+        assert cv.estimate_head_box(opaque) == []
+        assert cv.estimate_head_box(tmp_path / "missing.png") == []
 
 
 class TestPortraits:
-    def _series_with_portrait(self, store, ep, tmp_path, *, expressions=None, mouth=None):
+    def _series_with_portrait(self, store, ep, tmp_path, *, expressions=None, mouth_shapes=None, extra_assets=()):
         img = _rgba_person(tmp_path / "dofu.png")
         ep = store.attach_asset("course", "W01", "v0.1", filename="dofu.png", data=img.read_bytes(),
                                 kind="character_anchor", provenance="test", asset_id="dofu_front")
+        for asset_id in extra_assets:
+            ep = store.attach_asset("course", "W01", "v0.1", filename=f"{asset_id}.png", data=img.read_bytes(),
+                                    kind="character_anchor", provenance="test", asset_id=asset_id)
         series = store.get_series("course", "wind")
         dofu = next(c for c in series.characters if c.character_id == "dofu")
         dofu.anchor_assets = ["dofu_front"]
         if expressions:
             dofu.expressions = expressions
-        if mouth:
-            dofu.mouth = mouth
+        if mouth_shapes:
+            dofu.mouth_shapes = mouth_shapes
         store.save_series(series)
         return ep, store.get_series("course", "wind")
 
-    def test_resolves_anchor_as_neutral_and_estimates_mouth(self, tmp_path):
+    def test_resolves_anchor_as_neutral(self, tmp_path):
         store = _store(tmp_path)
         ep, series = self._series_with_portrait(store, _episode(store), tmp_path)
         ports = cv.resolve_portraits(store, ep, series)
         assert [p.speaker_id for p in ports] == ["dofu"]
-        assert "neutral" in ports[0].expressions and len(ports[0].mouth) == 4
+        assert "neutral" in ports[0].expressions
+        # 沒備嘴型圖 → 不做嘴型, 也不需要頭部盒 (整張立繪照原樣顯示)
+        assert ports[0].mouth_shapes == [] and ports[0].head == []
 
-    def test_explicit_mouth_wins_and_narrator_excluded(self, tmp_path):
+    def test_mouth_shapes_resolve_and_enable_bust_crop(self, tmp_path):
+        """有嘴型圖才量頭部盒 —— 那時影片會裁近景, 換圖才看得出來。"""
         store = _store(tmp_path)
-        ep, series = self._series_with_portrait(store, _episode(store), tmp_path, mouth=[0.4, 0.3, 0.1, 0.05])
+        ep, series = self._series_with_portrait(store, _episode(store), tmp_path,
+                                                mouth_shapes=["dofu_m1", "gone"], extra_assets=["dofu_m1"])
         ports = cv.resolve_portraits(store, ep, series)
-        assert ports[0].mouth == [0.4, 0.3, 0.1, 0.05]
+        assert len(ports[0].mouth_shapes) == 1          # 缺的那張跳過, 不擋出片
+        assert len(ports[0].head) == 3
         assert all(p.speaker_id != "narrator" for p in ports)
 
     def test_character_without_asset_gets_no_portrait(self, tmp_path):
@@ -402,12 +408,16 @@ class TestPortraits:
     def test_html_emits_portrait_layer_without_leaking_paths(self, tmp_path):
         store = _store(tmp_path)
         ep, series = self._series_with_portrait(store, _episode(store), tmp_path)
+        ports = cv.resolve_portraits(store, ep, series)
         tl = cv.build_timeline(ep, series,
                                image_paths={p.page_no: store.resolve_asset(ep, p.image_asset_id) for p in ep.pages},
-                               durations={}, portraits=cv.resolve_portraits(store, ep, series))
+                               durations={}, portraits=ports)
         doc = cv.build_motion_comic_html(tl, width=640, height=360)
-        assert 'id="pt-dofu"' in doc and 'class="mouth"' in doc
-        assert 'data-exp="neutral"' in doc
+        assert 'id="pt-dofu"' in doc and 'class="bust"' in doc
+        assert "--img-neutral:url(" in doc and "--cur:var(--img-neutral)" in doc
+        assert "maw" not in doc and "jaw" not in doc      # 不再合成嘴型
+        portrait_uri = cv._image_data_uri(Path(ports[0].expressions["neutral"]))
+        assert doc.count(portrait_uri) == 1               # 每張圖只嵌一次
         assert str(tmp_path) not in doc          # 只內嵌圖片, 不外洩本機路徑
 
 
@@ -437,10 +447,13 @@ def test_player_runs_wipe_and_portrait_in_browser(tmp_path):
     store = _store(tmp_path)
     ep = _episode(store)
     img = _rgba_person(tmp_path / "dofu.png")
-    ep = store.attach_asset("course", "W01", "v0.1", filename="dofu.png", data=img.read_bytes(),
-                            kind="character_anchor", provenance="test", asset_id="dofu_front")
+    for asset_id in ("dofu_front", "dofu_m1", "dofu_m2"):
+        ep = store.attach_asset("course", "W01", "v0.1", filename=f"{asset_id}.png", data=img.read_bytes(),
+                                kind="character_anchor", provenance="test", asset_id=asset_id)
     series = store.get_series("course", "wind")
-    next(c for c in series.characters if c.character_id == "dofu").anchor_assets = ["dofu_front"]
+    dofu = next(c for c in series.characters if c.character_id == "dofu")
+    dofu.anchor_assets = ["dofu_front"]
+    dofu.mouth_shapes = ["dofu_m1", "dofu_m2"]      # 有嘴型圖 → 說話時換圖 + 裁胸上景
     store.save_series(series)
     series = store.get_series("course", "wind")
     tl = cv.build_timeline(ep, series,
@@ -479,19 +492,23 @@ def test_player_runs_wipe_and_portrait_in_browser(tmp_path):
             at(speech.start + 0.3)
             state = pg.evaluate("""() => {
               const el = document.getElementById('pt-dofu');
-              const m = el.querySelector('.mouth');
-              return {op: parseFloat(el.style.opacity), on: !!el.querySelector('img.on'),
-                      mouth: m.style.transform, pose: el.style.transform};
+              return {op: parseFloat(el.style.opacity), cur: el.style.getPropertyValue('--cur'),
+                      bust: el.querySelector('.bust').style.width, pose: el.style.transform};
             }""")
-            assert state["op"] > 0.9 and state["on"], state
-            assert "scaleY" in state["mouth"] and "translate" in state["pose"]
+            assert state["op"] > 0.9, state
+            assert state["cur"].startswith("var(--img-"), state
+            assert state["bust"].endswith("px"), state              # 有嘴型圖 → 裁胸上景
+            assert "translate" in state["pose"]
 
-            # 嘴型隨時間變 (量化開合, 不是靜止)
-            shapes = set()
-            for k in range(6):
-                at(speech.start + 0.35 + k * 0.07)
-                shapes.add(pg.evaluate("() => document.getElementById('pt-dofu').querySelector('.mouth').style.transform"))
-            assert len(shapes) > 1, shapes
+            # 說話中會在嘴型圖之間輪替 (逐格換圖, 不是靜止)
+            keys = set()
+            for k in range(8):
+                at(speech.start + 0.3 + k * 0.08)
+                keys.add(pg.evaluate("() => document.getElementById('pt-dofu').style.getPropertyValue('--cur')"))
+            assert len(keys) > 1, keys
+            # 講完之後回到表情圖
+            at(speech.end + 0.05)
+            assert pg.evaluate("() => document.getElementById('pt-dofu').style.getPropertyValue('--cur')") == "var(--img-neutral)"
 
             # 沒人說話時立繪收起來
             at(page1.end + 0.05)

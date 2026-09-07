@@ -48,7 +48,7 @@ BUBBLE_GAP_S = 0.45    # 句與句之間的停頓
 PAGE_TAIL_S = 0.8      # 最後一句講完後停留
 TRANSITION_S = 0.6     # 頁與頁交叉淡接
 MIN_SPEECH_S = 1.2     # 沒音檔時的估算下限
-MOUTH_FLAP_FPS = 8     # 嘴型開合的量化格率 (逐格感, 不做平滑內插)
+MOUTH_SWAP_FPS = 7     # 有嘴型圖時, 每秒換幾次 (逐格感, 不做內插)
 PORTRAIT_FPS = 12      # 立繪動態同樣量化, 跟手繪轉場一致
 PORTRAIT_H_RATIO = 0.44  # 立繪高度佔畫框高度
 
@@ -99,7 +99,9 @@ class Portrait:
     speaker_id: str
     name: str
     expressions: dict[str, str]      # 表情名 → 圖片路徑 (必含 neutral)
-    mouth: list[float] = field(default_factory=list)   # [cx, cy, w, h] 正規化; 空 = 不畫嘴型
+    # 說話時輪替的嘴型圖 (整張立繪, 由畫的人準備); 空 = 不做嘴型
+    mouth_shapes: list[str] = field(default_factory=list)
+    head: list[float] = field(default_factory=list)    # [cx, top, bottom] 正規化; 有嘴型圖時用來裁胸上景
 
 
 @dataclass
@@ -196,13 +198,15 @@ def infer_expression(text: str) -> str:
     return "neutral"
 
 
-def estimate_mouth_box(path: Path) -> list[float]:
-    """從去背立繪的 alpha 幾何推嘴巴位置 [cx, cy, w, h] (正規化); 推不出來回 []。
+def estimate_head_box(path: Path) -> list[float]:
+    """從去背立繪的 alpha 幾何量出頭部 [cx, top, bottom] (正規化); 量不出來回 []。
 
     作法: 由上而下找頭頂 → 列寬連續放大處視為肩膀 (即頭部下緣, 並用全身高的
-    11%~25% 夾住, 免得被頭髮或舉高的工具誤判) → 嘴巴約在頭高 72% 處,
-    橫向取頭部上半的中位中心 (比嘴巴那一列穩, 不會被手或工具帶偏)。
+    11%~25% 夾住, 免得被頭髮或舉高的工具誤判)。橫向取頭部上半的中位中心
+    (比整張圖的中心穩, 不會被伸出的手或工具帶偏)。
     沒有 alpha (不透明底圖) 就放棄, 因為分不出人物輪廓。
+
+    只在角色備有嘴型圖時用得到: 那時影片會裁成胸上景, 換圖才看得出嘴型差異。
     """
     try:
         from PIL import Image
@@ -216,7 +220,7 @@ def estimate_mouth_box(path: Path) -> list[float]:
                 return []
             scale = 256 / max(w0, h0)
             alpha = im.resize((max(1, int(w0 * scale)), max(1, int(h0 * scale)))).getchannel("A")
-    except Exception:  # noqa: BLE001 — 推不出來就不畫嘴型, 不該擋住出片
+    except Exception:  # noqa: BLE001 — 量不出來就不裁景也不做嘴型, 不該擋住出片
         return []
 
     width, height = alpha.size
@@ -248,11 +252,7 @@ def estimate_mouth_box(path: Path) -> list[float]:
 
     band = [rows[y] for y in range(top, min(height, top + max(2, int(head_h * 0.6)))) if rows[y]]
     center_x = sorted((r[0] + r[1]) / 2 for r in band)[len(band) // 2] if band else width / 2
-    mouth_y = top + head_h * 0.72
-    return [
-        round(center_x / width, 4), round(mouth_y / height, 4),
-        round(head_h * 0.17 / width, 4), round(head_h * 0.085 / height, 4),
-    ]
+    return [round(center_x / width, 4), round(top / height, 4), round((top + head_h) / height, 4)]
 
 
 def resolve_portraits(store: ComicStore, episode: EpisodeManifest, series: Series | None) -> list[Portrait]:
@@ -284,10 +284,17 @@ def resolve_portraits(store: ComicStore, episode: EpisodeManifest, series: Serie
                     continue
         if "neutral" not in variants:
             continue
-        mouth = list(character.mouth) or estimate_mouth_box(Path(variants["neutral"]))
+        shapes: list[str] = []
+        for asset_id in character.mouth_shapes or []:
+            try:
+                shapes.append(str(store.resolve_asset(episode, asset_id)))
+            except Exception:  # noqa: BLE001 — 缺哪張就少哪張嘴型
+                continue
         out.append(Portrait(
             speaker_id=character.character_id, name=character.name,
-            expressions=variants, mouth=mouth,
+            expressions=variants, mouth_shapes=shapes,
+            # 只有備了嘴型圖才需要頭部盒 (要裁近景才看得出換圖)
+            head=estimate_head_box(Path(variants["neutral"])) if shapes else [],
         ))
     return out
 
@@ -446,9 +453,11 @@ body{font-family:"Noto Sans TC","Noto Sans CJK TC","Microsoft JhengHei","PingFan
 .watermark{position:absolute;left:%(pad)dpx;top:%(pad_s)dpx;font-size:%(fs_small)dpx;letter-spacing:.14em;color:#ffdca7;background:rgba(243,168,71,.18);border:1px solid rgba(243,168,71,.6);padding:.35em .9em;border-radius:6px;z-index:50}
 /* 寬度交給圖片決定 (shrink-to-fit): 嘴巴與情緒符號的 %% 座標才會對到立繪本身而不是外框 */
 .portrait{position:absolute;bottom:0;height:%(portrait_h).1f%%;opacity:0;pointer-events:none;will-change:transform,opacity;transform-origin:50%% 100%%}
-.portrait img{position:relative;height:100%%;width:auto;display:none;filter:drop-shadow(0 14px 22px rgba(0,0,0,.5))}
+/* 備了嘴型圖時裁成胸上景 —— 全身尺寸下換嘴型圖看不出差別 */
+.portrait .bust{position:relative;height:100%%;overflow:hidden;filter:drop-shadow(0 14px 22px rgba(0,0,0,.5))}
+.portrait .bust i{position:absolute;inset:0;background-repeat:no-repeat;background-image:var(--cur)}
+.portrait img{position:relative;height:100%%;width:auto;display:none}
 .portrait img.on{display:block}
-.portrait .mouth{position:absolute;border-radius:50%%;background:radial-gradient(60%% 70%% at 50%% 35%%,#5b2f28 0%%,#2c1512 100%%);transform-origin:center center;opacity:0}
 .page .speed{position:absolute;inset:0;opacity:0;pointer-events:none;background:repeating-linear-gradient(102deg,rgba(12,16,22,.72) 0 3px,rgba(12,16,22,0) 3px 26px)}
 .page .rim{position:absolute;inset:0;opacity:0;pointer-events:none;background:#14100c;will-change:clip-path,opacity}
 .portrait .emo{position:absolute;top:2%%;font-weight:900;font-style:normal;color:#ffdca7;text-shadow:0 3px 10px rgba(0,0,0,.6);opacity:0;line-height:1}
@@ -471,24 +480,51 @@ _PLAYER_JS = r"""
   const cueEls = {};
   document.querySelectorAll('.bubble').forEach(el => { cueEls[el.dataset.id] = el; });
   const TR = T.transition_s, LEAD = T.page_lead_s, GAP = T.bubble_gap_s;
-  const FLAP = T.mouth_flap_fps || 8, PFPS = T.portrait_fps || 12;
-  // 立繪: speaker_id → {el, imgs, mouth 元素, 情緒符號, mouth 座標, 有哪些表情}
-  const portraits = {};
-  (T.portraits || []).forEach(p => {
-    const el = document.getElementById('pt-' + p.speaker_id);
-    if (!el) return;
-    const imgs = {};
-    el.querySelectorAll('img').forEach(im => { imgs[im.dataset.exp] = im; });
-    portraits[p.speaker_id] = {
-      el, imgs, mouth: el.querySelector('.mouth'), emo: el.querySelector('.emo'),
-      box: p.mouth || [], has: p.expressions || [],
-    };
-  });
-  const EMO_MARK = { surprised: '!', questioning: '?', angry: '#', thinking: '…' };
+  const SWAP = T.mouth_swap_fps || 7, PFPS = T.portrait_fps || 12;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const easeOut = x => 1 - Math.pow(1 - x, 3);
   const easeBack = x => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
   const fadeIO = (t, s, e, f) => Math.min(clamp((t - s) / f, 0, 1), clamp((e - t) / f, 0, 1));
+
+  // 立繪: speaker_id → {容器, 圖層, 情緒符號, 有哪些表情 / 嘴型圖}
+  const portraits = {};
+  (T.portraits || []).forEach(p => {
+    const el = document.getElementById('pt-' + p.speaker_id);
+    if (!el) return;
+    const P = {
+      el, bust: el.querySelector('.bust'), layer: el.querySelector('.bust i'),
+      emo: el.querySelector('.emo'), head: p.head || [], has: p.expressions || [],
+      shapes: p.mouth_shapes || [], sizes: p.sizes || {},
+    };
+    layoutPortrait(P);
+    portraits[p.speaker_id] = P;
+  });
+
+  const EMO_MARK = { surprised: '!', questioning: '?', angry: '#', thinking: '…' };
+
+  /**
+   * 沒有嘴型圖 → 整張立繪照原比例顯示 (跟沒有這個功能時一樣)。
+   * 有嘴型圖 → 裁成胸上景: 全身尺寸下臉只有幾十像素, 換了嘴型圖也看不出差別。
+   */
+  function layoutPortrait(P) {
+    const size = P.sizes.neutral;
+    const H = P.el.getBoundingClientRect().height;
+    if (!size || !H) { P.ok = false; P.el.style.display = 'none'; return; }
+    const [iw, ih] = size;
+    let cropTop = 0, cropH = ih, cropW = iw, cropLeft = 0;
+    if (P.shapes.length && P.head.length === 3) {
+      const headTop = P.head[1] * ih, headH = Math.max(1, P.head[2] * ih - headTop);
+      cropTop = Math.max(0, headTop - headH * 0.42);
+      cropH = Math.min(ih - cropTop, headH * 3.1);          // 頭 + 肩胸
+      cropW = Math.min(iw, cropH * 0.82);
+      cropLeft = clamp(P.head[0] * iw - cropW / 2, 0, iw - cropW);
+    }
+    const k = H / cropH;
+    P.bust.style.width = (cropW * k).toFixed(1) + 'px';
+    P.layer.style.backgroundSize = `${(iw * k).toFixed(1)}px ${(ih * k).toFixed(1)}px`;
+    P.layer.style.backgroundPosition = `${(-cropLeft * k).toFixed(1)}px ${(-cropTop * k).toFixed(1)}px`;
+    P.ok = true;
+  }
 
   // 運鏡: 依 camera 決定推近幅度; 依頁序決定平移方向, 避免每頁一樣
   function kenBurns(p, i, cam) {
@@ -560,26 +596,26 @@ _PLAYER_JS = r"""
     return `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
   }
 
-  // 嘴型: 量化到 FLAP 格率的偽隨機開合 (講話中才動, 停頓就閉上)
-  function flapOpen(held) {
-    const k = Math.floor(held * FLAP);
-    const pseudo = Math.abs(Math.sin(k * 12.9898) * 43758.5453) % 1;   // 每格一個定值, 不平滑
-    return 0.25 + pseudo * 0.75;
-  }
-
   function renderPortraits(t, cue) {
     Object.keys(portraits).forEach(sid => {
       const P = portraits[sid];
       const on = cue && cue.speaker_id === sid;
-      if (!on) { P.el.style.opacity = 0; return; }
+      if (!on || !P.ok) { P.el.style.opacity = 0; return; }
       const held = t - cue.start;
       const outFrom = cue.end + GAP * 0.8;
       const fade = Math.min(Math.max(held / 0.22, 0), 1) * Math.min(Math.max((outFrom - t) / 0.3, 0), 1);
       if (fade <= 0) { P.el.style.opacity = 0; return; }
       const exp = cue.expression || 'neutral';
       // 有這個表情的圖就換圖, 沒有就用 neutral (動態與符號照樣演)
-      const use = P.has.indexOf(exp) >= 0 ? exp : 'neutral';
-      Object.keys(P.imgs).forEach(name => P.imgs[name].classList.toggle('on', name === use));
+      const base = P.has.indexOf(exp) >= 0 ? exp : 'neutral';
+      // 說話中且備有嘴型圖 → 逐格在嘴型圖之間輪替; 其餘時間用表情圖。
+      // 合成嘴型 (在臉上疊形狀 / 切下巴) 在全身立繪上不會像, 所以不做, 只認畫好的整張圖。
+      let key = base;
+      if (P.shapes.length && t <= cue.end) {
+        const frame = Math.floor(held * SWAP);
+        key = P.shapes[frame % (P.shapes.length + 1)] || base;   // 混一格閉嘴, 才有停頓感
+      }
+      P.el.style.setProperty('--cur', `var(--img-${key})`);
       // 站左還是站右: 躲開這句泡泡所在的一側
       const right = (cue.x + cue.w / 2) < 0.5;
       P.el.style.left = right ? 'auto' : '1%';
@@ -587,18 +623,6 @@ _PLAYER_JS = r"""
       P.el.style.opacity = fade;
       P.el.style.transform = actPose(exp, held, held);
 
-      const talking = t <= cue.end;
-      if (P.box.length === 4) {
-        const [cx, cy, w, h] = P.box;
-        const open = talking ? flapOpen(held) : 0;
-        const st = P.mouth.style;
-        st.left = (cx * 100) + '%'; st.top = (cy * 100) + '%';
-        st.width = (w * 100) + '%'; st.height = (h * 100) + '%';
-        st.marginLeft = (-w * 50) + '%'; st.marginTop = (-h * 50) + '%';
-        // 閉嘴 (open≈0) 幾乎全透明 → 看到的是原畫的嘴; 張開才蓋上去, 才像在說話而不是貼一塊色塊
-        st.opacity = talking ? Math.max(0, open - 0.28) * 1.3 * fade : 0;
-        st.transform = `scaleY(${(0.25 + open * 1.15).toFixed(2)}) scaleX(${(0.82 + open * 0.22).toFixed(2)})`;
-      }
       const mark = EMO_MARK[exp];
       if (mark) {
         P.emo.textContent = mark;
@@ -757,28 +781,38 @@ def build_motion_comic_html(
         f'<div class="watermark">{html.escape(timeline.preview_label)}</div>' if timeline.preview_label else ""
     )
 
-    # 說話角色立繪: 每個表情一張 img (JS 切 .on), 嘴巴與情緒符號各一個空元素由 JS 定位
+    # 說話角色立繪: 每張圖 (表情變體 + 嘴型圖) 各掛成一個 CSS 變數, JS 換 --cur 就換圖。
     portraits_html: list[str] = []
     portrait_meta: list[dict] = []
     for portrait in timeline.portraits:
-        imgs: list[str] = []
-        for name, img_path in portrait.expressions.items():
+        variables: list[str] = []
+        sizes: dict[str, list[int]] = {}
+
+        def add(key: str, img_path: str) -> bool:
             path = Path(img_path)
             if not path.is_file():
-                continue
-            src = _image_data_uri(path) if embed_images else html.escape(path.as_uri())
-            imgs.append(f'<img data-exp="{html.escape(name)}" src="{src}" alt="">')
-        if not imgs:
+                return False
+            src = _image_data_uri(path) if embed_images else path.as_uri()
+            variables.append(f"--img-{key}:url(&quot;{html.escape(src, quote=False)}&quot;)")
+            sizes[key] = list(_image_size(path))
+            return True
+
+        expressions = [name for name, path in portrait.expressions.items() if add(name, path)]
+        shapes = [f"m{i}" for i, path in enumerate(portrait.mouth_shapes) if add(f"m{i}", path)]
+        if "neutral" not in expressions:
             continue
         sid = html.escape(portrait.speaker_id)
+        style = "z-index:44;" + ";".join(variables) + ";--cur:var(--img-neutral)"
         portraits_html.append(
-            f'<div class="portrait" id="pt-{sid}" style="z-index:44">{"".join(imgs)}'
-            f'<i class="mouth"></i><b class="emo"></b></div>'
+            f'<div class="portrait" id="pt-{sid}" style="{style}">'
+            f'<div class="bust"><i></i></div><b class="emo"></b></div>'
         )
         portrait_meta.append({
             "speaker_id": portrait.speaker_id,
-            "expressions": [n for n in portrait.expressions if Path(portrait.expressions[n]).is_file()],
-            "mouth": list(portrait.mouth),
+            "expressions": expressions,
+            "mouth_shapes": shapes,
+            "sizes": sizes,
+            "head": list(portrait.head),
         })
 
     data = {
@@ -786,7 +820,7 @@ def build_motion_comic_html(
         "transition_s": TRANSITION_S,
         "page_lead_s": PAGE_LEAD_S,
         "bubble_gap_s": BUBBLE_GAP_S,
-        "mouth_flap_fps": MOUTH_FLAP_FPS,
+        "mouth_swap_fps": MOUTH_SWAP_FPS,
         "portrait_fps": PORTRAIT_FPS,
         "portraits": portrait_meta,   # 只帶 metadata, 圖片已在 DOM 裡
     }

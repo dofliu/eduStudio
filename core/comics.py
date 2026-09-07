@@ -77,17 +77,9 @@ class Character(BaseModel):
     # 表情變體: 表情名 (neutral / happy / surprised / questioning / worried / thinking / angry)
     # → asset_id。沒給的表情在影片裡退回 neutral (或第一張 anchor), 只靠動態與情緒符號表現。
     expressions: dict[str, str] = Field(default_factory=dict)
-    # 嘴巴在立繪上的位置 [cx, cy, w, h] (正規化 0~1); 留空 → 影片端用去背圖的 alpha 幾何自動推估
-    mouth: list[float] = Field(default_factory=list)
-
-    @field_validator("mouth")
-    @classmethod
-    def validate_mouth_box(cls, value: list[float]) -> list[float]:
-        if not value:
-            return []
-        if len(value) != 4 or not all(0 <= v <= 1 for v in value):
-            raise ValueError("mouth 必須是 [cx, cy, w, h] 四個 0~1 的數值")
-        return [float(v) for v in value]
+    # 嘴型變體: 同一個角色、不同嘴型的「整張」立繪 asset_id。說話時在這些圖之間輪替。
+    # 留空 = 不做嘴型 (全身立繪上合成嘴型不會像, 唯一會像的是畫好的整張圖互換)。
+    mouth_shapes: list[str] = Field(default_factory=list)
 
 
 class GlossaryTerm(BaseModel):

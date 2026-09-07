@@ -16,12 +16,6 @@ export const EXPRESSIONS = [
   ['angry', '生氣'],
 ];
 
-/** 沒指定時嘴巴的預設寬高（相對立繪 0~1）；位置一定要使用者點或後端自動推估。 */
-export const DEFAULT_MOUTH_SIZE = [0.1, 0.02];
-
-const clamp01 = value => Math.min(1, Math.max(0, Number(value) || 0));
-const round4 = value => Number(clamp01(value).toFixed(4));
-
 /**
  * Series Bible 的角色文字（ID | 名稱 | 職責 | visual lock | 語氣）→ 角色陣列。
  *
@@ -47,7 +41,7 @@ export function parseCharacters(value, existing = []) {
         voice,
         anchor_assets: kept.anchor_assets || [],
         expressions: kept.expressions || {},
-        mouth: kept.mouth || [],
+        mouth_shapes: kept.mouth_shapes || [],
       };
     });
 }
@@ -68,18 +62,15 @@ export function anchorOptions(assets) {
   return (assets || []).filter(asset => asset.kind === 'character_anchor').map(asset => asset.asset_id);
 }
 
-/** 點立繪 → 嘴巴座標 [cx, cy, w, h]；寬高沿用原本的，沒有就用預設。 */
-export function mouthFromClick(x, y, prior = []) {
-  const [w, h] = prior.length === 4 ? [prior[2], prior[3]] : DEFAULT_MOUTH_SIZE;
-  return [round4(x), round4(y), round4(w), round4(h)];
-}
-
-/** 改嘴巴的寬或高；還沒定位過就不動（位置要先點過才有意義）。 */
-export function withMouthSize(mouth, key, value) {
-  if (!mouth || mouth.length !== 4) return mouth || [];
-  const next = [...mouth];
-  next[key === 'w' ? 2 : 3] = round4(value);
-  return next;
+/**
+ * 勾選 / 取消一張嘴型圖（說話時在這些整張立繪之間輪替）。
+ *
+ * 合成嘴型（在臉上疊形狀、切下巴）在全身立繪上不會像 —— 臉只有幾十像素，
+ * 嘴巴只有幾像素。唯一會像的是畫的人另外畫好不同嘴型的整張圖互換，所以這裡只認圖。
+ */
+export function withMouthShape(character, assetId, checked) {
+  const current = (character.mouth_shapes || []).filter(id => id !== assetId);
+  return checked ? [...current, assetId] : current;
 }
 
 /** 更新某個角色，回傳新的角色陣列（不就地改）。 */
@@ -106,5 +97,9 @@ export function castStatus(character, assets) {
   const assetId = portraitAssetId(character);
   if (!assetId) return { active: false, reason: '尚未指定立繪（選一張 character_anchor）' };
   if (!anchorOptions(assets).includes(assetId)) return { active: false, reason: `這一集沒有 ${assetId} 這個 anchor asset` };
-  return { active: true, reason: character.mouth?.length === 4 ? '嘴巴位置已手動指定' : '嘴巴位置由去背立繪自動推估' };
+  const shapes = (character.mouth_shapes || []).filter(id => anchorOptions(assets).includes(id)).length;
+  return {
+    active: true,
+    reason: shapes ? `說話時在 ${shapes} 張嘴型圖之間輪替（會裁成胸上景）` : '沒有嘴型圖 → 只有表情與動態，嘴巴不會動',
+  };
 }

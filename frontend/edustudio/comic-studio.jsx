@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
-  EXPRESSIONS, anchorOptions, castStatus, charactersText, mouthFromClick,
-  parseCharacters, portraitAssetId, updateCharacter, withExpression, withMouthSize,
+  EXPRESSIONS, anchorOptions, castStatus, charactersText, parseCharacters,
+  portraitAssetId, updateCharacter, withExpression, withMouthShape,
 } from './comic-cast.js';
 
 const TABS = [
@@ -133,7 +133,6 @@ export default function ComicStudio({ activeProject, launchContext }) {
   const [videoJob, setVideoJob] = useState(null);
   const [voiceSpecs, setVoiceSpecs] = useState({});
   const [placing, setPlacing] = useState({});   // page_no → speaker_id 正在點圖定位
-  const [mouthPicking, setMouthPicking] = useState('');   // character_id 正在點立繪標嘴巴
   const [discovery, setDiscovery] = useState(null);
 
   const [newSeries, setNewSeries] = useState({
@@ -355,15 +354,6 @@ export default function ComicStudio({ activeProject, launchContext }) {
   // ---- 角色演出 (表情 / 立繪 / 嘴巴): 角色住在 series, 所以改完要存回 series ----
   function updateCast(characterId, updates) {
     setSeries(current => ({ ...current, characters: updateCharacter(current?.characters, characterId, updates) }));
-  }
-
-  function pickMouth(character, event) {
-    if (mouthPicking !== character.character_id || !editable) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    updateCast(character.character_id, {
-      mouth: mouthFromClick((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height, character.mouth),
-    });
-    setMouthPicking('');
   }
 
   async function saveCast() {
@@ -666,16 +656,12 @@ export default function ComicStudio({ activeProject, launchContext }) {
             const status = castStatus(character, episode.assets);
             const portrait = portraitAssetId(character);
             const assetUrl = id => `${base}/episodes/${encodeURIComponent(episode.story_id)}/${episode.version}/assets/${encodeURIComponent(id)}`;
-            const picking = mouthPicking === character.character_id;
+            const shapes = character.mouth_shapes || [];
             return <article key={character.character_id} className="es-comic-cast-card">
               <header><strong>{character.name || character.character_id}</strong><small>{character.character_id}</small><span className={`es-badge es-badge-${status.active ? 'success' : 'info'}`}>{status.active ? '會演出' : '不演出'}</span></header>
-              <div className={`es-comic-cast-portrait${picking ? ' is-picking' : ''}`}>
+              <div className="es-comic-cast-portrait">
                 {portrait && options.includes(portrait)
-                  ? <div className="es-comic-cast-figure" onClick={e => pickMouth(character, e)} title={picking ? '點立繪上這個角色的嘴巴' : undefined}>
-                    {/* 座標是相對「立繪本身」, 所以標記與點擊都掛在圖片盒上, 不是外框 (外框有留白) */}
-                    <img src={assetUrl(portrait)} alt={character.name} />
-                    {character.mouth?.length === 4 && <span className="es-comic-mouth-marker" style={{ left: `${character.mouth[0] * 100}%`, top: `${character.mouth[1] * 100}%`, width: `${character.mouth[2] * 100}%`, height: `${character.mouth[3] * 100}%` }} />}
-                  </div>
+                  ? <div className="es-comic-cast-figure"><img src={assetUrl(portrait)} alt={character.name} /></div>
                   : <div className="es-comic-no-image"><small>尚無立繪</small></div>}
               </div>
               <small className="es-mut">{status.reason}</small>
@@ -685,14 +671,14 @@ export default function ComicStudio({ activeProject, launchContext }) {
                   {options.map(id => <option key={id} value={id}>{id}</option>)}
                 </select>
               </Field>
-              {!status.narratorAvatar && <div className="es-comic-cast-mouth">
-                <span>嘴巴位置</span>
-                <button type="button" className={`es-chip${picking ? ' is-active' : ''}${character.mouth?.length === 4 ? ' is-set' : ''}`} disabled={!editable || !portrait} onClick={() => setMouthPicking(picking ? '' : character.character_id)}>{picking ? '點立繪上的嘴巴…' : '點圖標記'}</button>
-                {character.mouth?.length === 4 && <>
-                  <button type="button" className="es-chip" disabled={!editable} onClick={() => updateCast(character.character_id, { mouth: [] })}>清除（改回自動）</button>
-                  {[['w', '寬', character.mouth[2]], ['h', '高', character.mouth[3]]].map(([key, label, value]) => <label key={key}>{label} %<input className="es-input" type="number" min="1" max="60" step="1" disabled={!editable} value={Math.round(value * 100)} onChange={e => updateCast(character.character_id, { mouth: withMouthSize(character.mouth, key, Number(e.target.value) / 100) })} /></label>)}
-                </>}
-              </div>}
+              {!status.narratorAvatar && <details className="es-comic-cast-mouths"><summary>嘴型圖（{shapes.length} 張）</summary>
+                <div>{options.map(assetId => <label key={assetId}>
+                  <input type="checkbox" disabled={!editable} checked={shapes.includes(assetId)}
+                    onChange={e => updateCast(character.character_id, { mouth_shapes: withMouthShape(character, assetId, e.target.checked) })} />
+                  {assetId}
+                </label>)}</div>
+                <div className="es-comic-boundary">勾選同一角色、不同嘴型的<strong>整張</strong>立繪；說話時會在這些圖之間輪替，並自動裁成胸上景（不然臉太小看不出差別）。沒勾就不做嘴型。</div>
+              </details>}
               {!status.narratorAvatar && <details className="es-comic-cast-expressions"><summary>表情變體（{Object.keys(character.expressions || {}).length} / {EXPRESSIONS.length}）</summary>
                 <div>{EXPRESSIONS.map(([id, label]) => <Field key={id} label={`${label}${id === 'neutral' ? '（預設立繪）' : ''}`}>
                   <select className="es-select" disabled={!editable} value={character.expressions?.[id] || ''} onChange={e => updateCast(character.character_id, { expressions: withExpression(character, id, e.target.value) })}>

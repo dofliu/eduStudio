@@ -89,8 +89,8 @@ without setting `EDUSTUDIO_API_TOKEN` first.
 **Or run it from source:**
 
 ```bash
-# 0. System prerequisites (NOT pip): ffmpeg (+ffprobe) for any render,
-#    and Noto CJK fonts for correct Chinese glyphs. See "Dependency layers" below.
+# 0. System prerequisites (NOT pip): ffmpeg (+ffprobe) for any render, and Noto CJK
+#    fonts for correct Chinese glyphs. Install commands: User Manual §2.1.
 
 # 1. Backend (Python 3.12)
 pip install -r requirements.txt          # core deps — enough to run the server
@@ -108,9 +108,8 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 
 Then open **`http://127.0.0.1:8000/app/`**.
 
-> ⚠️ The ASGI path is **`server.main:app`** — there is no root `main.py`. Running
-> `uvicorn main:app` fails with *"Error loading ASGI app. Could not import module 'main'"*.
-> Equivalent: `python -m server.main`.
+> ⚠️ The ASGI path is **`server.main:app`** (there is no root `main.py`); `python -m server.main`
+> is equivalent. Why `uvicorn main:app` fails: [User Manual §2.3](docs/USER_MANUAL.md#2-安裝與啟動).
 
 🖥️ **Prefer the API?** `python -m edustudio_cli video deck.pptx --wait --download out/` drives the whole
 upload → review → render → download flow from the terminal (see [User Manual §11.1](docs/USER_MANUAL.md#111-edustudio-cli-與-python-client不開介面)).
@@ -126,40 +125,19 @@ YouTube) see [onboarding](docs/onboarding.md).
 script/storyboard, evidence-gated AI generation, editable Word bubbles, versioned release
 and the Internal Reader. See [Comic Production System](docs/COMIC_PRODUCTION_SYSTEM.md).
 
-### Dependency layers
+### Dependency layers & interfaces
 
-Dependencies are split so you install only what you actually use. `requirements.txt`
-alone is enough to run the server and the main pipelines (video, visual, localization
-text) — add a layer only when you want the matching feature.
+Dependencies are split so you install only what you use — `requirements.txt` alone runs the
+server and the main pipelines; add `requirements-optional.txt` (PPTX export / STT / F5-TTS),
+`requirements-song.txt` (SONG MV) or `requirements-dev.txt` (tests) only for those features.
+Full table, the non-pip system dependencies (ffmpeg · Noto CJK · LibreOffice) and the local
+release gates (`office_live`, portable `HF_HOME` Whisper cache) are in
+[User Manual §2](docs/USER_MANUAL.md#2-安裝與啟動). The bundled `Dockerfile` already installs
+ffmpeg and the CJK fonts for you.
 
-| Layer | Install | What it adds | Without it |
-|---|---|---|---|
-| **core** | `pip install -r requirements.txt` | Server + video / visual / localization-text pipelines (Gemini, FastAPI, Pillow, edge-tts, PyMuPDF, matplotlib) | — (always required) |
-| **optional** | `pip install -r requirements-optional.txt` | PPTX export (`python-pptx`), speech-to-text (`faster-whisper`, auto GPU→CPU), F5-TTS voice cloning, sample-PDF tool, outro QR | Those specific features fail gracefully; everything else runs |
-| **song** | `pip install -r requirements-song.txt` | SONG MV track only — Demucs + WhisperX (heavy, several GB, GPU recommended) | The song/MV track is unavailable; all other tracks fine |
-| **dev** | `pip install -r requirements-dev.txt` | Test suite (`pytest`, `httpx`) | Can't run `pytest tests/` |
-
-**System dependencies (installed outside pip):**
-
-- **ffmpeg / ffprobe** — *required* for any video render or audio extraction. `apt install ffmpeg` · `brew install ffmpeg` · `choco install ffmpeg`.
-- **Noto CJK fonts** (e.g. `fonts-noto-cjk`) — needed for correct Chinese rendering in slides / blackboard. Paths are overridable via `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` / `CLAUDE_MONO_FONT_PATH`.
-- **LibreOffice** (`libreoffice-impress`) — cross-platform renderer for PPTX-source features. On Windows, installed Microsoft PowerPoint is used as a COM fallback. All other tracks (exam / slides-PDF / doc / HTML / song) don't need either renderer.
-
-### Local release gates and portable model cache
-
-- Cloud CI runs all unit/contract/integration tests and explicitly excludes `office_live`, because hosted runners do not guarantee a desktop Office runtime. Before a Windows release, run `pytest -m office_live tests/test_uploads_pptx.py -q` locally.
-- To move the Whisper model cache to another computer, set `HF_HOME` before starting the server (for example `HF_HOME=D:\hf-cache`). `/health` must report `whisper.cached=true`; `cache_source` shows which cache setting was used. An incomplete snapshot is not accepted as cached.
-
-The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
-
-### Interfaces
-
-| Path | What | |
-|---|---|---|
-| **`/app`** | Unified workstation — goal-oriented home + four content workstations (Video · Slides · Cards · Comics), with per-course Project / Publish / Status views | primary |
-| `/api`, `/localization`, `/projects`, `/jobs` | REST backend (generation, translation, projects, jobs) | |
-| `/docs` | Auto-generated OpenAPI docs | |
-| `/studio`, `/ui` | Retired legacy UIs — both 307-redirect to `/app/` (U-5, 2026-08-30) | retired |
+**`/app`** is the one UI (goal-oriented home + Video · Slides · Cards · Comics workstations);
+`/docs` is the OpenAPI explorer, `/health` the healthcheck, and `/studio` `/ui` are retired
+307-redirects. Path table: [User Manual §2.5](docs/USER_MANUAL.md#25-介面路徑).
 
 ### Tech stack
 
@@ -174,6 +152,7 @@ The bundled `Dockerfile` already installs ffmpeg and the CJK fonts for you.
 | 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production deploy (token · CORS · reverse proxy · TLS) |
 | 📚 [`docs/COMIC_PRODUCTION_SYSTEM.md`](docs/COMIC_PRODUCTION_SYSTEM.md) | Comic Production System (internal MVP) |
 | 🎬 [`docs/promo/README.md`](docs/promo/README.md) · [`docs/skills.md`](docs/skills.md) | Official intro-video scenes (built with the project's own HTML→MP4 engine) · Claude Code skills shipped in this repo |
+| 🧭 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Code map — core / server / frontend / CLI, job state machine, where to change what |
 | 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | Contributing + non-negotiable hard rules |
 | 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Roadmap · backlog · changelog |
 | 🚦 [`docs/PRODUCT_READINESS.md`](docs/PRODUCT_READINESS.md) | Productization audit main line (Phase 0–9) |
@@ -247,7 +226,7 @@ volume 一起清）。要暴露到 localhost 以外（token、CORS、反向代�
 
 ```bash
 # 0. 系統相依 (非 pip): ffmpeg (+ffprobe) 任何 render 都要、Noto CJK 字型確保中文正常。
-#    詳見下方「依賴分層」。
+#    安裝指令見使用手冊 §2.1。
 
 # 1. 後端 (Python 3.12)
 pip install -r requirements.txt          # 核心依賴 — 裝這個就能跑 server
@@ -265,8 +244,14 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 
 接著打開 **`http://127.0.0.1:8000/app/`**。
 
-> ⚠️ 啟動路徑是 **`server.main:app`** —— 專案**沒有**根目錄 `main.py`。打成 `uvicorn main:app`
-> 會報 *"Error loading ASGI app. Could not import module 'main'"*。等價指令:`python -m server.main`。
+> ⚠️ 啟動路徑是 **`server.main:app`** —— 專案**沒有**根目錄 `main.py`;等價指令 `python -m server.main`。
+> 打成 `uvicorn main:app` 為什麼會炸,見[使用手冊 §2.3](docs/USER_MANUAL.md#2-安裝與啟動)。
+
+🖥️ **想用指令列?** `python -m edustudio_cli video deck.pptx --wait --download out/` 一行走完
+上傳 → 審查 → 渲染 → 下載(見[使用手冊 §11.1](docs/USER_MANUAL.md#111-edustudio-cli-與-python-client不開介面))。
+🤖 **想用講的?** `pip install mcp && python -m edustudio_cli.mcp_server` 把同一條流程包成
+**MCP server**(40 個工具)給 Claude Code / Claude Desktop —— review gate 照舊:`approve_job`
+是獨立、必須明講的一步(見[使用手冊 §11.2](docs/USER_MANUAL.md#112-mcp-server讓-claude-code--claude-desktop-直接操作))。
 
 📖 **第一次用?** 完整 [**使用手冊**](docs/USER_MANUAL.md) 涵蓋每個工作站、設定對照、REST API
 與疑難排解。最短路徑(考卷 → 影片 → YouTube)看 [上手指南](docs/onboarding.md)。
@@ -274,30 +259,18 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 📚 **連載教學漫畫:** 內部漫畫製作系統涵蓋 Series Bible、腳本/分鏡、證據鎖定的 AI 生成、
 可編輯的 Word 對白、版本化發布與內部閱讀器,見 [漫畫製作系統](docs/COMIC_PRODUCTION_SYSTEM.md)。
 
-### 依賴分層
+### 依賴分層與介面路徑
 
-依賴刻意拆開，只裝你會用到的。光裝 `requirements.txt` 就足以跑起 server 與主要 pipeline
-（影片、視覺、在地化文字）——要用哪個功能再加裝對應那層即可。
+依賴刻意拆開,只裝你會用到的 —— 光 `requirements.txt` 就足以跑起 server 與主要 pipeline;
+要 PPTX 匯出 / 語音轉文字 / F5-TTS 再加 `requirements-optional.txt`、要歌曲 MV 軸加
+`requirements-song.txt`、要跑測試加 `requirements-dev.txt`。完整表、非 pip 的系統相依
+(ffmpeg · Noto CJK · LibreOffice)與本機 release gates(`office_live`、可攜的 `HF_HOME`
+Whisper cache)都在[使用手冊 §2](docs/USER_MANUAL.md#2-安裝與啟動)。內附的 `Dockerfile`
+已幫你裝好 ffmpeg 與 CJK 字型。
 
-| 分層 | 安裝 | 加了什麼 | 不裝的話 |
-|---|---|---|---|
-| **核心 core** | `pip install -r requirements.txt` | Server + 影片 / 視覺 / 在地化文字 pipeline（Gemini、FastAPI、Pillow、edge-tts、PyMuPDF、matplotlib） | —（一定要裝） |
-| **選用 optional** | `pip install -r requirements-optional.txt` | PPTX 匯出（`python-pptx`）、語音轉文字（`faster-whisper`，自動 GPU→CPU）、F5-TTS 聲音複製、樣本 PDF 工具、outro QR | 對應功能會優雅報錯，其餘照常 |
-| **song** | `pip install -r requirements-song.txt` | 只有 SONG MV 軸 — Demucs + WhisperX（重、數 GB、建議 GPU） | song/MV 軸無法用，其他軸不受影響 |
-| **dev** | `pip install -r requirements-dev.txt` | 測試套件（`pytest`、`httpx`） | 無法跑 `pytest tests/` |
-
-**系統相依（非 pip 安裝）：**
-
-- **ffmpeg / ffprobe** — 任何影片 render 或抽音訊*必需*。`apt install ffmpeg`／`brew install ffmpeg`／`choco install ffmpeg`。
-- **Noto CJK 字型**（例 `fonts-noto-cjk`）— 簡報／黑板中文正確顯示所需。路徑可用 `CLAUDE_FONT_PATH`／`CLAUDE_FALLBACK_FONT_PATH`／`CLAUDE_MONO_FONT_PATH` 覆寫。
-- **LibreOffice**（`libreoffice-impress`）— PPTX 來源功能的跨平台 renderer；Windows 已安裝 Microsoft PowerPoint 時可自動改走 COM fallback。其餘軸（考卷／簡報 PDF／文件／HTML／song）都不需要這兩種 renderer。
-
-### 本機 release gates 與可攜式模型 cache
-
-- 雲端 CI 執行 unit／contract／integration tests，並明確排除 `office_live`，因為 hosted runner 不保證具備 desktop Office runtime。Windows 發布前須在本機執行 `pytest -m office_live tests/test_uploads_pptx.py -q`。
-- Whisper cache 搬到新電腦後，啟動 server 前設定 `HF_HOME`（例如 `HF_HOME=D:\hf-cache`）。`/health` 必須回報 `whisper.cached=true`，`cache_source` 會顯示採用的 cache 設定；缺檔 snapshot 不會被誤判為可用。
-
-內附的 `Dockerfile` 已幫你裝好 ffmpeg 與 CJK 字型。
+唯一正式介面是 **`/app`**(目標導向首頁 + 影片 · 簡報 · 圖卡 · 漫畫 四工作站);`/docs` 是
+OpenAPI 互動文件、`/health` 是健康檢查、`/studio` `/ui` 已退場一律 307 轉導。完整路徑表見
+[使用手冊 §2.5](docs/USER_MANUAL.md#25-介面路徑)。
 
 ### 文件
 
@@ -308,6 +281,7 @@ uvicorn server.main:app --host 127.0.0.1 --port 8000
 | 🔒 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | 正式上線部署(token · CORS · 反向代理 · TLS) |
 | 📚 [`docs/COMIC_PRODUCTION_SYSTEM.md`](docs/COMIC_PRODUCTION_SYSTEM.md) | 漫畫製作系統(內部 MVP) |
 | 🎬 [`docs/promo/README.md`](docs/promo/README.md) · [`docs/skills.md`](docs/skills.md) | 官方介紹影片場景(用專案自家的 HTML→MP4 引擎產) · 隨 repo 走的 Claude Code skills |
+| 🧭 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 架構地圖 — core / server / frontend / CLI 怎麼接、job 狀態機、想改哪先看哪 |
 | 🛠️ [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`claude.md`](claude.md) | 貢獻指南 + 不可妥協的硬規則 |
 | 🗺️ [`ROADMAP.md`](ROADMAP.md) · [`TODO.md`](TODO.md) · [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | 路線圖 · 待辦 · 變更紀錄 |
 | 🚦 [`docs/PRODUCT_READINESS.md`](docs/PRODUCT_READINESS.md) | 產品化推出主線(Phase 0~9 稽核清單) |
@@ -321,7 +295,8 @@ eduStudio/
 ├── server/        FastAPI routes
 ├── frontend/      統一 /app 前端原始碼(React 19 + Vite，自包含建置)
 ├── web/           前端建置產物(僅 /app=web/eduapp;legacy /ui /studio 已退場)
-├── tests/         2800+ pytest
+├── edustudio_cli/ 官方 REST 客戶端:CLI + Python client + MCP server(只依賴 requests)
+├── tests/         3000+ pytest
 └── STATUS.yaml    專案現況
 ```
 

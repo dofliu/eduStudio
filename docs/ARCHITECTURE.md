@@ -2,7 +2,7 @@
 
 > 給「想改 code 的人」的地圖：一張圖看懂 `core` / `server` / `frontend` 怎麼接、job 怎麼
 > 從一份 PDF 走到一支影片、四條 track（影片 / 視覺 / 在地化 / Song MV）怎麼共用同一條
-> pipeline。**對齊現況**（2026-06-10）；定位看 [claude.md](../claude.md)、推出主線看
+> pipeline。**對齊現況**（2026-09-13）；定位看 [claude.md](../claude.md)、推出主線看
 > [PRODUCT_READINESS.md](PRODUCT_READINESS.md)、版本路線看 [ROADMAP.md](../ROADMAP.md)。
 
 eduStudio 是**單一可自架的 FastAPI 後端 + 收斂到 `/app` 的 React 前端**。一個老師 clone
@@ -16,8 +16,9 @@ AI 產出都過得了一道人工審查關卡**（review gate，硬規則 #1，�
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  瀏覽器 (React 19 + Vite, base 寫死 /app/)   ·   CLI / skill / curl    │
+│  瀏覽器 (React 19 + Vite, base 寫死 /app/)                             │
 │         frontend/edustudio/  ──build──►  web/eduapp/ (/app/*)          │
+│  edustudio_cli/ — CLI · Python client · MCP server (只用 requests)      │
 └───────────────┬───────────────────────────────────┬───────────────────┘
                 │ HTTP (cookie 或 Bearer token)       │
                 ▼                                     ▼
@@ -99,6 +100,7 @@ client-side 直連已隨 U-1 退場堵住）。
 | 🎬 影片（簡報） | `slides_pdf` | `slide_ingest.py` 章節切分 + 逐頁旁白 | `deck_to_exam_schema_slides` → 原投影片當底圖 |
 | 🎬 影片（長文/repo/url） | `document` / `repo` / `url` | `adapters/` → `outliner.py` 兩階段大綱 → `scriptor.py` | `deck_to_exam_schema_pptx` → Forest pptx 主題 |
 | 🎵 Song MV | `song` | `_run_ingest_song`：歌詞時間軸對齊 + AI 生圖 prompt | `song_render`（獨立分流，繞過 v0/TTS） |
+| 📚 動態漫畫 | （不走 job）| `core/comics.py` 的 Series / Episode manifest（分鏡、對白、角色 visual lock） | `core/comic_video.py` → 自含 HTML 播放器 → `core/html_video.py` 虛擬時鐘逐格擷取 → mp4 + srt |
 
 - **分流點在 `runner._run_render_inner`**：先 `is_song_schema(deck)` type guard 早判（song 走
   獨立 `_run_render_song`），其餘看 `"sections" in deck` 與 `source_type` 選 `deck_to_exam_schema_*`，
@@ -135,7 +137,8 @@ client-side 直連已隨 U-1 退場堵住）。
   [`core/models.py`](../core/models.py)，呼叫端用 `resolve()`。換模型 = 改登錄表/設定頁一個值。
   provider 介面在 [`core/providers.py`](../core/providers.py)（B-ready，本機 Ollama 等將 slot-in）。
   健檢工具 [`tools/check_models.py`](../tools/check_models.py) 比對哪些 id 在這把 key 下已 404。
-  > 注意：影片/解析旁白目前仍寫死 `gemini-2.5-flash`，換到 3.x 是 **C-3 GATE**（需開額度 A/B 驗品質），別自行換。
+  > 全線已遷到 Gemini 3（文字 `flash` 鍵 = `gemini-3.7-flash`，2026-08-30）。`core/settings.py`
+  > 只留 `gemini-2.5-*` → 3.x 的舊值對照，換模型仍請改登錄表 / 設定頁，別在呼叫端寫死。
 - **計帳（usage）**：所有送 Gemini 的 chokepoint 接 [`core/usage.py`](../core/usage.py) 計帳，
   成本面板 `/api/usage` 走真實統計（影片 / 視覺 / 在地化 / 解析各站）。
 - **安全（Phase 1）**：middleware 三件套 —— `server/auth.py`（單一共享 token，cookie+Bearer）、
@@ -145,6 +148,32 @@ client-side 直連已隨 U-1 退場堵住）。
   `*_DIR`）；字型路徑走 `CLAUDE_*_FONT_PATH` env **不寫死**；DB 路徑皆可用 env 覆寫（測試用 tmp）。
 - **type guard 分流**：schema dispatch（exam vs slides vs song vs deck）用 `"sections" in deck`、
   `is_song_schema()` 等型別判斷早判，未知角色/類型 `raise ValueError`（硬規則 #9）。
+
+---
+
+## 4.5 `edustudio_cli/` — CLI · Python client · MCP server
+
+第二個入口，跟前端一樣**只透過 REST API** 跟 server 講話（不 import `server/` 或 `core/`，
+唯一依賴 `requests`，可裝在另一台機器）。三層同一個 client：
+
+```
+edustudio_cli/client.py   EduStudioClient / ComicsClient  ← 唯一碰 HTTP 的地方
+edustudio_cli/__main__.py argparse CLI（health / video / draft / jobs / publish / comics / api）
+edustudio_cli/mcp_server.py  把同一個 client 包成 MCP server（40 個工具）
+```
+
+- **review gate 在這兩個入口一樣硬**：需審查的 job 停在 `awaiting_review`，一定要明確
+  `jobs approve` / `approve_job` 才會 render —— 擋人的是 server 端 `runner` 的 render 入口
+  assert，client 這層繞不過去。MCP 的 `approve_job` 刻意做成獨立工具、描述寫明「使用者說
+  看過草稿才呼叫」。
+- **MCP SDK 雙版本**：`mcp_server.py` 同時吃 mcp 1.x（`FastMCP`）與 2.x（`MCPServer`）。
+  舊的 `server/mcp_tools.py`（翻譯工具）只吃 1.x，所以 `requirements-dev.txt` 釘 `mcp>=1.2,<2`。
+- **工具回傳約定**：一律單一 JSON 物件（`normalize()`：list → `{"count","items"}`），
+  API 錯誤走 SDK 的 `ToolError`，模型看得到 HTTP 狀態碼與 server 的 detail。
+- 測試 `tests/test_mcp_server.py` 有一條回歸守衛：對每個「零必填參數的唯讀工具」實打一次，
+  只要工具指到不存在的端點（404）就紅 —— 這條抓出過 `client.status()` 打 `GET /status` 的真 bug。
+
+用法見[使用手冊 §11](USER_MANUAL.md#11-cli-與自動化)。
 
 ---
 
@@ -171,7 +200,9 @@ client-side 直連已隨 U-1 退場堵住）。
 | 改安全 / 驗證 / 限流 | `server/auth.py` · `server/ratelimit.py` · `server/path_safety.py` · `core/config.py` | `test_auth` / `test_ratelimit` / `test_path_safety` |
 | 改視覺（圖卡 / 海報） | `server/routes/infocards.py` + `core/infocards/` | `test_infocards_*`（全 mock，**不打真 API**） |
 | 改在地化（翻譯 / dub） | `server/routes/localization.py` + `core/translation/` | `test_localization*` |
-| 改前端 | `frontend/edustudio/app.jsx` | `npm run build`（視覺人後驗） |
+| 改漫畫 / 動態漫畫影片 | `core/comics.py`（manifest + QA gate）· `core/comic_video.py`（播放器 + 時間軸） | `test_comics*` / `test_comic_video`（含 Playwright 虛擬時鐘） |
+| 改 CLI / MCP | `edustudio_cli/client.py` → `__main__.py` / `mcp_server.py` | `test_cli_client` / `test_mcp_server` |
+| 改前端 | `frontend/edustudio/app.jsx`（純邏輯抽到 `.js` 用 `node --test` 測） | `npm test` + `npm run build`（視覺人後驗） |
 
 > **硬規則提醒**：動 `server/` `core/` `schemas` `runner` 一定跑 `pytest tests/`；會燒
 > Gemini/GCP 額度、改安全模型、動大架構的事是 GATE，寫 proposal 後 STOP，別自己跑真實 API；

@@ -96,7 +96,7 @@
 3. **字型路徑不寫死。** 用 `CLAUDE_FONT_PATH` / `CLAUDE_FALLBACK_FONT_PATH` /
    `CLAUDE_MONO_FONT_PATH`,Win/Mac/Linux 都跑得動。
 4. **設定檔 / 路徑常數集中 `core/config.py`**,不在各模組各定義 `BASE_DIR`。
-5. **動 `server` / `runner` / `schemas` / `core` 要跑 `pytest tests/`**(~2850 tests 護網)。
+5. **動 `server` / `runner` / `schemas` / `core` 要跑 `pytest tests/`**(~3060 tests 護網)。
 6. **Schema dispatch 用 type guard**(`isExamDraft` / `isDeckDraft` / `_deck_has_section_id`),
    不要硬寫 `if "problems" in deck`。
 7. **改 schema 型別寫 migration**(見 docs/CODE_REVIEW.md Round 2 naive↔aware datetime 教訓)。

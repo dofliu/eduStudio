@@ -414,8 +414,8 @@
   權限 / 月預算）+ 運維備忘（持久化、R-1 重啟不丟工作、review gate 不可繞、磁碟、健康檢查）+ 指出
   D-1/D-3/D-4 後續。純設定/文件，無 code 變更（未動 server/core/schemas/runner）。
 - [x] 🟡 **D-3 reverse proxy + TLS 指引**（offline，文件）— ✅ 2026-06-09 完成。新增兩份可複製範本：
-  [`deploy/nginx.conf.example`](deploy/nginx.conf.example)（http→https 轉址、certbot/Let's Encrypt
-  簽發註解）與 [`deploy/Caddyfile.example`](deploy/Caddyfile.example)（自動 TLS、零手動憑證）。兩份都
+  [`deploy/nginx.conf.example`](../deploy/nginx.conf.example)（http→https 轉址、certbot/Let's Encrypt
+  簽發註解）與 [`deploy/Caddyfile.example`](../deploy/Caddyfile.example)（自動 TLS、零手動憑證）。兩份都
   預先處理好踩雷點：**上傳上限對齊** `200m`/`200MB`（對齊 `server/routes/uploads.py` 的 `MAX_UPLOAD_SIZE`，
   代理層預設太小會在傳大檔時先回 413）、**長請求逾時** 放寬到 600s（影片 render / 同步 Gemini 呼叫不被切成
   504）、**轉發 `X-Forwarded-For`/`-Proto`**（per-IP rate limit S-6 看真實來源、cookie `Secure` 判定正確）、
@@ -501,6 +501,18 @@
     虛擬時鐘引擎＝**真的吃自己狗糧**。
   - ⏸️ **剩人工**：在有 Chromium + ffmpeg 的本機跑 `python tools/build_promo_video.py`，
     確認成品，再決定放法（YouTube 連結／repo 內檔案），連同四張 `docs/screenshots/*.png` 一起補進 README。
+
+- [x] 🟡 **DOC-6 README ↔ 使用手冊去重 + CLI/MCP 入口文件化**（offline）— ✅ 2026-09-13 完成。
+  README 與 `docs/USER_MANUAL.md` 長年各有一份的四塊內容（依賴分層表、系統相依 ffmpeg/Noto
+  CJK/LibreOffice 的安裝指令、本機 release gates `office_live` + 可攜 `HF_HOME` Whisper cache、
+  介面路徑表）收斂成「手冊是唯一真相、README 只留摘要 + 連結」：內容搬進手冊 §2.1／§2.2／
+  §2.5／新的 §2.6（並補上原本只有 README 有的「不裝的話」欄位與各平台安裝指令），README 中英
+  兩半各留兩段摘要，`uvicorn main:app` 的長段警告縮成一行（338 → 311 行）。同時補漏：README
+  中文半邊補上英文半邊早有的 CLI / MCP 指引、專案結構補 `edustudio_cli/`、中英文件表補上
+  先前完全沒被索引到的 `docs/ARCHITECTURE.md`；`ARCHITECTURE.md` 新增 §4.5
+  「`edustudio_cli/` — CLI · Python client · MCP server」（三層同一個 client、雙 SDK 支援、
+  工具回傳約定、404 回歸守衛）+ 動態漫畫 track + 修掉「旁白仍寫死 `gemini-2.5-flash`」的過期
+  說法。純文件，無 code 變更。
 
 ---
 

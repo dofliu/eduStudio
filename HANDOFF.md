@@ -1,6 +1,6 @@
 # eduStudio — 交接筆記 (Handoff)
 
-> 給接手的人 / 下一個 Claude Code session 用。最後更新：2026-09-04。
+> 給接手的人 / 下一個 Claude Code session 用。最後更新：2026-09-13。
 > 這份是「快速接手」摘要；完整逐項歷史見 `STATUS.yaml`、階段摘要見 `docs/CHANGELOG.md`。
 
 ## 這是什麼
@@ -19,8 +19,9 @@ eduStudio = 單一可自架的 **Python FastAPI server**，把老師的素材變
 
 - **本 repo（唯一工作目錄）**：clone 到任一本機目錄即可（下面指令一律以 repo 根目錄為基準，
   不依賴特定絕對路徑）。
-- **GitHub**：`https://github.com/dofliu/eduStudio`（public）。2026-09-04 現況：`main` 已含
-  2026-08-30 工程收斂輪與 08-31 promo／skill（`ac07ab4`）；文件同步輪走 PR #101。
+- **GitHub**：`https://github.com/dofliu/eduStudio`（public）。2026-09-13 現況：`main` = **`92faa96`**
+  （PR #111 合併點），已含 2026-09-05~09-07 的動態漫畫演出輪與 `edustudio_cli`（CLI + MCP server）。
+  feature branch 一律用 `claude/edustudio-video-production-8nsd6r`，每次合併後從 `origin/main` 重開同名分支。
 - **Python**：3.12（建議用 venv；若本機 pip resolver 有問題可改用 `uv pip install`）。
 - **Gemini 金鑰**：讀環境變數 `GEMINI_API_KEY`；設定頁(settings.json)若填了會優先。settings.json 含金鑰，**已 gitignore**。
 - **字型（CJK）**：跨平台走 `CLAUDE_FONT_PATH` 環境變數指向任一 CJK `.ttf/.ttc`（硬規則：字型路徑不寫死）。
@@ -41,9 +42,10 @@ npm install        # 第一次
 npm run build                      # base 已寫死在 vite.config.ts（U-6），不必再帶 --base
 
 # 測試
-python -m pytest tests/ -q          # 2855 collected (2026-09-04 於 Linux 容器實跑：2842 passed /
-                                    # 13 skipped(mcp + 缺 ffmpeg) / 1 deselected)；CI 全綠
-                                    # （office_live 為 Windows 本機 release gate，CI 明確排除）
+python -m pytest tests/ -q          # 3066 collected (2026-09-13)；CI 全綠
+                                    # （office_live 為 Windows 本機 release gate，CI 明確排除；
+                                    #   缺 ffmpeg / 缺 CJK 字型的容器 skip 會變多）
+cd frontend && npm test             # 17 綠 (node --test，純邏輯 .js)
 ```
 
 ## 介面
@@ -67,9 +69,11 @@ eduStudio/
 │   ├── providers.py + ollama_client.py  provider 抽象(Gemini 主力;文字角色可指本機 Ollama)
 │   └── project.py  Project(一課一工作空間)
 ├── server/        FastAPI routes (jobs/uploads/projects/infocards/comics/settings/localization…)
-├── frontend/      統一 /app 前端原始碼 (React 19 + Vite；app.jsx + comic-studio.jsx)
+├── frontend/      統一 /app 前端原始碼 (React 19 + Vite；app.jsx + comic-studio.jsx
+│                 純邏輯抽到 .js 用 node --test 測：workflows.js / comic-cast.js)
 ├── web/           build 產物 (僅 /app=eduapp;legacy /ui /studio 已退場)
-├── tests/         2855 pytest（office_live 1 個是 Windows 本機 gate）
+├── edustudio_cli/ 第二個入口：REST 客戶端 — client.py / __main__.py(CLI) / mcp_server.py(MCP)
+├── tests/         3066 pytest（office_live 1 個是 Windows 本機 gate）
 ├── STATUS.yaml    完整逐項歷史
 └── HANDOFF.md     本檔
 ```
@@ -84,7 +88,47 @@ eduStudio/
 5. **bash 工具在 Windows 是 cp950**，curl 傳含中文的 JSON 會亂碼 → 用 Python urllib/requests（UTF-8）打 API。
 6. **改前端後**：build 即生效（server 直接 serve `web/eduapp`），硬重新整理 /app；**改後端後**：要重啟 uvicorn。
 
-## 最近狀態（2026-09-04 快照）
+## 最近狀態（2026-09-13 快照）
+
+- **分支**：`main` = **`92faa96`**（PR #111 合併點）。2026-09-05 ~ 09-07 走 PR #103~#111，
+  全部已 merge；工作分支 `claude/edustudio-video-production-8nsd6r` 每輪從 `origin/main` 重開。
+- **2026-09-05 ~ 09-07：動態漫畫演出**
+  - 角色配音規格（旁白留 `default` 用老師本人聲音，角色配 edge/google 聲線）、角色設定稿
+    三視圖 → 去背 cutout（純 Pillow）、說話者定位（泡泡不蓋臉、尾巴直指頭部）。
+  - **PPTX 講者備註 → 旁白**（PR #109）：`extract_pptx_speaker_notes` 抽備註 →
+    `jobs/<id>/video_src/speaker_notes.json` → `slide_ingest` 當該頁的**權威大綱**餵 Gemini；
+    頁數對不上**整組丟棄**（寧可沒有也不要錯位）。老師真實 41 頁簡報驗過（8 頁有備註）。
+  - **角色表情 + 手繪風轉場**（PR #109）：`Dialogue.expression` / `Character.expressions`
+    表情變體 + 關鍵字推斷；三種轉場 ink / tear / speed。
+  - **角色演出編輯介面**（PR #110）：素材頁「角色演出」面板；純邏輯抽 `comic-cast.js`
+    用 `node --test` 測；順手修掉存檔會洗掉 `anchor_assets` 的 bug。
+  - **嘴型只認畫好的嘴型圖**（PR #111）：合成嘴型（疊形狀 → 胸上景+下巴開合）兩版都被判定
+    不自然 —— 全身立繪縮到角落後嘴巴只剩幾像素。整條合成路徑刪除，改成
+    `Character.mouth_shapes`（同角色不同嘴型的**整張**立繪輪替），沒設就不做嘴型。
+    **教訓：小尺度人臉上做合成不會贏，只有整張換圖會像。**
+- **2026-09-06：第二個入口 — `edustudio_cli`**
+  - **CLI + Python client**（PR #106）：只依賴 `requests`，可裝在另一台機器遠端操作 server。
+  - **MCP server**（PR #107）：40 個工具給 Claude Code / Claude Desktop；同時吃 mcp 1.x
+    (`FastMCP`) 與 2.x (`MCPServer`)，`requirements-dev.txt` 釘 `mcp>=1.2,<2`（舊的
+    `server/mcp_tools.py` 只支援 1.x）。**review gate 沒鬆**：`approve_job` 是獨立工具。
+  - **抓到真 bug**（PR #108）：實機測 MCP 時發現 `client.status()` 打的 `GET /status` 端點
+    根本不存在（404）→ 移除，並補回歸守衛（對每個零必填參數的唯讀工具實打一次，
+    指到不存在的端點就紅）。**這條守衛留著，別刪。**
+- **2026-09-13：文件整理輪**（零 code 變更）— README 砍掉與使用手冊重複的依賴分層表／系統
+  相依／release gates／介面路徑（內容移進手冊 §2.1/§2.2/§2.5/§2.6 並補強）；README 中文半邊
+  補 CLI/MCP 指引、專案結構補 `edustudio_cli/`、文件表補 `ARCHITECTURE.md`；
+  `docs/ARCHITECTURE.md` 補 §4.5（`edustudio_cli`）+ 動態漫畫 track，並修掉「旁白仍寫死
+  `gemini-2.5-flash`」的過期說法；`TODO.md` 換新現況段。
+- **⚠️ 沙箱限制（尚未驗證的部分）**：開發容器**沒有 `GEMINI_API_KEY`**，edge-tts / gTTS / HF
+  被 proxy 擋（用 MeloTTS via sherpa-onnx 當替身），也**沒有 CJK 字型**。所以
+  「講者備註 → 真旁白 → 真 TTS → 真影片」這條只驗到 TTS 前，**要在有金鑰的機器補跑一次**。
+  同樣原因，容器實跑 `3057 passed / 9 failed`，9 條全是環境造成（`test_net_safety` 需外網、
+  `test_outro_video_qr` / `test_pptx_cover_outro_themes[journal]` 需真 CJK 字型），在乾淨的
+  `main` 上也一樣紅。
+
+---
+
+### 更早：2026-09-04 快照
 
 - **分支**：`main` 已推進到 **`ac07ab4`**（2026-08-31），含 2026-08-30 工程收斂輪、`/ui` 退場、
   Dockerfile 改建 frontend/、promo 影片與 `repo-intro-video` skill。2026-09-04 的文件同步輪
@@ -121,7 +165,7 @@ eduStudio/
   同日再收 **T2-4**（schema 輸入界限，30 欄 + `/api/generate` 生成次數上限）與
   **T0-3**（review 覆蓋率揭露：`review_coverage.json` + 審查頁「N 步無法自動驗證」橫幅）。
   測試 +133，全套 `2975 passed`。
-- 下一步候選清單見 `TODO.md` 🌟 段（2026-09-04 盤點）。
+- 下一步候選清單見 `TODO.md` 🌟 段（2026-09-13 盤點）。
 
 ## 更早的 session（2026-06-07）做了什麼
 

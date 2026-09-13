@@ -7,6 +7,29 @@
 
 ---
 
+## 文件整理輪：README ↔ 使用手冊去重、架構文件補 CLI/MCP（2026-09-13）
+
+零 code 變更。這一輪把 2026-09-05~09-07 做的東西（動態漫畫演出 + `edustudio_cli`）寫進文件，
+順手砍掉 README 跟使用手冊之間長年重複的段落。
+
+- **去重（README → 使用手冊）**：依賴分層表、系統相依（ffmpeg / Noto CJK / LibreOffice）的
+  安裝指令、本機 release gates（`office_live`、可攜 `HF_HOME` Whisper cache）、介面路徑表
+  —— 四塊原本 README 與手冊各有一份。內容統一搬進手冊 §2.1／§2.2／§2.5／新的 §2.6（並補上
+  README 那份才有的「不裝的話」欄位與安裝指令），README 中英兩半只留兩段摘要 + 連結。
+  `uvicorn main:app` 的長段警告縮成一行。README 338 → 311 行。
+- **README 補漏**：中文半邊補上英文半邊早就有的 CLI / MCP 指引；專案結構補 `edustudio_cli/`、
+  測試數 2800+ → 3000+；中英文件表補上 `docs/ARCHITECTURE.md`（先前完全沒被索引到）。
+- **`docs/ARCHITECTURE.md`**：新增 §4.5「`edustudio_cli/` — CLI · Python client · MCP server」
+  （三層同一個 client、雙 SDK 支援、工具回傳約定、那條 404 回歸守衛）、track 表補動態漫畫、
+  「想動哪裡」表補漫畫 / CLI-MCP 兩列；修掉「影片旁白仍寫死 `gemini-2.5-flash`」的過期說法
+  （全線 2026-08-30 已遷 `gemini-3.7-flash`）。
+- **`HANDOFF.md` / `TODO.md` / `STATUS.yaml`**：換上 2026-09-13 現況，並明列沙箱未驗的部分
+  （無 `GEMINI_API_KEY`、TTS 被 proxy 擋、無 CJK 字型 → 講者備註那條只驗到 TTS 前）。
+- 驗證：`pytest tests/` 3066 collected / 3057 passed（9 條紅全是容器缺外網與 CJK 字型造成，
+  乾淨 main 上一樣紅）、`npm test` 17 綠。
+
+---
+
 ## 動態漫畫：拿掉合成嘴型，改成只認畫好的嘴型圖（2026-09-07）
 
 回饋：合成嘴型在全身立繪上怎麼調都不像，「除非是直接換一張同一個人、另一個嘴型的完整圖片」，

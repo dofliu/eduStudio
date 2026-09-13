@@ -17,7 +17,47 @@
 
 ---
 
-## 🌟 下一步候選 (2026-09-04 文件同步輪盤點)
+## 🌟 下一步候選 (2026-09-13 整理輪盤點)
+
+> 2026-09-05 ~ 09-07 這一段做的是**動態漫畫 + 第二個入口(CLI / MCP)**,PR #103~#111 全部已
+> merge 進 `main`(`92faa96`)。2026-09-13 這輪是整理輪:文件對齊現況、砍 README 與使用手冊
+> 之間的重複。
+
+**這一段完成了什麼**
+
+- **`edustudio_cli/`(PR #106)** — 走 REST 的官方客戶端:`EduStudioClient` / `ComicsClient` +
+  argparse CLI(`health` / `video` / `draft` / `jobs` / `publish` / `comics` / `api`)。只依賴
+  `requests`,可裝在另一台機器遠端操作 server。
+- **MCP server(PR #107)** — `edustudio_cli/mcp_server.py` 把同一個 client 包成 40 個 MCP 工具給
+  Claude Code / Claude Desktop;同時吃 mcp 1.x / 2.x,`requirements-dev.txt` 釘 `mcp>=1.2,<2`
+  (舊的 `server/mcp_tools.py` 只支援 1.x FastMCP)。**review gate 沒鬆**:`approve_job` 是獨立工具。
+- **`/status` 真 bug(PR #108)** — 實機測 MCP 時抓到 `client.status()` 打的 `GET /status` 根本
+  不存在(404)。方法與工具都移除,並補一條回歸守衛:對每個「零必填參數的唯讀工具」實打一次,
+  指到不存在的端點就紅。
+- **PPTX 講者備註 → 旁白(PR #109)** — `core/pptx_augment.extract_pptx_speaker_notes` 抽備註 →
+  `jobs/<id>/video_src/speaker_notes.json` → `slide_ingest` 餵給 Gemini 當該頁的權威大綱。
+  頁數對不上時整組丟棄(寧可沒有也不要錯位)。真實 41 頁簡報驗過:8 頁有備註、只有那 8 頁被標記。
+- **角色表情 + 手繪風轉場(PR #109)** — `Dialogue.expression` / `Character.expressions` 表情變體、
+  關鍵字推斷、三種手繪轉場(ink / tear / speed)。
+- **角色演出編輯介面(PR #110)** — 素材頁的「角色演出」面板(立繪預覽 · anchor 選擇 · 表情變體),
+  純邏輯抽到 `frontend/edustudio/comic-cast.js` 用 `node --test` 測;順手修掉存檔會洗掉
+  `anchor_assets` 的 bug。
+- **嘴型:只認畫好的嘴型圖(PR #111)** — 合成嘴型(疊形狀 / 切下巴)在全身立繪上怎麼調都不像,
+  依回饋整個拿掉,改成 `Character.mouth_shapes`(同一角色不同嘴型的**整張**立繪輪替)。
+  沒設就完全不做嘴型。
+
+**現況**:`main` = `92faa96`;`pytest tests/` 3066 collected;frontend `npm test` + `vite build` 綠。
+
+**還沒做 / 接下來**
+
+- [ ] 🔴 漫畫正式化 GATE(真實生成 QA 一輪 + 匯出實機檢查 + 手冊案例)—— 見下方紅色段。
+- [ ] 🟡 沙箱限制未驗的部分:此容器沒有 `GEMINI_API_KEY`、edge-tts / gTTS 被 proxy 擋,
+  所以**講者備註 → 真旁白 → 真 TTS → 真影片**這條只驗到 TTS 前;要在有金鑰的機器補跑一次。
+- [ ] 🟢 `edustudio_cli` 還沒包成可 `pip install` 的套件(目前 `python -m edustudio_cli`)。
+
+---
+
+## 🌟 前一輪 (2026-09-04 文件同步輪盤點)
 
 > 2026-08-31:官方介紹影片收尾(配樂三輪 + `--loudness`)+ 新 skill `repo-intro-video`。
 > 2026-09-04:純文件同步輪(零 code 變更),對照程式碼查核各文件說法。
@@ -70,7 +110,7 @@ Dockerfile 改建 / promo / `repo-intro-video` skill 都已在 main 上。
 
 ---
 
-## 🌟 上一輪候選 (2026-08-30 文件盤點)
+## 🌟 更早一輪 (2026-08-30 文件盤點)
 
 > 2026-08-20 ~ 08-28 完成:漫畫工作站 MVP、目標導向首頁、P0 live E2E 稽核、P1/P2 驗證
 > (Ollama 接線 / PPTX round-trip / request validation / CI Node 24 / Whisper 三流程 /

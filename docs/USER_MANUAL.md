@@ -78,6 +78,15 @@ eduStudio 是一套**單一、可自架的 Python FastAPI 伺服器**,把老師�
 
 > **用 Docker 的話**:ffmpeg 與 CJK 字型都已內建於 `Dockerfile`,你只要有 Docker。
 
+**非 pip 的系統相依怎麼裝:**
+
+- **ffmpeg / ffprobe** — `apt install ffmpeg`／`brew install ffmpeg`／`choco install ffmpeg`。
+- **Noto CJK 字型**(例 `fonts-noto-cjk`)— 簡報／黑板中文正確顯示所需;路徑可用
+  `CLAUDE_FONT_PATH`／`CLAUDE_FALLBACK_FONT_PATH`／`CLAUDE_MONO_FONT_PATH` 覆寫(程式不寫死)。
+- **LibreOffice**(`libreoffice-impress`)— PPTX 來源功能(上傳 PPTX 補圖 / PPTX→影片)的跨平台
+  renderer;Windows 已安裝 Microsoft PowerPoint 時可自動改走 COM fallback。其餘軸(考卷／
+  簡報 PDF／文件／HTML／song)兩種 renderer 都不需要。
+
 ### 2.2 安裝 — 兩條路
 
 **A. Docker(最少踩雷)**
@@ -101,12 +110,12 @@ cd frontend && npm install && npm run build && cd ..   # 產出 /app(base 已寫
 
 **依賴分層**(只裝你會用到的):
 
-| 分層 | 安裝 | 加了什麼 |
-|---|---|---|
-| 核心 | `pip install -r requirements.txt` | Server + 影片/視覺/在地化文字 pipeline |
-| 選用 | `pip install -r requirements-optional.txt` | PPTX 匯出、語音轉文字(faster-whisper)、F5-TTS |
-| song | `pip install -r requirements-song.txt` | 歌曲 MV 軸(Demucs + WhisperX,重、數 GB) |
-| dev | `pip install -r requirements-dev.txt` | 測試套件(pytest / httpx) |
+| 分層 | 安裝 | 加了什麼 | 不裝的話 |
+|---|---|---|---|
+| 核心 core | `pip install -r requirements.txt` | Server + 影片／視覺／在地化文字 pipeline(Gemini、FastAPI、Pillow、edge-tts、PyMuPDF、matplotlib) | —(一定要裝) |
+| 選用 optional | `pip install -r requirements-optional.txt` | PPTX 匯出(`python-pptx`)、語音轉文字(`faster-whisper`,自動 GPU→CPU)、F5-TTS 聲音複製、樣本 PDF 工具、outro QR | 對應功能會優雅報錯,其餘照常 |
+| song | `pip install -r requirements-song.txt` | 只有歌曲 MV 軸 — Demucs + WhisperX(重、數 GB、建議 GPU) | song/MV 軸無法用,其他軸不受影響 |
+| dev | `pip install -r requirements-dev.txt` | 測試套件(`pytest`、`httpx`) | 無法跑 `pytest tests/` |
 
 ### 2.3 啟動 server ⚠️ 重點
 
@@ -140,6 +149,15 @@ server 啟動時會印一輪**自檢**:ffmpeg / 字型 / API key 在不在,缺�
 | `/api` `/localization` `/projects` `/jobs` … | REST 後端 | |
 | `/health` | 健康檢查(回布林,給監控 / Docker healthcheck) | |
 | `/studio` `/ui` | 已退場(2026-08-30 U-5),一律 307 轉導 `/app/` | 轉址 |
+
+### 2.6 本機 release gates 與可攜式模型 cache
+
+- 雲端 CI 跑 unit／contract／integration 測試,並**明確排除 `office_live`** —— hosted runner
+  不保證有 desktop Office runtime。**Windows 發布前**要在本機補跑
+  `pytest -m office_live tests/test_uploads_pptx.py -q`。
+- 想把 Whisper 模型 cache 搬到另一台電腦:啟動 server **前**設 `HF_HOME`(例
+  `HF_HOME=D:\hf-cache`),`/health` 要回報 `whisper.cached=true`,`cache_source` 會顯示採用
+  的是哪個 cache 設定;缺檔的 snapshot 不會被誤判成可用。
 
 ---
 
